@@ -4,6 +4,14 @@ Colleagues can see precisely what was run for each experiment, re-run it, and in
 evidence — without reimplementing anything. Each notebook calls the **exact script** that
 produced the committed results (no forked code that can drift), then renders the evidence CSVs.
 
+**All three notebooks ship with their evidence cells already executed** — every table and plot
+you see as a cell output *is* the committed canonical result. You can follow the whole experiment
+by reading the outputs alone, or re-run any cell: every non-optional cell reads only committed
+files and reproduces its display instantly (no credits, no overwrites). The cells tagged
+**`optional`** are the hosted-API "run the experiment" cells (plus 02's paired-stats layer) —
+they are left unexecuted and are the only ones that cost money / minutes-to-hours and can
+overwrite or append to the committed files (see the per-notebook warnings below).
+
 | Notebook | Reproduces | Cost | Overwrites canonical files? |
 |---|---|---|---|
 | `01_frontier_classification_repro.ipynb` | Master report §14.11 — frontier benchmark, 9 methods × 5 folds × seed 42 on `coil2000` (log loss / AUC / Brier / PR-AUC / lift + D3 frontier) | ~minutes | ⚠ Yes — `frontier_results_coil2000.csv` + plot (use `--seed 7` for non-destructive runs) |
@@ -20,6 +28,10 @@ produced the committed results (no forked code that can drift), then renders the
    pip install ipykernel
    python -m ipykernel install --user --name tabarena-ta
    ```
+
+   For running the notebooks locally, the venv needs Jupyter's execution stack:
+   `pip install jupyter ipykernel` (brings nbclient/nbconvert/nbformat). The repo-local
+   `.venv-ta` is the venv that produced the committed outputs and is already set up this way.
 
    (If you built a fresh environment, pin `tabpfn-client` to 0.3.3 and re-read master-report §15
    before trusting comparisons — verdicts are version-sensitive.)

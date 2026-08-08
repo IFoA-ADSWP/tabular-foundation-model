@@ -45,7 +45,7 @@ flowchart TB
 
 ## How to use this path
 
-- Four phases, each with a **check**. Do the check before moving on — don't read ahead.
+- Four phases. Read them in order — each builds on the last.
 - **Run first, read after.** Read code/specs with real outputs open, not before you have any.
 - Use the skills (`.opencode/skills/`) as runbooks — they exist so you don't have to figure out how this repo runs experiments from scratch.
 
@@ -53,7 +53,7 @@ flowchart TB
 
 ## Phase 0 — The Foundation Mini-Course (Days 1–2)
 
-Goal: speak the language of the repo before you run anything. Six short lessons, using real numbers from `outputs/current/tables/`. Do the exercises by hand — they're the point. Deeper background lives in main path Part 2 (**S1**, **S4**) and `docs/analyses/metrics_explained.md`.
+Goal: speak the language of the repo before you run anything. Six short lessons, using real numbers from `outputs/current/tables/`. Deeper background lives in main path Part 2 (**S1**, **S4**) and `docs/analyses/metrics_explained.md`.
 
 ### Lesson 0.1 — The insurance prediction problem
 
@@ -74,7 +74,7 @@ Two domain terms that matter:
 - **Pure premium = frequency × severity** — the quantity an insurer actually prices. Model it directly (Tweedie) or as two models.
 - **Exposure** — policies cover different time periods; claim counts only compare after normalizing by exposure.
 
-**Exercise:** for each of the three datasets, name the task and the target column. (Answers: `freMTPL2freq` → frequency/`ClaimNb`; `eudirectlapse` → lapse (and severity via `prem_pure`); `ausprivauto0405` → frequency/`ClaimOcc` and severity/`VehValue`.)
+Note the task and target per dataset: `freMTPL2freq` → frequency/`ClaimNb`; `eudirectlapse` → lapse (and severity via `prem_pure`); `ausprivauto0405` → frequency/`ClaimOcc` and severity/`VehValue`.
 
 Where it lives: `data/README.md`, `docs/analyses/regime_characterization.md`.
 
@@ -98,9 +98,9 @@ Discrimination = ordering. Given 1,000 policyholders, do the risky ones get the 
 
 ![Table1 discrimination on eudirectlapse](figures/lp_discrimination.png)
 
-Read it like a scientist: (1) all five models sit in a tight band just above chance — lapse risk is genuinely hard to *rank*; (2) with prevalence 0.128, random guessing gives PR AUC ≈ 0.128, so ~0.19 is "clearly better than random but far from strong"; (3) the gaps between models (~0.01–0.03) are small — you cannot declare a winner from one table. That's what same-fold paired tests are for (Lesson 0.5, Phase 3).
+Read it like a scientist: (1) all five models sit in a tight band just above chance — lapse risk is genuinely hard to *rank*; (2) with prevalence 0.128, random guessing gives PR AUC ≈ 0.128, so ~0.19 is "clearly better than random but far from strong"; (3) the gaps between models (~0.01–0.03) are small — you cannot declare a winner from one table. That's what same-fold paired comparisons are for (Lesson 0.5, Phase 3).
 
-**Exercise:** if positives were 50% of the data, PR AUC would be a different baseline than it is here. Explain in one sentence. (Answer: a random predictor's PR AUC equals the prevalence, so PR AUC baselines move with class balance, while AUC's baseline is fixed at 0.5.)
+PR AUC baselines move with class balance — a random predictor's PR AUC equals the prevalence — while AUC's baseline is fixed at 0.5.
 
 ### Lesson 0.3 — Calibration: are the probabilities *right*?
 
@@ -129,7 +129,7 @@ And the same idea in the picture form you'll see in the notebooks — a **reliab
 
 Two lessons in one table: (1) raw TabPFN starts *near the constant-predictor floor*, and post-hoc calibration barely moves it — the repo's finding is that TabPFN ships well-calibrated, which is exactly why we care about it; (2) even the best Brier here ≈ the floor — the same weak-signal story as Lesson 0.2. And Table2 shows *what* calibration did: raw TabPFN's mean predicted probability was 0.107 (slightly under-confident); after Platt/isotonic it's 0.128 — **exactly the base rate**. Calibrated means: on average, your predictions agree with reality.
 
-**Exercise:** a model predicts 0.9 for 100 customers; 40 lapse. What is that bucket's ECE contribution? (Answer: |0.9 − 0.4| = 0.5.)
+Example: a model predicts 0.9 for 100 customers and 40 lapse → that bucket's ECE contribution is |0.9 − 0.4| = 0.5.
 
 ### Lesson 0.4 — The accuracy trap (imbalance)
 
@@ -139,15 +139,15 @@ Two lessons in one table: (1) raw TabPFN starts *near the constant-predictor flo
 
 Rule of thumb: when the minority class is under ~20%, ignore accuracy.
 
-**Exercise:** XGBoost's accuracy is 0.857 — *worse* than predicting all-zeros. Can a "worse-accuracy" model still be the better risk model? (Answer: yes — accuracy depends on the decision threshold; XGBoost trades accuracy for recall. A model that ranks risk well and prices well is better even if its argmax accuracy is low. This is exactly why the repo scores discrimination + calibration, not accuracy.)
+XGBoost's accuracy is 0.857 — *worse* than predicting all-zeros — and yet it can still be the better risk model: accuracy depends on the decision threshold, and XGBoost trades accuracy for recall. A model that ranks and prices risk well is better even when its argmax accuracy is low — which is exactly why the repo scores discrimination + calibration, not accuracy.
 
 ### Lesson 0.5 — Experimental hygiene (the three rules)
 
 - **Stratified split / CV** — keep the rare class proportional in every fold. Table3 shows it working: full set 12.81% lapse, the 10K pilot subset 12.82% (Δ 0.01pp). A non-stratified split would have drifted.
 - **Fixed seed** — random splits are deterministic once seeded. This repo runs `seed=42` by default; other seeds write `_seed<N>` files so they never clobber canonical results.
-- **Same folds** — every model scored on the *identical* train/test split. Only then are differences paired and testable (paired t-test), and only then are you comparing models instead of splits.
+- **Same folds** — every model scored on the *identical* train/test split. Only then are differences paired and statistically comparable (paired t-test), and only then are you comparing models instead of splits.
 
-**Exercise:** why does Table3's "Subset (10K)" row exist? (Answer: pilot subsets must preserve class balance so pilot conclusions transfer to full-data runs.)
+The "Subset (10K)" row exists because pilot subsets must preserve class balance so pilot conclusions transfer to full-data runs.
 
 ### Lesson 0.6 — Repo orientation (30 min, skimming)
 
@@ -160,16 +160,14 @@ Know these exist and what they're for:
 
 One-paragraph mental model (don't live here yet): the repo has two eras — the older notebook era (`notebooks/baseline_experiments/` + `src/`) produced the tables above, and the current scripts era (`scripts/eval/insurance_benchmark_v1/`) superseded it. Phase 3 covers the current era. For now: notebooks made the tables; scripts make the frontier.
 
-### Phase 0 final check
+### Phase 0 wrap-up
 
-Vocabulary — say each in one sentence, no looking: *frequency, severity, lapse, pure premium, exposure, class imbalance, discrimination, calibration, ROC AUC, PR AUC, top-decile lift, Brier, log loss, ECE, isotonic regression, stratified CV, seed, same folds, standard error (SE), fold-noise tie.*
-
-The three questions:
-1. Why do we care about PR AUC when positives are ~10% of the data?
-2. ROC AUC says a model *ranks* well. What does it NOT tell you?
-3. What does "same folds" mean, and why does every comparison in this repo require it?
-
-Plus one table-reading test: look at Table1 again. Name the best ranking model, the gap that separates it from the pack, and why you still can't call a winner from this table alone. (Answers: best AUC is LogisticRegression 0.599; the band is ~0.55–0.60, i.e. within noise of each other on one split; single-table comparisons don't tell you about variance or paired significance.)
+By now you should be able to:
+- Say each of these in one sentence: *frequency, severity, lapse, pure premium, exposure, class imbalance, discrimination, calibration, ROC AUC, PR AUC, top-decile lift, Brier, log loss, ECE, isotonic regression, stratified CV, seed, same folds, standard error (SE), fold-noise tie.*
+- Explain why PR AUC matters when positives are ~10% of the data
+- Explain what ROC AUC does *not* tell you about a model that ranks well
+- Explain what "same folds" means and why every comparison in this repo requires it
+- Read Table1 like a scientist: the best ranking model is LogisticRegression at 0.599, but the band is ~0.55–0.60 — within noise of each other on one split — so no winner can be called from this table alone; single-table comparisons don't tell you about variance or paired significance.
 
 ## Phase 1 — First Runs Runbook (Days 3–5)
 
@@ -184,7 +182,7 @@ Do, in order:
 4. Note the **two ways to run TabPFN** in this repo: (a) the local package (notebook era, what you use this phase), and (b) the hosted API via `tabpfn_client` (`model_path="v3_default"`, what Phase 3's frontier scripts use). Same model, different plumbing.
 5. Know the escape hatch: if a skill's API is missing from the installed package, the upstream source tree has it — `PYTHONPATH=/Users/Scott/Documents/Data Science/ADSWP/TabPFN-upstream/src` (tabpfn-explore skill).
 
-**Check:** the import one-liner runs clean in your venv, and you know which of the two TabPFN paths you just used.
+**By now you should be able to:** confirm the import one-liner runs clean in your venv, and name which of the two TabPFN paths you just used.
 
 ### Lesson 1.1 — `tabpfn-explore`: pre-flight on eudirectlapse (morning, Day 3)
 
@@ -197,7 +195,7 @@ Goal: inspect before you train. Follow the skill's procedure:
 5. Create a tiny **stratified** pilot subset (e.g. 10K rows, seed 42) — Table3's "Subset (10K)" row is the proof this works: 12.82% vs 12.81% (Δ 0.01pp).
 6. Verify the import path (Lesson 1.0.5), then report: schema, balance, task, next skill.
 
-**Check:** you can say "classification, `lapse`, 12.8% balance, no leaks, pilot subset at data/…" without opening the file.
+**By now you should be able to:** say "classification, `lapse`, 12.8% balance, no leaks, pilot subset at data/…" without opening the file.
 
 ### Lesson 1.2 — `tabpfn-classify`: your first classifier run (afternoon, Day 3)
 
@@ -213,7 +211,7 @@ Follow the skill's procedure, in this order:
    - Accuracy ≈ 0.87 tells you *nothing* (Lesson 0.4).
 6. Report per the skill: what was run, metric table, is it stable enough to scale, **one** concrete next step (more rows? different preprocessing?).
 
-**Check:** your three metrics, with the floor comparison, written in one table you could paste into a report.
+**By now you should be able to:** write your three metrics, with the floor comparison, in one table you could paste into a report.
 
 ### Lesson 1.3 — `tabpfn-regress`: first regression run (Day 4)
 
@@ -223,15 +221,15 @@ Now the harder task: `freMTPL2freq.csv`, target `ClaimNb` (claim count, **678,01
 2. Run a small seeded baseline: metrics RMSE/MAE (regression — no AUC/Brier here; that vocabulary returns in Phase 3 with Poisson deviance).
 3. Note the natural "one next change" the skill asks for: a target transform (log1p) — flagged, not done, at this stage.
 
-**Check:** you can state ClaimNb's distribution shape, the result of the non-finite check, and one transform you'd test next.
+**By now you should be able to:** state ClaimNb's distribution shape, the result of the non-finite check, and one transform you'd try next.
 
 ### Lesson 1.4 — Read your own results (Day 5, morning)
 
 1. Open `outputs/current/tables/` — this is the **ledger** (Phase 0, Lesson 0.6). Find the file your run wrote (classifier runs feed `tabpfn_finetune_trial_results.csv`-style ledgers; the notebook-era Table1–4 files show the format).
 2. Read your row out loud, column by column, and classify each metric: *discrimination* (AUC) vs *calibration* (log loss, Brier) vs *cost* (fit/pred time).
-3. Write down your exact command + seed + data path — Phase 4's report needs it, and "a colleague could reproduce this" is the graduation bar.
+3. Write down your exact command + seed + data path — "a colleague could reproduce this" is the bar the loop is built around.
 
-**Check:** you can read your table to someone and name which column answers which question.
+**By now you should be able to:** read your table to someone and name which column answers which question.
 
 ### Lesson 1.5 — Read S2 and S3 with fresh eyes (Day 5, afternoon)
 
@@ -240,13 +238,14 @@ Now read main path Part 2, **S2** (GLM/GBDT baselines) and **S3** (TabPFN). Afte
 - The GLM link-function list (logistic/Poisson/Tweedie) is exactly the `lapse` / `ClaimNb` / severity mapping from Lesson 0.1.
 - The GBDT "tuning effort" claim is why the repo compares *zero-tune* TabPFN against *tuned* baselines (Phase 3).
 
-### Phase 1 check
+### Phase 1 wrap-up
 
-1. Explain why TabPFN needs no training, in one minute (prior fitting + in-context learning, not weights on your data).
-2. Both runs reproducible: command + seed + data path written down.
-3. Read your classifier results table out loud — which columns are discrimination, which are calibration, and do the numbers beat the Phase 0 floors?
+By now you should be able to:
+- Explain why TabPFN needs no training, in one minute (prior fitting + in-context learning, not weights on your data)
+- Reproduce both runs: command + seed + data path written down
+- Read your classifier results table out loud — which columns are discrimination, which are calibration, and whether the numbers beat the Phase 0 floors
 
-**Common failure modes (if something breaks):** missing API key → clear startup error (Lesson 1.0.3); import mismatch → installed package vs upstream `PYTHONPATH` (1.0.5); memory/runtime on Apple Silicon → shrink the pilot subset, keep first runs small (tabpfn-explore skill); `mps` slower than `cpu` on this hardware — prefer `cpu` for smoke tests.
+**Common failure modes (if something breaks):** missing API key → clear startup error (Lesson 1.0.3); import mismatch → installed package vs upstream `PYTHONPATH` (1.0.5); memory/runtime on Apple Silicon → shrink the pilot subset, keep first runs small (tabpfn-explore skill); `mps` slower than `cpu` on this hardware — prefer `cpu` for smoke runs.
 
 ## Phase 2 — Read the research arc (Days 6–8)
 
@@ -258,10 +257,10 @@ Do:
 - **Trace one report end-to-end:** pick any row in `REPORT_REGISTRY.md`, open the report, find its evidence files, and confirm the numbers in the report match the tables
 - Read main path Part 2: **S6** (negative findings — learn these so you don't repeat them)
 
-Check:
-- You can summarize what each of those five notebooks concluded
-- You can trace a claim: report → table → experiment
-- You know which notebook-era results are superseded (the 07/08 TabPFN arms were replaced by the frontier benchmark)
+By now you should be able to:
+- Summarize what each of those five notebooks concluded
+- Trace a claim: report → table → experiment
+- Name which notebook-era results are superseded (the 07/08 TabPFN arms were replaced by the frontier benchmark)
 
 ## Phase 3 — The live pipeline (Days 9–11)
 
@@ -285,28 +284,26 @@ Do:
 - Read the docstring of `scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py`, then run it on ONE small dataset (e.g. `bemtl97` or `coil2000`)
 - Open `frontier_results_<dataset>.csv`: metric columns (`mean_auc`, `se_auc`, `mean_brier`, `se_brier`), parameter counts, Pareto status
 - **Then** read `docs/analyses/insurance_frontier_benchmark_spec.md` and walk the script's flow (load → 5-fold CV → baselines + hosted TabPFN → metrics → Pareto frontier)
-- Skim `run_tuned_baselines.py` (the "finality" test: tuned GLM/GBDT vs zero-tune TabPFN) and `run_reframe_frequency.py` (your current branch's topic)
+- Skim `run_tuned_baselines.py` (the "finality" comparison: tuned GLM/GBDT vs zero-tune TabPFN) and `run_reframe_frequency.py` (your current branch's topic)
 - **Then the master report** (main path Stage 4.5): read `docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md` sections **§6** (the label leak), **§11** (imbalance + the 1−AUC blindness story), **§12** (why v1 looked lopsided), **§13** (size sweep), **§14.1–§14.4** (frontier + D3 rule), **§14.11** (AUC rescore), **§14.14** (the reframe you're working on). Skim the rest.
 - Read main path Part 2: **S5** (methodology), **S9** (conclusions), **S10–S12** (metric eras, significance, self-correction case study)
 
-Check:
-- You can describe one frontier run end-to-end in five steps, no code
-- You can explain the Pareto frontier and why parameter counting matters (TabPFN's ~10M pretraining params vs GLM's `n_features + 1`)
-- You know what question the reframe-frequency experiment is testing
-- You can state the current verdict: TabPFN **AUC #1 on all 6 classification datasets** (even against tuned baselines); regression/frequency stays GBDT territory; the GLM family is never dominated
+By now you should be able to:
+- Describe one frontier run end-to-end in five steps, no code
+- Explain the Pareto frontier and why parameter counting matters (TabPFN's ~10M pretraining params vs GLM's `n_features + 1`)
+- State what question the reframe-frequency experiment is asking
+- State the current verdict: TabPFN **AUC #1 on all 6 classification datasets** (even against tuned baselines); regression/frequency stays GBDT territory; the GLM family is never dominated
 
-## Phase 4 — Graduation exercise (Days 12–14)
+## Phase 4 — Follow a completed loop end-to-end (Days 12–14)
 
-Goal: the loop, complete.
+Goal: the loop, complete — read it in finished form.
 
-Do:
-- Pick one small question. Safest default: **replicate an existing report's core result with a different seed** (e.g. `--seed 7`) and verify the conclusion holds. If you want something genuinely open, say so and we'll scope it.
-- Run the full loop using the skills: question → skill → seeded experiment → results tables → one-page technical report (`tabpfn-technical-report`, dedup against the registry first) → registry row
+Read:
+- Pick one report in `docs/reports/` (e.g. the reframe-frequency study) and read its objective, method, results, and limitation sections
+- Open the evidence CSVs it points to (`outputs/current/tables/`, or wherever the report cites) and confirm the report's numbers come from them
+- Open the matching reproducibility notebook in `notebooks/reproducibility/` and step through its cells — the evidence cells are pre-executed with committed outputs, so you can follow each step without running anything
 
-Check (the graduation test):
-- The report has objective, method, results, limitation, and evidence files that actually exist
-- A colleague could reproduce your run from the report alone
-- You can answer "discrimination or calibration?" about every number you wrote
+By the end: you should be able to state the report's verdict, say whether its numbers support it, and name which evidence file backs each claim.
 
 ---
 
@@ -319,6 +316,6 @@ Check (the graduation test):
 - **Paper replication** (`REPLICATION_There_Is_Life_in_the_Old_GLM_Yet.ipynb`) — until asked; it's the historical anchor, not the current work
 - **Save/load and device debugging** — note the bug classes exist (issue #851); don't study them yet
 
-## After graduation
+## After the path
 
 Return to the main learning path: finish Stages 4–5 (pipeline depth + reporting workflow), then pick extensions by interest. The loop is the job; everything else is depth.

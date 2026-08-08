@@ -1,6 +1,6 @@
 # Learning Path: TabPFN Insurance Research Repo
 
-Purpose: a staged path from "new to the repo" to "understands the research, the code, and how to extend it". Each stage lists concrete artifacts to read/run and an exit test. Topic explanations deliberately left thin — we refine content per stage later.
+Purpose: a staged path from "new to the repo" to "understands the research, the code, and how to extend it". Each stage lists concrete artifacts to read/run. Topic explanations deliberately left thin — we refine content per stage later.
 
 **Junior track:** if you're a junior data scientist, start with `docs/LEARNING-PATH-JUNIOR.md` (2-week baseline route: run-first, metrics-first, the loop as graduation test) and use this doc as reference.
 
@@ -42,7 +42,7 @@ Read:
 - `CHANGELOG.md` + `TASKS.md` (history + current state)
 - `0_roadmap and project dashboard/` — the workstream roadmap (Excel dashboard: current state, milestones)
 
-Exit test: you can name 5 datasets, the two eras, and where results accumulate.
+By the end of this stage: you can name 5 datasets, the two eras, and where results accumulate.
 
 ## Stage 1 — Domain & metrics foundation (2–4 h)
 
@@ -54,7 +54,7 @@ Read:
 - `docs/analyses/regime_characterization.md` and `docs/analyses/benchmark_portfolio.md` (which datasets are which regime: frequency vs severity vs lapse)
 - Gloss (outside repo if needed): frequency/severity modeling, GLM + Poisson/Tweedie/Logistic, calibration (reliability, isotonic regression)
 
-Exit test: given a result table with AUC/log_loss/Brier, you can say which columns tell you discrimination vs calibration vs business value.
+By the end of this stage: given a result table with AUC/log_loss/Brier, you can say which columns tell you discrimination vs calibration vs business value.
 
 ## Stage 2 — TabPFN core concepts (3–5 h)
 
@@ -66,7 +66,7 @@ Read:
 - Run one pilot yourself following `.opencode/skills/tabpfn-classify/SKILL.md` (or `tabpfn-regress` / `tabpfn-explore` for pre-flight) — the skills are the repo's own runbooks
 - `notebooks/adswp_project/REPLICATION_There_Is_Life_in_the_Old_GLM_Yet.ipynb` — first real study: pretrained TabPFN vs GLM, post-hoc isotonic calibration; artifacts in `outputs/replication/`
 
-Exit test: you can explain why TabPFN predictions need no fitting, and what post-hoc calibration is for.
+By the end of this stage: you can explain why TabPFN predictions need no fitting, and what post-hoc calibration is for.
 
 ## Stage 3 — The research arc (4–6 h)
 
@@ -82,7 +82,7 @@ Read in order (notebook era):
 
 Then the era switch: `docs/analyses/tabarena_insurance_benchmark_direction.md` + `merge_plan_tabarena.md` (why the work moved to scripts + hosted API).
 
-Exit test: you can summarize what each notebook concluded and why the pipeline changed shape.
+By the end of this stage: you can summarize what each notebook concluded and why the pipeline changed shape.
 
 ## Stage 4 — Current pipeline in depth (4–6 h)
 
@@ -108,7 +108,7 @@ flowchart LR
 - `scripts/eval/insurance_benchmark_v1/analyze_pr_auc.py` (paired stats), `plot_money_chart.py` (size-vs-ratio economics)
 - `docs/analyses/cpu_model_feasibility.md` + `docs/analyses/levers_assessment.md` (effort/cost framing)
 
-Exit test: you can describe what one frontier benchmark run does end-to-end, and what the current reframe-frequency experiment is testing.
+By the end of this stage: you can describe what one frontier benchmark run does end-to-end, and what the current reframe-frequency experiment is testing.
 
 ## Stage 4.5 — Master report walkthrough (2–3 h)
 
@@ -123,7 +123,7 @@ The evidence spine of everything above: `docs/analyses/tabpfn_vs_gbdt_baselines_
 
 Pair each with its evidence CSVs (`scripts/eval/insurance_benchmark_v1/frontier_results_*.csv`, `reframe_frequency_results.csv`). The wiki (`TabPFN-work-scott/.wiki-content/` or live GitHub wiki) is the summary layer: `Findings-Overview.md` (the "so what" page), `Adoption-Guidance.md` (the decision rule — read this before quoting verdicts), `Findings-Report-Index.md`, `Metrics-Explained.md`, `Reproduction-Guide.md`, `Codebase-Overview.md`. When you need the arc without the detail: `docs/MASTER-REPORT-DIGEST.md` (one paragraph per addendum). To run the experiments yourself and see the exact code behind them: `notebooks/reproducibility/` (README first — three notebooks reproducing §14.11, §14.13, §14.14 by calling the canonical scripts).
 
-Exit test: explain what changed between §4 and §14.14 and *why*; name the three most robust results (GLM never dominated; AUC #1 on 6/6 classification; regression stays GBDT).
+By the end of this stage: you can explain what changed between §4 and §14.14 and *why*, and name the three most robust results (GLM never dominated; AUC #1 on 6/6 classification; regression stays GBDT).
 
 ## Stage 5 — Skills & reporting workflow (2–3 h)
 
@@ -133,7 +133,7 @@ Goal: how work actually gets done here — runbooks + the evidence chain.
 - Learn the evidence flow: experiment → `outputs/current/{tables,logs}` → report in `docs/reports/` → row in `REPORT_REGISTRY.md` (dedup before drafting — the registry is the anti-duplication lock).
 - `scripts/` housekeeping: `cleanup_outputs.py`, `scripts/infra/make_notebook.py` (scaffold new experiment notebooks)
 
-Exit test: given a new research question, you can name which skill(s) you'd invoke and where the evidence would land.
+By the end of this stage: given a new research question, you can name which skill(s) you'd invoke and where the evidence would land.
 
 ## Stage 6 — Extensions (optional, pick what's relevant)
 
