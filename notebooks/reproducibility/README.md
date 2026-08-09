@@ -50,8 +50,9 @@ overwrite or append to the committed files (see the per-notebook warnings below)
 - **Seed 42 = canonical.** Re-running it overwrites committed evidence. Prefer `--seed 7`
   (writes `_seed7` files) or copy the CSVs aside first. Seed variation is itself part of the
   protocol (§14.12: seeds 7/42/123).
-- **Version honesty:** record `tabpfn_client.__version__` (the preflight cell prints it) — the
-  §15 re-test policy exists because results are stamped to `v3_default` / 0.3.3.
+- **Version honesty:** record the `tabpfn_client` version the preflight cell prints (the client may
+  not expose `__version__`) — the §15 re-test policy exists because results are stamped to
+  `v3_default` / 0.3.3.
 - **Full-suite scale-ups** are described in each notebook's final markdown cell.
 
 ## Where the evidence lands

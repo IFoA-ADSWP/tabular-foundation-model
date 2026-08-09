@@ -48,7 +48,7 @@ Question: *does the last standing threat — tuned classical baselines — dethr
 
 ## §14.14 Count/frequency reframed as classification (08-07, issue #67)
 
-Question: *can the weakest axis be sidestepped by reframing the target?* Spanish motor `N_claims_year` → binary claim/no-claim (11.1% pos) and ordinal 0/1/2+. Result: **rank #1 on every metric, paired-significant and seed-stable** (binary AUC 0.7170, +0.0080 vs LGBM, p=0.0010; ordinal one-vs-rest AUC 0.7167, +0.0111, p=0.0085). §14.9 contrast: the same rows scored by Poisson deviance had TabPFN +10.8% *behind* LGBM — **the count axis was the loss; classification is the win.** Caveats: single dataset, GLMs collapse on the binary task (constant prediction, AUC exactly 0.5000), ordinal PR-AUC is NaN by design (lift10 on P(≥1) is the substitute).
+Question: *can the weakest axis be sidestepped by reframing the target?* Spanish motor `N_claims_year` → binary claim/no-claim (11.1% pos) and ordinal 0/1/2+. Result: **rank #1 on every metric, but several margins are within noise** (binary PR-AUC p=0.12, ordinal Brier p=0.88 — the report's own §14.14.6 honest weak spot); **significant margins are seed-stable** (binary AUC 0.7170, +0.0080 vs LGBM, p=0.0010; ordinal one-vs-rest AUC 0.7167, +0.0111, p=0.0085). §14.9 contrast: the same rows scored by Poisson deviance had TabPFN +10.8% *behind* LGBM — **the count axis was the loss; classification is the win.** Caveats: single dataset, GLMs collapse on the binary task (constant prediction, AUC exactly 0.5000), ordinal PR-AUC is NaN by design (lift10 on P(≥1) is the substitute).
 
 ## §15 Version-drift re-test policy (08-04, docs-only)
 

@@ -131,7 +131,7 @@ Goal: how work actually gets done here — runbooks + the evidence chain.
 
 - Read the 8 skills in `.opencode/skills/`: `tabpfn-explore`, `tabpfn-classify`, `tabpfn-regress`, `tabpfn-finetune`, `tabpfn-benchmark`, `tabpfn-technical-report`, `tabpfn-nontechnical-report`, `insurance-objective`. Note each one's entry criteria and outputs.
 - Learn the evidence flow: experiment → `outputs/current/{tables,logs}` → report in `docs/reports/` → row in `REPORT_REGISTRY.md` (dedup before drafting — the registry is the anti-duplication lock).
-- `scripts/` housekeeping: `cleanup_outputs.py`, `scripts/infra/make_notebook.py` (scaffold new experiment notebooks)
+- `scripts/` housekeeping: `scripts/infra/make_notebook.py` (scaffold new experiment notebooks)
 
 By the end of this stage: given a new research question, you can name which skill(s) you'd invoke and where the evidence would land.
 
@@ -143,7 +143,7 @@ By the end of this stage: given a new research question, you can name which skil
 - Model catalog context: `docs/analyses/tabular_foundation_models_catalog.md`
 - Side studies: `docs/reports/CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md` (round 2/3 — does a homogeneous fine-tuning pool beat a heterogeneous one? inconclusive; read for the method, not the verdict)
 - The paper layer: `docs/papers/` — the GLM paper, the round-2 journal follow-ups (`FOLLOW_UP_ROUND2_JOURNAL_SHORT.md` / `FOLLOW_UP_ROUND2_JOURNAL_PLAIN.md`; *historical record — the "no universal winner" conclusion is superseded on AUC by §14.11*, the docs themselves carry this banner), `APPENDIX_REPRODUCIBILITY.md`, and `docs/REPLICATION_SETUP_GUIDE.md` (step-by-step paper replication)
-- Repo hygiene history: `docs/audit/CODEBASE-GAP-2026-08-07.md`, `docs/status/STATUS_REPORT_FINAL.md`
+- Repo hygiene history: `docs/status/STATUS_REPORT_FINAL.md`
 
 **Deliberately not in this path** (look here only if you must): `docs/analyses/tabpfn_finetune_limit_test_plan.md` (superseded by the executed limit study), `docs/sessions/2026-07-28-tabarena-benchmark-setup.md` (session log), `docs/status/SECURITY_INCIDENT_RESOLVED.md` (ops record), `tests/` (smoke-only coverage), `legacy/` (deprecated R scripts).
 
@@ -251,7 +251,7 @@ Where it lives: `docs/analyses/metrics_explained.md` (the repo's own metric expl
 
 - **5-fold stratified cross-validation, seed 42** — every model sees the same folds; stratified keeps the rare class proportional per fold; `--seed` flags let runs reproduce (non-42 seeds write `_seed<N>` outputs without clobbering canonical ones).
 - **Paired significance** — models are compared on the *same folds*, so paired t-tests (`analyze_pr_auc.py`) are the honest significance test, not comparing means.
-- **Pareto frontier + parameter counting** — the frontier benchmark measures quality (log loss/Brier/AUC) against *model size*: GLM = `n_features + 1` params, tree models = leaves counted from fitted fold-0 trees, TabPFN = fixed ~10M (constant, from pretraining — you don't pay that cost yourself). The **money chart** (`plot_money_chart.py`) plots quality-per-size so you can see which models are on the efficient frontier — the models you'd actually deploy.
+- **Pareto frontier + parameter counting** — the frontier benchmark measures quality (log loss/Brier/AUC) against *model size*: GLM = `n_features + 1` params, tree models = leaves counted from fitted fold-0 trees, TabPFN = fixed ~10M (constant, value per PriorLabs/TabPFN docs — you don't pay that cost yourself). The **money chart** (`plot_money_chart.py`) plots quality-per-size so you can see which models are on the efficient frontier — the models you'd actually deploy.
 - **The "finality" test** (`run_tuned_baselines.py`) — the fairness question: tuned GLM/GBDT (realistic tuning budget) vs zero-tune TabPFN on identical folds. Verdicts feed the adoption recommendation (§14.13).
 - **Home-turf size sweep** (`run_home_turf_size_sweep.py`) — TabPFN vs GBDT across dataset sizes, testing the hypothesis that TabPFN wins where data is scarce and loses where data is plentiful.
 - **Reframing** (`run_reframe_frequency.py`, the current branch) — claim *counts* are awkward for a classifier-first model, so frequency is reframed as **binary** (has-claim?) or **ordinal** (0/1/2+ claims) targets and rescored (§14.14). This is an open research question, not a settled choice.
@@ -284,7 +284,7 @@ Exact numbers live in the evidence files listed; these are the conclusions the e
 4. **Fine-tuning is a bounded lever** — works on small data with the right settings, but save/load and regressor stability are real failure modes; the limit study maps the envelope. [evidence: `outputs/current/tables/tabpfn_finetune_trial_results.csv`, `TABPFN_FINE_TUNING_LIMIT_STUDY.md`]
 5. **Imbalance is the dominant regime problem** — PR AUC and focused imbalance pilots exist because rare positives are the norm; log-loss rescoring (`rescore_focused_imbalance_logloss.py`) shows calibration degrades under imbalance and needs watching. [evidence: `focused_imbalance_*.csv`, `docs/analyses/class_imbalance_analysis_summary.md`]
 6. **Frequency reframing (binary/ordinal) is the open question** — the current branch's experiment (§14.14). [evidence: `reframe_frequency_results.csv`, `run_reframe_frequency.py`]
-7. **2026-08 master verdict (the one to know now):** TabPFN is **AUC #1 of 9 methods — and of 14 once tuned baselines are added (§14.13) — on all six classification datasets** (deltas +0.006 to +0.033 over the best GLM; paired-significant 5/6); regression/frequency stays GBDT territory (Poisson deviance at scale: TabPFN ~+33% behind on freMTPL2freq); the **GLM family is never dominated on any frontier**; fine-tuning does not consistently help; reframing counts as classification inverts the frequency verdict. [evidence: master report §14.11–§14.14]
+7. **2026-08 master verdict (the one to know now):** TabPFN is **AUC #1 of 9 methods — and of 14 once tuned baselines are added (§14.13) — on all six classification datasets** (deltas +0.006 to +0.033 over the best GLM; paired-significant on AUC 6/6, PR-AUC 5/6); regression/frequency stays GBDT territory (Poisson deviance at scale: TabPFN ~+33% behind on freMTPL2freq); the **GLM family is never dominated on any frontier**; fine-tuning does not consistently help; reframing counts as classification inverts the frequency verdict. [evidence: master report §14.11–§14.14]
 8. **The imbalance lever harms calibration** — `balance_probabilities=True` inflates mean predicted probability ~5× on a 6% base rate (coil2000 log loss 0.4716 vs 0.2008 default). [master report §11]
 
 ---
