@@ -62,4 +62,4 @@ overwrite or append to the committed files (see the per-notebook warnings below)
 - `scripts/eval/insurance_benchmark_v1/frontier_tuned_baseline_results.csv` — §14.13
 
 Context: master report `docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md`, digest
-`docs/MASTER-REPORT-DIGEST.md`, learning path `docs/LEARNING-PATH.md` (Stage 4.5).
+`docs/MASTER-REPORT-DIGEST.md`, knowledge path `docs/KNOWLEDGE-PATH.md` (Stage 4.5).

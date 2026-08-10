@@ -1,6 +1,6 @@
 # Master Report Digest — the addendum arc (§4 → §14.14)
 
-Companion to `docs/LEARNING-PATH.md` Stage 4.5. The master report (`docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md`) is an *evolution*, not a static study: nine addenda, each answering one question, several reversing or qualifying prior verdicts. This digest gives one paragraph per addendum — question, result, verdict change, key numbers. Read it alongside the report, or instead of it when you need the story fast.
+Companion to `docs/KNOWLEDGE-PATH.md` Stage 4.5. The master report (`docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md`) is an *evolution*, not a static study: nine addenda, each answering one question, several reversing or qualifying prior verdicts. This digest gives one paragraph per addendum — question, result, verdict change, key numbers. Read it alongside the report, or instead of it when you need the story fast.
 
 **The one-line story:** v1 looked like a loss → §11 showed the metric was blind → §12 separated artifacts from real limits → §13 killed the size story → §14 built the frontier → §14.11 retracted a verdict and found TabPFN AUC #1 on 6/6 → §14.13 confirmed it against tuned baselines → §14.14 showed the frequency verdict was a framing artifact.
 
