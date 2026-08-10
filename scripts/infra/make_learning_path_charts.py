@@ -1,4 +1,4 @@
-"""Generate the charts embedded in docs/LEARNING-PATH-JUNIOR.md.
+"""Generate the charts embedded in docs/KNOWLEDGE-PATH-JUNIOR.md.
 
 Real-data charts read outputs/current/tables/*.csv (source of truth);
 the reliability chart is a labeled schematic for teaching.

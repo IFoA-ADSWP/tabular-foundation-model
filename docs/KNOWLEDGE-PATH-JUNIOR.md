@@ -1,8 +1,8 @@
-# Junior Learning Path — TabPFN Insurance Research Repo
+# Junior Knowledge Path — TabPFN Insurance Research Repo
 
 Purpose: baseline understanding. This is the on-ramp for a junior data scientist. The goal is **not** to know every file — it's to run one experiment end-to-end and be able to explain every number in the results. Two weeks, ~2h/day.
 
-Companion to `docs/LEARNING-PATH.md` (the full map + subject explanations). This doc is the junior route through it.
+Companion to `docs/KNOWLEDGE-PATH.md` (the full map + subject explanations). This doc is the junior route through it.
 
 ## The baseline understanding (what "done" means)
 
@@ -318,4 +318,4 @@ By the end: you should be able to state the report's verdict, say whether its nu
 
 ## After the path
 
-Return to the main learning path: finish Stages 4–5 (pipeline depth + reporting workflow), then pick extensions by interest. The loop is the job; everything else is depth.
+Return to the main knowledge path: finish Stages 4–5 (pipeline depth + reporting workflow), then pick extensions by interest. The loop is the job; everything else is depth.

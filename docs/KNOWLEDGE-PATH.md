@@ -1,8 +1,8 @@
-# Learning Path: TabPFN Insurance Research Repo
+# Knowledge Path: TabPFN Insurance Research Repo
 
 Purpose: a staged path from "new to the repo" to "understands the research, the code, and how to extend it". Each stage lists concrete artifacts to read/run. Topic explanations deliberately left thin — we refine content per stage later.
 
-**Junior track:** if you're a junior data scientist, start with `docs/LEARNING-PATH-JUNIOR.md` (2-week baseline route: run-first, metrics-first, the loop as graduation test) and use this doc as reference.
+**Junior track:** if you're a junior data scientist, start with `docs/KNOWLEDGE-PATH-JUNIOR.md` (2-week baseline route: run-first, metrics-first, the loop as graduation test) and use this doc as reference.
 
 ## The one mental model you need first
 
