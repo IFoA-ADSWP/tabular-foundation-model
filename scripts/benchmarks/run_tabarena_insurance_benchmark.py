@@ -52,13 +52,13 @@ if TYPE_CHECKING:
 # Paths
 # ---------------------------------------------------------------------------
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parent
+REPO = HERE.parent.parent
 DATA_RAW = REPO / "data" / "raw"
 
 RUN_NAME = "insurance_benchmark_v1"
-RESULTS_DIR = str(HERE / "experiments" / RUN_NAME)
-EVAL_DIR = HERE / "eval" / RUN_NAME
-TASK_CACHE_DIR = HERE / "task_cache" / RUN_NAME
+RESULTS_DIR = str(REPO / "scripts" / "experiments" / RUN_NAME)
+EVAL_DIR = REPO / "scripts" / "eval" / RUN_NAME
+TASK_CACHE_DIR = REPO / "scripts" / "task_cache" / RUN_NAME
 
 # ---------------------------------------------------------------------------
 # Dataset definitions — full

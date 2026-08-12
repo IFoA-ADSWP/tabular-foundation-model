@@ -6,7 +6,7 @@ scipy>=1.10,<2
 
 # TabPFN and extensions
 tabpfn>=6,<7
-tabpfn-client>=0.2,<0.3
+tabpfn-client==0.3.3   # every benchmark verdict is stamped to 0.3.3 (see notebooks/reproducibility/README.md)
 tabpfn-extensions>=0.2,<0.3
 
 # Optional: boosted tree baselines
