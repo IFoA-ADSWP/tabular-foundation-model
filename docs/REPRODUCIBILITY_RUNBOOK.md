@@ -41,6 +41,36 @@ Two eras, documented separately:
 | `glm-vs-tabpfn-summary` (GLM paper) | §0 / pointer to `docs/REPLICATION_SETUP_GUIDE.md` |
 | `post-hoc-optimisation` | notebook `notebooks/baseline_experiments/04_probability_calibration.ipynb` (not covered here) |
 
+## ⏱ Time & cost budget — read before you start
+
+A full run of **everything** below takes roughly **1.5–2 working days of wall time**, mostly
+hosted-API spend and CPU-bound baselines. Per-section estimates:
+
+| Section | Wall time | Cost driver |
+| --- | --- | --- |
+| §0 Setup (once) | ~10 min | — |
+| §A.1 Data prep | minutes | — |
+| §A.2 Smoke | ~2 min | — |
+| §A.3 TabArena 7-dataset | hours-ish | hosted API (TabPFN folds) |
+| §A.4 Lapse benchmark | minutes | — |
+| §A.5 Home-turf sweep | ~1–1.5 h | hosted API |
+| §A.6 Imbalance pilot | minutes–1 h | hosted API |
+| §A.7 Frontier §14.11 | **hours** (6 datasets × 5 folds) | hosted API |
+| §A.8 Tuned baselines | **hours** (tens of min/dataset, 60-min cap each) | local CPU |
+| §A.9 Reframe §14.14 | 20–60 min | hosted API |
+| §A.10 Money chart | minutes | — |
+| §B.1–B.9 Legacy finetuning | **the long tail — most of a day** | local CPU/MPS (v6 era, provenance only) |
+
+**Two faster paths:**
+
+- **Verify the published numbers (recommended first):** repro notebooks
+  `notebooks/reproducibility/01–03` re-run their evidence cells in **minutes each** — they read
+  committed CSVs and display the canonical results. Start here; only expand to the full
+  sections below if you need to regenerate from scratch.
+- **Frontier era only (A.1–A.10):** ~1 working day, dominated by A.3/A.7/A.8 + API credits.
+- **Everything (A + B):** ~1.5–2 days; B-era runs are provenance (2026-04, loose pins) and
+  will **not** byte-match committed artifacts — they validate the method, not the numbers.
+
 ## 0. One-time setup
 
 ### Frontier era (A)
