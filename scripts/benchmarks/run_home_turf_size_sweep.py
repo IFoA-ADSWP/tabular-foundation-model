@@ -28,7 +28,7 @@ import numpy as np
 import pandas as pd
 
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parent
+REPO = HERE.parent.parent
 DATA_RAW = REPO / "data" / "raw"
 EVAL_DIR = REPO / "scripts" / "eval" / "insurance_benchmark_v1"
 OUT_CSV = EVAL_DIR / "home_turf_sweep_results.csv"

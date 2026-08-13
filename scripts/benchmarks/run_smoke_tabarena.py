@@ -31,12 +31,13 @@ if TYPE_CHECKING:
 # Paths
 # ---------------------------------------------------------------------------
 HERE = Path(__file__).resolve().parent
-DATA_RAW = HERE.parent / "data" / "raw"
+REPO = HERE.parent.parent
+DATA_RAW = REPO / "data" / "raw"
 
 RUN_NAME = "smoke_test"
-RESULTS_DIR = str(HERE / "experiments" / RUN_NAME)
-EVAL_DIR = HERE / "eval" / RUN_NAME
-TASK_CACHE_DIR = HERE / "task_cache" / RUN_NAME
+RESULTS_DIR = str(REPO / "scripts" / "experiments" / RUN_NAME)
+EVAL_DIR = REPO / "scripts" / "eval" / RUN_NAME
+TASK_CACHE_DIR = REPO / "scripts" / "task_cache" / RUN_NAME
 
 # ---------------------------------------------------------------------------
 # Single dataset — coil2000 (smallest, 9.8K rows)
