@@ -1,0 +1,22 @@
+[
+    {
+        "file": "clrd.csv",
+        "url": "https://raw.githubusercontent.com/casact/chainladder-python/main/chainladder/utils/data/clrd.csv",
+        "size": 3235366
+    },
+    {
+        "file": "clrd2025.csv",
+        "url": "https://raw.githubusercontent.com/casact/chainladder-python/main/chainladder/utils/data/clrd2025.csv",
+        "size": 5868245
+    },
+    {
+        "file": "genins.csv",
+        "url": "https://raw.githubusercontent.com/casact/chainladder-python/main/chainladder/utils/data/genins.csv",
+        "size": 1116
+    },
+    {
+        "file": "raa.csv",
+        "url": "https://raw.githubusercontent.com/casact/chainladder-python/main/chainladder/utils/data/raa.csv",
+        "size": 995
+    }
+]
