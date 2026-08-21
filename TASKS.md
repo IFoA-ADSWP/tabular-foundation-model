@@ -4,6 +4,8 @@ Tracked from GitHub issues. Updated manually.
 
 | Status | # | Title | Assignee |
 |--------|---|-------|----------|
+| 🔲 | #123 | Add insurance-native alternative metrics (Gamma/Tweedie deviance, MAE) with fold-level SEs to regression benchmarks — consumes #122 predictions; spec at `docs/analyses/altmetrics_rescore_spec.md` | — |
+| 🔲 | #122 | Persist per-fold test predictions for retrospective re-scoring (`--save-predictions`) — spec at `docs/analyses/prediction_capture_rescore_spec.md` | — |
 | 🔲 | #57 | Clean up main junk commits (f0bf230, 5264ec1) — blocked (needs main force-push decision) | — |
 | ✅ | #56 | Merge PR #51 + post-merge verification — merged 2026-08-04 (31d40a5); registry check clean | scotthawes |
 | ✅ | #55 | Version-drift re-test policy for the benchmark verdict — PR #62 | — |
