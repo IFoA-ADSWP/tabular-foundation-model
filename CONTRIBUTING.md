@@ -2,12 +2,35 @@
 
 This is a research project comparing TabPFN against traditional actuarial models for insurance tasks. All contributions welcome.
 
+## Branching & Merging Policy
+
+`main` is protected: **force-pushes and deletions are blocked**, and **all changes land via pull request** — but with **zero required approvals**. A PR here is a ritual, not a gate: it gives every change a revertable unit, a visible diff, and a discussion thread without ever blocking solo work.
+
+- Open a PR from your branch and **merge it yourself** when green.
+- Admins retain direct-push rights strictly for emergencies.
+
+### Branch naming
+
+| Prefix | Use | Merged? |
+|---|---|---|
+| `feat/…` | New capability or analysis pipeline | yes |
+| `docs/…` | Reports, specs, README changes | yes |
+| `fix/…` | Bug fixes | yes |
+| `chore/…` | Tooling, deps, repo hygiene | yes |
+| `exp/<issue#>-<slug>` | Experiments | optional — may live long and never merge |
+
+Put the issue number in the branch name (`exp/126-null-control`) so GitHub auto-links your PR to its board card; flip the card to **In review** when the PR opens.
+
+### Merge style
+
+Merge commits are allowed (we preserve commit SHAs as evidence anchors), squash is fine for small fixes. Head branches delete automatically on merge.
+
 ## Setup
 
 ```bash
 # 1. Clone
-git clone https://github.com/IFoA-ADSWP/TabPFN
-cd TabPFN
+git clone https://github.com/IFoA-ADSWP/tabular-foundation-model.git
+cd tabular-foundation-model
 
 # 2. Create environment (conda or venv)
 python -m venv .venv
