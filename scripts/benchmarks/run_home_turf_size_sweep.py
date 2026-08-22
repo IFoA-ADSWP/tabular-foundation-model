@@ -28,6 +28,9 @@ import numpy as np
 import pandas as pd
 
 HERE = Path(__file__).resolve().parent
+import sys as _sys
+_sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
+from src.api_key import load_api_key as _load_api_key  # noqa: E402
 REPO = HERE.parent.parent
 DATA_RAW = REPO / "data" / "raw"
 EVAL_DIR = REPO / "scripts" / "eval" / "insurance_benchmark_v1"
@@ -35,28 +38,6 @@ OUT_CSV = EVAL_DIR / "home_turf_sweep_results.csv"
 LOG_FILE = EVAL_DIR / "home_turf_sweep_run.log"
 
 # ---------------------------------------------------------------------------
-# API key: TABPFN_API_KEY env, else repo-root .env or TABPFN_ENV_FILE
-# ---------------------------------------------------------------------------
-def _load_api_key() -> None:
-    """TABPFN_API_KEY env, else the first TABPFN_API_KEY= line from the repo-root
-    .env or the file pointed to by TABPFN_ENV_FILE (if set)."""
-    if os.environ.get("TABPFN_API_KEY"):
-        return
-    candidates = [
-        Path.cwd() / ".env",
-        Path(os.environ["TABPFN_ENV_FILE"]) if os.environ.get("TABPFN_ENV_FILE") else None,
-    ]
-    for p in candidates:
-        if p and p.exists():
-            for line in p.read_text().splitlines():
-                if line.startswith("TABPFN_API_KEY="):
-                    os.environ["TABPFN_API_KEY"] = line.split("=", 1)[1].strip()
-                    return
-    raise RuntimeError(
-        "TABPFN_API_KEY not set: export TABPFN_API_KEY=... or add a "
-        "TABPFN_API_KEY=... line to a .env file in the repo root "
-        "(or set TABPFN_ENV_FILE to point at one)"
-    )
 
 # ---------------------------------------------------------------------------
 # Dataset registry
