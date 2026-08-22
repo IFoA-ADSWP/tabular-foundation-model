@@ -93,6 +93,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -837,6 +838,11 @@ def make_parser() -> argparse.ArgumentParser:
                         help="target column name (required when --data is given)")
     parser.add_argument("--drop", metavar="COLS",
                         help="comma-separated leak columns to drop (with --data; default: none)")
+    parser.add_argument(
+        "--out-dir", metavar="DIR", default=None,
+        help="output directory for results CSVs/plots + manifest.json "
+             "(default: <repo>/results/<UTC-timestamp>; pass 'legacy' to write beside the script)",
+    )
     return parser
 
 
@@ -856,6 +862,32 @@ def select_datasets(args: argparse.Namespace) -> tuple[list[dict], set[str] | No
     return datasets, wanted
 
 
+def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
+    """Per-run provenance manifest — pins git state, seed, and command for this output dir."""
+    import json
+    import subprocess
+    try:
+        git_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True, text=True, check=True
+        ).stdout.strip()
+    except Exception:
+        git_sha = "unknown"  # shallow/tarball checkouts
+    manifest = {
+        "run_id": out_dir.name,
+        "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "git_sha": git_sha,
+        "seed": SEED,
+        "pr_auc_mode": PR_AUC_MODE,
+        "argv": sys.argv,
+        "note": (
+            "per-fold PR-AUC rows still append to the cross-run ledger "
+            "scripts/eval/insurance_benchmark_v1/frontier_pr_auc_results.csv"
+            if PR_AUC_MODE else None
+        ),
+    }
+    (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+
+
 def main() -> None:
     global SEED, PR_AUC_MODE
     t0 = time.time()
@@ -866,6 +898,19 @@ def main() -> None:
     SEED = args.seed
     PR_AUC_MODE = args.pr_auc and args.data is None  # --pr-auc is a registry-run mode
     datasets, wanted = select_datasets(args)
+    # Output layout: results/<dir> (default) keeps run artifacts out of the code tree.
+    # 'legacy' preserves the old beside-script paths for exact reproduction of
+    # committed frontier_results_*.csv files mapped in docs/REPRODUCIBILITY_RUNBOOK.md.
+    if args.out_dir == "legacy":
+        out_base = HERE
+    elif args.out_dir:
+        out_base = (REPO / args.out_dir if not Path(args.out_dir).is_absolute()
+                    else Path(args.out_dir))
+    else:
+        out_base = REPO / "results" / time.strftime("%Y%m%d-%H%M%S", time.gmtime())
+    out_base.mkdir(parents=True, exist_ok=True)
+    write_manifest(out_base, args)
+    print(f"outputs -> {out_base}", flush=True)
     runner = run_dataset_regression if args.regression else run_dataset
     for ds in datasets:
         name = ds["name"]
@@ -874,8 +919,8 @@ def main() -> None:
         # Seed != 42 gets suffixed outputs so split-seed runs never clobber the
         # canonical seed-42 frontier_results_*.csv / plots.
         suffix = f"_seed{SEED}" if SEED != 42 else ""
-        out_csv = HERE / f"frontier_results_{name}{suffix}.csv"
-        out_png = HERE / f"frontier_plot_{name}{suffix}.png"
+        out_csv = out_base / f"frontier_results_{name}{suffix}.csv"
+        out_png = out_base / f"frontier_plot_{name}{suffix}.png"
         print(f"\n{'=' * 70}\nDATASET {name}\n{'=' * 70}", flush=True)
         runner(ds, out_csv, out_png)
         print(f"[{time.strftime('%H:%M:%S')}] {name} done -> {out_csv}, {out_png}", flush=True)

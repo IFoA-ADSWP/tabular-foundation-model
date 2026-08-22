@@ -46,6 +46,24 @@ def test_parse_data_target():
     assert not args.regression
 
 
+def test_parse_out_dir_default_and_flag():
+    assert parse([]).out_dir is None
+    assert parse(["--out-dir", "results/foo"]).out_dir == "results/foo"
+    assert parse(["--out-dir", "legacy"]).out_dir == "legacy"
+
+
+def test_write_manifest(tmp_path):
+    import json
+    import argparse
+    mod.SEED = 7
+    mod.PR_AUC_MODE = False
+    mod.write_manifest(tmp_path, argparse.Namespace(out_dir=str(tmp_path)))
+    d = json.loads((tmp_path / "manifest.json").read_text())
+    assert d["seed"] == 7
+    assert len(d["git_sha"]) == 40
+    assert d["pr_auc_mode"] is False
+
+
 def test_parse_data_without_target_errors(monkeypatch):
     # argparse cannot enforce the dependency itself; main() raises via parser.error
     monkeypatch.setattr(sys, "argv", ["prog", "--data", "X"])
