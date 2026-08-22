@@ -4,6 +4,7 @@ Tracked from GitHub issues. Updated manually.
 
 | Status | # | Title | Assignee |
 |--------|---|-------|----------|
+| 🔲 | #125 | Fine-tuning negative-result audit — null-control Stage A harness (W1 confound) + power/dose/scale remediation; gates #85/#81 | — |
 | ✅ | #— | Repository migrated to IFoA-ADSWP/tabular-foundation-model — full history, 123 issues+PRs (numbering preserved), wiki, collaborator access; open PR recreated as #124; old fork retained as read-only archive | scotthawes |
 | 🔲 | #123 | Add insurance-native alternative metrics (Gamma/Tweedie deviance, MAE) with fold-level SEs to regression benchmarks — consumes #122 predictions; spec at `docs/analyses/altmetrics_rescore_spec.md` | — |
 | 🔲 | #122 | Persist per-fold test predictions for retrospective re-scoring (`--save-predictions`) — spec at `docs/analyses/prediction_capture_rescore_spec.md` | — |
