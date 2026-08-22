@@ -10,6 +10,8 @@ This repo contains experiments by the **IFoA Actuarial Data Science Working Part
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+# reproducible exact-match env (recommended for replication):
+uv pip sync requirements.lock
 jupyter notebook notebooks/adswp_project/01_TabPFN_classifier_eudirectlapse.ipynb
 ```
 
