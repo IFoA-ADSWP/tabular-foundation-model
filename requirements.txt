@@ -11,7 +11,7 @@ tabpfn-extensions>=0.2,<0.3
 
 # Optional: boosted tree baselines
 xgboost>=1.7,<3      # optional
-lightgbm>=4.0,<5      # optional
+lightgbm>=4.7.0,<5      # optional
 catboost>=1.2,<2      # optional
 
 # PyTorch (required by TabPFN)
