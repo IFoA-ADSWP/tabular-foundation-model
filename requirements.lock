@@ -68,8 +68,6 @@ cycler==0.12.1
     # via matplotlib
 debugpy==1.8.21
     # via ipykernel
-decorator==5.3.1
-    # via ipython
 defusedxml==0.7.1
     # via nbconvert
 distro==1.9.0
@@ -121,10 +119,12 @@ idna==3.19
     #   requests
 ipykernel==7.3.0
     # via jupyterlab
-ipython==8.39.0
+ipython==9.16.1
     # via
     #   -r requirements.txt
     #   ipykernel
+ipython-pygments-lexers==1.1.1
+    # via ipython
 isoduration==20.11.0
     # via jsonschema
 jedi==0.20.0
@@ -349,7 +349,9 @@ prometheus-client==0.26.0
 prompt-toolkit==3.0.53
     # via ipython
 psutil==7.2.2
-    # via ipykernel
+    # via
+    #   ipykernel
+    #   ipython
 ptyprocess==0.7.0 ; os_name != 'nt' or (sys_platform != 'emscripten' and sys_platform != 'win32')
     # via
     #   pexpect
@@ -372,6 +374,7 @@ pydantic-settings==2.15.0
 pygments==2.21.0
     # via
     #   ipython
+    #   ipython-pygments-lexers
     #   nbconvert
     #   rich
 pyparsing==3.3.2
