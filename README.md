@@ -119,7 +119,7 @@ The docs are extensive. Start here:
 
 ## Dependencies
 
-Python 3.9+. Core stack: numpy, pandas, scikit-learn, torch, TabPFN, matplotlib, seaborn. Optional: XGBoost, LightGBM, CatBoost.
+Python 3.10+. Core stack: numpy, pandas, scikit-learn, torch, TabPFN, matplotlib, seaborn. Optional: XGBoost, LightGBM, CatBoost.
 
 ## References
 

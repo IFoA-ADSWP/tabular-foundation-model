@@ -60,7 +60,7 @@ TRAIN_SIZE = 1.0 - TEST_SIZE
 # MODEL PARAMETERS
 # ============================================================================
 
-# TabPFN Configuration (compatible with tabpfn>=7.0.0 / TabPFN model v2.6)
+# TabPFN Configuration (pinned to tabpfn>=6,<7 per requirements.txt — see notebooks/reproducibility/README.md)
 # n_estimators was called n_ensemble in older versions (<7.x)
 TABPFN_CONFIG = {
     "n_estimators": 8,

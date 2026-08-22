@@ -1,7 +1,8 @@
 """Prepare CASdatasets .rda files as clean CSVs for the TabArena insurance benchmark.
 
-Reads .rda files (default /tmp/opencode/datasets/) and writes cleaned CSVs to
-data/raw/. Categorical columns are written as strings; binary targets are int.
+Reads .rda files (default data/raw_sources/, pass SRC_DIR to override) and
+writes cleaned CSVs to data/raw/. Categorical columns are written as strings;
+binary targets are int.
 The Spanish motor portfolio source is a raw CSV (comma-separated, "NA" convention,
 DD/MM/YYYY dates) — handled by a CSV-source branch in main().
 
@@ -19,9 +20,9 @@ import pandas as pd
 import pyreadr
 
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parent
+REPO = HERE.parent.parent  # repo root (this file lives in scripts/infra/)
 OUT_DIR = REPO / "data" / "raw"
-SRC_DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("/tmp/opencode/datasets")
+SRC_DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else REPO / "data" / "raw_sources"
 
 # Spanish motor portfolio: source is a raw CSV, not an .rda (see module docstring).
 SPANISH_MOTOR_CSV = (
