@@ -78,11 +78,15 @@ Usage:
                                                                                                  #   and extend the summary CSVs with mean_pr_auc/se_pr_auc/mean_lift10/se_lift10
     python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --seed 7 ausprivauto0405 # split-seed stability (default 42; seed != 42 writes
                                                                                                  #   frontier_results_<ds>_seed<N>.csv/.png so the canonical seed-42 files are not clobbered)
+    python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --save-predictions coil2000 # persist per-fold (y_true, y_pred, test_idx) for every
+                                                                                                 #   method to predictions/<dataset>__seed<seed>.npz + .manifest.json (#122);
+                                                                                                 #   forces fresh fits (like --pr-auc), read-back verified in-run
 
 Outputs (same dir as this script), per dataset:
     frontier_results_<dataset>.csv   method | mean <metric> | SE | n_params | on-frontier
     frontier_plot_<dataset>.png      x = log10(n_params), y = mean <metric>, +/- SE bars,
                                      frontier red / dominated grey
+    predictions/<dataset>__seed<seed>.npz + .manifest.json   (--save-predictions only, #122)
 
 Self-check: per-dataset assert-based sanity checks (5 fold rows per reused method —
 skipped when the sweep has no rows for that dataset — no NaNs, unique methods, >=1
@@ -146,16 +150,21 @@ METRIC_LABELS = {  # plot y-axis per metric (metric_fn dispatch)
 N_FOLDS = 5
 SWEEP_CSV = HERE / "home_turf_sweep_results.csv"
 PR_AUC_CSV = HERE / "frontier_pr_auc_results.csv"  # per-fold PR-AUC/lift10 rows (append mode, --pr-auc only)
+PREDICTIONS_DIR = HERE / "predictions"  # --save-predictions: one .npz + manifest per dataset (#122)
 REUSED_METHODS = ["cat", "lgbm", "xgb", "tabpfn"]  # log loss reused as-is from the sweep
 FAST_METHODS = ["lr", "logisticglm", "tweedieglm", "poissonglm", "rf"]  # D1 Option B, new compute
 
 # CLI flags, set by main() before the dataset loop:
-#   PR_AUC_MODE: --pr-auc — forces EVERY method to fresh-fit (the sweep CSV has no
-#                predictions, so PR AUC / top-decile lift need real fits) and appends
-#                per-fold rows to PR_AUC_CSV.
-#   SEED:        --seed N — StratifiedKFold(random_state=N), default 42 (unchanged).
+#   PR_AUC_MODE:      --pr-auc — forces EVERY method to fresh-fit (the sweep CSV has no
+#                     predictions, so PR AUC / top-decile lift need real fits) and appends
+#                     per-fold rows to PR_AUC_CSV.
+#   SEED:             --seed N — StratifiedKFold(random_state=N), default 42 (unchanged).
+#   SAVE_PREDICTIONS: --save-predictions — persist per-fold (y_true, y_pred, test_idx) for
+#                     retrospective re-scoring (#122); forces fresh fits for the same reason
+#                     as PR_AUC_MODE (reused sweep rows carry no predictions).
 PR_AUC_MODE = False
 SEED = 42
+SAVE_PREDICTIONS = False
 
 # TabPFN parameter count — settled non-decision (spec §5): constant per dataset, orders of
 # magnitude above the GBDTs, so its precise value never changes frontier membership.
@@ -431,11 +440,18 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
 
     # Per-fold PR-AUC/lift10 rows for the append-mode CSV (--pr-auc only).
     pr_fold_rows: list[dict] = []
+    # Per-fold (y_true, y_pred, test_idx) arrays for --save-predictions (#122).
+    pred_store: dict[str, np.ndarray] = {}
 
-    def record_fold(method: str, fold: int, s: dict) -> None:
+    def record_fold(method: str, fold: int, s: dict, y_true: np.ndarray | None = None,
+                     y_pred: np.ndarray | None = None, te: np.ndarray | None = None) -> None:
         if PR_AUC_MODE:
             pr_fold_rows.append({"dataset": ds["name"], "seed": SEED, "method": method,
                                  "fold": fold, **s})
+        if SAVE_PREDICTIONS:
+            pred_store.setdefault(f"y_true__fold{fold}", y_true.astype(np.float32))
+            pred_store.setdefault(f"test_idx__fold{fold}", te.astype(np.int32))
+            pred_store[f"{method}__fold{fold}"] = y_pred.astype(np.float32)
 
     # ---- 1. Power: reuse sweep CSV rows for <dataset>@full, default config only ----
     # Datasets with NO sweep rows (norauto) fall back to FRESH CPU fits on the same
@@ -443,14 +459,16 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
     # step 4a so a hosted-API stall never blocks the fast CPU results.
     # --pr-auc forces fresh power for EVERYTHING: the sweep CSV has no per-fold
     # predictions, so PR AUC / top-decile lift cannot be computed from reused rows.
+    # --save-predictions forces fresh power for the same reason: reused rows carry no
+    # predictions to persist.
     sweep = pd.read_csv(SWEEP_CSV)
     sweep_full = sweep[(sweep.dataset == ds["name"]) & (sweep.n_rows == len(X)) & (sweep.n_estimators.isna())]
-    fresh = sweep_full.empty or PR_AUC_MODE
+    fresh = sweep_full.empty or PR_AUC_MODE or SAVE_PREDICTIONS
     rows: list[dict] = []
 
     def reuse_or_fresh(m: str) -> dict:
         r = sweep_full[sweep_full.method == m].sort_values("fold")
-        if (not PR_AUC_MODE) and len(r) == N_FOLDS:
+        if (not PR_AUC_MODE) and (not SAVE_PREDICTIONS) and len(r) == N_FOLDS:
             ll = r["log_loss"].to_numpy(dtype=float)
             auc = r["roc_auc"].to_numpy(dtype=float)
             brier = r["brier"].to_numpy(dtype=float)
@@ -475,7 +493,7 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
             pp = model.predict_proba(X[te])
             s = fold_scores(metric, y[te], pp)
             scores.append(s)
-            record_fold(m, fold, s)
+            record_fold(m, fold, s, y_true=y[te], y_pred=pp[:, 1], te=te)
             say(f"  {m} f{fold} ll={s['log_loss']:.4f} ({time.time() - t1:.0f}s)")
         return row_for(m, scores)
 
@@ -500,13 +518,16 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
             model.fit(Xtr, ytr)
             if m in ("tweedieglm", "poissonglm"):
                 # regressor on a binary target: predicted mean treated as P(y=1), clipped
-                mu = np.clip(model.predict(Xte), 1e-6, 1 - 1e-6)
+                mu_raw = model.predict(Xte)  # raw model output; capture pre-clip (#122 spec §3)
+                mu = np.clip(mu_raw, 1e-6, 1 - 1e-6)
                 pp = np.column_stack([1 - mu, mu])
+                y_pred_raw = mu_raw
             else:
                 pp = model.predict_proba(Xte)
+                y_pred_raw = pp[:, 1]
             s = fold_scores(metric, yte, pp)
             scores.append(s)
-            record_fold(m, fold, s)
+            record_fold(m, fold, s, y_true=yte, y_pred=y_pred_raw, te=te)
             say(f"  {m} f{fold} ll={s['log_loss']:.4f} ({time.time() - t1:.0f}s)")
         rows.append(row_for(m, scores))
 
@@ -531,7 +552,7 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
     # run — LAST, after every CPU method above has flushed, so a hosted stall never
     # blocks the fast results from the run log ----
     r = sweep_full[sweep_full.method == "tabpfn"].sort_values("fold")
-    if (not PR_AUC_MODE) and len(r) == N_FOLDS:
+    if (not PR_AUC_MODE) and (not SAVE_PREDICTIONS) and len(r) == N_FOLDS:
         ll = r["log_loss"].to_numpy(dtype=float)
         auc = r["roc_auc"].to_numpy(dtype=float)
         brier = r["brier"].to_numpy(dtype=float)
@@ -572,7 +593,7 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
                 pp = np.column_stack([1 - pp, pp]) if pp.ndim == 1 else np.column_stack([1 - pp[:, 0], pp[:, 0]])
             s = fold_scores(metric, y[te], pp)
             scores.append(s)
-            record_fold("tabpfn", fold, s)
+            record_fold("tabpfn", fold, s, y_true=y[te], y_pred=pp[:, 1], te=te)
             say(f"  tabpfn f{fold} ll={s['log_loss']:.4f} ({time.time() - t1:.0f}s)")
         rows.append(row_for("tabpfn", scores))
 
@@ -629,6 +650,16 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
 
     # ---- 7. Self-check (repo assert convention) ----
     sanity_check(sweep_full, folds, table, on_frontier)
+
+    # ---- 7b. Persist predictions + read-back verification (--save-predictions, #122) ----
+    if SAVE_PREDICTIONS:
+        methods = [r["method"] for r in rows]
+        npz_path = write_predictions_npz(ds, pred_store, methods, N_FOLDS,
+                                          problem_type="classification",
+                                          metric_name=ds.get("metric", "log_loss"), seed=SEED)
+        verify_predictions_readback(npz_path, methods, metric, rows, N_FOLDS,
+                                     problem_type="classification")
+
     table = table.drop(columns=[c for c in table.columns if c.startswith("_fold")])
     table.to_csv(out_csv, index=False)
     print(table.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
@@ -675,6 +706,122 @@ def sanity_check(sweep_full: pd.DataFrame, folds: list[tuple[np.ndarray, np.ndar
     print(f"SELF-CHECK OK: folds={N_FOLDS}, methods={len(table)}, on-frontier={len(on_frontier)}")
 
 
+# ---------------------------------------------------------------------------
+# Prediction capture (--save-predictions, #122): persist per-fold test predictions so
+# retrospective metric questions become seconds-long local computations instead of a
+# full refit. Store raw model output pre-clipping (spec §3) — scoring-time clips
+# (tweedieglm/poissonglm mu clip, poisson_deviance y_pred clip) are conventions applied
+# in fold_scores/metric_fn, not part of the captured artifact; a future rescoring picks
+# its own treatment instead of inheriting today's (clip_convention notes it below).
+# ---------------------------------------------------------------------------
+def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: list[str],
+                           n_folds: int, problem_type: str, metric_name: str, seed: int) -> Path:
+    """Write predictions/<dataset>__seed<seed>.npz + sibling .manifest.json (schema v1,
+    docs/analyses/prediction_capture_rescore_spec.md §4). Asserts every fold/method array
+    is present, length-matched to its test split, and finite before writing anything."""
+    import json
+    import subprocess
+
+    PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
+    stem = f"{ds['name']}__seed{seed}"
+    npz_path = PREDICTIONS_DIR / f"{stem}.npz"
+    manifest_path = PREDICTIONS_DIR / f"{stem}.manifest.json"
+
+    for k in range(n_folds):
+        y_true = pred_store[f"y_true__fold{k}"]
+        te = pred_store[f"test_idx__fold{k}"]
+        assert len(y_true) == len(te), f"fold {k}: y_true/test_idx length mismatch"
+        assert np.isfinite(y_true).all(), f"fold {k}: NaN/Inf in y_true"
+        for m in methods:
+            y_pred = pred_store[f"{m}__fold{k}"]
+            assert len(y_pred) == len(te), f"fold {k}: {m} prediction length mismatch"
+            assert np.isfinite(y_pred).all(), f"fold {k}: NaN/Inf in {m} predictions"
+
+    np.savez_compressed(npz_path, **pred_store)
+
+    try:
+        import importlib.metadata
+        tabpfn_client_version = importlib.metadata.version("tabpfn-client")  # package exposes no __version__ attr
+    except Exception:
+        tabpfn_client_version = "unknown"
+    try:
+        git_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True, text=True, check=True
+        ).stdout.strip()
+    except Exception:
+        git_sha = "unknown"
+
+    split_desc = (f"StratifiedKFold({n_folds}, shuffle=True, random_state={seed})"
+                  if problem_type == "classification" else
+                  f"KFold({n_folds}, shuffle=True, random_state=42)")
+    manifest = {
+        "schema_version": 1,
+        "dataset": ds["name"],
+        "data_file": ds["file"],
+        "target": ds["target"],
+        "drop": ds["drop"],
+        "problem_type": problem_type,
+        "primary_metric": metric_name,
+        "stored_scale_note": "target stored/used as returned by load_Xy (no additional transform on capture)",
+        "clip_convention": (
+            "poisson_deviance: y_pred clipped >= 1e-12 at scoring time (metric_fn); "
+            "tweedieglm/poissonglm classification-mode mu clipped to [1e-6, 1-1e-6] at "
+            "scoring time (run_dataset fold loop); stored arrays are raw, pre-clip"
+        ),
+        "n_folds": n_folds,
+        "seed": seed,
+        "split": split_desc,
+        "methods": methods,
+        "model_version": "v3_default",
+        "tabpfn_client_version": tabpfn_client_version,
+        "script_git_sha": git_sha,
+        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+    print(f"SAVED PREDICTIONS: {npz_path.name} ({len(methods)} methods x {n_folds} folds) "
+          f"+ {manifest_path.name}")
+    return npz_path
+
+
+def _reconstruct_pp(method: str, y_pred: np.ndarray) -> np.ndarray:
+    """Rebuild the 2-column probability matrix originally used for scoring, from a stored
+    raw prediction. tweedieglm/poissonglm need the [1e-6, 1-1e-6] clip reapplied (it was
+    stripped before storage); every other classification method's prediction is already
+    a probability, no clip involved."""
+    if method in ("tweedieglm", "poissonglm"):
+        mu = np.clip(y_pred, 1e-6, 1 - 1e-6)
+        return np.column_stack([1 - mu, mu])
+    return np.column_stack([1 - y_pred, y_pred])
+
+
+def verify_predictions_readback(npz_path: Path, methods: list[str], metric, rows: list[dict],
+                                 n_folds: int, problem_type: str) -> None:
+    """Read-back check (spec §5.4, AC2): recompute the primary metric per fold from the
+    just-written stored pairs and compare against the mean already recorded in `rows`.
+    This is what proves the persisted arrays reproduce the reported numbers, not just
+    that a file got written. The predictions are the SAME in-memory arrays used to
+    compute `rows` this run, round-tripped only through float32 storage — not an
+    independent refit — so tolerance is set by float32 precision, not bit-exactness."""
+    data = np.load(npz_path)
+    row_by_method = {r["method"]: r for r in rows}
+    tol = 1e-3
+    for m in methods:
+        fold_vals = []
+        for k in range(n_folds):
+            y_true = data[f"y_true__fold{k}"]
+            y_pred = data[f"{m}__fold{k}"]
+            if problem_type == "classification":
+                fold_vals.append(metric(y_true, _reconstruct_pp(m, y_pred)))
+            else:
+                fold_vals.append(metric(y_true, y_pred))
+        recomputed = float(np.mean(fold_vals))
+        recorded = row_by_method[m]["mean"]
+        assert abs(recomputed - recorded) < tol, (
+            f"read-back mismatch for {m}: recomputed={recomputed:.6f} vs recorded={recorded:.6f}"
+        )
+    print(f"READ-BACK OK: {len(methods)} methods match recorded means within {tol:g}")
+
+
 def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
     """Regression-mode frontier (--regression). No sweep reuse — the sweep CSV is
     classification-only, so every regression dataset is FRESH power: all CPU methods
@@ -706,6 +853,16 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFra
     }
     rows: list[dict] = []
     fold0_models: dict[str, object] = {}  # fold-0 fits reused for leaf counting (D2 rule)
+    # Per-fold (y_true, y_pred, test_idx) arrays for --save-predictions (#122).
+    pred_store: dict[str, np.ndarray] = {}
+
+    def record_fold(method: str, fold: int, y_true: np.ndarray, y_pred: np.ndarray,
+                     te: np.ndarray) -> None:
+        if SAVE_PREDICTIONS:
+            pred_store.setdefault(f"y_true__fold{fold}", y_true.astype(np.float32))
+            pred_store.setdefault(f"test_idx__fold{fold}", te.astype(np.int32))
+            pred_store[f"{method}__fold{fold}"] = y_pred.astype(np.float32)
+
     for m in ("ols", "poissonglm", "tweedieglm", "rf", "cat", "lgbm", "xgb"):
         fold_vals = []
         t1 = time.time()
@@ -714,7 +871,9 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFra
             model.fit(X[tr], y[tr])
             if fold == 0:
                 fold0_models[m] = model
-            fold_vals.append(metric(y[te], model.predict(X[te])))
+            y_pred = model.predict(X[te])
+            fold_vals.append(metric(y[te], y_pred))
+            record_fold(m, fold, y[te], y_pred, te)
             say(f"  {m} f{fold} {ds['metric']}={fold_vals[-1]:.4f} ({time.time() - t1:.0f}s)")
         vals = np.array(fold_vals)
         rows.append({"method": m, "mean": vals.mean(), "se": vals.std(ddof=1) / np.sqrt(len(vals))})
@@ -739,7 +898,9 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFra
                 time.sleep(wait)
                 if attempt == 3:
                     raise
-        fold_vals.append(metric(y[te], model.predict(X[te])))
+        y_pred = model.predict(X[te])
+        fold_vals.append(metric(y[te], y_pred))
+        record_fold("tabpfn", fold, y[te], y_pred, te)
         say(f"  tabpfn f{fold} {ds['metric']}={fold_vals[-1]:.4f} ({time.time() - t1:.0f}s)")
     vals = np.array(fold_vals)
     rows.append({"method": "tabpfn", "mean": vals.mean(), "se": vals.std(ddof=1) / np.sqrt(len(vals))})
@@ -792,6 +953,16 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFra
 
     # ---- 5. Self-check ----
     sanity_check_regression(ds, folds, table, on_frontier, y, metric)
+
+    # ---- 5b. Persist predictions + read-back verification (--save-predictions, #122) ----
+    if SAVE_PREDICTIONS:
+        methods = [r["method"] for r in rows]
+        npz_path = write_predictions_npz(ds, pred_store, methods, N_FOLDS,
+                                          problem_type="regression", metric_name=ds["metric"],
+                                          seed=SEED)
+        verify_predictions_readback(npz_path, methods, metric, rows, N_FOLDS,
+                                     problem_type="regression")
+
     return table
 
 
@@ -829,6 +1000,10 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pr-auc", action="store_true",
                         help="PR-AUC/lift10 robustness: fresh-fit ALL methods, append per-fold rows "
                              "to frontier_pr_auc_results.csv (ignored with --data)")
+    parser.add_argument("--save-predictions", action="store_true",
+                        help="persist per-fold test predictions (.npz + manifest) under "
+                             "predictions/ for retrospective re-scoring (#122); forces fresh "
+                             "fits for every method, same as --pr-auc")
     parser.add_argument("--seed", type=int, default=42, metavar="N",
                         help="StratifiedKFold random_state (default 42; seed != 42 writes "
                              "frontier_results_<ds>_seed<N>.csv/.png so canonical seed-42 files are not clobbered)")
@@ -889,7 +1064,7 @@ def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    global SEED, PR_AUC_MODE
+    global SEED, PR_AUC_MODE, SAVE_PREDICTIONS
     t0 = time.time()
     parser = make_parser()
     args = parser.parse_args()
@@ -897,6 +1072,7 @@ def main() -> None:
         parser.error("--target is required when --data is given")
     SEED = args.seed
     PR_AUC_MODE = args.pr_auc and args.data is None  # --pr-auc is a registry-run mode
+    SAVE_PREDICTIONS = args.save_predictions
     datasets, wanted = select_datasets(args)
     # Output layout: results/<dir> (default) keeps run artifacts out of the code tree.
     # 'legacy' preserves the old beside-script paths for exact reproduction of
