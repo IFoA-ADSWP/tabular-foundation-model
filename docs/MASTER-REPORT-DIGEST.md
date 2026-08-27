@@ -1,8 +1,8 @@
-# Master Report Digest — the addendum arc (§4 → §14.14)
+# Master Report Digest — the addendum arc (§4 → §14.15)
 
 Companion to `docs/KNOWLEDGE-PATH.md` Stage 4.5. The master report (`docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md`) is an *evolution*, not a static study: nine addenda, each answering one question, several reversing or qualifying prior verdicts. This digest gives one paragraph per addendum — question, result, verdict change, key numbers. Read it alongside the report, or instead of it when you need the story fast.
 
-**The one-line story:** v1 looked like a loss → §11 showed the metric was blind → §12 separated artifacts from real limits → §13 killed the size story → §14 built the frontier → §14.11 retracted a verdict and found TabPFN AUC #1 on 6/6 → §14.13 confirmed it against tuned baselines → §14.14 showed the frequency verdict was a framing artifact.
+**The one-line story:** v1 looked like a loss → §11 showed the metric was blind → §12 separated artifacts from real limits → §13 killed the size story → §14 built the frontier → §14.11 retracted a verdict and found TabPFN AUC #1 on 6/6 → §14.13 confirmed it against tuned baselines → §14.14 showed the frequency verdict was a framing artifact → §14.15 tested the severity verdict against three insurance-native metrics and it held.
 
 ---
 
@@ -50,6 +50,10 @@ Question: *does the last standing threat — tuned classical baselines — dethr
 
 Question: *can the weakest axis be sidestepped by reframing the target?* Spanish motor `N_claims_year` → binary claim/no-claim (11.1% pos) and ordinal 0/1/2+. Result: **rank #1 on every metric, but several margins are within noise** (binary PR-AUC p=0.12, ordinal Brier p=0.88 — the report's own §14.14.6 honest weak spot); **significant margins are seed-stable** (binary AUC 0.7170, +0.0080 vs LGBM, p=0.0010; ordinal one-vs-rest AUC 0.7167, +0.0111, p=0.0085). §14.9 contrast: the same rows scored by Poisson deviance had TabPFN +10.8% *behind* LGBM — **the count axis was the loss; classification is the win.** Caveats: single dataset, GLMs collapse on the binary task (constant prediction, AUC exactly 0.5000), ordinal PR-AUC is NaN by design (lift10 on P(≥1) is the substitute).
 
+## §14.15 Insurance-native alternative metrics (08-27, issue #123)
+
+Question: *does the severity verdict flip under Gamma/Tweedie deviance or MAE?* Re-scored all 6 regression datasets from #122's persisted predictions. Result: **stable — the one apparent flip is an artifact.** `spanish_motor_severity` (RMSE rank 6/8, §14.10) jumps to **MAE rank 1/8** (paired-significant vs best GBDT, p=1.1e-05) — but 117.45 is *worse* than predicting €0 for every policy (117.24). Same trap on both count targets: at ~89–95% zero mass the MAE-minimizing constant (the median) *is* zero, so every method loses to a constant and the ranking is meaningless. Where zero mass is absent the result holds and strengthens: `ausautoBI8999` (0% zeros) and `ausprivauto0405_vehvalue` (0.1%) are TabPFN rank 1 on all four metrics, paired-significant throughout on the former (p=0.0094/0.0036/0.0012). `bemtl97_amount` stays put (LGBM #1 on all three) and clears its own baseline. On `spanish_motor_severity` itself, TabPFN's own Gamma/Tweedie verdict is **rank 4/8, improved from RMSE's 6/8 but not flipped** — the uncorrupted GLM family (0% floor-clip) legitimately outranks it (best=ols, p=0.0009/0.0009). **Second artifact: the floor-clip blowup** — GBDT Gamma/Tweedie means on `spanish_motor_severity` reach 1e8–1e11, driven by near-zero predictions on real claims (xgb 8.5% of predictions floor-clipped vs tabpfn 0.065%), which is also why those deltas aren't significant (p=0.37–0.42). Net: §14.8's small-N regression picture confirmed on three metrics; no verdict reverses.
+
 ## §15 Version-drift re-test policy (08-04, docs-only)
 
 The verdicts are **version-stamped**: `model_path="v3_default"`, tabpfn-client 0.3.3. Triggers: client upgrade, new model_path, any environment bump. Procedure: record versions → rerun same commands/folds/metrics/D3 rule → diff the 12 committed frontier CSVs → append a §14.x addendum → update the adoption rule *only if the pattern changes*. Sweep-reuse caveat: the frontier reuses home-turf sweep rows on 3 datasets — refresh the sweep first or the frontier won't see new model behavior.
@@ -67,4 +71,5 @@ The verdicts are **version-stamped**: `model_path="v3_default"`, tabpfn-client 0
 | §14.11 | **AUC #1 on 6/6; ausprivauto0405 retraction** |
 | §14.12–§14.13 | Ranking edge survives PR AUC, paired tests, seeds, tuned baselines (#1 of 14) |
 | §14.14 | Frequency verdict was a framing artifact — reframe wins |
-| Standing | Adopt for risk-ranking (underwriting triage, propensity); keep GLM for pricing/coefficient stories; regression stays GBDT territory |
+| §14.15 | Severity verdict stable under Gamma/Tweedie/MAE; the one apparent flip fails a trivial baseline |
+| Standing | Adopt for risk-ranking (underwriting triage, propensity); keep GLM for pricing/coefficient stories; regression stays GBDT territory except clean positive-severity targets at small N (§14.8, confirmed §14.15) |
