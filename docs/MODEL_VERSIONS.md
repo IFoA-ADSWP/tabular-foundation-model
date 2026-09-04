@@ -1,7 +1,7 @@
 # Model Versions & Validity Timeline
 
 > Read this before citing any number in this repo. Every finding is pinned to the TabPFN version that produced it — versions change behaviour, so findings do not automatically carry forward.
-> Successor with v3 re-runs: `IFoA-ADSWP/tabular-foundation-model` (see `docs/reports/TABPFN_BENCHMARK_SUMMARY.md` there, and master report §12.1, §15).
+> Current pinned version here is **v3_default (tabpfn-client 0.3.3)** — see `docs/reports/TABPFN_BENCHMARK_SUMMARY.md`, master report §12.1 (version correction) and §15 (re-test policy). Legacy v2-era rows below are frozen and must not be cited as current.
 
 ## The rule
 
@@ -9,14 +9,22 @@
 
 New runs must record: model version (`tabpfn` / `tabpfn-client` + weights ID e.g. `v2.6` / `v3_default`), date, seed, dataset SHA. Pattern to copy: this repo's `results/<run-dir>/manifest.json` + Version-Drift Re-Test Policy (trigger → scope → diff → addendum, master report §15, issue #55).
 
-## Timeline (corrected — see paper caveat)
+## Timeline — when we used what (with evidence)
 
-| Period | TabPFN | Evidence | Status |
-|---|---|---|---|
-| **Project start → paper** | **v2 era (v2.0 via API)** | Paper states "reproducible using … TabPFN v2.0 API" (`docs/papers/Theres-Life-in-the-Old-GLM-Yet.md`) and "We benchmarked TabPFN v2.0 via API (no GPU)" (Caveat #2) | **Frozen. Paper numbers are v2.0.** |
-| **Paper writing** | **v2.5 current (not our benchmark)** | Same caveat notes "v2.5 achieves improved in-context learning… enhanced robustness" — i.e. v2.5 existed but our runs were v2.0 | **Do not cite our numbers as v2.5.** |
-| **Apr 2026 runs (reports, replication, benchmarks)** | **v2 era; exact weights ID unrecorded** | Package pin `tabpfn==2.6.0` in `docs/MAINTENANCE_BACKLOG.md` is the **pip package**, not proof of v2.6 weights; hosted runs used `tabpfn-client 0.2.8`; no `manifest.json` recorded weights ID | **Treat as v2.x, not v2.6. Verify before citing a minor version.** |
-| **Aug 2026 — this repo** | **v3_default** | `tabpfn-client 0.3.3` (`requirements.lock` pins `tabpfn==6.4.1` package + `tabpfn-client==0.3.3`); master report §12.1, §15 | **Current. Cite this for new work.** |
+| Used when | TabPFN model | API / package | Row cap (live-verified) | Evidence | Status |
+|---|---|---|---|---|---|
+| **Mar–Apr 2026: project work, all reports, replication, benchmarks** | **v2 era — v2.0 via API** | Hosted API; local package pin `tabpfn==2.6.0` is pip only; hosted runs used `tabpfn-client 0.2.8` | v2-era API (v2/v2.5 class: 50k rows — see successor §12 correction) | Paper: "reproducible using … TabPFN v2.0 API" + "We benchmarked TabPFN v2.0 via API (no GPU)" (`docs/papers/Theres-Life-in-the-Old-GLM-Yet.md:62,71`); registry dates 2026-03-29 → 2026-04-07 | **Frozen. Paper + April numbers are v2.0.** |
+| **Apr 2026: paper writing — referenced only, never run** | **v2.5 (not our benchmark)** | n/a | 50k rows (same v2 class) | Same Caveat #2: "v2.5 achieves improved in-context learning… enhanced robustness" — describes the newer release, not our runs | **Do not cite our numbers as v2.5.** |
+| **(unrecorded — gap)** | **v2.6 weights existed (100k cap) but no manifest proves we ran them** | `tabpfn_2_6` on HuggingFace (see `docs/provisioning_gpu.md`); no run manifest recorded weights ID | 100k rows (per successor §12 correction, verified 2026-08-04) | Absence of evidence: no manifest, no log cites v2.6 weights | **Treat April as v2.x. Never write "v2.6" without a manifest.** |
+| **1–7 Aug 2026: successor frontier + benchmark suite** | **v3 (`v3_default`)** | `tabpfn-client 0.3.3`, `model_path="v3_default"` pinned post-hoc (runs used auto-selection resolving to v3) | 1M rows / 200M cells / 160 classes / 2,000 cols (live-verified 2026-08-04 via `/tabpfn/get_model_limits`) | Master report `docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md` (dated 2026-08-01, updated Aug 2/3/7; §12 correction 2026-08-04; §14.9 version note; §15 re-test policy); tags `paper-snapshot-2026-08-22`, `v8.2.0` | **Current. Cite this for new work.** |
+
+```mermaid
+timeline
+    Mar-Apr 2026 : v2.0 via API (our runs: reports, replication, benchmarks)
+    Apr 2026 : v2.5 released (referenced in paper caveat, never run by us)
+    Apr-Aug 2026 : v2.6 weights exist (100k cap, gap — no manifest)
+    Aug 2026 : v3_default, client 0.3.3 (successor frontier, §12 correction Aug 4)
+```
 
 Tags: `paper-snapshot-2026-08-22` (pre-hygiene baseline backing §14.x verdicts), `v8.2.0` (benchmark suite + version-drift policy).
 
