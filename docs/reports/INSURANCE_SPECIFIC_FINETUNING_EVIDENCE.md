@@ -1,4 +1,6 @@
 # Evidence Review: Insurance-Specific Fine-Tuning for TabPFN Classifier
+> Tested: Apr 2026 · TabPFN v2.6 (`tabpfn>=7` / client 0.2.8). Do not assume results hold on v3 — see [../MODEL_VERSIONS.md](../MODEL_VERSIONS.md).
+
 
 Date: 2026-03-29
 

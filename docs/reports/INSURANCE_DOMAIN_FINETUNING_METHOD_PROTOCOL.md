@@ -1,4 +1,6 @@
 # Methodology Protocol: Does Domain-Specific Fine-Tuning Improve Insurance Prediction?
+> Tested: Apr 2026 · TabPFN v2.6 (`tabpfn>=7` / client 0.2.8). Do not assume results hold on v3 — see [../MODEL_VERSIONS.md](../MODEL_VERSIONS.md).
+
 
 Date: 2026-04-02
 
