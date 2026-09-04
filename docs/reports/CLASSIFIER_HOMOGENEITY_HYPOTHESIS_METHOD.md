@@ -1,4 +1,6 @@
 # Classifier Fine-Tuning Homogeneity Hypothesis: Method and Initial Evaluation
+> Tested: Apr 2026 · TabPFN v2 era (v2.0 via API; weights ID unrecorded). Do not assume results hold on v2.5/v3 — see [../MODEL_VERSIONS.md](../MODEL_VERSIONS.md).
+
 
 ## Objective
 

@@ -1,4 +1,6 @@
 # Stage A and Stage B Findings: Short Report
+> Tested: Apr 2026 · TabPFN v2 era (v2.0 via API; weights ID unrecorded). Do not assume results hold on v2.5/v3 — see [../MODEL_VERSIONS.md](../MODEL_VERSIONS.md).
+
 
 Date: 2026-04-02
 

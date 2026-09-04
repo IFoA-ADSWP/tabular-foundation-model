@@ -1,5 +1,7 @@
 # Replication Setup Guide
 
+> ⚠️ **Version notice:** this replication is **TabPFN v2 era (v2.0 via API), Apr 2026** (seed 45, 70:30 split; weights ID unrecorded). Re-running on v3 **will** give different numbers — see [MODEL_VERSIONS.md](MODEL_VERSIONS.md) and the v3 benchmark summary before citing.
+
 ## "There's Life in the Old GLM Yet!" - Paper Replication Notebook
 
 This document provides step-by-step instructions to replicate the experiments from the paper.

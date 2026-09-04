@@ -1,4 +1,6 @@
 # TabPFN Fine-Tuning Limits on Apple Silicon: An Empirical Study
+> Tested: Apr 2026 · TabPFN v2 era (v2.0 via API; weights ID unrecorded). Do not assume results hold on v2.5/v3 — see [../MODEL_VERSIONS.md](../MODEL_VERSIONS.md).
+
 
 Scope note: all experiments in this report use `TabPFNClassifier` for binary classification; `TabPFNRegressor` is out of scope for this study.
 

@@ -1,4 +1,6 @@
 # Technical Companion: Understanding the TabPFN vs GLM Comparison
+> Tested: Apr 2026 · TabPFN v2 era (v2.0 via API; weights ID unrecorded). Do not assume results hold on v2.5/v3 — see [../MODEL_VERSIONS.md](../MODEL_VERSIONS.md).
+
 
 ## 1. Evaluation Metrics Explained
 
