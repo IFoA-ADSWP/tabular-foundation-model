@@ -1,5 +1,5 @@
 # TabPFN Post-Hoc Optimisation: Executive Summary
-> Tested: Apr 2026 · TabPFN v2.6 (`tabpfn>=7` / client 0.2.8). Do not assume results hold on v3 — see [../MODEL_VERSIONS.md](../MODEL_VERSIONS.md).
+> Tested: Apr 2026 · TabPFN v2 era (v2.0 via API; weights ID unrecorded). Do not assume results hold on v2.5/v3 — see [../MODEL_VERSIONS.md](../MODEL_VERSIONS.md).
 
 
 Scope note: this summary covers a classification use case (insurance lapse prediction) and references classifier workflows, not `TabPFNRegressor`.
