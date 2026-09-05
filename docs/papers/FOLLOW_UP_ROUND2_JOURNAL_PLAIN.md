@@ -1,5 +1,7 @@
 # Plain‑English Summary — Follow‑Up to TabPFN Insurance Study
 
+> Also available as `FOLLOW_UP_ROUND2_JOURNAL_SHORT.md` (journal format, same findings).
+
 Key takeaways
 - There is no single best model for all insurance problems; choose by the business goal (on the ranking/AUC dimension this is superseded by the 2026-08-06 rescore, master report §14.11: TabPFN is AUC #1 of 9 methods on all 6 canonical classification datasets).  
 - TabPFN often improves ranking (who is more likely to have an event) but is not always better at predicting rare events precisely.  

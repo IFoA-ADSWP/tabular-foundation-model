@@ -2,6 +2,8 @@
 > Tested: Apr 2026 · TabPFN v2 era (v2.0 via API; weights ID unrecorded). Do not assume results hold on v2.5/v3 — see [../MODEL_VERSIONS.md](../MODEL_VERSIONS.md).
 
 
+> Superseded by `docs/reports/TABPFN_BENCHMARK_SUMMARY.md` (v3, Aug 2026) — read that for the current verdict; this page is the v2-era record.
+
 ## Objective
 Provide one consolidated view of findings from:
 1. Classification benchmarking (TabPFN vs GLM)

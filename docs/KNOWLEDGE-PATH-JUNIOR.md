@@ -167,6 +167,7 @@ By now you should be able to:
 - Explain why PR AUC matters when positives are ~10% of the data
 - Explain what ROC AUC does *not* tell you about a model that ranks well
 - Explain what "same folds" means and why every comparison in this repo requires it
+- Deeper reading when ready: `docs/analyses/metrics_explained.md` (v3, actuarial framing) and `docs/reports/TECHNICAL_COMPANION.md` §1 (legacy v2 numbers).
 - Read Table1 like a scientist: the best ranking model is LogisticRegression at 0.599, but the band is ~0.55–0.60 — within noise of each other on one split — so no winner can be called from this table alone; single-table comparisons don't tell you about variance or paired significance.
 
 ## Phase 1 — First Runs Runbook (Days 3–5)
