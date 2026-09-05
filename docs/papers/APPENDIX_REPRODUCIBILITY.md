@@ -9,6 +9,8 @@ It is intended to make replication practical for readers by providing exact file
 
 ---
 
+> Hub: `docs/REPRODUCIBILITY_RUNBOOK.md` is the canonical command-per-result map (both eras) — this appendix preserves the round-1 package detail.
+
 ## A1. Environment
 
 Minimum requirements:
