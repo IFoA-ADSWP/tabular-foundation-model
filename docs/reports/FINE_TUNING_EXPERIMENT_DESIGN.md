@@ -265,6 +265,7 @@ From `requirements.txt`:
 - `tabpfn>=6,<7` (local weights, v3 default)
 - `torch>=2.0,<3`
 - `numpy`, `pandas`, `scikit-learn`
+- `pyarrow` (for Parquet I/O)
 - `catboost` (optional, for baselines)
 - `google-colab-cli` (for headless Colab access)
 
@@ -332,104 +333,103 @@ Why ROC, not Brier?
 
 ### Data Storage
 
-**Local (during execution):**
+**Storage format:**
+- **Parquet** for tabular metrics (one row per run) — columnar, typed, compressed, queryable
+- **NPZ** for per-sample arrays (predictions, ground truth) — numpy-native, compact
+- **JSON** for metadata — human-readable, small
 
 ```
 outputs/finetune/
-├── pilot/
-│   ├── coil2000/
-│   │   ├── arm_A_raw/
-│   │   │   ├── predictions.npy          # probability vectors (n_test,)
-│   │   │   ├── ground_truth.npy         # true labels (n_test,) — REQUIRED for metric recalculation
-│   │   │   ├── errors.npy               # per-sample errors (|y_true - y_prob|) — for uncertainty quantification
-│   │   │   ├── test_indices.csv         # row indices used as test set — reproducible splits
-│   │   │   ├── fold_metrics.csv         # per-fold metrics (if k-fold CV) — for standard error
-│   │   │   └── meta.json
-│   │   ├── arm_B_in_domain/
-│   │   │   ├── model.tabpfn_fit         # fine-tuned weights
-│   │   │   ├── predictions.npy
-│   │   │   ├── ground_truth.npy
-│   │   │   ├── errors.npy               # per-sample errors for uncertainty
-│   │   │   ├── test_indices.csv
-│   │   │   ├── train_indices.csv        # row indices used for fine-tuning
-│   │   │   ├── fold_metrics.csv         # per-fold metrics — standard error across folds
-│   │   │   └── meta.json
-│   │   ├── arm_E_glm/
-│   │   │   ├── predictions.npy
-│   │   │   ├── ground_truth.npy
-│   │   │   ├── errors.npy
-│   │   │   ├── test_indices.csv
-│   │   │   ├── fold_metrics.csv
-│   │   │   └── meta.json
-│   │   └── arm_F_catboost/
-│   │       ├── predictions.npy
-│   │       ├── ground_truth.npy
-│   │       ├── errors.npy
-│   │       ├── test_indices.csv
-│   │       ├── fold_metrics.csv
-│   │       └── meta.json
-│   ├── uslapseagent/
-│   ├── eudirectlapse/
-│   └── spanish_motor_lapse/
-└── pilot_manifest.json                  # SHA of all datasets used
+├── pilot_metrics.parquet          # tabular: one row per run, all metrics as columns
+├── predictions.npz                # dict of {run_id: np.array(n_test)} — compressed
+├── ground_truth.npz               # dict of {run_id: np.array(n_test)} — compressed
+├── indices.npz                    # dict of {run_id: {"train": [...], "test": [...]}}
+├── fold_metrics.parquet           # fold-level metrics (dataset, arm, fold, seed, metrics)
+└── pilot_manifest.json            # run registry with configs, SHAs, version info
 ```
 
-**Why we store ground_truth and indices:**
+**Why Parquet over CSV:**
 
-| File | Why needed |
-|---|---|
-| `predictions.npy` | Model outputs — probability vectors |
-| `ground_truth.npy` | True labels — required to calculate ANY metric |
-| `test_indices.csv` | Which rows were test — required to match predictions to labels |
-| `train_indices.csv` | Which rows were used for fine-tuning — for reproducibility |
-| `errors.npy` | Per-sample errors (\|y_true - y_prob\|) — for uncertainty quantification and conformal intervals |
-| `fold_metrics.csv` | Per-fold metrics — standard error across folds for significance testing |
-| `pilot_manifest.json` | Dataset SHAs — ensures same data version for recalculation |
+| Feature | CSV | Parquet |
+|---|---|---|
+| Type safety | ❌ strings only | ✅ typed columns (float, int, string) |
+| Compression | ❌ none | ✅ snappy/gzip (5-10x smaller) |
+| Query speed | ❌ full scan | ✅ column pruning, predicate pushdown |
+| Schema enforcement | ❌ none | ✅ explicit schema |
+| Cross-platform | ✅ universal | ✅ universal |
 
-**Original repo convention (preserve):**
-The `tabpfn_finetune_trial_results.csv` in the original repo stores:
-- Per-trial metrics (Brier, LogLoss, ROC, PR)
-- Step-level error tracking
-- Reload validation checks
+**Query example:**
 
-**We extend this to per-sample errors and fold-level metrics** — enabling:
-- Confidence intervals around predictions
-- Standard errors across folds for paired t-tests
-- Conformal prediction calibration
+```python
+import pandas as pd
 
-**With these, you can recalculate offline:**
+df = pd.read_parquet("outputs/finetune/pilot_metrics.parquet")
+
+# Filter and aggregate
+eudirectlapse = df[df["dataset"] == "eudirectlapse"]
+in_domain = eudirectlapse[eudirectlapse["arm"] == "B"]
+
+# Compare arms
+pivot = df.pivot_table(
+    index="dataset",
+    columns="arm",
+    values="roc_auc",
+    aggfunc=["mean", "std"]
+)
+
+# Standard error across folds
+fold_se = df.groupby(["dataset", "arm"])["roc_auc"].sem()
+```
+
+**Original repo compatibility:**
+The original repo uses CSV (`tabpfn_finetune_trial_results.csv`, `domain_finetune_study_runs.csv`). Parquet is a superset — CSV can be exported via `df.to_csv()` if needed for backward compatibility.
+
+**Per-sample arrays (NPZ):**
 
 ```python
 import numpy as np
+
+preds = np.load("outputs/finetune/predictions.npz")
+truth = np.load("outputs/finetune/ground_truth.npz")
+idxs = np.load("outputs/finetune/indices.npz", allow_pickle=True)
+
+# Access by run_id (e.g., "coil2000_B_in_domain_seed42")
+run_id = "coil2000_B_in_domain_seed42"
+y_prob = preds[run_id]
+y_true = truth[run_id]
+test_idx = idxs[run_id]["test"]
+train_idx = idxs[run_id]["train"]
+
+# Recalculate metrics
 from sklearn.metrics import roc_auc_score, brier_score_loss
-
-y_true = np.load("ground_truth.npy")
-y_prob = np.load("predictions.npy")
-
 roc = roc_auc_score(y_true, y_prob)
 brier = brier_score_loss(y_true, y_prob)
+
+# Per-sample errors (for conformal intervals)
+errors = np.abs(y_true - y_prob)
 ```
 
-**Metadata schema (per run):**
+**Metadata schema (pilot_manifest.json):**
 
 ```json
 {
-  "arm": "B",
-  "dataset": "eudirectlapse",
-  "dataset_sha": "a9e3be270541...",
-  "config": {"context_samples": 64, "max_finetune_steps": 3, "n_estimators": 2, "learning_rate": 1e-5},
-  "seed": 42,
-  "train_rows": 2000,
-  "test_rows": 1000,
-  "train_indices_hash": "sha256 of train_indices.csv",
-  "test_indices_hash": "sha256 of test_indices.csv",
-  "device": "cuda",
-  "device_name": "Tesla T4",
-  "gpu_time_seconds": 45.2,
-  "peak_vram_bytes": 4294967296,
-  "status": "success",
-  "timestamp": "2026-09-11T12:00:00Z",
-  "tabpfn_version": "6.x.x"
+  "experiment": "pilot_v1",
+  "created": "2026-09-11T12:00:00Z",
+  "tabpfn_version": "6.x.x",
+  "datasets": {
+    "coil2000": {"sha256": "abc123", "rows": 9822},
+    "uslapseagent": {"sha256": "def456", "rows": 29317},
+    "eudirectlapse": {"sha256": "ghi789", "rows": 23060},
+    "spanish_motor_lapse": {"sha256": "jkl012", "rows": 53501}
+  },
+  "config_defaults": {
+    "context_samples": 64,
+    "max_finetune_steps": 3,
+    "n_estimators": 2,
+    "learning_rate": 1e-5
+  },
+  "arms": ["A", "B", "E", "F"],
+  "seeds": [42]
 }
 ```
 
