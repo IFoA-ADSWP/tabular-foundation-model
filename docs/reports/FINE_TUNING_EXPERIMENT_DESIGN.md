@@ -150,7 +150,119 @@ This gives a 3×3 grid of fine-tuned vs raw comparisons. The outcome is a surfac
 
 ---
 
-## Pool Composition Strategy
+## Data Processing Pipeline
+
+### Bottleneck Analysis
+
+| Step | Time per run | Deterministic? | Shared across arms? |
+|---|---|---|---|
+| Weight download | ~30s | yes | yes (once per session) |
+| Weight load | ~5s | yes | yes (once per session) |
+| Data loading + encoding | ~500ms | yes | yes |
+| **TabPFN preprocessing** | **~15s** | **yes** | **yes** |
+| Fine-tuning | ~5-10s | no | no |
+| Inference | ~2s | no | no |
+
+**Key insight:** TabPFN preprocessing (`get_preprocessed_dataset_chunks`) is deterministic — same dataset + same config = same output. It's also the bottleneck at ~15s per run. But all arms share the same preprocessed data.
+
+**For the pilot (16 runs):** 16 × 15s = **4 minutes wasted** on redundant preprocessing.
+**For R2 (50+ runs):** 50 × 15s = **12+ minutes wasted**.
+
+### Optimal Pipeline: Preprocess Once, Cache, Then Experiment
+
+```
+Step 1: PREPROCESS (once per dataset)
+   raw data → get_preprocessed_dataset_chunks() → cache to disk
+   
+Step 2: EXPERIMENT (per arm)
+   cached data → arm-specific logic → results
+   
+Step 3: AGGREGATE (once)
+   results/*.parquet → query → report
+```
+
+### Cache Structure
+
+```
+outputs/finetune/
+├── cache/                              # preprocessed data (shared across arms)
+│   ├── coil2000/
+│   │   ├── preprocessed.ctx64.npz      # preprocessed chunks (context=64)
+│   │   ├── preprocessed.ctx128.npz     # preprocessed chunks (context=128)
+│   │   ├── ground_truth.npy            # aligned labels
+│   │   ├── test_indices.csv            # reproducible splits
+│   │   └── meta.json                   # preprocessing config + hashes
+│   ├── uslapseagent/
+│   ├── eudirectlapse/
+│   └── spanish_motor_lapse/
+├── results/                            # arm-specific results
+│   ├── coil2000/
+│   │   ├── arm_A_raw_seed42.parquet    # predictions + metrics
+│   │   ├── arm_B_in_domain_seed42.parquet
+│   │   ├── arm_E_glm_seed42.parquet
+│   │   └── arm_F_catboost_seed42.parquet
+│   └── ...
+└── pilot_manifest.json                 # run registry
+```
+
+### Why This Is Optimal
+
+| Aspect | Naive | Optimal |
+|---|---|---|
+| Preprocessing runs | 16× per dataset | **1× per dataset** |
+| Preprocess time (pilot) | ~4 min | **~1 min** |
+| Storage overhead | None | ~50MB/cache (negligible) |
+| Result reproducibility | Re-run everything | Cache is deterministic, results are cached |
+| Parallelization | Hard | Easy — arms are independent once cached |
+
+### Caching Strategy
+
+| When to invalidate cache | How |
+|---|---|
+| Dataset changes | Compare SHA256 of raw CSV |
+| Config changes | context_samples, max_finetune_steps, seed |
+| Preprocessing code changes | Version hash in meta.json |
+
+**Cache lookup logic:**
+
+```python
+cache_key = f"{dataset}_ctx{config.context_samples}_s{seed}"
+cache_path = f"outputs/finetune/cache/{dataset}/preprocessed.ctx{config.context_samples}.npz"
+
+if cache_exists(cache_path) and cache_is_valid(cache_path, dataset_sha):
+    data = load_cache(cache_path)
+else:
+    data = preprocess(raw_data, config)
+    save_cache(cache_path, data, meta)
+```
+
+### Storage Budget
+
+| Item | Size | Count | Total |
+|---|---|---|---|
+| Preprocessed cache (per dataset × context) | ~10MB | 4 datasets × 2 contexts | ~80MB |
+| Predictions (per run) | ~1KB | ~200 runs | ~200KB |
+| Ground truth (per dataset) | ~10KB | 4 datasets | ~40KB |
+| Metrics parquet (per run) | ~500 bytes | ~200 runs | ~100KB |
+| **Total** | | | **~80MB** |
+
+### Processing Time Comparison
+
+| Phase | Naive | Optimal |
+|---|---|---|
+| Preprocess (4 datasets × 2 contexts) | 16 × 15s = 240s | 8 × 15s = 120s |
+| Run experiments (16 runs) | 16 × 10s = 160s | 16 × 2s = 32s |
+| **Total** | **400s** | **152s** |
+
+**2.6x speedup for pilot, better for larger grids.**
+
+### Software Requirements (updated)
+
+```
+pyarrow>=14    # Parquet I/O
+joblib         # caching (optional, for memoization)
+hashlib        # SHA validation (stdlib)
+```
 
 For each target dataset, the pool = all other classification datasets.
 
