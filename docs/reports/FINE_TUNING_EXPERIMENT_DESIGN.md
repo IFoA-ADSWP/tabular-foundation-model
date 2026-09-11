@@ -339,21 +339,54 @@ outputs/finetune/
 ├── pilot/
 │   ├── coil2000/
 │   │   ├── arm_A_raw/
-│   │   │   ├── predictions.npy
+│   │   │   ├── predictions.npy          # probability vectors (n_test,)
+│   │   │   ├── ground_truth.npy         # true labels (n_test,) — REQUIRED for metric recalculation
+│   │   │   ├── test_indices.csv         # row indices used as test set — reproducible splits
 │   │   │   └── meta.json
 │   │   ├── arm_B_in_domain/
-│   │   │   ├── model.tabpfn_fit
+│   │   │   ├── model.tabpfn_fit         # fine-tuned weights
 │   │   │   ├── predictions.npy
+│   │   │   ├── ground_truth.npy
+│   │   │   ├── test_indices.csv
+│   │   │   ├── train_indices.csv        # row indices used for fine-tuning
 │   │   │   └── meta.json
 │   │   ├── arm_E_glm/
 │   │   │   ├── predictions.npy
+│   │   │   ├── ground_truth.npy
+│   │   │   ├── test_indices.csv
 │   │   │   └── meta.json
 │   │   └── arm_F_catboost/
 │   │       ├── predictions.npy
+│   │       ├── ground_truth.npy
+│   │       ├── test_indices.csv
 │   │       └── meta.json
 │   ├── uslapseagent/
 │   ├── eudirectlapse/
 │   └── spanish_motor_lapse/
+└── pilot_manifest.json                  # SHA of all datasets used
+```
+
+**Why we store ground_truth and indices:**
+
+| File | Why needed |
+|---|---|
+| `predictions.npy` | Model outputs — probability vectors |
+| `ground_truth.npy` | True labels — required to calculate ANY metric |
+| `test_indices.csv` | Which rows were test — required to match predictions to labels |
+| `train_indices.csv` | Which rows were used for fine-tuning — for reproducibility |
+| `pilot_manifest.json` | Dataset SHAs — ensures same data version for recalculation |
+
+**With these, you can recalculate offline:**
+
+```python
+import numpy as np
+from sklearn.metrics import roc_auc_score, brier_score_loss
+
+y_true = np.load("ground_truth.npy")
+y_prob = np.load("predictions.npy")
+
+roc = roc_auc_score(y_true, y_prob)
+brier = brier_score_loss(y_true, y_prob)
 ```
 
 **Metadata schema (per run):**
@@ -362,10 +395,13 @@ outputs/finetune/
 {
   "arm": "B",
   "dataset": "eudirectlapse",
+  "dataset_sha": "a9e3be270541...",
   "config": {"context_samples": 64, "max_finetune_steps": 3, "n_estimators": 2, "learning_rate": 1e-5},
   "seed": 42,
   "train_rows": 2000,
   "test_rows": 1000,
+  "train_indices_hash": "sha256 of train_indices.csv",
+  "test_indices_hash": "sha256 of test_indices.csv",
   "device": "cuda",
   "device_name": "Tesla T4",
   "gpu_time_seconds": 45.2,
