@@ -341,24 +341,32 @@ outputs/finetune/
 │   │   ├── arm_A_raw/
 │   │   │   ├── predictions.npy          # probability vectors (n_test,)
 │   │   │   ├── ground_truth.npy         # true labels (n_test,) — REQUIRED for metric recalculation
+│   │   │   ├── errors.npy               # per-sample errors (|y_true - y_prob|) — for uncertainty quantification
 │   │   │   ├── test_indices.csv         # row indices used as test set — reproducible splits
+│   │   │   ├── fold_metrics.csv         # per-fold metrics (if k-fold CV) — for standard error
 │   │   │   └── meta.json
 │   │   ├── arm_B_in_domain/
 │   │   │   ├── model.tabpfn_fit         # fine-tuned weights
 │   │   │   ├── predictions.npy
 │   │   │   ├── ground_truth.npy
+│   │   │   ├── errors.npy               # per-sample errors for uncertainty
 │   │   │   ├── test_indices.csv
 │   │   │   ├── train_indices.csv        # row indices used for fine-tuning
+│   │   │   ├── fold_metrics.csv         # per-fold metrics — standard error across folds
 │   │   │   └── meta.json
 │   │   ├── arm_E_glm/
 │   │   │   ├── predictions.npy
 │   │   │   ├── ground_truth.npy
+│   │   │   ├── errors.npy
 │   │   │   ├── test_indices.csv
+│   │   │   ├── fold_metrics.csv
 │   │   │   └── meta.json
 │   │   └── arm_F_catboost/
 │   │       ├── predictions.npy
 │   │       ├── ground_truth.npy
+│   │       ├── errors.npy
 │   │       ├── test_indices.csv
+│   │       ├── fold_metrics.csv
 │   │       └── meta.json
 │   ├── uslapseagent/
 │   ├── eudirectlapse/
@@ -374,7 +382,20 @@ outputs/finetune/
 | `ground_truth.npy` | True labels — required to calculate ANY metric |
 | `test_indices.csv` | Which rows were test — required to match predictions to labels |
 | `train_indices.csv` | Which rows were used for fine-tuning — for reproducibility |
+| `errors.npy` | Per-sample errors (\|y_true - y_prob\|) — for uncertainty quantification and conformal intervals |
+| `fold_metrics.csv` | Per-fold metrics — standard error across folds for significance testing |
 | `pilot_manifest.json` | Dataset SHAs — ensures same data version for recalculation |
+
+**Original repo convention (preserve):**
+The `tabpfn_finetune_trial_results.csv` in the original repo stores:
+- Per-trial metrics (Brier, LogLoss, ROC, PR)
+- Step-level error tracking
+- Reload validation checks
+
+**We extend this to per-sample errors and fold-level metrics** — enabling:
+- Confidence intervals around predictions
+- Standard errors across folds for paired t-tests
+- Conformal prediction calibration
 
 **With these, you can recalculate offline:**
 
