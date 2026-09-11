@@ -53,7 +53,7 @@ For the initial pilot, select 4 classification datasets that cover:
 | **coil2000** | 9,822 | CARAVAN | NL | Small, known win, frontier best |
 | **uslapseagent** | 29,317 | surrender | US | Medium, known win, 38% positive rate |
 | **eudirectlapse** | 23,060 | lapse | EU | The exception — TabPFN loses to GLM. Tests if fine-tuning helps where it fails |
-| **spanish_motor_lapse** | ~50,000 | lapse | ES | New dataset, unknown outcome, larger scale |
+| **spanish_motor_lapse** | 53,501 | LapseB | ES | New dataset, 35.4% positive rate, larger scale |
 
 **Deferred for Phase 2:**
 - freMTPL2 Binary (Stage A/B signal — replicate first)
@@ -272,9 +272,10 @@ From `requirements.txt`:
 
 ## Open Decisions
 
-1. **Canonical folds:** Are master report folds saved? If yes, reuse for comparability.
-2. **Spanish motor positive rate:** Need to inspect `spanish_motor_lapse.csv` to confirm target distribution.
+1. **Canonical folds:** **RESOLVED** — folds saved in `scripts/eval/*/results_per_split.csv`. Reuse lapse benchmark folds for EU Lapse, insurance benchmark folds for others.
+2. **Spanish motor positive rate:** **RESOLVED** — 35.4% (18,960 lapse / 34,540 no lapse).
 3. **n_estimators:** Start with 2 for speed, upgrade to 8 if time permits.
+4. **Pool dry run:** **RESOLVED** — pool fits on T4 at pilot scale.
 
 ---
 
