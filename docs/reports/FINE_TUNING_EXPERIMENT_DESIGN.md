@@ -1,404 +1,189 @@
-# Experiment Design: Insurance-Specialized TabPFN Fine-Tuning (v5)
+# Experiment Design: Insurance-Specialized TabPFN Fine-Tuning (v6)
 
-> Date: 2026-09-11 | Status: draft (v5) | Related: #22, #129, #156
-> Builds on: STAGE_A_B_FINDINGS_AND_RECOMMENDATIONS.md (v2 API-based)
-> Diagnostic: COMPLETE — both datasets linear on Brier (see Pre-Experiment Diagnostic)
-
-
+> Date: 2026-09-11 | Status: draft | Related: #22, #129, #156, #159
+> Builds on: PRE_FINETUNING_INVESTIGATIONS.md, master report (v3, canonical folds)
 
 ---
 
 ## Research Question
 
-Does fine-tuning TabPFN on insurance data improve performance on **unseen insurance tasks** versus raw TabPFN and external insurance-specific baselines?
+Does fine-tuning TabPFN on insurance data improve performance on **unseen insurance tasks** versus raw TabPFN and actuarial baselines (GLM)?
 
 ---
 
-## External Evidence Assessment (v4 addition)
+## Available Datasets (15 total, successor repo)
 
-### What external research shows
+### Classification targets (binary)
 
-**1. RealTabPFN-2.5 — already fine-tuned on real tabular data**
+| Dataset | File | Rows | Target | Positive Rate | Market | Master report outcome |
+|---|---|---|---|---|---|---|
+| COIL 2000 | `coil2000.csv` | 9,822 | CARAVAN | 5.97% | NL | WIN (frontier best) |
+| US Lapse Agent | `uslapseagent.csv` | 29,317 | surrender | 38% | US | WIN (frontier best) |
+| EU Direct Lapse | `eudirectlapse.csv` | 23,060 | lapse | 12.81% | EU | EXCEPTION (GLM wins) |
+| freMTPL2 Binary | `freMTPL2freq_binary.csv` | 50,000 | ClaimIndicator | 5.02% | FR | Stage A/B signal |
+| Aus. Vehicle | `ausprivauto0405.csv` | 67,856 | ClaimOcc | 6.81% | AU | TIE (linear floor) |
+| Spanish Motor Lapse | `spanish_motor_lapse.csv` | ~50,000 | lapse | ~? | ES | New |
+| Spanish Motor Freq | `spanish_motor_freq.csv` | ~50,000 | claim_freq | ~? | ES | New |
+| bemtl16 | `bemtl16.csv` | 58,723 | liability_claims | 36% | BE | WIN (frontier best) |
+| bemtl97 | `bemtl97.csv` | 163,212 | claim | 11.2% | BE | TIE (linear floor) |
+| norauto | `norauto.csv` | 184,000 | NbClaim | 4.6% | NO | TIE (linear floor) |
+| fretelematic | `fretelematic.csv` | ~2,000 | ? | ~? | FR | New |
 
-Izbicki & Rodrigues (arXiv:2603.26611, March 2026) benchmark three foundation models as conditional density estimators across 39 datasets at n=50 to n=20,000:
+### Regression/continuous targets
 
-| Model | CDE Loss Rank at n=1,000 | CDE Loss Rank at n=20,000 |
-|---|---|---|
-| RealTabPFN-2.5 | 1st | 3rd |
-| TabPFN-2.5 | 2nd | 1st |
-| TabICL | 3rd | 2nd |
-
-RealTabPFN-2.5 is TabPFN **already fine-tuned on curated real-world tabular datasets**. This is exactly what our design proposes to do for insurance specifically.
-
-**Finding**: RealTabPFN-2.5 dominates at small n but **loses to raw TabPFN-2.5 at n=20,000**. Fine-tuning on real data helps for small datasets but can hurt at scale. Our design must test this crossover.
-
-**2. Tab-TRM — insurance-specific architecture, already fine-tuned**
-
-Padayachy, Richman, Wüthrich (arXiv:2601.07675, Jan 2026) introduce Tab-TRM, a transformer architecture **explicitly designed for insurance pricing** with:
-- Poisson deviance loss (not cross-entropy)
-- Exposure offset handling
-- Fine-tuned on French MTPL data
-
-Tab-TRM achieves out-of-sample Poisson deviance of 23.589 × 10^-2 on French MTPL with only 14,820 parameters — competitive with Gradient Boosted Machines.
-
-**Finding**: An insurance-specific model already exists and beats GLM. Our experiment should **compare against Tab-TRM or cite it as the insurance-specific baseline**.
-
-**3. Burning Cost practitioner assessment (March 2026)**
-
-An honest assessment of tabular foundation models for insurance pricing:
-
-> "XGBoost/CatBoost hold. Tab-TRM is the one to watch."
-
-Key gaps identified:
-- No insurance-specific benchmarks with UK motor/home datasets
-- No validated production deployment of TabPFN for insurance
-- "Promising laboratory result, no validated production deployment" phase
-
-**Finding**: External community agrees that TabPFN fine-tuning for insurance is **promising but unvalidated**. Our experiment addresses this gap directly.
-
-### Evidence summary
-
-| Source | What it tells us | Implication for design |
-|---|---|---|
-| RealTabPFN-2.5 benchmarks | Fine-tuning helps at small n, may hurt at large n | Test crossover; don't assume fine-tuning always helps |
-| Tab-TRM | Insurance-specific model already exists | Include as baseline or cite as state-of-the-art |
-| Burning Cost | No validated insurance benchmarks | Our experiment is novel and needed |
-| Stage A/B (our work) | All-other pooled fine-tuning hurt (v2 API) | v3 local weights may behave differently; test pool composition |
-
-### Evidence gaps
-
-- **No study fine-tunes TabPFN specifically on insurance data** and evaluates on held-out insurance tasks. RealTabPFN-2.5 uses general real-world data, not insurance-specific.
-- **No study compares TabPFN fine-tuned on insurance vs. Tab-TRM**. This is the key competitive question.
-- **No study tests TabPFN v3 fine-tuning** — our work extends v2 Stage A/B results to local CUDA weights.
+| Dataset | File | Rows | Targets | Market |
+|---|---|---|---|---|
+| freMTPL2 (full) | `freMTPL2freq.csv` | 673,383 | ClaimNb, Exposure, ClaimAmount | FR |
+| Aus. Auto | `ausautoBI8999.csv` | 22,036 | log AggClaim | AU |
+| Aus. Vehicle | `ausprivauto0405.csv` | 67,856 | VehValue | AU |
+| Spanish Motor Severity | `spanish_motor_severity.csv` | ~50,000 | severity | ES |
 
 ---
 
-## Context: Prior Work (Stage A/B)
+## Pilot Dataset Selection (4 datasets)
 
-Stage A/B tested domain fine-tuning with TabPFN v2 (remote API, client backend). Key findings:
+For the initial pilot, select 4 classification datasets that cover:
 
-- **Pooled all-other fine-tuning did NOT help overall** — aggregate deltas were negative (ROC AUC -0.05 to -0.07)
-- **Dataset-level heterogeneity**: freMTPL2freq_binary benefited; EU Lapse, COIL 2000, Aus. Vehicle did not
-- **Key recommendation**: build a "homogeneous pool" option using similarity checks (feature/schema overlap, event-rate proximity, validation transfer performance)
-- **EU Direct Lapse**: GLM was strongest — the only dataset where raw TabPFN loses to GLM
+1. **Different sizes:** small (9.8K), medium (23K-29K), large (50K+)
+2. **Known outcomes:** wins, ties, and the exception
+3. **Different markets:** NL, US, EU, ES, FR, BE, AU
 
-**This experiment extends Stage A/B with TabPFN v3 (local weights, CUDA GPU) and adds external baselines.**
+| Dataset | Rows | Target | Market | Why include |
+|---|---|---|---|---|
+| **coil2000** | 9,822 | CARAVAN | NL | Small, known win, frontier best |
+| **uslapseagent** | 29,317 | surrender | US | Medium, known win, 38% positive rate |
+| **eudirectlapse** | 23,060 | lapse | EU | The exception — TabPFN loses to GLM. Tests if fine-tuning helps where it fails |
+| **spanish_motor_lapse** | ~50,000 | lapse | ES | New dataset, unknown outcome, larger scale |
 
----
-
-## Hypothesis
-
-By fine-tuning TabPFN on insurance data that is **similar** to the target dataset, the model becomes specialized to insurance-domain structure and outperforms raw TabPFN on held-out insurance tasks.
-
-**Based on external evidence, we further hypothesize:**
-- Fine-tuning helps more at small n (aligned with RealTabPFN-2.5 crossover)
-- Fine-tuned TabPFN is competitive with Tab-TRM on classification tasks (not regression — Tab-TRM is regression-optimized)
-
----
-
-## Critical Insights
-
-### From prior research
-**Pool composition matters more than scale.** Naive all-other pooled fine-tuning can be WORSE than raw TabPFN due to cross-dataset domain mismatch.
-
-### From external research
-**RealTabPFN-2.5 shows fine-tuning helps at small n but may hurt at large n.** The fine-tuned model's prior can conflict with the data when n is large enough to override it.
-
-### Combined implication
-The optimal fine-tuning strategy is:
-1. Select similar sources (homogeneous pool) — avoids hurting from mismatched data
-2. Fine-tune — helps at small n where prior mismatch dominates
-3. Test at multiple scales — find the crossover where fine-tuning stops helping
+**Deferred for Phase 2:**
+- freMTPL2 Binary (Stage A/B signal — replicate first)
+- bemtl16/bemtl97 (larger BE datasets)
+- norauto (largest, 184K rows)
+- ausautoBI8999 (regression target)
 
 ---
 
-## Pre-Experiment Diagnostic: Results (v5)
+## Training Splits
 
-### Problem
+### Outer split (experiment level)
+- **70/30 train/test**, stratified on target, **seed=42**
+- Test set used **exactly once** per arm for final evaluation
+- If master report canonical folds are available, reuse them for direct comparability
 
-EU Direct Lapse was **level with GLM** in initial testing. If the insurance datasets are fundamentally **linear problems** (GLM ≈ best possible), then:
+### Validation split
+- **15% of train** held out for config selection (early stopping, hyperparameter choice)
+- Not used for final evaluation
 
-- TabPFN's transformer architecture has nothing to exploit
-- Fine-tuning can't help because there's no latent pattern beyond what GLM captures
-- You're paying compute to learn a linear function with a 100M-parameter model
-
-### Diagnostic Results
-
-Ran `scripts/diagnostic_complexity.py` on 3,500 rows of each dataset:
-
-| Dataset | Rows | Features | GLM Brier | RF Brier | Delta | GLM ROC | RF ROC | Verdict |
-|---|---|---|---|---|---|---|---|
-| EU Direct Lapse | 3,500 | 62 | 0.1067 | 0.1078 | -0.001 | 0.657 | 0.632 | **LINEAR** |
-| freMTPL2 Binary | 3,500 | 47 | 0.0485 | 0.0479 | +0.001 | 0.555 | 0.583 | **LINEAR** |
-
-**Decision rule:** Delta (GLM Brier − RF Brier) < 0.005 = linear. Both datasets pass.
-
-### Contradiction with Stage A/B
-
-Stage A/B found domain-fine-tuned TabPFN was **strongest** on freMTPL2 (v2 API). The diagnostic says the problem is linear. Resolving this:
-
-| Explanation | What it means | Action |
-|---|---|---|
-| **Metric mismatch** | Stage A/B used ROC; RF beat GLM on ROC (0.583 vs 0.555) but Brier shows no calibration improvement | The ROC gain may be ranking, not probability quality |
-| **v2 vs v3** | Stage A/B used remote API (v2); local v3 weights may behave differently | The fine-tuning signal in v2 may not replicate in v3 |
-| **Scale** | Diagnostic used 3K rows; Stage A/B may have used more | Non-linear structure may only emerge at larger n |
-
-### Resolution
-
-Both datasets show **linear structure on the primary metric (Brier)**. This means fine-tuning is **unlikely to add value** for probability quality. However:
-
-1. **freMTPL2 has ROC signal** — RF beats GLM on ranking (0.583 vs 0.555). If the use case values ranking over calibration, fine-tuning may help.
-2. **Stage A/B found signal in v2** — we should verify whether this replicates in v3 before concluding.
-3. **The pilot is cheap** — $0 on Colab T4 for ~30 minutes. Worth running to confirm.
-
-**Decision: Proceed with pilot, but with revised expectations.** Fine-tuning is unlikely to improve Brier on these linear datasets. If it does, that's a surprising positive result. If it doesn't, we've learned that TabPFN fine-tuning doesn't help linear insurance problems — a useful negative result.
-
----
-
-## Datasets
-
-| Dataset | Rows | Positive Rate | Role |
-|---|---|---|---|
-| **freMTPL2 Binary** | 50,000 | 5.02% | **Primary target** — fine-tuning showed signal in Stage A/B (v2); diagnostic shows linear on Brier but ROC signal exists |
-| EU Direct Lapse | 23,060 | 12.81% | **Secondary target** — GLM ≈ RF (linear), fine-tuning unlikely to help |
-| COIL 2000 | 9,822 | 5.97% | Pool candidate |
-| Aus. Vehicle | 67,856 | 6.81% | Pool candidate |
-
----
-
-## Split Policy
-
-Two levels of splitting:
-
-1. **Outer split (experiment level)** — applied BEFORE feeding to TabPFN:
-   - 70/30 train/test stratified, seed=42
-   - 15% of train held out as validation (for config selection)
-   - Test set used exactly once per arm
-
-2. **Inner split (TabPFN level)** — `get_preprocessed_dataset_chunks` does its own 80/20 internally for ensemble construction. This is automatic and does not affect the outer test set.
-
----
-
-## Pool Composition Strategy
-
-### Problem
-All three pool candidates have materially lower event rates than EU Lapse (12.81%). The similarity table:
-
-| Source Dataset | Positive Rate | Rate Delta to EU Lapse |
-|---|---|---|
-| freMTPL2 Binary | 5.02% | -7.8pp |
-| COIL 2000 | 5.97% | -6.8pp |
-| Aus. Vehicle | 6.81% | -6.0pp |
-
-### Resolution: Tiered Homogeneous Selection
-
-Since no single candidate is clearly homogeneous, we use a **validation transfer test**:
-
-1. Fine-tune on each candidate **individually** (single-source pools)
-2. Evaluate on EU Lapse **validation** set
-3. Select only candidates where fine-tuned Brier < raw Brier on validation
-4. The selected set = Arm D's homogeneous pool
-
-If zero candidates pass → Arm D = Arm C (all-other) and the finding is: "no homogeneous insurance source for EU Lapse exists."
-
-### Pool Sampling
-
-For each pool dataset, sample proportionally to its row count (not uniform). Per-dataset cap: 10K rows.
-
----
-
-## Experimental Arms
-
-| Arm | Fine-tune data | Eval data | Tests |
-|---|---|---|---|
-| **A — Raw TabPFN** | none | all 4 datasets | Baseline |
-| **B — In-domain** | freMTPL2 (train) | freMTPL2 (test) | Does in-domain help? |
-| **C — All-other pooled** | EU Lapse + COIL + Aus. Vehicle | freMTPL2 (held-out) | Does ANY insurance help? |
-| **D — Homogeneous pooled** | candidates passing transfer test | freMTPL2 (held-out) | Does MATCHED insurance help? |
-| **E — GLM baseline** | — | all 4 datasets | Linear baseline |
-| **F — CatBoost baseline** | — | all 4 datasets | Tree baseline |
-
-### Arm Interpretation
-
-| Outcome | Meaning |
-|---|---|
-| C wins, D wins | Any insurance fine-tuning helps |
-| C loses, D wins | Only matched/similar insurance data helps (similarity gate) |
-| C loses, D loses | Fine-tuning doesn't help for EU Lapse in v3 either |
-| B wins, C/D lose | Only in-domain memorization, not transferable |
-| D > E and D > F | Fine-tuned TabPFN is competitive with tuned baselines |
+### Inner split (TabPFN level)
+- `get_preprocessed_dataset_chunks` does its own internal 80/20 for ensemble construction
+- Automatic; does not affect outer test set
 
 ---
 
 ## Config Grid
 
-Matches Stage A/B for comparability:
+### Pilot config (limited, for feasibility)
+Start with a single config to validate the pipeline:
+
+| Parameter | Value | Rationale |
+|---|---|---|
+| context_samples | 64 | Faster than 128; expand if signal exists |
+| max_finetune_steps | 3 | Middle of Stage A/B grid (1, 3, 5) |
+| n_estimators | 2 | Speed; upgrade to 8 if time permits |
+| learning_rate | 1e-5 | Default; matches Stage A/B |
+| fit_mode | "batched" | Required for fine-tuning |
+
+### Expanded grid (if pilot shows signal)
 
 | Parameter | Values |
 |---|---|
 | context_samples | 64, 128 |
 | max_finetune_steps | 1, 3, 5 |
-| n_estimators | 8 |
-| learning_rate | 1e-5 (default) |
+| n_estimators | 2, 8 |
+| learning_rate | 1e-5 |
 | fit_mode | "batched" |
 
-n_estimators=8 is production quality (vs Stage A/B's n_estimators=2). If R1 shows OOM, fall back to n_estimators=2.
+---
+
+## Experimental Arms
+
+### Q0: Does fine-tuning help? (pilot arms)
+
+| Arm | Fine-tune data | Eval data | Tests |
+|---|---|---|---|
+| **A — Raw TabPFN** | none | target dataset | Baseline |
+| **B — In-domain** | target dataset (train) | target dataset (test) | Does fine-tuning help this dataset? |
+| **E — GLM baseline** | — | target dataset | Linear floor |
+| **F — CatBoost baseline** | — | target dataset | Tree floor |
+
+### Q4: Does pool composition matter? (later arms)
+
+| Arm | Fine-tune data | Eval data |
+|---|---|---|
+| **C — All-other pooled** | all other datasets | target dataset |
+| **D — Homogeneous pooled** | datasets passing transfer test | target dataset |
 
 ---
 
-## Pilot Strategy
+## Scale Ladder
 
-**Phase 1a — Pilot (run first):**
-- Rung: R1 only
-- Arms: A, B, C, D (with single-source transfer test), E, F
-- Config: context=64, steps=3 only
-- Seeds: 42 only
-- **Target: freMTPL2 Binary capped at 5K rows** (memory safety; primary target per diagnostic)
-- Expected duration: ~30 min on T4
+| Rung | Target train N | Target test N | Pool N | Device | Purpose |
+|---|---|---|---|---|---|
+| R1 | 2,000 | 1,000 | 2,000 | Colab T4 | Pilot, validate pipeline |
+| R2 | 5,000 | 2,000 | 10,000 | Colab T4 | Medium-scale signal |
+| R3 | Full (9K-50K) | 30% of full | Full (~120K) | Vast RTX 4090 | Production scale |
 
-**Phase 1b — Expand (only if pilot shows signal):**
-- Add rungs R2, R3
-- Add configs: context=128, steps=1,5
-- Add seeds: 1337, 2025
-- Target: full EU Lapse (23K rows, if memory allows)
-
-**Phase 1c — Full (only if 1b confirms signal):**
-- Full grid: all arms × rungs × configs × seeds
-- Add other datasets as secondary targets (freMTPL2, COIL, Aus. Vehicle)
+R3 only runs if R1-R2 shows fine-tuning improves over raw.
 
 ---
 
-## Rung Definitions
+## Factorial Extension: N × Train Ratio (Q5)
 
-| Rung | Fine-tune Pool N | Target Train N | Target Test N | Device |
-|---|---|---|---|---|
-| R1 | 2K (subsample pool, proportional) | 5K (EU Lapse subsample) | 3K | Colab T4 (free) |
-| R2 | 10K (pool) | 10K | 6K | Colab T4 (free) |
-| R3 | Full pool (~127K) | Full EU Lapse (16K) | 7K (30% of 23K) | Colab T4 / Vast RTX 4090 |
+To answer Q5, run a factorial design on coil2000 (9.8K rows):
 
-### Memory Safety
+| Factor | Levels |
+|---|---|
+| Total N | 1K, 2K, 5K |
+| Train ratio | 20/80, 50/50, 80/20 |
 
-EU Lapse at 23K rows with context=128 and n_estimators=8 may exceed T4's 16 GB VRAM. Mitigation:
-- R1 caps target at 5K rows
-- R2 caps target at 10K rows
-- R3 only runs if R2 completes without OOM; if OOM on T4, move to Vast RTX 4090 (24 GB)
+This gives a 3×3 grid of fine-tuned vs raw comparisons. The outcome is a surface plot of fine-tuning benefit (ΔROC) across N × ratio. If the surface peaks at small N + high ratio, we have a clear use case: thin-segment fine-tuning.
 
 ---
 
-## R3 Gate
+## Pool Composition Strategy
+
+For each target dataset, the pool = all other classification datasets.
+
+**Sampling:** Proportional to dataset row count, 10K cap per source.
+
+**Example:** Target = EU Lapse, Pool = coil2000 + uslapseagent + spanish_motor_lapse + freMTPL2_binary + ...
+
+---
+
+## Metrics
+
+### Primary
+- **ROC AUC** (where non-linear structure exists)
+- **PR AUC** (imbalanced discrimination)
+
+### Secondary
+- **Brier score** (calibration)
+- **Log loss** (probabilistic calibration)
+- **ECE** (expected calibration error)
+
+### Operational
+- **GPU time** (wall clock per run)
+- **Peak VRAM** (memory profiling)
+
+---
+
+## R3 Gate (proceed to full scale)
 
 Proceed to R3 if **any** of the following hold in R2 (seed 42):
-- Arm B Brier < Arm A Brier (in-domain helps)
-- Arm C Brier < Arm A Brier (all-other helps)
-- Arm D Brier < Arm A Brier (homogeneous helps)
+- Arm B ROC > Arm A ROC (in-domain helps)
+- Arm B ROC > Arm E ROC (beats GLM)
 
-If none hold, stop at R2 and report: "fine-tuning does not improve over raw TabPFN for insurance tasks in v3."
-
----
-
-## Metrics (primary first)
-
-All computed offline from persisted predictions — add/swap metrics without re-running.
-
-1. **Brier score** (primary — project's established probability-quality metric)
-2. **ROC AUC** (discrimination — where GLM beats TabPFN)
-3. **PR AUC** (imbalanced-target discrimination)
-4. **Log loss** (probabilistic calibration)
-5. **ECE** (expected calibration error)
-
----
-
-## Persistence Strategy
-
-For each arm × rung × seed × config:
-
-```
-outputs/finetune/
-├── arm_A_raw/
-│   ├── predictions_c64_s3_seed42_r1.npy
-│   └── meta_c64_s3_seed42_r1.json
-├── arm_B_in_domain/
-│   ├── model_c64_s3_seed42_r1.tabpfn_fit
-│   ├── predictions_c64_s3_seed42_r1.npy
-│   └── meta_c64_s3_seed42_r1.json
-├── arm_C_all_other_pooled/
-│   ├── model_c64_s3_seed42_r1.tabpfn_fit
-│   ├── predictions_c64_s3_seed42_r1.npy
-│   └── meta_c64_s3_seed42_r1.json
-├── arm_D_homogeneous_pooled/
-│   ├── model_c64_s3_seed42_r1.tabpfn_fit
-│   ├── predictions_c64_s3_seed42_r1.npy
-│   └── meta_c64_s3_seed42_r1.json
-├── arm_E_glm/
-│   ├── predictions_c64_s3_seed42_r1.npy
-│   └── meta_c64_s3_seed42_r1.json
-└── arm_F_catboost/
-    ├── predictions_c64_s3_seed42_r1.npy
-    └── meta_c64_s3_seed42_r1.json
-```
-
-### Metadata Schema
-
-```json
-{
-  "arm": "B",
-  "rung": "R1",
-  "config": {"context_samples": 64, "max_finetune_steps": 5, "n_estimators": 8, "learning_rate": 1e-5},
-  "seed": 42,
-  "target_dataset": "eudirectlapse",
-  "target_train_rows": 5000,
-  "target_test_rows": 3000,
-  "pool_datasets": ["eudirectlapse"],
-  "pool_total_rows": 5000,
-  "pool_per_source": {"eudirectlapse": 5000},
-  "device": "cuda",
-  "device_name": "Tesla T4",
-  "gpu_time_seconds": 45.2,
-  "peak_vram_bytes": 8589934592,
-  "wall_time_seconds": 52.1,
-  "status": "success",
-  "error": null,
-  "timestamp": "2026-09-11T12:00:00Z",
-  "tabpfn_version": "3.x.x",
-  "python_version": "3.13.0"
-}
-```
-
-### Failure Handling
-
-If `fit_from_preprocessed` raises or returns non-finite loss:
-- Set `status: "failed_nonfinite"`
-- Log error message in `error` field
-- Continue to next config (don't abort the run)
-- Report failure rate per arm in results
-
----
-
-## Success Criteria
-
-| Criterion | Threshold |
-|---|---|
-| Arm D > Arm A (raw) | Brier improves on EU Lapse (homogeneous transfer works) |
-| Arm D > Arm C (all-other) | Homogeneous pool beats naive pooling |
-| Arm B > Arm A | In-domain fine-tuning helps (baseline expectation) |
-| Arm D > Arm E (GLM) | Fine-tuned TabPFN beats GLM on EU Lapse |
-| Arm D > Arm F (CatBoost) | Fine-tuned TabPFN competitive with tuned tree |
-
-### Reporting Format
-
-Summary table per arm (mean ± std across seeds):
-
-| Arm | Brier | ROC AUC | PR AUC | Log loss | ECE |
-|---|---|---|---|---|---|
-| A (raw) | 0.1080 ± 0.001 | 0.586 ± 0.003 | 0.172 ± 0.002 | 0.310 ± 0.002 | 0.045 ± 0.001 |
-| B (in-domain) | ... | ... | ... | ... | ... |
-
-Paired delta table (fine-tuned minus raw):
-
-| Comparison | ΔBrier | ΔROC | Significant? |
-|---|---|---|---|
-| B - A | -0.002 | +0.005 | yes (p<0.05) |
-| C - A | +0.001 | -0.003 | no |
+Otherwise stop at R2 and report findings.
 
 ---
 
@@ -406,74 +191,91 @@ Paired delta table (fine-tuned minus raw):
 
 | Item | Cost |
 |---|---|
-| Phase 1a (pilot, R1, seed 42, 1 config, 6 arms) | $0 (free T4, ~30 min) |
-| Phase 1b (expand, R1-R2, 3 seeds, 6 configs) | $0 (free T4, ~2 hrs) |
-| Phase 1c (full, R1-R3, 3 seeds, 6 configs, 6 arms) | ~$5-10 (Vast RTX 4090 if needed) |
-| Total worst case | ~$10 |
+| R1 (pilot, 4 datasets × 4 arms, 1 config) | $0 (T4, ~1 hour) |
+| R2 (4 datasets × 4 arms, expanded grid) | $0 (T4, ~4 hours) |
+| R3 (full scale, paid Vast) | ~$5-10 |
+| **Total worst case** | **~$10** |
 
 ---
 
-## GPU Access
+## Hardware Requirements
 
-Smoke test passed on Colab T4 (see #156, 2026-09-11). Time-per-sample: 1.8ms. Full pipeline proven.
+### Free Tier: Google Colab T4
 
----
-
-## Phase 2 (deferred — only if Phase 1 shows fine-tuning helps)
-
-These are NOT part of the initial experiment. Deferred to avoid confounding.
-
-| Technique | What it does | When to use |
-|---|---|---|
-| **Synthetic dataset generation** | Generate insurance-like tabular data to augment the fine-tune pool | If Phase 1 shows fine-tuning helps but real data is too small |
-| **TabPFN embeddings** | Use transformer internal representations as features for similarity scoring or other models | If Phase 1 needs better similarity metric for homogeneous pool selection |
-| **Calibration (isotonic/Platt)** | Post-hoc probability calibration on top of fine-tuned model | If Phase 1 shows fine-tuning improves ranking but not calibration |
-| **Alternative context/epoch regimes** | Longer training (epochs 10-50), larger context (256+) | If Phase 1 shows signal but not enough |
-| **Regression extension** | Repeat design with TabPFNRegressor on continuous insurance targets (Exposure, ClaimNb) | If Phase 1 classifier results justify |
-| **Tab-TRM comparison** | Benchmark fine-tuned TabPFN against Tab-TRM (insurance-specific architecture) | If Phase 1 shows fine-tuning helps — Tab-TRM is the competitive bar |
-
----
-
-## Risks
-
-| Risk | Mitigation |
+| Spec | Detail |
 |---|---|
-| No homogeneous source exists for EU Lapse | Arm D falls back to Arm C; report defines when fine-tuning is/isn't applicable |
-| EU Lapse 23K OOMs on T4 (16 GB) | Cap target at 5K/10K for R1/R2; move R3 to Vast RTX 4090 (24 GB) |
-| Colab quota exhausted | Fall back to M1 MPS for R1/R2; Vast for R3 |
-| Pooled fine-tuning hurts (replicates Stage A/B) | Report as v3 confirmation |
-| Non-finite losses | Log as `failed_nonfinite`, continue, report failure rate |
-| n_estimators=8 OOMs | Fall back to n_estimators=2 with note |
-| API drift (v3 vs v2 results) | Note version explicitly; don't compare across versions |
+| GPU | NVIDIA Tesla T4 (16 GB VRAM) |
+| RAM | ~12 GB |
+| Session limit | 12 hours, idle disconnect ~90 min |
+| GPU hours/week | ~15–30 (dynamic, not guaranteed) |
+| Cost | $0 |
+
+**What works on T4:**
+- Raw TabPFN inference (all datasets, all sizes)
+- Fine-tuning with n_estimators=2, context=64, steps≤3, N≤5K
+- Diagnostic scripts (GLM vs RandomForest)
+
+**What doesn't work on T4:**
+- n_estimators=8 with N>5K (OOM risk)
+- context=128 with N>10K (OOM risk)
+- Full-scale grid search (time limit)
+
+**Workaround:** Use `colab-cli` (`colab new --gpu T4`) for headless automation.
+
+### Paid Tier: Vast.ai RTX 4090
+
+| Spec | Detail |
+|---|---|
+| GPU | NVIDIA RTX 4090 (24 GB VRAM) |
+| Cost | ~$0.50/hr (spot) |
+| Availability | Market-driven; reliability ≥ 0.90 recommended |
+
+**When Vast is needed:**
+- R3 (full-scale, all datasets)
+- n_estimators=8 with N>5K
+- Factorial extension (9 cells × multiple configs)
+
+**Setup:** SSH in, clone repo, `pip install -r requirements.txt`, run scripts.
+
+### Local M1 Mac (Diagnostic Only)
+
+| Spec | Detail |
+|---|---|
+| Device | Apple Silicon M1 (8 GB unified memory) |
+| Fine-tuning | Not practical (slow, memory-constrained) |
+| Use case | Diagnostics, data prep, result analysis |
+
+**Limit:** ~3K rows for local fine-tuning. Beyond that, use Colab.
+
+### Memory Guidelines
+
+| Config | Approximate VRAM | Max N on T4 (16 GB) |
+|---|---|---|
+| n_estimators=2, context=64 | ~4 GB | ~10K |
+| n_estimators=2, context=128 | ~6 GB | ~5K |
+| n_estimators=8, context=64 | ~10 GB | ~3K |
+| n_estimators=8, context=128 | ~14 GB | ~2K |
+
+**Rule:** Start with n_estimators=2, context=64. Only increase if signal justifies the memory cost.
+
+### Software Requirements
+
+From `requirements.txt`:
+- Python 3.12+
+- `tabpfn>=6,<7` (local weights, v3 default)
+- `torch>=2.0,<3`
+- `numpy`, `pandas`, `scikit-learn`
+- `catboost` (optional, for baselines)
+- `google-colab-cli` (for headless Colab access)
 
 ---
 
-## Deliverables
+## Open Decisions
 
-- `scripts/run_finetune_experiment.py` — parameterized runner (arm, pool, N, context, steps, device, seed)
-- `scripts/analyze_finetune_results.py` — computes metrics from persisted predictions, generates summary tables
-- `outputs/finetune/` — persisted models, predictions, metadata per arm/rung/seed/config
-- `docs/reports/FINE_TUNING_EXPERIMENT_RESULTS.md` — results per rung, arm, dataset with paired deltas
-- `docs/reports/FINE_TUNING_EXPERIMENT_DESIGN.md` — this document
+1. **Canonical folds:** Are master report folds saved? If yes, reuse for comparability.
+2. **Spanish motor positive rate:** Need to inspect `spanish_motor_lapse.csv` to confirm target distribution.
+3. **n_estimators:** Start with 2 for speed, upgrade to 8 if time permits.
 
 ---
 
-## Evidence Assessment: Do We Have Enough?
-
-### Sufficient evidence to proceed
-- Stage A/B (our work): pool composition matters, all-other hurts, homogeneous may help
-- RealTabPFN-2.5 benchmarks: fine-tuning helps at small n, crossover exists
-- Burning Cost: no validated insurance benchmarks — gap exists
-
-### Insufficient evidence
-- **No study fine-tunes TabPFN specifically on insurance data** for held-out insurance evaluation
-- **No study compares TabPFN fine-tuning vs. Tab-TRM** for classification
-- **v3 local weight fine-tuning is untested** — Stage A/B used v2 API
-
-### Verdict
-**Proceed.** The evidence strongly suggests:
-1. Fine-tuning CAN help if pool composition is right (homogeneous)
-2. The effect likely depends on n (small n helps, large n may not)
-3. No one has done this specifically for insurance classification
-
-The experiment is well-motivated, the design addresses all blockers, and the cost is near-zero for the pilot phase.
+_Next step: Build the runner script or run the pilot on T4._

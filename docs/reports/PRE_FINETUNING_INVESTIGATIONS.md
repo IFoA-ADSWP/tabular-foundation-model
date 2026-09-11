@@ -90,10 +90,33 @@ Stage A/B found all-other pooled fine-tuning hurt (v2 API). This question tests 
 - If yes → build similarity-based pool selection.
 - If no → pool composition irrelevant for these datasets.
 
-**Q5: How does the effect scale with n?**
-RealTabPFN-2.5 showed fine-tuning helps at small n but hurts at large n. This question tests whether the same crossover exists for insurance data — defining the upper bound of where fine-tuning is useful.
-- If yes → fine-tuning has a ceiling. Define it.
-- If no → fine-tuning is either always helpful or never.
+**Q5: How does the effect scale with n and train ratio?**
+RealTabPFN-2.5 showed fine-tuning helps at small n but hurts at large n. This question tests two interacting factors: **total dataset size** AND **train/test split ratio**.
+
+In insurance, thin segments (new products, niche markets, low-credibility cells) have small N. If fine-tuning helps more when data is scarce, we need to know: is it the total N, the train ratio, or the interaction?
+
+**Factors:**
+
+| Factor | Levels | Rationale |
+|---|---|---|
+| Total N | 1K, 2K, 5K, full | Does fine-tuning help more when data is scarce? |
+| Train ratio | 20/80, 50/50, 80/20 | Does having more training data help or hurt fine-tuning? |
+
+**Hypothesis:** Fine-tuning helps most at **small N + high train ratio** (80/20). At low N, there's little test data for evaluation, so a higher train ratio gives the model more signal. At high N, TabPFN already performs well, so fine-tuning adds little.
+
+**Design:** 3×3 factorial on one dataset (coil2000, 9.8K rows). If the interaction is significant, repeat on eudirectlapse.
+
+| | N=1K | N=2K | N=5K |
+|---|---|---|---|
+| 20/80 split | fine-tuned vs raw | fine-tuned vs raw | fine-tuned vs raw |
+| 50/50 split | fine-tuned vs raw | fine-tuned vs raw | fine-tuned vs raw |
+| 80/20 split | fine-tuned vs raw | fine-tuned vs raw | fine-tuned vs raw |
+
+**Outcome:** A surface plot of fine-tuning benefit (ΔROC = fine_tuned − raw) across N × ratio. If the surface peaks at small N + high ratio, we have a clear use case: thin-segment fine-tuning.
+
+- If peak at small N + high ratio → fine-tuning is for thin segments
+- If flat (no interaction) → fine-tuning effect is independent of data scarcity
+- If peak at large N → fine-tuning scales, contradicting RealTabPFN-2.5
 
 ---
 
@@ -153,9 +176,19 @@ The master report (`docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md`) conta
 
 **Feedback (#159 Q6):** Does the synthetic data generation process consider joint distribution? If features are generated independently, the model's prior may not capture real-world insurance correlations.
 
-**Extension:** Generate insurance-like synthetic data to augment the fine-tuning pool. If synthetic data captures the joint distribution of insurance features, it could provide additional fine-tuning signal. If not, synthetic data may add noise rather than signal.
+**nanoTabPFN repo:** The [stprnvsh/nanoTabPFN fork](https://github.com/stprnvsh/nanoTabPFN) has a `generate_synthetic_data.py` script that generates large synthetic datasets for benchmarking. This uses the same prior-based generation as TabPFN v2.
 
-**Investigation:** Profile the TabPFN synthetic data generation — does it preserve feature correlations? If yes, generate a synthetic fine-tune pool. If no, defer.
+**Extension for insurance:** Adapt the nanoTabPFN generator to produce synthetic insurance data with:
+- **High noise/signal ratio** — insurance data is noisy; the model needs to see this
+- **Skewed targets** — claim frequencies are zero-inflated and heavy-tailed
+- **Joint feature correlations** — age, vehicle type, region are correlated in real insurance
+
+**Investigation plan:**
+1. Clone `github.com/stprnvsh/nanoTabPFN` and inspect `generate_synthetic_data.py`
+2. Adapt the generator to produce data matching insurance distributions (zero-inflation, skew, correlations)
+3. Use synthetic data as a fine-tune pool — does it improve performance on real insurance data?
+
+**Risk:** If synthetic data doesn't capture real insurance structure, it may add noise rather than signal. Test on one dataset first (coil2000) before scaling.
 
 ### E8: Conformal prediction intervals (new investigation)
 
