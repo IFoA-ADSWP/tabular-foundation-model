@@ -270,6 +270,146 @@ From `requirements.txt`:
 
 ---
 
+## Pilot Execution
+
+### What We're Running
+
+**Phase 1a — Pilot (R1 only):**
+
+| Parameter | Value |
+|---|---|
+| Datasets | 4 (coil2000, uslapseagent, eudirectlapse, spanish_motor_lapse) |
+| Arms | 4 (Raw TabPFN, In-domain fine-tuned, GLM, CatBoost) |
+| Config | context=64, steps=3, n_estimators=2, lr=1e-5 |
+| Target N | 2,000 train / 1,000 test |
+| Pool N | 2,000 (for pooled arms — deferred to R2) |
+| Device | Colab T4 (free) |
+| Expected duration | ~1 hour |
+
+**Execution order:**
+1. Arm A (raw) on all 4 datasets — establishes baseline
+2. Arm E (GLM) on all 4 datasets — establishes linear floor
+3. Arm F (CatBoost) on all 4 datasets — establishes tree floor
+4. Arm B (in-domain fine-tuned) on all 4 datasets — the test
+
+### Expected Outcomes
+
+| Question | What we'll learn | Possible answers |
+|---|---|---|
+| Q0: Does fine-tuning help on classification? | Whether fine-tuned TabPFN beats raw TabPFN | Yes (proceed to Q1-Q5) / No (pivot to regression Q3) |
+| Q1: Does fine-tuning help EU Lapse? | Whether fine-tuning closes the GLM gap | Yes (headline result: fine-tuning works where TabPFN fails) / No (boundary identified) |
+| Does fine-tuning vary by dataset? | Whether the effect is dataset-dependent | Yes (some help, some don't — need to understand why) / No (uniform effect) |
+| Does n_estimators=2 limit performance? | Whether we need to upgrade to 8 | Compare VRAM headroom — if T4 has room, upgrade for R2 |
+
+### Measuring Success
+
+**Primary success metric: ROC AUC**
+
+Why ROC, not Brier?
+- The diagnostic showed both datasets are linear on Brier — fine-tuning is unlikely to improve calibration
+- But freMTPL2 shows ROC signal (RF 0.583 > GLM 0.555) — ranking may improve
+- Master report: TabPFN is already AUC rank #1 on most datasets; fine-tuning may push it further
+
+**Success criteria:**
+
+| Outcome | Threshold | Interpretation |
+|---|---|---|
+| **Fine-tuning helps** | Arm B ROC > Arm A ROC by ≥ 0.005 on any dataset | Fine-tuning adds value over raw TabPFN |
+| **Fine-tuning beats GLM** | Arm B ROC > Arm E ROC on EU Lapse | Fine-tuning closes the headline gap |
+| **Fine-tuning is dataset-dependent** | Effect varies across datasets | Pool composition and dataset selection matter |
+| **Fine-tuning doesn't help** | Arm B ROC ≤ Arm A ROC on all datasets | TabPFN is already at ceiling for classification |
+
+**Secondary metrics (tracked but not gated):**
+
+| Metric | Why track | What it tells us |
+|---|---|---|
+| PR AUC | Imbalanced discrimination | Does fine-tuning help identify rare events? |
+| Brier score | Calibration | Already expected flat; confirms diagnostic |
+| Log loss | Probabilistic calibration | More sensitive than Brier |
+| ECE | Expected calibration error | Segment-level miscalibration |
+| GPU time | Operational cost | Feasibility for production |
+| Peak VRAM | Memory profiling | Whether we can upgrade configs |
+
+### Data Storage
+
+**Local (during execution):**
+
+```
+outputs/finetune/
+├── pilot/
+│   ├── coil2000/
+│   │   ├── arm_A_raw/
+│   │   │   ├── predictions.npy
+│   │   │   └── meta.json
+│   │   ├── arm_B_in_domain/
+│   │   │   ├── model.tabpfn_fit
+│   │   │   ├── predictions.npy
+│   │   │   └── meta.json
+│   │   ├── arm_E_glm/
+│   │   │   ├── predictions.npy
+│   │   │   └── meta.json
+│   │   └── arm_F_catboost/
+│   │       ├── predictions.npy
+│   │       └── meta.json
+│   ├── uslapseagent/
+│   ├── eudirectlapse/
+│   └── spanish_motor_lapse/
+```
+
+**Metadata schema (per run):**
+
+```json
+{
+  "arm": "B",
+  "dataset": "eudirectlapse",
+  "config": {"context_samples": 64, "max_finetune_steps": 3, "n_estimators": 2, "learning_rate": 1e-5},
+  "seed": 42,
+  "train_rows": 2000,
+  "test_rows": 1000,
+  "device": "cuda",
+  "device_name": "Tesla T4",
+  "gpu_time_seconds": 45.2,
+  "peak_vram_bytes": 4294967296,
+  "status": "success",
+  "timestamp": "2026-09-11T12:00:00Z",
+  "tabpfn_version": "6.x.x"
+}
+```
+
+**After pilot:**
+- Summary CSV: `outputs/finetune/pilot/results_summary.csv` — one row per arm×dataset
+- Push to Git: `git add outputs/finetune/pilot/ && git commit`
+- Large files (*.npy, *.tabpfn_fit): store in `outputs/` (gitignored), backed up to S3 if needed
+
+### Pilot Report Template
+
+After R1 completes, fill in:
+
+```
+## Pilot Results (R1)
+
+### Dataset: coil2000 (9,822 rows, CARAVAN)
+| Arm | ROC AUC | PR AUC | Brier | Time (s) |
+|-----|---------|--------|-------|----------|
+| A (raw) | ? | ? | ? | ? |
+| B (in-domain) | ? | ? | ? | ? |
+| E (GLM) | ? | ? | ? | ? |
+| F (CatBoost) | ? | ? | ? | ? |
+
+Delta (B - A): ? (positive = fine-tuning helps)
+Delta (B - E): ? (positive = beats GLM)
+
+### Dataset: eudirectlapse (23,060 rows, lapse)
+...
+
+### Conclusions
+- Does fine-tuning help on classification? [Yes/No/Depends]
+- Does it help EU Lapse? [Yes/No]
+- Recommendation for R2: [proceed / pivot / stop]
+```
+
+---
+
 ## Open Decisions
 
 1. **Canonical folds:** **RESOLVED** — folds saved in `scripts/eval/*/results_per_split.csv`. Reuse lapse benchmark folds for EU Lapse, insurance benchmark folds for others.
