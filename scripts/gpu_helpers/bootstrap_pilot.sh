@@ -98,12 +98,48 @@ fi
 # NOTE: `python3 -c` and not a heredoc. The header still documents piping this
 # script to `bash -s`, and a heredoc would swallow the rest of the script from stdin.
 echo "--- TabPFN auth preflight (forces the gated weight download) ---"
+# On failure this prints the DECISION INPUTS, not just the exception. The generic
+# licence error is raised from a fall-through that has three distinct causes --
+# token missing, token invalid (401), or the licence check returning False -- and
+# the traceback cannot tell them apart. Three runs were spent guessing which.
+# Diagnose in one.
 python3 -c '
-import os, sys
+import os, sys, json
 tok = os.environ.get("TABPFN_TOKEN") or ""
 if not tok:
     sys.exit("no TABPFN_TOKEN in the environment at all")
 print("  token present: %d chars, prefix %s..." % (len(tok), tok[:10]))
+
+try:
+    from tabpfn.settings import settings
+    api_url = settings.tabpfn.auth_api_url
+    gui_url = settings.tabpfn.auth_gui_url
+    print("  api_url      :", api_url)
+    print("  gui_url      :", gui_url)
+except Exception as e:
+    print("  could not read tabpfn settings:", e)
+
+try:
+    from tabpfn.browser_auth import verify_token, check_license_accepted, _get_license_name
+    v = verify_token(tok, api_url)
+    print("  verify_token :", v, "(True ok / False invalid-401 / None unreachable)")
+
+    repo = "tabpfn_3"
+    try:
+        lic = _get_license_name(repo)
+        print("  licence name :", lic, "(read from the HF model card for Prior-Labs/%s)" % repo)
+    except Exception as e:
+        lic = None
+        print("  licence name : EXCEPTION:", type(e).__name__, e)
+
+    if lic:
+        acc = check_license_accepted(tok, api_url, lic)
+        print("  accepted?    :", acc, "(True ok / False not-accepted-or-401 / None unreachable)")
+        print("  -> if verify_token is True and accepted? is False, the server is")
+        print("     rejecting THIS licence name for THIS token on the box.")
+except Exception as e:
+    print("  auth introspection failed:", type(e).__name__, e)
+
 import numpy as np
 from tabpfn import TabPFNClassifier
 rng = np.random.default_rng(0)
