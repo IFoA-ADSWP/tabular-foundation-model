@@ -2,11 +2,12 @@
 # Secrets for the TabPFN GPU work. ONE RULE: every secret is a mode-600 file
 # under ~/.config. No keychain, no exceptions, nothing to remember.
 #
-#   bash scripts/gpu_helpers/keys.sh check              # what's stored, lengths only
-#   bash scripts/gpu_helpers/keys.sh add   tabpfn|vast  # from the clipboard
-#   bash scripts/gpu_helpers/keys.sh get   tabpfn|vast  # print the value
-#   bash scripts/gpu_helpers/keys.sh env                # eval-able exports
-#   bash scripts/gpu_helpers/keys.sh path  tabpfn|vast  # where the file lives
+#   bash scripts/gpu_helpers/keys.sh check            # files + account + licence
+#   bash scripts/gpu_helpers/keys.sh licence          # is the licence accepted?
+#   bash scripts/gpu_helpers/keys.sh add tabpfn|vast  # from the clipboard
+#   bash scripts/gpu_helpers/keys.sh get tabpfn|vast  # print the value
+#   bash scripts/gpu_helpers/keys.sh env              # eval-able exports
+#   bash scripts/gpu_helpers/keys.sh path tabpfn|vast # where the file lives
 #
 # THE TWO FILES (and why they are where they are)
 #   TabPFN token : ~/.config/tfm/keys.env           -- ours; read by vast_run.sh and
@@ -34,13 +35,23 @@
 #   with no value cannot be scripted at all (it needs a tty and asks twice). The
 #   clipboard is the one input path that works from a GUI workflow.
 #
-# USAGE NOTE: keys.sh only reads and writes files. It never calls an API, and it
-# never manages the Vast 2FA session -- 'vast_login.sh' does that.
+# WHY check ASKS THE SERVER, NOT JUST THE FILES
+#   A STORED key is not a WORKING key, and the gap between those two cost two GPU
+#   runs. The API answers two separate questions:
+#     /protected        -> which account the key belongs to (proves it is valid)
+#     /account/license  -> whether that account ACCEPTED the licence
+#   A key can pass the first and fail the second, and only the second gates the
+#   weight download. Both are one HTTPS request.
 
 set -uo pipefail
 
 TABPFN_FILE="${TABPFN_FILE:-$HOME/.config/tfm/keys.env}"
 VAST_KEY_FILE="${VAST_KEY_FILE:-$HOME/.config/vastai/vast_api_key}"
+
+# The checkpoint repo the pilot loads, and therefore whose model card supplies the
+# licence name. tabpfn==8.5.0's default v3 checkpoint lives in Prior-Labs/tabpfn_3.
+TABPFN_HF_REPO="${TABPFN_HF_REPO:-Prior-Labs/tabpfn_3}"
+TABPFN_LICENSE_FALLBACK="${TABPFN_LICENSE_FALLBACK:-tabpfn-3-license-v1.0}"
 
 usage() { sed -n '2,12p' "$0"; exit "${1:-2}"; }
 
@@ -84,6 +95,50 @@ get_for() {
     esac
 }
 
+# --- The licence name: NOT a package version ------------------------------------
+# This is the landmine that cost us. tabpfn does:
+#     license_version = _get_license_name(hf_repo_id)
+# and _get_license_name reads cardData.license_name from the HuggingFace model card
+# of the checkpoint's repo. It is a LICENCE name ("tabpfn-3-license-v1.0"), not
+# "8.5.0". Querying the endpoint with a package version returns
+# {"accepted":false} for EVERY value -- including ones that do not exist -- which
+# reads exactly like an unaccepted licence and sent us chasing a licence that was
+# already accepted. Always derive it from the model card, as the library does.
+licence_name() {
+    local v
+    v="$(curl -sSL --max-time 20 \
+         "https://huggingface.co/api/models/${TABPFN_HF_REPO}" 2>/dev/null \
+         | sed -n 's/.*"license_name":"\([^"]*\)".*/\1/p' | head -1)"
+    printf '%s' "${v:-$TABPFN_LICENSE_FALLBACK}"
+}
+
+# licence_status <token> <licence-name> -> prints the API's raw answer
+# --get + --data-urlencode does the percent-encoding, so a licence name with
+# spaces or dots in it cannot break the URL (an earlier hand-rolled sed encoding
+# here was malformed and would have sent a truncated query).
+licence_status() {
+    curl -sSL --max-time 20 --get \
+        --data-urlencode "version=$2" \
+        -H "Authorization: Bearer $1" \
+        "https://api.priorlabs.ai/account/license/" 2>/dev/null || true
+}
+
+# cmd_licence: exit 0 accepted, 1 not accepted, 2 could not tell.
+cmd_licence() {
+    local tok ver lic
+    tok="$(tabpfn_get 2>/dev/null || true)"
+    [ -n "$tok" ] || { echo "no tabpfn key stored -- run: keys.sh add tabpfn" >&2; return 2; }
+    ver="$(licence_name)"
+    lic="$(licence_status "$tok" "$ver")"
+    case "$lic" in
+        *'"accepted":true'*)  echo "licence ${ver}: ACCEPTED"; return 0 ;;
+        *'"accepted":false'*) echo "licence ${ver}: NOT ACCEPTED" >&2
+                              echo "  accept it at https://ux.priorlabs.ai/account/licenses" >&2
+                              return 1 ;;
+        *) echo "licence ${ver}: could not read (${lic:-<no response>})" >&2; return 2 ;;
+    esac
+}
+
 cmd_check() {
     local name file val ok=0
     for name in tabpfn vast; do
@@ -106,37 +161,32 @@ cmd_check() {
         fi
     done
 
-    # Remote verification, because a STORED key is not a WORKING key -- and the
-    # distinction cost two GPU runs. The API answers two questions separately:
-    #   /protected        -> which account the key belongs to (proves validity)
-    #   /account/license  -> whether that account ACCEPTED the licence
-    # A key can pass the first and fail the second, and only the second gates the
-    # weight download. Both are one HTTPS request, so there is no excuse for not
-    # asking before renting anything.
-    local tok; tok="$(tabpfn_get 2>/dev/null || true)"
+    # Remote verification. A stored key is not a working key: /protected proves the
+    # key, /account/license proves the acceptance, and only the second gates the
+    # weight download.
+    local tok who acct ver lic
+    tok="$(tabpfn_get 2>/dev/null || true)"
     if [ -n "$tok" ]; then
-        local ver who lic
-        ver="${TABPFN_VERSION:-8.5.0}"
         who="$(curl -sSL --max-time 20 -H "Authorization: Bearer $tok" \
                https://api.priorlabs.ai/protected 2>/dev/null || true)"
-        lic="$(curl -sSL --max-time 20 -H "Authorization: Bearer $tok" \
-               "https://api.priorlabs.ai/account/license/?version=${ver}" 2>/dev/null || true)"
+        ver="$(licence_name)"
+        lic="$(licence_status "$tok" "$ver")"
+
         echo
         echo "  --- remote check (free, no GPU) ---"
-        local acct
         acct="$(printf '%s' "$who" | sed -n 's/.*"message":"\([^"]*\)".*/\1/p')"
         if [ -n "$acct" ]; then
             echo "  key belongs to : ${acct##*,}"
         else
             echo "  key belongs to : UNKNOWN -- key did not authenticate" >&2; ok=1
         fi
+        echo "  licence        : ${ver:-<could not determine>}"
         case "$lic" in
-            *'"accepted":true'*)  echo "  licence ${ver}   : ACCEPTED" ;;
-            *'"accepted":false'*) echo "  licence ${ver}   : NOT ACCEPTED" >&2
-                                  echo "                   accept it at https://ux.priorlabs.ai" >&2
-                                  echo "                   (Licenses tab) as the account shown above" >&2
+            *'"accepted":true'*)  echo "  status         : ACCEPTED" ;;
+            *'"accepted":false'*) echo "  status         : NOT ACCEPTED" >&2
+                                  echo "                   accept it at https://ux.priorlabs.ai/account/licenses" >&2
                                   ok=1 ;;
-            *) echo "  licence ${ver}   : could not read (${lic:-<no response>})" >&2 ;;
+            *) echo "  status         : could not read (${lic:-<no response>})" >&2 ;;
         esac
     fi
     return $ok
@@ -174,11 +224,12 @@ cmd_env() {
 }
 
 case "${1:-check}" in
-    check) cmd_check ;;
-    add)   shift; cmd_add "$@" ;;
-    get)   shift; path_for "${1:-}" >/dev/null || usage; get_for "$1" ;;
-    path)  shift; path_for "${1:-}" >/dev/null || usage; path_for "$1" ;;
-    env)   cmd_env ;;
+    check)   cmd_check ;;
+    licence) cmd_licence ;;
+    add)     shift; cmd_add "$@" ;;
+    get)     shift; path_for "${1:-}" >/dev/null || usage; get_for "$1" ;;
+    path)    shift; path_for "${1:-}" >/dev/null || usage; path_for "$1" ;;
+    env)     cmd_env ;;
     -h|--help) usage 0 ;;
     *) usage ;;
 esac
