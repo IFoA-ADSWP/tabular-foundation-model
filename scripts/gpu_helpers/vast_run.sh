@@ -106,46 +106,32 @@ fi
 
 # ---- TabPFN licence preflight (FREE -- runs before any GPU is provisioned) ----
 # A token that AUTHENTICATES is not a token whose LICENCE is ACCEPTED. The API
-# reports these separately: /protected proves the token, /account/license proves
-# the acceptance, and it answers {"accepted":true|false} per version.
+# answers those separately (/protected vs /account/license), and renting a GPU to
+# discover the difference costs a whole run.
 #
-# Getting this wrong rents a GPU to watch every arm die in ~1s with a licence
-# error -- twice so far. The check costs one HTTPS request, so do it here, where
-# a failure costs nothing at all. Fail closed on an explicit false; if the status
-# simply cannot be read (offline, endpoint moved) warn and continue rather than
-# blocking a otherwise-valid run.
+# keys.sh owns this check because the endpoint's `version` parameter is a LICENCE
+# NAME taken from the HuggingFace model card ("tabpfn-3-license-v1.0"), NOT a
+# package version. Querying it with "8.5.0" returns {"accepted":false} for every
+# value -- including ones that do not exist -- which reads exactly like an
+# unaccepted licence. That false alarm already sent us chasing a licence that was
+# accepted all along. One owner per fact: do not re-implement this here.
 #
-# Set SKIP_LICENSE_CHECK=1 to bypass (diagnostics only).
-TABPFN_VERSION="${TABPFN_VERSION:-8.5.0}"
+# Exit codes: 0 accepted, 1 not accepted, 2 could not tell.
 if [ "${SKIP_LICENSE_CHECK:-0}" != "1" ]; then
-    # Retry: a single transient failure would otherwise silently disarm the guard
-    # (observed once -- an identical call succeeded seconds later). Then fail CLOSED
-    # on an unreadable status: the cost of a false alarm is a re-run, and the cost
-    # of a false pass is a rented GPU running doomed arms.
-    LIC=""
-    for attempt in 1 2 3; do
-        LIC="$(curl -sSL --max-time 20 \
-            -H "Authorization: Bearer $TABPFN_TOKEN" \
-            "https://api.priorlabs.ai/account/license/?version=${TABPFN_VERSION}" 2>/dev/null || true)"
-        printf '%s' "$LIC" | grep -q '"accepted":' && break
-        [ "$attempt" -lt 3 ] && sleep 3
-    done
-    case "$LIC" in
-        *'"accepted":true'*)
-            echo "[auth] licence accepted for tabpfn $TABPFN_VERSION" ;;
-        *'"accepted":false'*)
-            echo "FATAL: the licence is NOT accepted for tabpfn $TABPFN_VERSION on this account." >&2
-            echo "       Accept it at https://ux.priorlabs.ai (Licenses tab) while signed in" >&2
-            echo "       as the account that owns this token, then re-run." >&2
+    LIC_OUT="$(bash "$REPO_DIR/scripts/gpu_helpers/keys.sh" licence 2>&1)"; LIC_RC=$?
+    if [ "$LIC_RC" -eq 0 ]; then
+        echo "[auth] $LIC_OUT"
+    else
+        printf '%s\n' "$LIC_OUT" | sed 's/^/  /' >&2
+        if [ "$LIC_RC" -eq 1 ]; then
+            echo "FATAL: the licence is not accepted, so every arm would fail." >&2
             echo "       No GPU was provisioned, so this cost nothing." >&2
-            exit 4 ;;
-        *)
-            echo "FATAL: could not read the licence status for tabpfn $TABPFN_VERSION" >&2
-            echo "       after 3 attempts (got: ${LIC:-<empty>})." >&2
-            echo "       Refusing to rent a GPU blind. Re-run, or set SKIP_LICENSE_CHECK=1" >&2
-            echo "       to bypass for diagnostics." >&2
-            exit 4 ;;
-    esac
+        else
+            echo "FATAL: could not verify the licence -- refusing to rent a GPU blind." >&2
+            echo "       Re-run, or set SKIP_LICENSE_CHECK=1 to bypass." >&2
+        fi
+        exit 4
+    fi
 fi
 
 INSTANCE_ID=""
