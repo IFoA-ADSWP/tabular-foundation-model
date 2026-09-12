@@ -22,6 +22,9 @@ export PATH="$HOME/.local/share/uv/tools/google-colab-cli/bin:$PATH"
 
 BRANCH="${BRANCH:-finetune-v2}"
 REPO="https://github.com/IFoA-ADSWP/tabular-foundation-model.git"
+# Override to skip arms the VM cannot hold, e.g. on the 12 GB CPU runtime:
+#   ARMS="A_raw,E_glm,F_catboost" bash scripts/colab_helpers/launch_pilot.sh
+ARMS="${ARMS:-A_raw,B_in_domain,E_glm,F_catboost}"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -47,7 +50,23 @@ subprocess.run([sys.executable, "-m", "pip", "install", "-q",
                 "tabpfn==8.5.0", "torch", "scikit-learn", "pandas", "pyarrow", "catboost"],
                check=True)
 
-subprocess.run([sys.executable, "scripts/run_pilot.py"], check=False)
+# One subprocess per arm. The kernel OOM killer takes down the whole
+# interpreter, so a single heavy arm (B fine-tunes and needs >12 GB) must not
+# be able to kill the other three -- try/except inside the process cannot
+# catch a SIGKILL.
+for arm in "${ARMS}".split(","):
+    print()
+    print(f"########## ARM {arm} ##########", flush=True)
+    rc = subprocess.run(
+        [sys.executable, "scripts/run_pilot.py", "--arms", arm], check=False
+    ).returncode
+    if rc != 0:
+        print(f"########## ARM {arm} EXITED rc={rc} (negative = killed by signal) ##########",
+              flush=True)
+
+print()
+print("########## AGGREGATE ##########", flush=True)
+subprocess.run([sys.executable, "scripts/run_pilot.py", "--aggregate"], check=False)
 print("BOOTSTRAP FINISHED")
 PYEOF
 

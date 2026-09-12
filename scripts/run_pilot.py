@@ -253,8 +253,22 @@ def save_results(dataset, arm, metrics, y_prob, y_test, run_time, config, output
     return meta
 
 
-def run_single_dataset(ds_name):
-    """Run all arms for one dataset. Called by CLI step script."""
+ARMS = {
+    "A_raw": lambda a, b, c, d: run_arm_a_raw(a, b, c, d, PILOT_CONFIG),
+    "B_in_domain": lambda a, b, c, d: run_arm_b_in_domain(a, b, c, d, PILOT_CONFIG),
+    "E_glm": run_arm_e_glm,
+    "F_catboost": run_arm_f_catboost,
+}
+
+
+def run_single_dataset(ds_name, arms=None):
+    """Run the selected arms for one dataset.
+
+    `arms` exists so the driver can run one arm per subprocess. A kernel
+    OOM-kill takes down the whole interpreter, so arms sharing a process
+    cannot be isolated with try/except -- the `except Exception` below never
+    runs when the OOM killer fires.
+    """
     if ds_name not in DATASETS:
         print(f"ERROR: Unknown dataset '{ds_name}'. Choose from: {list(DATASETS.keys())}")
         return []
@@ -280,16 +294,16 @@ def run_single_dataset(ds_name):
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     results = []
 
-    for arm_name, arm_fn in [
-        ("A_raw", lambda: run_arm_a_raw(X_train_s, X_test_s, y_train, y_test, PILOT_CONFIG)),
-        ("B_in_domain", lambda: run_arm_b_in_domain(X_train_s, X_test_s, y_train, y_test, PILOT_CONFIG)),
-        ("E_glm", lambda: run_arm_e_glm(X_train_s, X_test_s, y_train, y_test)),
-        ("F_catboost", lambda: run_arm_f_catboost(X_train_s, X_test_s, y_train, y_test)),
-    ]:
+    selected = list(ARMS) if arms is None else arms
+    for arm_name in selected:
+        arm_fn = ARMS.get(arm_name)
+        if arm_fn is None:
+            print(f"  {arm_name}... SKIPPED (unknown arm)")
+            continue
         print(f"  {arm_name}...", end=" ", flush=True)
         start = time.time()
         try:
-            probs, _ = arm_fn()
+            probs, _ = arm_fn(X_train_s, X_test_s, y_train, y_test)
             elapsed = time.time() - start
             if probs is None:
                 print(f"FAILED ({elapsed:.1f}s)")
@@ -343,13 +357,26 @@ def aggregate_results():
 def main():
     parser = argparse.ArgumentParser(description="Fine-tuning pilot")
     parser.add_argument("--dataset", type=str, help="Run one dataset")
+    parser.add_argument(
+        "--arms",
+        type=str,
+        help=f"Comma-separated arms to run (default: all). Choices: {','.join(ARMS)}",
+    )
     parser.add_argument("--aggregate", action="store_true", help="Aggregate results")
     args = parser.parse_args()
+
+    arms = None
+    if args.arms:
+        arms = [a.strip() for a in args.arms.split(",") if a.strip()]
+        unknown = [a for a in arms if a not in ARMS]
+        if unknown:
+            parser.error(f"unknown arm(s) {unknown}; choose from {list(ARMS)}")
 
     print("=" * 70)
     print("FINE-TUNING PILOT — 4 datasets × 4 arms")
     print("=" * 70)
     print(f"Config: {PILOT_CONFIG}")
+    print(f"Arms: {arms or list(ARMS)}")
     print(f"Device: {'cuda' if torch.cuda.is_available() else 'cpu'}")
     if torch.cuda.is_available():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
@@ -364,12 +391,12 @@ def main():
         return
 
     if args.dataset:
-        run_single_dataset(args.dataset)
+        run_single_dataset(args.dataset, arms)
         return
 
     # Run all datasets
     for ds_name in DATASETS:
-        run_single_dataset(ds_name)
+        run_single_dataset(ds_name, arms)
 
     aggregate_results()
 
