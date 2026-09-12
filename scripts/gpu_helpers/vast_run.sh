@@ -191,6 +191,15 @@ MACHINE_ID=""; HOST_ID=""
 # record_run is called from the EXIT trap AND from the retry path, and a re-exec
 # would otherwise append a duplicate ledger row for the same instance.
 RECORDED=0
+# A mocked `vastai` (scripts/gpu_helpers/mock_vastai.sh) cannot spend money, so a run
+# driven by it must never be mistakable for a real one -- at the record level, not only
+# in whoever's memory. Detected here, passed to the box, recorded in both records.
+VASTAI_BIN="$(command -v vastai 2>/dev/null || true)"
+case "$VASTAI_BIN" in
+    *mock*) DRY_RUN=1 ;;
+    *)      DRY_RUN=0 ;;
+esac
+export TFM_DRY_RUN="$DRY_RUN"
 # One id for the whole run: it is interpolated into the onstart environment so the
 # box-written manifest and this runner's cost record share a join key.
 RUN_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -439,6 +448,7 @@ ONSTART_FILE="$REPO_DIR/scripts/gpu_helpers/.onstart.$$.sh"
     # RUN_STAMP is the join key between the box-written manifest and the runner's cost
     # record. MACHINE_ID/HOST_ID may still be empty here (they are parsed from the
     # create response, after this file is built); empty values are recorded as null.
+    printf 'export TFM_DRY_RUN=%q\n' "$DRY_RUN"
     printf 'export TFM_RUN_STAMP=%q\n' "$RUN_STAMP"
     printf 'export TFM_IMAGE_REF=%q\n' "$IMAGE"
     printf 'export TFM_MACHINE_ID=%q\n' "${MACHINE_ID:-}"

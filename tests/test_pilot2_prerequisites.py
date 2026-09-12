@@ -323,6 +323,81 @@ def test_per_arm_record_carries_the_new_provenance(rp, tmp_path, monkeypatch):
 
 
 # --------------------------------------------------------------------------
+# Incomplete runs: both states must be STATED, never inferred from a gap
+# --------------------------------------------------------------------------
+def test_pf_failed_arm_is_recorded_not_silent(rp, tmp_path):
+    """An arm that raises must leave a record in its own slot."""
+    fr = rp.save_failure_record(
+        tmp_path, "coil2000", "B_in_domain", 42, None, dict(rp.DEFAULT_CONFIG),
+        RuntimeError("Invalid forward pass"), 12.5,
+    )
+    assert fr.name == "meta.FAILED.json"
+    assert fr.parent == tmp_path / "coil2000" / "B_in_domain"
+    d = json.loads(fr.read_text())
+    assert d["status"] == "failed"
+    assert d["arm"] == "B_in_domain" and d["dataset"] == "coil2000"
+    assert "Invalid forward pass" in d["error"]
+    assert d["error_type"] == "RuntimeError"
+    assert d["elapsed_seconds"] == 12.5
+
+
+def test_pf_failure_record_cannot_overwrite_a_success(rp, tmp_path):
+    """The failure filename must never collide with the success record."""
+    slot = tmp_path / "ds" / "A_raw"
+    slot.mkdir(parents=True)
+    (slot / "meta.json").write_text('{"status": "ok"}')
+    rp.save_failure_record(tmp_path, "ds", "A_raw", 1, None, {}, ValueError("boom"), 1.0)
+    assert (slot / "meta.json").read_text() == '{"status": "ok"}'
+    assert (slot / "meta.FAILED.json").exists()
+
+
+def test_pf_failure_record_uses_the_seed_fold_slot(rp, tmp_path):
+    fr = rp.save_failure_record(tmp_path, "ds", "A_raw", 7, 2, {}, ValueError("x"), 1.0)
+    assert fr.parent == tmp_path / "ds" / "A_raw" / "seed7_fold2"
+
+
+def test_pf_a_killed_run_is_detectable(rp, tmp_path, capsys):
+    """The OOM case: process died, so the manifest never got past status=running."""
+    (tmp_path / "manifest_20260912T230000Z.json").write_text(
+        json.dumps({"run_id": "20260912T230000Z", "status": "running", "pid": 4242})
+    )
+    rep = rp.report_incomplete(tmp_path)
+    assert rep["incomplete_runs"], "a run still marked 'running' is an incomplete run"
+    assert rep["incomplete_runs"][0][0] == "20260912T230000Z"
+    out = capsys.readouterr().out
+    assert "INCOMPLETE RUNS" in out
+
+
+def test_pf_failed_arms_are_surfaced(rp, tmp_path, capsys):
+    rp.save_failure_record(tmp_path, "coil2000", "B_in_domain", 42, None, {}, OSError("oom"), 3.0)
+    rep = rp.report_incomplete(tmp_path)
+    assert rep["failed_arms"] and rep["failed_arms"][0][1] == "B_in_domain"
+    assert "FAILED ARMS" in capsys.readouterr().out
+
+
+def test_pf_a_clean_run_reports_clean(rp, tmp_path, capsys):
+    (tmp_path / "manifest_ok.json").write_text(json.dumps({"run_id": "ok", "status": "success"}))
+    (tmp_path / "ds" / "A_raw").mkdir(parents=True)
+    (tmp_path / "ds" / "A_raw" / "meta.json").write_text("{}")
+    rep = rp.report_incomplete(tmp_path)
+    assert rep == {"incomplete_runs": [], "failed_arms": []}
+    assert "no incomplete runs, no failed arms" in capsys.readouterr().out
+
+
+def test_pf_manifest_is_written_before_the_arms_run(rp):
+    """The crash-safety invariant, asserted against the source order.
+
+    A manifest written only in `finally` is absent whenever the process is killed (an
+    OOM takes the interpreter down without unwinding), which is precisely how R1's runs
+    vanished. The write must precede the first arm.
+    """
+    src = Path(rp.__file__).read_text()
+    write_at = src.index("manifest[\"pid\"] = os.getpid()")
+    run_at = src.index("    try:\n        if args.dataset:", write_at)
+    assert write_at < run_at, "manifest must be written BEFORE the arms are dispatched"
+
+
+# --------------------------------------------------------------------------
 # PR-1 -- manifest shape
 # --------------------------------------------------------------------------
 def test_pr1_git_and_host_info_present(rp):

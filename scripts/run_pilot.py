@@ -926,8 +926,90 @@ def run_single_dataset(
                 except Exception as e:
                     elapsed = time.time() - start
                     print(f"ERROR: {type(e).__name__}: {e} ({elapsed:.1f}s)")
+                    # Leave evidence. An arm that dies must not look like an arm that
+                    # was never attempted -- that ambiguity is what cost time on R1.
+                    fr = save_failure_record(
+                        OUTPUT_DIR, ds_name, arm_name, seed, fold, config, e, elapsed
+                    )
+                    print(f"       recorded failure -> {fr}")
 
     return results
+
+
+def save_failure_record(output_dir, dataset, arm, seed, fold, config, error, elapsed=None):
+    """Record a FAILED arm as a record, not as an absence.
+
+    When an arm raises, the success path simply never runs: no predictions.npy, no
+    meta.json, nothing. Downstream that is indistinguishable from an arm that was never
+    attempted -- and the R1 record's missing per-arm predictions were exactly that
+    ambiguity, which took a separate investigation to resolve. This writes the failure
+    into the same <dataset>/<arm>/[seed.._fold..] slot as a success, under a filename
+    that cannot collide with it, so the gap is legible instead of silent.
+    """
+    run_dir = output_dir / dataset / arm
+    if seed is not None and fold is not None:
+        run_dir = run_dir / f"seed{seed}_fold{fold}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    rec = {
+        "schema_version": SCHEMA_VERSION,
+        "status": "failed",
+        "dataset": dataset,
+        "arm": arm,
+        "seed": seed,
+        "fold": fold,
+        "error": f"{type(error).__name__}: {error}",
+        "error_type": type(error).__name__,
+        "elapsed_seconds": round(elapsed, 3) if elapsed is not None else None,
+        "failed_at": datetime.now(timezone.utc).isoformat(),
+        "effective_config": dict(config),
+        "container": _container_provenance(),
+        "versions": _runtime_versions(),
+    }
+    path = run_dir / "meta.FAILED.json"
+    path.write_text(json.dumps(rec, indent=2, default=str))
+    return path
+
+
+def report_incomplete(output_dir=None):
+    """Surface runs that did not finish, and arms that failed.
+
+    Two distinct states, both previously invisible:
+      * a manifest still `status: running`  -> the process died mid-run (OOM, kill)
+      * a `meta.FAILED.json` in an arm slot -> that arm raised an exception
+
+    Neither is an error in itself. The point is that they are STATED rather than
+    inferred from an absent file, which is the only way a reader can tell "this did not
+    work" apart from "this was never tried".
+    """
+    out = Path(output_dir) if output_dir else OUTPUT_DIR
+    incomplete, failed = [], []
+    for mp in sorted(out.glob("manifest_*.json")):
+        try:
+            d = json.loads(mp.read_text())
+        except Exception:
+            incomplete.append((mp.name, "unparseable"))
+            continue
+        if d.get("status") != "success":
+            incomplete.append((d.get("run_id", mp.stem), d.get("status")))
+    for fp in sorted(out.rglob("meta.FAILED.json")):
+        try:
+            d = json.loads(fp.read_text())
+            failed.append((d.get("dataset"), d.get("arm"), d.get("seed"), d.get("error")))
+        except Exception:
+            failed.append((str(fp), None, None, "unparseable"))
+
+    print()
+    if incomplete:
+        print("INCOMPLETE RUNS (manifest not status=success) -- exclude from results:")
+        for rid, st in incomplete:
+            print(f"  {rid}: status={st}")
+    if failed:
+        print("FAILED ARMS (recorded, not silent):")
+        for ds, arm, seed, err in failed:
+            print(f"  {ds}/{arm} seed={seed}: {err}")
+    if not incomplete and not failed:
+        print("Completeness check: no incomplete runs, no failed arms.")
+    return {"incomplete_runs": incomplete, "failed_arms": failed}
 
 
 def aggregate_results(output_dir=None):
@@ -940,6 +1022,9 @@ def aggregate_results(output_dir=None):
     print("\n" + "=" * 70)
     print("PILOT RESULTS SUMMARY")
     print("=" * 70)
+
+    # State what is MISSING before summarising what is present.
+    report_incomplete(output_dir)
 
     all_results = []
     for meta_path in sorted(output_dir.glob("**/meta.json")):
@@ -1099,7 +1184,19 @@ def main():
         "dataset_fingerprints": fingerprints,
         "pool": pool_meta,
         "save_models": bool(args.save_models),
+        # A dry run (mock vastai) must be distinguishable from a real one at the record
+        # level, not only by whether someone remembers it was a mock.
+        "dry_run": os.environ.get("TFM_DRY_RUN") == "1",
     }
+
+    # Write the manifest BEFORE the first arm runs, with status "running". This is the
+    # incomplete-run marker. R1's kill was an OOM, which takes the interpreter down
+    # without running `finally`, so a manifest written only at the end never appeared at
+    # all -- leaving an abandoned run indistinguishable from one that never started.
+    # A manifest still saying "running", with no finished_at, is now a positive signal
+    # that a run died. Every exit path rewrites it (success, failure, exception).
+    manifest["pid"] = os.getpid()
+    write_run_manifest(manifest, OUTPUT_DIR)
 
     try:
         if args.dataset:

@@ -283,6 +283,24 @@ for arm in ${ARMS//,/ }; do
     fi
 done
 
+# ---- 5a. Which arms actually produced a record? ----
+# An arm subprocess can be killed (OOM) leaving NOTHING written, so absence is
+# ambiguous: never attempted, or died? The client cannot see this filesystem -- only
+# this log -- so state the difference explicitly rather than letting a gap imply it.
+# `ls | wc -l` is used rather than `grep -c` because BSD grep exits 1 on an empty file,
+# which silently produces a two-line count.
+echo
+echo "########## ARM RECORDS ##########"
+MISSING=""
+for a in ${ARMS//,/ }; do
+    ok_n="$(ls -1 outputs/finetune/pilot/*/"$a"/meta.json 2>/dev/null | wc -l | tr -d ' ')"
+    bad_n="$(ls -1 outputs/finetune/pilot/*/"$a"/meta.FAILED.json \
+                   outputs/finetune/pilot/*/"$a"/*/meta.FAILED.json 2>/dev/null | wc -l | tr -d ' ')"
+    echo "ARMS_PRESENT $a ok=$ok_n failed=$bad_n"
+    if [ "$ok_n" = "0" ]; then MISSING="$MISSING $a"; fi
+done
+echo "ARMS_MISSING=${MISSING# }"
+
 # ---- 5. Aggregate ----
 echo
 echo "########## AGGREGATE ##########"

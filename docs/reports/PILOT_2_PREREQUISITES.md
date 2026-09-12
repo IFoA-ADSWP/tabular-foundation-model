@@ -85,6 +85,39 @@ hardcoded `outputs/gpu-pilot` **inside** the Python, so `VAST_OUTDIR` never reac
 or the ledger — meaning every earlier mock run had been writing into the working tree. Now verified
 isolated: 13 run records before a mock run, 13 after.
 
+### Incomplete runs are a first-class state
+
+Runs that do not finish are going to happen — a wide run against 53k-row datasets on a
+provisioned box will eventually be killed, and R1's own kill was an OOM. The requirement is
+that such a run **says so**, rather than leaving a gap that has to be interpreted. A missing
+file is not a status.
+
+Three states are now recorded explicitly:
+
+| State | How it is produced | How it is read |
+| --- | --- | --- |
+| **Incomplete** | the manifest is written with `status: "running"` *before* the first arm runs, and rewritten on every exit path | a manifest still at `status: "running"` with no `finished_at` means the process died mid-run — the manifest is not written only in `finally`, because an OOM kill never runs `finally` and R1's runs left no manifest at all |
+| **Failed arm** | `save_failure_record()` writes `meta.FAILED.json` into the same `<dataset>/<arm>/[seed.._fold..]/` slot a success would use, with the error and the effective config | a failed arm is a record, not an absence — previously a raise printed one line and left nothing, so "failed" and "never attempted" were indistinguishable |
+| **Dry run** | the runner detects a mocked `vastai`, sets `dry_run`, and passes it to the box | a mock run cannot be mistaken for a real one at the record level, not merely in whoever's memory |
+
+Both are surfaced rather than left to be inferred: `report_incomplete()` runs as part of the
+aggregate step (which is what the bootstrap invokes, so the output reaches the box log the
+client can read), and the box emits `ARMS_PRESENT <arm> ok=N failed=N` / `ARMS_MISSING=...`
+from its own filesystem — the client cannot see that filesystem, so the difference between
+an arm that was never attempted and one that died has to be stated there.
+
+### GPU nondeterminism is not a reproduction requirement
+
+Requiring bit-identical re-runs on GPU hardware is unrealistic and is **not** a gate.
+Reproduction here means *same code, data, config, seeds* — for which the manifest above is
+sufficient. The measured spread (the same raw arm at 0.767344 on an RTX PRO 5000 and
+0.767530 on an L40S, ~2e-4 ROC) is recorded as **context for reading the numbers**, not as a
+tolerance that must be pinned down before a run can be trusted.
+
+This does not affect the comparison logic: any A-versus-B claim is made on **paired, shared
+test rows within a single run**, where the sampling noise (0.031–0.118 ROC CI width) dwarfs
+the device spread by two to three orders of magnitude.
+
 **Evidence.** `tests/test_pilot2_prerequisites.py::test_pr1_git_and_host_info_present` passes, plus
 eight provenance tests (`test_pf_data_source_url_honours_a_pinned_ref`,
 `test_pf_fingerprint_records_where_the_bytes_came_from`,
