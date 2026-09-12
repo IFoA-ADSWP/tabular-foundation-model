@@ -23,6 +23,18 @@ set -uo pipefail
 command -v vastai >/dev/null 2>&1 || \
     export PATH="$HOME/.local/share/uv/tools/vastai/bin:$PATH"
 
+# Resolve the Vast key: environment first, then the login keychain (the canonical
+# store -- see keys.sh). The CLI accepts VAST_API_KEY, and an exported value takes
+# precedence over its plaintext config file, so the keychain can be the only store.
+# NOTE: this only works when we run as a LaunchAgent. Cron's keychain search list
+# is System-only and the login keychain is locked to it (measured: rc=36/rc=44),
+# which would leave this guard silently blind. Do not reschedule this as a cron job.
+if [ -z "${VAST_API_KEY:-}" ] && command -v security >/dev/null 2>&1; then
+    VAST_API_KEY="$(security find-generic-password -s vastai-api-key \
+        -a "${USER:-$(id -un)}" -w 2>/dev/null || true)"
+    export VAST_API_KEY
+fi
+
 LABEL="${LABEL:-tabpfn-pilot}"
 MAX_AGE_MIN="${MAX_AGE_MIN:-90}"
 DRY=0
@@ -39,8 +51,14 @@ done
 
 STAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-if ! vastai show user >/dev/null 2>&1; then
-    echo "$STAMP no session/credentials -- skipping"
+# Distinguish "cannot authenticate" from "nothing to do" -- and say so loudly.
+# Previously both paths were quiet, so an inert guard was indistinguishable from a
+# healthy one in the log. A guard you only *believe* is running is worse than none.
+AUTH_OUT="$(vastai show user --raw 2>&1 || true)"
+if printf '%s' "$AUTH_OUT" | grep -qiE '"error"[[:space:]]*:[[:space:]]*true|two.factor|401|Authorization Error'; then
+    echo "$STAMP !! WATCHDOG UNAUTHENTICATED -- NO LEAK PROTECTION IS ACTIVE"
+    echo "$STAMP !!   $(printf '%s' "$AUTH_OUT" | tr '\n' ' ' | cut -c1-140)"
+    echo "$STAMP !!   refresh the session:  bash scripts/gpu_helpers/vast_login.sh"
     exit 0
 fi
 
