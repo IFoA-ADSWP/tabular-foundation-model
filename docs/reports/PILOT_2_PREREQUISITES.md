@@ -64,7 +64,33 @@ writes `meta.json` with dataset fingerprint, split fingerprint, `predictions_sha
 PR-2 returning the predictions to recompute from. Cost per arm is still not captured — it belongs
 with the runner-level cost accounting in `vast_run.sh`.
 
-**Evidence.** `tests/test_pilot2_prerequisites.py::test_pr1_git_and_host_info_present` passes.
+**Reproducibility inputs added later** (an audit of "could someone re-run this and get the same
+answer" found four that were implicit or absent):
+
+| Input | Was | Now |
+| --- | --- | --- |
+| Data source | `/main/` hardcoded — a **moving branch**; a hash tells you a file changed, not how to get the original back | recorded per dataset (`source_url`, `source_ref`, `source_ref_is_pinned`), and pinnable with `TFM_DATA_REF=<sha>` |
+| Box dependencies | `pip install --upgrade` with **sklearn and pandas unpinned** — both change *results*, not just logs | `tabpfn` and `scikit-learn` pinned to what the pilot ran; `pandas`/`pyarrow`/`catboost` bounded; `--upgrade` removed; all four recorded per run |
+| Weights | `checkpoints` recorded the **filename** — an assertion, not proof of which bytes ran | `fetch_weights.py` computes the sha256 and it reaches the manifest via `TFM_WEIGHTS_MANIFEST` |
+| Container image | chosen at run time from host CUDA, recorded only in the runner's own JSON | interpolated into the onstart environment and recorded in the manifest, with a shared `run_stamp` joining the box record to the runner's cost record |
+
+Also recorded now: the **actual estimator class per arm**. Arm F silently falls back to
+`RandomForestClassifier` when catboost is missing, and the row still said `F_catboost`;
+the substitution is now recorded *and* printed loudly. (Checked: catboost 1.2.10 was present
+on both the box and locally, so the pilot's F arm was genuine — but the hazard is closed.)
+
+**Two bugs this work surfaced**, both caught by the mock run: `RUN_STAMP` was defined inside a
+function, so the onstart builder hit it unset and `set -u` aborted the run; and the ledger heredoc
+hardcoded `outputs/gpu-pilot` **inside** the Python, so `VAST_OUTDIR` never reached the run record
+or the ledger — meaning every earlier mock run had been writing into the working tree. Now verified
+isolated: 13 run records before a mock run, 13 after.
+
+**Evidence.** `tests/test_pilot2_prerequisites.py::test_pr1_git_and_host_info_present` passes, plus
+eight provenance tests (`test_pf_data_source_url_honours_a_pinned_ref`,
+`test_pf_fingerprint_records_where_the_bytes_came_from`,
+`test_pf_versions_record_the_packages_that_change_results`,
+`test_weights_provenance_*`, `test_container_provenance_*`,
+`test_per_arm_record_carries_the_new_provenance`).
 
 ---
 

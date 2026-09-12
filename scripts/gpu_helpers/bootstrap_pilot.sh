@@ -25,7 +25,13 @@ REPO="https://github.com/IFoA-ADSWP/tabular-foundation-model.git"
 WORKDIR="${WORKDIR:-/workspace/tfm}"
 ARMS="${ARMS:-A_raw,B_in_domain,E_glm,F_catboost}"
 
-TABPFN_PIN="tabpfn==8.5.0"
+TABPFN_PIN="${TABPFN_PIN:-tabpfn==8.5.0}"
+# Reproducibility pins (see the install step for why). Override any of these to
+# reproduce a specific run's environment exactly.
+SKLEARN_PIN="${SKLEARN_PIN:-scikit-learn==1.9.1}"
+PANDAS_PIN="${PANDAS_PIN:-pandas>=2.2,<3}"
+PYARROW_PIN="${PYARROW_PIN:-pyarrow>=15,<20}"
+CATBOOST_PIN="${CATBOOST_PIN:-catboost>=1.2,<2}"
 
 echo "============================================================"
 echo "BOOTSTRAP — branch=$BRANCH arms=$ARMS workdir=$WORKDIR"
@@ -71,9 +77,20 @@ cd "$WORKDIR" || exit 2
 # ---- 3. Dependencies ----
 # torch is NOT listed: the PyTorch image ships a CUDA build and reinstalling
 # risks swapping it for a CPU wheel.
-echo "--- installing deps ($TABPFN_PIN) ---"
-python3 -m pip install -q --upgrade "$TABPFN_PIN" scikit-learn pandas \
-    pyarrow catboost || exit 2
+echo "--- installing deps ($TABPFN_PIN $SKLEARN_PIN $PANDAS_PIN) ---"
+# PINS. This line used to be `pip install -q --upgrade "$TABPFN_PIN" scikit-learn
+# pandas pyarrow catboost`, which let every unpinned dependency float. Two runs months
+# apart could then differ in scikit-learn or pandas with nothing to notice it -- and
+# those two change RESULTS, not just log lines: sklearn supplies the split, the scaler,
+# LogisticRegression and the metrics; pandas builds the feature matrix itself.
+#
+# tabpfn and scikit-learn are pinned to what the pilot actually ran (evidenced in its
+# recorded versions). pandas / pyarrow / catboost are BOUNDED rather than pinned,
+# because the pilot never recorded their exact versions -- `_runtime_versions()` records
+# them per run now, so the first real run establishes the exact pins to adopt. Bounding
+# is not reproduction-grade; recording plus a bound is strictly better than floating.
+python3 -m pip install -q "$TABPFN_PIN" "$SKLEARN_PIN" "$PANDAS_PIN" \
+    "$PYARROW_PIN" "$CATBOOST_PIN" || exit 2
 
 echo "--- verifying torch sees the GPU ---"
 if ! python3 -c "
@@ -110,6 +127,12 @@ case "$WEIGHTS_JSON" in
 esac
 if [ -n "$WEIGHTS_JSON" ]; then
     printf '%s\n' "$WEIGHTS_JSON" | sed 's/^/    /'
+    # Persist it for the run manifest. The checkpoint's sha256 is the difference between
+    # "the right weights were used" (what a filename asserts) and "these exact bytes were
+    # used" (what a re-run needs). Without this it stops at the log and never reaches the
+    # audit record -- and the box's checkpoint filename alone cannot prove which weights ran.
+    printf '%s\n' "$WEIGHTS_JSON" > /tmp/tfm_weights.json
+    export TFM_WEIGHTS_MANIFEST=/tmp/tfm_weights.json
 else
     echo "    WARNING: fetch_weights.py produced no parseable JSON (rc=$WEIGHTS_RC)" >&2
 fi

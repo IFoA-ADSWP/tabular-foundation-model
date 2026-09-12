@@ -94,6 +94,17 @@ DATASETS = {
 DATA_DIR = REPO_ROOT / "data" / "raw"
 OUTPUT_DIR = REPO_ROOT / "outputs" / "finetune" / "pilot"
 
+# Where the datasets come from. `main` is a MOVING reference: if a CSV changes on that
+# branch, a re-run silently gets different bytes -- the content fingerprint can only
+# tell you it changed, it cannot recover the original. Pin it for a reproducible run:
+#
+#     export TFM_DATA_REF=<commit-sha>
+#
+# The ref and the resolved URL are recorded per dataset, so a run states exactly where
+# its bytes came from.
+DATA_REPO = os.environ.get("TFM_DATA_REPO", "IFoA-ADSWP/tabular-foundation-model")
+DATA_REF = os.environ.get("TFM_DATA_REF", "main")
+
 # Which arms are fine-tuning arms (subject to the matched-context assertion).
 FT_ARMS = ("B_in_domain", "B_ft3", "B_ft10", "B_ft30", "C_pooled_all", "D_pooled_homog")
 BASELINE_TABPFN_ARM = "A_raw"
@@ -189,6 +200,13 @@ def dataset_fingerprint(name):
         "target_col": target,
         "positive_rate": round(float(y.mean()), 6),
         "n_positive": int(y.sum()),
+        # Provenance of the bytes: a content hash alone tells you a file CHANGED, not
+        # where to get the original back. DATA_REF pins the source; default `main` is a
+        # moving branch and is recorded as such so the gap is visible rather than implied.
+        "source_url": data_source_url(f"{name}.csv"),
+        "source_repo": DATA_REPO,
+        "source_ref": DATA_REF,
+        "source_ref_is_pinned": DATA_REF != "main",
     }
 
 
@@ -210,6 +228,58 @@ def _checkpoints():
     return found
 
 
+def _weights_provenance():
+    """The gated checkpoint this run used: which file, and its hash.
+
+    `checkpoints` (below) records the FILENAME of whatever .ckpt is on disk, which is
+    an assertion that the right weights were used, not proof of which bytes they were.
+    The fetch step (scripts/gpu_helpers/fetch_weights.py) computes the sha256 and drops
+    it here via TFM_WEIGHTS_MANIFEST, so the hash reaches the audit record instead of
+    stopping at the log.
+    """
+    info = {
+        "path": None,
+        "sha256": None,
+        "bytes": None,
+        "cached_before": None,
+        "downloaded": None,
+        "source": None,
+        "manifest_file": os.environ.get("TFM_WEIGHTS_MANIFEST"),
+    }
+    path = os.environ.get("TFM_WEIGHTS_MANIFEST")
+    if path and os.path.exists(path):
+        try:
+            with open(path) as f:
+                w = json.load(f)
+            info.update(
+                path=w.get("target_path"),
+                sha256=w.get("sha256"),
+                bytes=w.get("bytes"),
+                cached_before=w.get("cached"),
+                downloaded=w.get("downloaded"),
+                source=w.get("repo_id"),
+            )
+        except Exception as e:
+            info["error"] = f"{type(e).__name__}: {e}"
+    return info
+
+
+def _container_provenance():
+    """The container this run happened in.
+
+    The image is chosen at run time from the host's CUDA capability, so it is a moving
+    part -- it must be recorded where the audit record lives, not only in the runner's
+    own JSON. The runner interpolates these into the onstart environment.
+    """
+    keys = {
+        "image_ref": "TFM_IMAGE_REF",
+        "run_stamp": "TFM_RUN_STAMP",
+        "machine_id": "TFM_MACHINE_ID",
+        "host_id": "TFM_HOST_ID",
+    }
+    return {k: (os.environ.get(v) or None) for k, v in keys.items()}
+
+
 def _runtime_versions():
     """Record the stack that produced a result.
 
@@ -223,7 +293,18 @@ def _runtime_versions():
         "torch": torch.__version__,
         "numpy": np.__version__,
     }
-    for mod_name, key in (("tabpfn", "tabpfn"), ("sklearn", "scikit-learn")):
+    # These four can change a RESULT, not just a log line:
+    #   tabpfn   -- the fine-tuning API and default checkpoint
+    #   sklearn  -- the split, the scaler, LogisticRegression defaults, the metrics
+    #   pandas   -- loading and one-hot encoding, i.e. the feature matrix itself
+    #   catboost -- arm F. If it is absent the arm silently falls back to
+    #               RandomForestClassifier, so its presence must be recorded, not assumed.
+    for mod_name, key in (
+        ("tabpfn", "tabpfn"),
+        ("sklearn", "scikit-learn"),
+        ("pandas", "pandas"),
+        ("catboost", "catboost"),
+    ):
         try:
             versions[key] = getattr(__import__(mod_name), "__version__", "unknown")
         except Exception:
@@ -234,8 +315,16 @@ def _runtime_versions():
 # ---------------------------------------------------------------------------
 # Data
 # ---------------------------------------------------------------------------
-def download_file(filename, repo="IFoA-ADSWP/tabular-foundation-model"):
-    url = f"https://raw.githubusercontent.com/{repo}/main/data/raw/{filename}"
+def data_source_url(filename, repo=None, ref=None):
+    """Resolved URL for a dataset, so the manifest states where the bytes came from."""
+    return (
+        f"https://raw.githubusercontent.com/{repo or DATA_REPO}/"
+        f"{ref or DATA_REF}/data/raw/{filename}"
+    )
+
+
+def download_file(filename, repo=None, ref=None):
+    url = data_source_url(filename, repo, ref)
     dest = DATA_DIR / filename
     if dest.exists():
         return True
@@ -624,6 +713,7 @@ def save_results(
     context_note,
     extra=None,
     model_info=None,
+    estimator_class=None,
 ):
     """Write one arm-run record. Layout is legacy-compatible for the single-split case."""
     if fold is None and seed == DEFAULT_SEED:
@@ -654,6 +744,13 @@ def save_results(
         "status": "success",
         "versions": _runtime_versions(),
         "checkpoints": _checkpoints(),
+        # PR-1 provenance: WHICH weights (hash, not just filename) and WHICH container
+        # (image, machine) -- both are moving parts a re-run has to be able to pin.
+        "weights": _weights_provenance(),
+        "container": _container_provenance(),
+        # The estimator that ACTUALLY ran. Arm F silently falls back to a RandomForest
+        # when catboost is unavailable, so the label alone is not evidence.
+        "estimator_class": estimator_class,
         # PR-4: effective inference context, per arm
         "inference_context": {"rows": context_rows, "mechanism": context_note},
         # PR-6
@@ -790,6 +887,16 @@ def run_single_dataset(
                         else {"model_saved": False, "model_save_note": "not requested (--save-models)"}
                     )
 
+                    # What ran, not what was requested. Arm F falls back to a
+                    # RandomForest when catboost is missing, and that substitution was
+                    # previously invisible -- the row still said "F_catboost".
+                    est_cls = f"{type(clf).__module__}.{type(clf).__name__}" if clf is not None else None
+                    if arm_name == "F_catboost" and clf is not None and "CatBoost" not in type(clf).__name__:
+                        print(
+                            f"\n    !! SUBSTITUTION: arm {arm_name} ran {est_cls}, NOT CatBoost. "
+                            f"The metrics below are a RandomForest's; do not report them as CatBoost."
+                        )
+
                     meta = save_results(
                         ds_name,
                         arm_name,
@@ -808,6 +915,7 @@ def run_single_dataset(
                         context_rows=ctx_rows,
                         context_note=ctx_note,
                         model_info=model_info,
+                        estimator_class=est_cls,
                     )
                     meta["_split_index_hash"] = split_fp["train_index_sha256"][:12]
                     results.append(meta)
@@ -969,6 +1077,15 @@ def main():
         "host": _host_info(),
         "env": _runtime_versions(),
         "checkpoints": _checkpoints(),
+        # Reproducibility inputs that were previously implicit or absent:
+        "weights": _weights_provenance(),
+        "container": _container_provenance(),
+        "data_source": {
+            "repo": DATA_REPO,
+            "ref": DATA_REF,
+            "ref_is_pinned_commit": DATA_REF != "main",
+            "note": "ref 'main' is a MOVING branch; export TFM_DATA_REF=<sha> to pin",
+        },
         "config": config,
         "epochs": config["epochs"],
         "legacy_config_keys_ignored": list(LEGACY_UNUSED_KEYS),

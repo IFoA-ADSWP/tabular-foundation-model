@@ -7,6 +7,7 @@ be marked DONE when the matching test passes.
 Run:  python -m pytest tests/test_pilot2_prerequisites.py -v
 """
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -210,6 +211,115 @@ def test_ece_positive_for_miscalibrated(rp):
     assert rp.expected_calibration_error(y, p) == pytest.approx(0.0, abs=1e-9)
     p2 = np.full(100, 0.9)  # claims 0.9, truth 0.5
     assert rp.expected_calibration_error(y, p2) == pytest.approx(0.4, abs=1e-9)
+
+
+# --------------------------------------------------------------------------
+# PR-1 (provenance) -- the reproducibility inputs that were previously implicit
+# --------------------------------------------------------------------------
+def test_pf_data_source_url_honours_a_pinned_ref(rp, monkeypatch):
+    """A content hash tells you a file CHANGED; only a pinned ref lets you get it back."""
+    assert "/main/" in rp.data_source_url("coil2000.csv")
+    monkeypatch.setenv("TFM_DATA_REF", "deadbeef")
+    monkeypatch.setattr(rp, "DATA_REF", "deadbeef")
+    pinned = rp.data_source_url("coil2000.csv")
+    assert "/deadbeef/" in pinned and "/main/" not in pinned
+
+
+def test_pf_fingerprint_records_where_the_bytes_came_from(rp):
+    fp = rp.dataset_fingerprint("coil2000")
+    if not fp.get("exists", True):
+        pytest.skip("dataset not present locally")
+    assert fp["source_url"].endswith("/data/raw/coil2000.csv")
+    assert fp["source_ref"] == rp.DATA_REF
+    # `main` is a moving branch, so the flag must say so rather than imply a pin.
+    assert fp["source_ref_is_pinned"] is (rp.DATA_REF != "main")
+
+
+def test_pf_versions_record_the_packages_that_change_results(rp):
+    """sklearn/pandas change RESULTS; catboost decides whether arm F is even CatBoost."""
+    v = rp._runtime_versions()
+    for key in ("python", "torch", "numpy", "tabpfn", "scikit-learn", "pandas", "catboost"):
+        assert key in v, f"{key} must be recorded"
+    assert v["scikit-learn"] is not None, "sklearn drives split, scaler, GLM and metrics"
+
+
+def test_weights_provenance_is_null_safe_without_the_env(rp, monkeypatch):
+    """Absent the fetch step (e.g. a local run) this must record nulls, not raise."""
+    monkeypatch.delenv("TFM_WEIGHTS_MANIFEST", raising=False)
+    w = rp._weights_provenance()
+    assert w["sha256"] is None and w["path"] is None
+    assert w["manifest_file"] is None
+
+
+def test_weights_provenance_reads_the_checkpoint_hash(rp, monkeypatch, tmp_path):
+    """The hash must reach the audit record, not stop at the log."""
+    f = tmp_path / "weights.json"
+    f.write_text(
+        json.dumps(
+            {
+                "target_path": "/root/.cache/tabpfn/tabpfn-v3-classifier-v3_default.ckpt",
+                "sha256": "a" * 64,
+                "bytes": 212800000,
+                "cached": False,
+                "downloaded": True,
+                "repo_id": "Prior-Labs/tabpfn_3",
+            }
+        )
+    )
+    monkeypatch.setenv("TFM_WEIGHTS_MANIFEST", str(f))
+    w = rp._weights_provenance()
+    assert w["sha256"] == "a" * 64
+    assert w["bytes"] == 212800000
+    assert w["downloaded"] is True
+    assert w["source"] == "Prior-Labs/tabpfn_3"
+
+
+def test_container_provenance_carries_the_image(rp, monkeypatch):
+    """The image is chosen at run time from host CUDA -- it must be recorded."""
+    monkeypatch.setenv("TFM_IMAGE_REF", "pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime")
+    monkeypatch.setenv("TFM_RUN_STAMP", "20260912T230000Z")
+    monkeypatch.setenv("TFM_MACHINE_ID", "555001")
+    monkeypatch.setenv("TFM_HOST_ID", "777001")
+    c = rp._container_provenance()
+    assert c["image_ref"].endswith("cudnn9-runtime")
+    assert c["run_stamp"] == "20260912T230000Z"
+    assert c["machine_id"] == "555001"
+
+
+def test_container_provenance_empty_is_null_not_missing(rp, monkeypatch):
+    monkeypatch.setenv("TFM_MACHINE_ID", "")
+    c = rp._container_provenance()
+    assert c["machine_id"] is None
+
+
+def test_per_arm_record_carries_the_new_provenance(rp, tmp_path, monkeypatch):
+    """Weights hash, container, and the ACTUAL estimator class, per arm."""
+    monkeypatch.setenv("TFM_IMAGE_REF", "img:test")
+    monkeypatch.delenv("TFM_WEIGHTS_MANIFEST", raising=False)
+    y = np.random.default_rng(0).random(10)
+    meta = rp.save_results(
+        "ds",
+        "F_catboost",
+        {"log_loss": 0.5, "roc_auc": 0.7, "ece": 0.01, "brier": 0.1, "pr_auc": 0.2},
+        y,
+        (y > 0.5).astype(int),
+        1.23,
+        dict(rp.DEFAULT_CONFIG),
+        tmp_path,
+        seed=42,
+        fold=None,
+        n_folds=None,
+        split_fp={"n_train": 5, "n_test": 5},
+        dataset_fp={"name": "ds"},
+        arm_fp={"arm": "F_catboost"},
+        context_rows=None,
+        context_note="n/a",
+        estimator_class="sklearn.ensemble._forest.RandomForestClassifier",
+    )
+    assert meta["container"]["image_ref"] == "img:test"
+    assert meta["weights"]["sha256"] is None
+    # A RandomForest under the label F_catboost must be visible in the record.
+    assert meta["estimator_class"].endswith("RandomForestClassifier")
 
 
 # --------------------------------------------------------------------------
