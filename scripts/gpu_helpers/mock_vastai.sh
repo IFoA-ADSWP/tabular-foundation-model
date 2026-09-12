@@ -38,17 +38,29 @@ case "${1:-} ${2:-}" in
   "create ssh-key")   echo "Failed with error 400: Team SSH keys are not supported." ;;
   "create instance")  echo '{"success": true, "new_contract": 12345678}' ;;
   "show instance")
-      # MOCK_STATUS lets a test force a terminal state (exited/offline/...) to
-      # exercise the runner's early-abort branch.
-      if [ -n "${MOCK_STATUS:-}" ]; then
-          echo "{\"actual_status\": \"$MOCK_STATUS\", \"gpu_name\": \"RTX PRO 5000\","\
-"\"dph_total\": 0.6681, \"gpu_ram\": 48935, \"cpu_ram\": 64000,"\
-"\"reliability\": 0.9876, \"cuda_max_good\": 13.0}"
+      # MOCK_SEQUENCE: comma-separated statuses consumed one per call, so a test
+      # can reproduce the real provisioning order (unknown -> loading -> running).
+      # MOCK_STATUS forces a single constant state. Add MOCK_DELAY to make the
+      # grace period elapse quickly.
+      if [ -n "${MOCK_SEQUENCE:-}" ]; then
+          CNT_F="${MOCK_SEQ_FILE:-/tmp/mock_seq_count}"
+          [ -n "${MOCK_DELAY:-}" ] && sleep "$MOCK_DELAY"
+          n=$(cat "$CNT_F" 2>/dev/null || echo 0)
+          IFS=',' read -ra SEQ <<< "$MOCK_SEQUENCE"
+          idx=$n
+          [ "$idx" -ge "${#SEQ[@]}" ] && idx=$(( ${#SEQ[@]} - 1 ))
+          st="${SEQ[$idx]}"
+          echo $(( n + 1 )) > "$CNT_F"
+          echo "{\"actual_status\": \"$st\", \"ssh_host\": \"203.0.113.9\", \"ssh_port\": 41234, \"gpu_name\": \"RTX A6000\", \"dph_total\": 0.469, \"gpu_ram\": 49140, \"cpu_ram\": 128000, \"reliability\": 0.9951, \"cuda_max_good\": 13.0}"
+      elif [ -n "${MOCK_STATUS:-}" ]; then
+          echo "{\"actual_status\": \"$MOCK_STATUS\", \"gpu_name\": \"RTX A6000\","\
+"\"dph_total\": 0.469, \"gpu_ram\": 49140, \"cpu_ram\": 128000,"\
+"\"reliability\": 0.9951, \"cuda_max_good\": 13.0}"
       else
           cat <<'JSON'
 {"actual_status": "running", "ssh_host": "203.0.113.9", "ssh_port": 41234,
- "gpu_name": "RTX PRO 5000", "dph_total": 0.6681, "gpu_ram": 48935,
- "cpu_ram": 64000, "reliability": 0.9876, "cuda_max_good": 13.0}
+ "gpu_name": "RTX A6000", "dph_total": 0.469, "gpu_ram": 49140,
+ "cpu_ram": 128000, "reliability": 0.9951, "cuda_max_good": 13.0}
 JSON
       fi
       ;;
