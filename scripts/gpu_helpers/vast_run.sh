@@ -300,6 +300,17 @@ print('|'.join([g('actual_status') or 'unknown', g('ssh_host'), g('ssh_port'),
         T_RUNNING="$(date -u +%s)"
         break
     fi
+    # Terminal states never become 'running'. Bail out instead of looping:
+    # disk/storage charges accrue for every second the instance exists, so a
+    # blind retry loop burns money for nothing. (Vast's own skill documentation
+    # calls this out; it is an easy mistake.)
+    case "$STATUS" in
+        exited|offline|unknown|error|"")
+            echo "FATAL: instance reached terminal state '$STATUS' -- will never run." >&2
+            echo "       Destroying and aborting; retry with a different offer." >&2
+            exit 2
+            ;;
+    esac
     sleep 10
 done
 [ "$STATUS" = "running" ] || { echo "FATAL: instance never reached 'running'." >&2; exit 2; }
