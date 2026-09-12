@@ -247,6 +247,249 @@ A multi-seed repeat with paired tests is the obvious next step before this is
 treated as settled — but the burden of proof now sits with the claim that
 fine-tuning *helps*, not with the claim that it doesn't.
 
+## 5d. Constraints, statistical validity, and what may have contributed to the result
+
+This section exists because the pilot is a **reduced exercise**, not the full fine-tuning
+study. Everything below is stated so a reader can judge the result without having to
+reconstruct the design, and so the constraints are on the record *before* the numbers are
+quoted anywhere.
+
+### 5d.1 What the pilot was for
+
+Three purposes, and only three:
+
+1. prove the GPU pipeline works end to end (provision, transport, return artifacts, tear down);
+2. sense-check the fine-tuning code;
+3. produce **reusable** scripts rather than a one-off notebook session.
+
+It was **not** designed to settle whether fine-tuning TabPFN is worthwhile in general, and
+it should not be cited for that. The configuration is small by construction (§5d.4).
+
+### 5d.2 Which datasets were fine-tuned, and what was evaluated on what
+
+**All four datasets were fine-tuned, and each was evaluated on itself.** There is no
+held-out dataset anywhere in the pilot:
+
+| Dataset | Fine-tuned on | Evaluated on | Cross-dataset transfer? |
+| --- | --- | --- | --- |
+| `coil2000` | 2,000-row train split of coil2000 | the held-out 1,000 rows of coil2000 | none |
+| `uslapseagent` | 2,000-row train split of uslapseagent | the held-out 1,000 rows of uslapseagent | none |
+| `eudirectlapse` | 2,000-row train split of eudirectlapse | the held-out 1,000 rows of eudirectlapse | none |
+| `spanish_motor_lapse` | 2,000-row train split of spanish_motor_lapse | the held-out 1,000 rows of spanish_motor_lapse | none |
+
+So the design is **in-domain only**. Arm B learns from the same dataset it is scored on,
+separated by a random split rather than by dataset. No arm fine-tunes on one set of datasets
+and evaluates on an unseen one — which is the design the deployment question actually needs
+(§5d.5).
+
+The split mechanics are sound and identical for every arm: `train_test_split(test_size=1000,
+random_state=42, stratify=y)` on the loaded frame, a 2,000-row train cap taken with a second
+stratified split, and a `StandardScaler` **fit on train only** then applied to test. No
+target column survives into the features (`drop(columns=[target_col])`). There is no test-set
+leakage.
+
+### 5d.3 The data actually used
+
+`load_dataset` caps every dataset at 3,500 rows (`TRAIN_SIZE + TEST_SIZE + 500`) using
+`df.sample(n=3500, random_state=42)`:
+
+| Dataset | Rows available | Rows used | Discarded | Positive rate (full) | Positive rate (sample) | Test positives |
+| --- | --- | --- | --- | --- | --- | --- |
+| `coil2000` | 9,822 | 3,500 | 64% | 5.97% | 5.74% | 57 |
+| `uslapseagent` | 29,317 | 3,500 | 88% | 37.86% | 36.86% | 369 |
+| `eudirectlapse` | 23,060 | 3,500 | 85% | 12.81% | 13.17% | 132 |
+| `spanish_motor_lapse` | 53,502 | 3,500 | 93% | 35.44% | 35.40% | 354 |
+
+Three consequences worth stating plainly:
+
+- **Between 64% and 93% of every dataset was never seen.** The pilot's result is a
+  small-data result about a slice, not about the dataset.
+- **The subsample is not stratified.** `df.sample` is uniform, so the sampled positive rate
+  can drift from the full-population rate (coil2000 5.97% → 5.74%); the *split* that follows
+  is stratified, but the drift is then baked into both arms. Small here, but it belongs in
+  the deviation register because it means the pilot's class balance is not exactly the
+  dataset's.
+- **Of the 3,500 rows, 2,000 train / 1,000 test / 500 are discarded unused.**
+
+### 5d.4 The effective configuration of each arm — and where it differs from what is recorded
+
+| | `A_raw` | `B_in_domain` |
+| --- | --- | --- |
+| Training data it sees | all 2,000 train rows in the context | ~1,800 rows trained on (the trainer reserves 10% for validation — verified default `validation_split_ratio=0.1`) |
+| Adaptation | none — conditioning only | 3 gradient passes |
+| Estimators | `n_estimators=2` | `n_estimators_finetune=2` |
+| Learning rate | n/a | 1e-5 |
+| Fit mode | `batched` | n/a (library trainer) |
+| Precision | `inference_precision=float32` | library default |
+| Early stopping | n/a | **on** (library default `early_stopping=True`) — selecting on a 200-row validation slice, and largely inert at 3 epochs |
+
+**Deviation register — recorded config vs effective config:**
+
+| Recorded in `PILOT_CONFIG` | Actually used? | Note |
+| --- | --- | --- |
+| `context_samples: 64` | **by neither arm** | `A_raw` fits on all 2,000 rows; nothing caps the context at 64. A reader of the record would wrongly conclude the context was 64 rows. |
+| `max_finetune_steps: 3` | yes, as `epochs=3` | renamed to the library trainer's parameter |
+| `n_estimators: 2` | yes | becomes `n_estimators_finetune=2` for arm B |
+| `learning_rate: 1e-5` | yes | arm B only |
+| `fit_mode: batched` | arm A only | not a parameter of the library trainer |
+
+**Library defaults that were *not* overridden** (verified in `tabpfn==8.5.0`, the version that
+ran on the box — these are part of the effective configuration whether or not they were
+chosen):
+
+| Default | Value | Effect here |
+| --- | --- | --- |
+| `validation_split_ratio` | `0.1` | ~200 of the 2,000 train rows reserved as validation; ~1,800 trained on |
+| `early_stopping` | `True` | Model selection on a 200-row slice; with only 3 epochs it can barely engage |
+| `n_finetune_ctx_query_samples` | `50_000` | **Inert at this data size** — only ~1,800 rows are available, so the cap never binds |
+| `finetune_ctx_query_split_ratio` | `0.2` | Governs the context/query split within each fine-tuning batch |
+
+The sub-sampling default is worth calling out explicitly, because it is what `context_samples`
+was evidently intended to control: the effective context is set by the library's
+`n_finetune_ctx_query_samples` (50,000), not by the pilot's config, and at ~1,800 rows it does
+not bind at all.
+
+The mapping is deliberate, but it was **not recorded per-arm in the run metadata** — the same
+`PILOT_CONFIG` is written for every arm, so the metadata currently overstates what arm B
+used. This is a provenance defect, not a results defect; fixing it is Lane 1 of the
+follow-up.
+
+Also note the arms do not consume identical data: B optimises on ~1,800 rows while A
+conditions on 2,000. The comparison is therefore "conditioning vs gradient adaptation on
+essentially the same pool", which is a fair question but not the same as "same information,
+different method".
+
+### 5d.5 Is it statistically correct to fine-tune on a dataset and then test on the same dataset?
+
+**Internally, yes — with important qualifications. As evidence for the decision the project
+faces, no.**
+
+*What is correct.* Fine-tuning on a training split and evaluating on a held-out test split of
+the same dataset is a standard in-domain transfer-learning design. The split is stratified,
+the scaler is fit on train only, the target never enters the features, and both arms are
+scored on **identical test rows**. So the A-vs-B comparison is a valid like-for-like
+measurement of "does 3 passes of in-domain fine-tuning change held-out performance on this
+dataset".
+
+*Why that is nevertheless the weakest form of the claim:*
+
+1. **In-domain evaluation is optimistic by construction.** The model is adapted to, and
+   scored on, the same population. It can absorb that dataset's idiosyncrasies — sampling
+   quirks, cohort effects, encodings — which will not transfer to a new portfolio. The
+   measured gain is an **upper bound** on what deployment would show, and it is only
+   available at all if you already hold labelled data from the target.
+2. **The design cannot test transfer.** The practical question is: can we adapt once and
+   deploy on a *new* dataset? That requires a **cross-dataset** design — fine-tune on source
+   datasets, evaluate on a target dataset never seen during fine-tuning. The pilot has no
+   such arm, so transfer is entirely untested (§5d.2).
+3. **The comparison does not isolate "fine-tuning" from "the target's data being used
+   differently".** B optimises on the training split; A only conditions on it. That is a
+   model-adaptation contrast, not evidence that fine-tuning helps in practice.
+
+*What would make it statistically defensible:* multiple seeds or folds so the delta has a
+distribution rather than a point; a **paired** test on the shared test rows (the pilot
+already has the necessary structure, but see the evidence gap in §5d.9); a cross-dataset
+transfer arm; ideally an out-of-time or external holdout; and a decision rule fixed in
+advance stating what effect size would count as a win given the noise floor in §5d.6.
+
+### 5d.6 What the test sets can actually resolve
+
+Individual A_raw AUCs with bootstrap 95% CIs, computed from the saved predictions:
+
+| Dataset | Test n | Test positives | AUC | 95% CI | CI width |
+| --- | --- | --- | --- | --- | --- |
+| `coil2000` | 1,000 | 57 | 0.7679 | [0.7076, 0.8256] | **0.1180** |
+| `uslapseagent` | 1,000 | 369 | 0.9360 | [0.9202, 0.9516] | 0.0314 |
+| `eudirectlapse` | 1,000 | 132 | 0.5879 | [0.5347, 0.6425] | 0.1078 |
+| `spanish_motor_lapse` | 1,000 | 354 | 0.7230 | [0.6904, 0.7539] | 0.0634 |
+
+**Every measured A-vs-B delta (0.0014 to 0.0095) is smaller than the sampling error on its
+own test set.** On coil2000 the CI is ±0.06 and the delta is +0.0014. The pilot is
+underpowered for the effect it set out to measure — it can show the effect is not *large*,
+but it cannot show the effect is *zero*.
+
+Because both arms predict the **same test rows**, the paired comparison is the more sensitive
+one. Demonstrated here on a pair where row-level data exists (`A_raw` vs `E_glm`):
+
+| Dataset | Unpaired CI width | Paired 95% CI on the delta | Delta | Excludes 0? |
+| --- | --- | --- | --- | --- |
+| `coil2000` | 0.1180 | [+0.0246, +0.1469] | +0.0849 | **yes** |
+| `uslapseagent` | 0.0314 | [+0.0005, +0.0176] | +0.0090 | **yes** |
+| `spanish_motor_lapse` | 0.0634 | [+0.0769, +0.1362] | +0.1065 | **yes** |
+| `eudirectlapse` | 0.1078 | [−0.0120, +0.0391] | +0.0136 | no |
+
+**TabPFN's advantage over the GLM is a real effect — it excludes zero on three of four
+datasets. The fine-tuning effect is roughly an order of magnitude smaller than that**, and
+on this footing would very likely fail to clear zero. This is the analysis arm B needs, and
+it cannot currently be run (§5d.9).
+
+No multi-seed and no cross-validation was performed, so there is **no estimate of variance**
+for any delta: all four are single-split point estimates.
+
+### 5d.7 Factor register — what may have contributed to the observed performance
+
+| Factor | Direction on the result | Controlled? |
+| --- | --- | --- |
+| Data volume (2,000 train / 1,000 test rows; 64–93% discarded) | Caps how much either arm can learn; sets the noise floor | Deliberate, for cost/speed |
+| Class imbalance (coil2000 5.97% positive; 57 test positives) | Widens CIs dramatically; AUC unstable | Uncontrolled |
+| Unstratified 3,500-row subsample | Shifts sample positive rate away from population | Uncontrolled |
+| Single split, single seed (42) | No variance estimate; the delta is one draw | Uncontrolled |
+| Light fine-tune (3 passes, lr 1e-5) | Biases *toward* finding no gain | Deliberate — a small, bounded lever |
+| Library trainer's internal 10% validation holdout + early stopping | B trains on ~1,800 rows, not 2,000, and selects on a 200-row slice | Uncontrolled (library defaults) |
+| Device / run variance | A_raw read 0.767344 (RTX PRO 5000) and 0.767530 (L40S) across two GPU runs — ~2e-4 of run-to-run spread, present even for the *raw* arm | Partially — A and B shared a device within the decisive run |
+| Metric choice (ROC AUC primary) | Ranking-focused; ignores calibration | Deliberate; Brier is also reported |
+| No calibration metric on the fine-tuned model | Fine-tuning can distort probabilities; would not be visible here | Gap |
+| Feature handling (`get_dummies` on all non-target columns) | One-hot of every categorical, including reference-like fields; no explicit ID/date screening | Uncontrolled |
+| Sample size of the *comparison* (one split, one seed) | Cannot distinguish +0.0095 from 0 | Uncontrolled |
+
+### 5d.8 What this pilot can and cannot support
+
+**Can support:**
+
+- the GPU pipeline works end to end and is reproducible by script;
+- arm B runs on GPU (it had never completed before) and fits comfortably — 50.8 GB VRAM free;
+- on these four datasets, at this data scale, with 3 fine-tune passes, in-domain fine-tuning
+  did **not** reliably beat raw TabPFN;
+- raw TabPFN beats the GLM/CatBoost baselines on these datasets, and for the GLM comparison
+  that advantage is statistically visible under a paired test;
+- using the foundation model buys an order of magnitude more than fine-tuning it
+  (+0.068 vs +0.001 on coil2000).
+
+**Cannot support:**
+
+- any claim that fine-tuning TabPFN is or is not worthwhile *in general* — the lever tested
+  was small, and the claim is scoped to 3 passes on ≤2,000 rows;
+- any claim about **transfer** to an unseen dataset — no such arm exists;
+- any claim at larger data scale — 64–93% of the data was unused;
+- any claim of statistical significance for the fine-tuning deltas — they are inside the
+  noise, and there is no variance estimate;
+- any deployment-facing claim — in-domain, single-split, ROC-AUC only, no calibration or
+  out-of-time assessment.
+
+### 5d.9 Evidence gaps (things that are missing, not things that are wrong)
+
+1. **Arm B has no row-level predictions anywhere.** Every other arm has `predictions.npy`
+   on disk; B has none. The box's artifact payload returns `pilot_metrics.parquet` and
+   `meta.json` only — per-arm predictions are `.npy` (gitignored) and are not in the payload.
+   Consequence: B's numbers can be **read but not recomputed or paired-tested**. The analysis
+   in §5d.6 that would settle the question is blocked by this, not by method.
+2. **Recorded config ≠ effective config** (§5d.4) — `context_samples` is recorded but unused.
+3. **No variance estimate** — one seed, one split.
+4. **GPU device is not fixed across `A_raw` runs** — two runs of the same arm on different
+   cards differed by ~2e-4.
+5. The 500 discarded rows are never accounted for in the output.
+
+### 5d.10 Design changes required before any stronger claim
+
+1. Return per-arm predictions from the box (small, chunked) so results are recomputable.
+2. Record the effective per-arm configuration in the run metadata.
+3. Multiple seeds, and/or repeated stratified folds, so a delta has a distribution.
+4. A **cross-dataset transfer arm** — fine-tune on source datasets, evaluate on a held-out
+   target — if the deployment question is the one being asked.
+5. Stratify the row subsample, or drop the cap where the data volume allows.
+6. Pre-register the decision rule: what delta, at what confidence, counts as a win.
+7. Add a calibration metric to the fine-tuned arm.
+
 ## 6. Provenance gaps and deviations
 
 State these when citing these numbers.
