@@ -23,17 +23,15 @@ set -uo pipefail
 command -v vastai >/dev/null 2>&1 || \
     export PATH="$HOME/.local/share/uv/tools/vastai/bin:$PATH"
 
-# Resolve the Vast key: environment first, then the login keychain (the canonical
-# store -- see keys.sh). The CLI accepts VAST_API_KEY, and an exported value takes
-# precedence over its plaintext config file, so the keychain can be the only store.
-# NOTE: this only works when we run as a LaunchAgent. Cron's keychain search list
-# is System-only and the login keychain is locked to it (measured: rc=36/rc=44),
-# which would leave this guard silently blind. Do not reschedule this as a cron job.
-if [ -z "${VAST_API_KEY:-}" ] && command -v security >/dev/null 2>&1; then
-    VAST_API_KEY="$(security find-generic-password -s vastai-api-key \
-        -a "${USER:-$(id -un)}" -w 2>/dev/null || true)"
-    export VAST_API_KEY
-fi
+# DO NOT export VAST_API_KEY here -- measured, and it breaks auth.
+# Supplying the key explicitly (env var OR --api-key) returns
+#   401 "requires you to have logged in using Two Factor Authentication"
+# even when the value is byte-identical to the CLI's own config file (verified by
+# sha256), while letting the CLI read that file succeeds. The 2FA session is bound
+# to the key the CLI loads from its config file, so an explicit key is a different
+# auth context with no session.
+# Consequence: the keychain CANNOT be the single store for the Vast key. That file
+# is the CLI's store; keep it at mode 600.
 
 LABEL="${LABEL:-tabpfn-pilot}"
 MAX_AGE_MIN="${MAX_AGE_MIN:-90}"
