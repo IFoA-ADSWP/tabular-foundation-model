@@ -10,7 +10,7 @@ the scripts' own argparse/usage text — nothing here is guessed. Where a script
 as-is (missing data, needs a sibling checkout, needs hosted-API credits, needs uncommitted
 caches), that is stated in its section rather than hidden.
 
-Two eras, documented separately:
+Three eras, documented separately:
 
 - **A. Frontier era (2026-07→08)** — hosted-API TabPFN (`tabpfn-client` 0.3.3) + local GBDT/GLM
   baselines, the evidence behind master report §14.11–§14.14. Already partially documented in
@@ -19,6 +19,9 @@ Two eras, documented separately:
 - **B. Legacy finetuning era (2026-04)** — local TabPFN v6 fine-tuning on CPU/MPS. No prior
   documentation existed; the runbook fills that hole. ⚠ **These are provenance, not canonical
   verdicts**: 2026-04 era, `tabpfn>=6,<7` loose pins, superseded on the AUC axis by §14.11.
+- **C. GPU execution era (2026-09→)** — the fine-tuning pilot on a rented GPU (Vast.ai), which
+  is the only way arm B (actual fine-tuning) can run. ⚠ Partially verified: no run has yet
+  completed end-to-end. See §C before invoking it.
 
 ## Registry → runbook section map
 
@@ -40,6 +43,7 @@ Two eras, documented separately:
 | `classifier-homogeneity-hypothesis-method` | §B.5 |
 | `glm-vs-tabpfn-summary` (GLM paper) | §0 / pointer to `docs/REPLICATION_SETUP_GUIDE.md` |
 | `post-hoc-optimisation` | notebook `notebooks/baseline_experiments/04_probability_calibration.ipynb` (not covered here) |
+| `fine-tuning-pilot-results` | §C (GPU execution era) |
 
 ## ⏱ Time & cost budget — read before you start
 
@@ -60,6 +64,7 @@ hosted-API spend and CPU-bound baselines. Per-section estimates:
 | §A.9 Reframe §14.14 | 20–60 min | hosted API |
 | §A.10 Money chart | minutes | — |
 | §B.1–B.9 Legacy finetuning | **the long tail — most of a day** | local CPU/MPS (v6 era, provenance only) |
+| §C GPU pilot (Vast.ai) | ~10–30 min per run | rented GPU, ~$0.25/run; **arm B unmeasured** |
 
 **Two faster paths:**
 
@@ -107,6 +112,22 @@ pip install -r requirements.txt          # tabpfn>=6,<7 · tabpfn-client>=0.2,<0
 - CatBoost was **not installed** in the legacy env — every legacy run logs
   `catboost_not_available`; that is expected, not an error.
 - Gated-model downloads may need `HF_TOKEN` (see `finetune_pilot.py --hf_token`).
+
+### GPU execution era (C)
+
+```bash
+uv tool install vastai
+export PATH="$HOME/.local/share/uv/tools/vastai/bin:$PATH"
+vastai set api-key <KEY>               # → ~/.config/vastai/vast_api_key
+export TABPFN_TOKEN="pk_..."           # Prior Labs licence token (TabPFN weight downloads)
+```
+
+- **No local install of the pilot deps is needed** — the run happens on the rented box, and the
+  bootstrap installs `tabpfn==8.5.0` + `scikit-learn`/`pandas`/`pyarrow`/`catboost` there.
+  Deliberately **not** `requirements.txt` (see §C.3).
+- **2FA is required on this account** — run `scripts/gpu_helpers/vast_login.sh` once per session
+  before anything else.
+- Details, constraints and failure modes: **§C**.
 
 ### GLM paper (not a script — a notebook)
 
@@ -495,6 +516,151 @@ bash scripts/legacy_finetuning/run_finetune_stress_batch_2000.sh    # S1-S4 @200
   `tabpfn_finetune_reload_checks.csv`; artifacts in `outputs/current/models/`.
 - Evidence for `TABPFN_FINE_TUNING_LIMIT_STUDY.md` (registry: `finetuning-limit-study`).
 
+## C. GPU execution era (2026-09 →) — fine-tuning pilot on a rented GPU
+
+**Purpose.** Run the fine-tuning pilot's four arms (`A_raw`, `B_in_domain`, `E_glm`,
+`F_catboost`) on a cloud GPU. §B is the 2026-04 CPU/MPS era with loose pins; this section is
+the 2026-09 GPU path that arm B (actual fine-tuning) requires.
+
+**Status: partially verified — read this before trusting it.** Offer selection, image
+tiering and the login flow are exercised against live marketplace data. The end-to-end
+`vastai execute` transport has **not** been confirmed by a completed run, and arm B has
+**never completed anywhere** (see "arm B memory" below). Treat the first real run as the test.
+
+### C.1 One-time setup
+
+```bash
+uv tool install vastai
+export PATH="$HOME/.local/share/uv/tools/vastai/bin:$PATH"
+
+vastai set api-key <KEY>     # writes ~/.config/vastai/vast_api_key -- NOT ~/.vast_api_key
+```
+
+That path detail matters: hunting `~/.vast_api_key` produces a misleading 403 as if the key
+were wrong.
+
+### C.2 Running the pilot
+
+```bash
+bash scripts/gpu_helpers/vast_login.sh          # once per session; opens the 2FA session
+export TABPFN_TOKEN="pk_..."                    # Prior Labs licence token
+bash scripts/gpu_helpers/vast_run.sh --min-vram 40 --max-dph 0.75
+```
+
+`vast_run.sh` is 7 steps: select offer → match image to host CUDA → (ssh key only if
+`--transport ssh`) → create → wait for `running` → bootstrap via `vastai execute` → pull
+artifacts → **destroy**. The `trap` destroys on any exit (success, failure, Ctrl-C) unless
+`--keep`, which is the entire cost model — a forgotten instance bills indefinitely.
+
+Artifacts land in `outputs/gpu-pilot/` (mirrors the per-run layout in
+`FINE_TUNING_PILOT_RESULTS.md`).
+
+### C.3 Hard constraints — each of these cost real time to find
+
+**Team context blocks SSH keys.** On a team account every account-level SSH key operation
+fails:
+
+```
+Failed with error 400: Team SSH keys are not supported.
+SSH keys can only be created in personal context.
+```
+
+Worse, `vastai create ssh-key` **exits 0 on that failure**, so `cmd || exit 1` does not fire and
+a naive script reports success. Hence the default `--transport execute`, which runs commands
+over the API and needs no key at all. SSH remains available via `--transport ssh` once a
+personal-scope key exists. Note `show api-keys` distinguishes keys by `key_type`
+(`primary`/`api`/`team`/`session`) and `team_id` — a personal `api` key (`team_id: null`) is
+what unblocks SSH.
+
+**Every CLI call is 2FA-gated on this account.** `show user`, `tfa status` and `tfa totp-setup`
+all return 401 *"requires you to have logged in using Two Factor Authentication"*. `search
+offers` is the exception — it works unauthenticated, so you can price a job before logging in.
+
+**Email 2FA is the bootstrap path, and it has a pairing trap.** `totp-setup` cannot be reached
+before a session exists (chicken-and-egg), and with no phone on the account `send-sms` fails.
+`vastai tfa send-email` works pre-session and mints a one-time secret; the emailed code is
+bound to **that** challenge. Reusing an older secret with a newer code yields:
+
+```
+❌ Error: No 2FA challenge found. Please try again.
+```
+
+because each `send-email` invalidates the previous secret. `vast_login.sh` mints and consumes
+the secret in one shot to make that impossible.
+
+**Do not use `requirements.txt` on the GPU box.** It pins `numpy>=1.24,<2`; numpy 1.x has no
+cp313 wheels, so pip compiles numpy from source via meson/gcc (~20 min) and the run looks
+hung. It also pins `tabpfn>=6,<7` while the pilot runs `tabpfn==8.5.0` — record that
+deviation. The bootstrap installs named packages and lets pip resolve wheels.
+
+**Restrict the architecture.** Ranking by `dlperf/$` selects ancient hardware; `--pick
+cheapest` chose a **Tesla V100**, and recent PyTorch builds have dropped Volta/sm_70, so the
+run would fail *after* the instance was paid for. `vast_run.sh` whitelists Ampere/Ada/Hopper
+and hard-excludes Volta/Pascal/Turing. It also excludes RTX 5090 (Blackwell), which needs
+CUDA 12.8+ and over-constrains the image choice. Be suspicious of mismatched specs in offers:
+an "RTX 4090" advertising 49 GB VRAM is a modded card or a misreport.
+
+**Match the image to the host's CUDA ceiling**, and keep torch ≥ 2.5 — `tabpfn 8.5.0` requires
+it, so a 2.4.0 image lets pip pull a CUDA 12.4 wheel onto a 12.2-capped host (mid-run failure).
+Verified tier matrix:
+
+| host `cuda_max_good` | image | torch |
+| --- | --- | --- |
+| ≥ 12.8 | `pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime` | 2.7.0 |
+| ≥ 12.6 | `pytorch/pytorch:2.6.0-cuda12.6-cudnn9-runtime` | 2.6.0 |
+| ≥ 12.4 | `pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime` | 2.5.1 |
+| ≥ 12.1 | `pytorch/pytorch:2.5.1-cuda12.1-cudnn9-runtime` | 2.5.1 |
+
+**Never hardcode an offer ID.** The marketplace turns over within minutes — an offer
+recommended half an hour earlier had already vanished, and prices for the same card class span
+$0.15–2.14/hr in a single session. Pass `--query` and let it select at run time.
+
+**Offer IDs are not searchable.** `id == <n>` returns zero rows; re-running the original query
+and matching on `id` is the only way to check whether an offer still exists.
+
+### C.4 Arm B memory — the central unknown
+
+Arm B has **never completed a run**. On the Colab free CPU runtime (12 GB, **no swap**) the
+kernel OOM-killed it:
+
+```
+Memory cgroup out of memory: Killed process (python3)  anon-rss:11824532kB
+```
+
+Two consequences worth internalising:
+
+1. **A kernel SIGKILL cannot be caught by `try/except`.** The interpreter dies mid-statement,
+   so the per-arm handler never runs: no traceback, no `ERROR:` line, and the remaining arms
+   never execute. `vast_run.sh` therefore runs **one arm per subprocess** so an OOM costs one
+   arm rather than the batch, and reports `rc=137` explicitly (128+9 = SIGKILL).
+2. **11.8 GB was SYSTEM RAM, not VRAM.** On a CPU-only box every tensor lives in RAM; on a GPU
+   they move to VRAM with a different allocation pattern. **24 GB VRAM is an extrapolation, not
+   a measurement** — which is why the recommended first arm-B run buys headroom with
+   `--min-vram 40` rather than optimising `dlperf/$`. For a ~20-minute job the price difference
+   is ~$0.10, while a failed measurement costs a whole retry cycle.
+
+### C.5 Cost
+
+Credit-only accounts work (`has_billing: false`, `billing_creditonly: 1`). Under **$0.25** for
+this pilot at ~$0.47–0.67/hr. Check state with:
+
+```bash
+vastai show instances          # must be empty between runs
+vastai show user --raw         # credit / balance / total_spend
+```
+
+An RTX 4090 at ~$1.00/hr was **not** the cheapest option — that recommendation was made from a
+too-narrow first search. Set `--max-dph` deliberately: the default `0.60` **excludes** the
+larger-VRAM cards the `--min-vram 40` recommendation needs.
+
+### C.6 macOS portability
+
+BSD `base64` (macOS) rejects a positional filename — `base64 -d file` fails with
+`invalid argument`, where GNU `base64` accepts it. Scripts must use stdin redirection
+(`base64 -d < file`). Artifact transfer wraps the base64 payload in
+`__VAST_B64_BEGIN__`/`__VAST_B64_END__` markers and extracts between them, so CLI decoration
+around the output cannot corrupt the stream.
+
 ## 5. Getting help / common failures
 
 | Symptom | Fix |
@@ -512,3 +678,11 @@ bash scripts/legacy_finetuning/run_finetune_stress_batch_2000.sh    # S1-S4 @200
 | `beMTPL16.csv` vs `bemtl16.csv` both in `data/raw/` | Only `bemtl16.csv` is used by every script/registry; `beMTPL16.csv` is a stale duplicate artifact — ignore (don't delete without checking git history). |
 | Outputs land in `scripts/benchmarks/eval/` but docs point at `scripts/eval/` | Scripts compute the former, committed outputs live in the latter (repo reorg) — see §A.3 ⚠. |
 | Seed-42 rerun clobbers committed CSVs | Prefer `--seed 7` (suffixed files) or copy CSVs aside first. §A.5 finisher deletes n_estimators=1 rows in place — back up `home_turf_sweep_results.csv` before re-running. |
+| Vast: `This action requires login` / 403 on a key you just set | The CLI reads `~/.config/vastai/vast_api_key`, not `~/.vast_api_key` — §C.1. If the key IS set, the account has 2FA and needs a session: `bash scripts/gpu_helpers/vast_login.sh` (§C.3). |
+| Vast: `No 2FA challenge found` | Stale secret — each `tfa send-email` invalidates the previous one. Re-run `vast_login.sh` rather than pairing an old secret with a new code (§C.3). |
+| Vast: `Team SSH keys are not supported` | Expected on a team account; SSH is unavailable. Use the default `--transport execute`. The CLI exits 0 on this failure, so check output, not exit codes (§C.3). |
+| Vast: run silently stops mid-way, no traceback | Kernel OOM SIGKILL — uncatchable by `try/except`. Look for `rc=137` per arm (§C.4). Give it `--min-vram 40`. |
+| Vast: `cheapest` picked a Tesla V100 / ancient GPU | `dlperf/$` favours old hardware whose kernels recent PyTorch dropped. Use `--pick value` with the default architecture whitelist (§C.3). |
+| Vast: nothing matched / no offer within ceiling | `--min-vram 40` needs `--max-dph` above 0.60 — the defaults conflict (§C.5). |
+| Vast: pip appears hung for ~20 min | Something is compiling numpy from source — you used `requirements.txt` (pins `numpy<2`, no cp313 wheel). Use the bootstrap's package list (§C.3). |
+| macOS: `base64: invalid argument <file>` | BSD `base64` rejects a positional filename. Use `base64 -d < file` (§C.6). |
