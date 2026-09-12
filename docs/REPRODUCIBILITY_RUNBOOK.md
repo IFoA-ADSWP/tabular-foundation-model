@@ -639,19 +639,78 @@ Two consequences worth internalising:
    `--min-vram 40` rather than optimising `dlperf/$`. For a ~20-minute job the price difference
    is ~$0.10, while a failed measurement costs a whole retry cycle.
 
-### C.5 Cost
+### C.5 Cost — measured, not estimated
 
-Credit-only accounts work (`has_billing: false`, `billing_creditonly: 1`). Under **$0.25** for
-this pilot at ~$0.47–0.67/hr. Check state with:
+**Every run records its own cost.** `vast_run.sh` writes `outputs/gpu-pilot/run_<stamp>.json`
+plus an appended `outputs/gpu-pilot/run_ledger.csv` with 19 columns:
 
-```bash
-vastai show instances          # must be empty between runs
-vastai show user --raw         # credit / balance / total_spend
+```
+run_id, instance_id, gpu_name, dph_total, gpu_ram_gb, cpu_ram_gb, reliability,
+cuda_max_good, image, transport, arms, disk_requested_gb,
+t_create, t_running, t_end, wall_seconds, wall_minutes, est_cost_usd, bootstrap_rc
 ```
 
-An RTX 4090 at ~$1.00/hr was **not** the cheapest option — that recommendation was made from a
-too-narrow first search. Set `--max-dph` deliberately: the default `0.60` **excludes** the
-larger-VRAM cards the `--min-vram 40` recommendation needs.
+`t_create` → `t_end` is the billable window (billing starts at create, not at `running`).
+Records are written in the `trap` **before** the instance is destroyed, so a failed run still
+records — and a failed *destroy* still leaves the record behind. Aggregate the ledger to
+replace the estimates below with measurements:
+
+```bash
+python3 - <<'PY'
+import csv
+rows = list(csv.DictReader(open('outputs/gpu-pilot/run_ledger.csv')))
+print(f'{len(rows)} runs, total ${sum(float(r["est_cost_usd"]) for r in rows):.4f}')
+for r in rows:
+    print(f"  {r['gpu_name']:<14} {r['wall_minutes']:>5}min  rc={r['bootstrap_rc']:<4} ${r['est_cost_usd']}")
+PY
+```
+
+Arm-level timing is recorded separately by the pilot itself: every arm writes
+`run_time_seconds` into its own `meta.json`. On the CPU box, arm A was essentially the whole
+compute cost (34–83 s per dataset) with E and F sub-second.
+
+**The model, as it stands (unmeasured — no run has completed).** Fixed setup is ~2 min
+(clone + pip install) regardless of card. Compute scales roughly inversely with `dlperf`, which
+is Vast's *generic* DL benchmark — a proxy, not a predictor of TabPFN's in-context workload:
+
+| gpu | $/hr | VRAM | 5 min | 15 min | 30 min | 60 min |
+| --- | --- | --- | --- | --- | --- | --- |
+| A100 PCIE | 0.6014 | 41.0 | $0.073 | $0.179 | $0.339 | $0.657 |
+| RTX 6000Ada | 0.6614 | 49.1 | $0.071 | $0.168 | $0.314 | $0.607 |
+| A100 SXM4 | 0.7343 | 41.0 | $0.089 | $0.217 | $0.410 | $0.796 |
+| RTX PRO 5000 | 0.9352 | 48.9 | $0.078 | $0.173 | $0.314 | $0.597 |
+
+**Two conclusions that reframe the question:**
+
+1. **The hourly rate is a rounding error; arm B's runtime is the entire cost.** Going 5 → 60 min
+   of compute multiplies cost ~9×, while switching between these cards changes it by under 10%.
+   Optimising the rate optimises the wrong variable.
+2. **RTX 6000Ada dominates RTX PRO 5000 for this job** — same 49 GB VRAM class, 128 GB RAM,
+   reliability 0.9977, and cheaper per hour. The PRO 5000's higher `dlperf` only claws back
+   ~$0.06 across a *full hour* of compute, which this job will not approach.
+
+**The dominant unknown is arm B's runtime**, and it is unmeasured because arm B has never
+completed anywhere (§C.4). Buy the answer cheaply before committing to a full run:
+
+```bash
+# one dataset, arm B only: ~2 min setup + ~5 min compute ≈ $0.08
+bash scripts/gpu_helpers/vast_run.sh --arms B_in_domain --max-dph 0.70
+```
+
+Then the full four-arm × four-dataset run is a known quantity instead of a gamble.
+
+**Practical notes:**
+
+- Credit-only accounts work (`has_billing: false`, `billing_creditonly: 1`).
+- Check state with `vastai show instances` (**must be empty between runs**) and
+  `vastai show user --raw` (`credit` / `balance` / `total_spend`).
+- **`--max-dph` must be set deliberately:** the default `0.60` *excludes* the larger-VRAM cards
+  that `--min-vram 40` needs. The two recommendations conflict unless both are given.
+- An RTX 4090 at ~$1.00/hr was never the cheapest option — that recommendation came from a
+  too-narrow first search. One cheap 4090 offer (`id 25814730`) persistently reports
+  `dlperf 3.0` against ~97 for a healthy 4090: treat it as a broken listing.
+- Colab's free T4 is $0 but cannot host arm B (OOM at 11.8 GB of 12 GB, §C.4) and was
+  returning HTTP 503. The spend buys capability, not convenience.
 
 ### C.6 macOS portability
 

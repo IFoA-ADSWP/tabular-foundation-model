@@ -77,7 +77,76 @@ done
 : "${TABPFN_TOKEN:?Export TABPFN_TOKEN before running}"
 
 INSTANCE_ID=""
+T_CREATE=""; T_RUNNING=""; T_END=""
+GPU_NAME=""; DPH=""; GPU_RAM=""; CPU_RAM="${CPU_RAM:-}"; REL=""; CUDA=""
+BOOTSTRAP_RC=""
+
+# Record what a run actually cost, so the cost model in the runbook can be
+# replaced with measurements instead of assumptions. Writes one JSON per run
+# plus an appended CSV ledger we can aggregate across runs.
+record_run() {
+    [ -z "$INSTANCE_ID" ] && return 0
+    [ -z "$T_CREATE" ] && return 0
+
+    local end="${T_END:-$(date -u +%s)}"
+    local wall_s=$(( end - T_CREATE ))
+    [ "$wall_s" -lt 0 ] && wall_s=0
+
+    mkdir -p "$REPO_DIR/outputs/gpu-pilot"
+    RUN_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+
+    python3 - "$REPO_DIR" "$RUN_STAMP" "$wall_s" <<PY
+import csv, json, os, sys
+repo, stamp, wall_s = sys.argv[1], sys.argv[2], int(sys.argv[3])
+outdir = os.path.join(repo, "outputs", "gpu-pilot")
+os.makedirs(outdir, exist_ok=True)
+
+rec = {
+    "run_id": stamp,
+    "instance_id": "$INSTANCE_ID",
+    "gpu_name": "$GPU_NAME",
+    "dph_total": float("$DPH" or 0),
+    "gpu_ram_gb": float("$GPU_RAM" or 0),
+    "cpu_ram_gb": float("$CPU_RAM" or 0),
+    "reliability": "$REL",
+    "cuda_max_good": "$CUDA",
+    "image": "$IMAGE",
+    "transport": "$TRANSPORT",
+    "arms": "$ARMS",
+    "disk_requested_gb": "$DISK",
+    "t_create": "$T_CREATE",
+    "t_running": "$T_RUNNING",
+    "t_end": "$end",
+    "wall_seconds": wall_s,
+    "wall_minutes": round(wall_s / 60.0, 2),
+    "est_cost_usd": round(wall_s / 3600.0 * float("$DPH" or 0), 4),
+    "bootstrap_rc": "$BOOTSTRAP_RC",
+}
+
+with open(os.path.join(outdir, f"run_{stamp}.json"), "w") as f:
+    json.dump(rec, f, indent=2)
+
+ledger = os.path.join(outdir, "run_ledger.csv")
+exists = os.path.exists(ledger)
+with open(ledger, "a", newline="") as f:
+    w = csv.DictWriter(f, fieldnames=list(rec))
+    if not exists:
+        w.writeheader()
+    w.writerow(rec)
+
+# NB: %-formatting, not f-strings, on the lines below. This heredoc is
+# UNQUOTED, so the shell performs parameter expansion on its body before Python
+# ever sees it. Dollar-brace expressions referencing rec[...] are not valid
+# shell variables, so they expand to nothing and the line prints blank.
+print("[cost] wall %s min x $%s/hr = $%s"
+      % (rec['wall_minutes'], rec['dph_total'], rec['est_cost_usd']))
+print("[cost] recorded -> outputs/gpu-pilot/run_%s.json + run_ledger.csv" % stamp)
+PY
+}
+
 cleanup() {
+    # Record BEFORE destroying: the record must survive a failed destroy.
+    record_run
     if [ -n "$INSTANCE_ID" ]; then
         if [ "$KEEP" -eq 1 ]; then
             echo; echo "--- --keep: NOT destroying $INSTANCE_ID ---"
@@ -201,21 +270,41 @@ try: print(json.loads(m.group(0)).get('new_contract','') if m else '')
 except Exception: print('')
 ")"
 [ -z "$INSTANCE_ID" ] && { echo "FATAL: no instance id in the create response." >&2; exit 2; }
-echo "instance id: $INSTANCE_ID"
+T_CREATE="$(date -u +%s)"
+echo "instance id: $INSTANCE_ID  (billing starts now)"
 
 # ---- 6. Wait for running ----
 echo "=== 6/7 waiting for the instance ==="
 HOST=""; PORT=""
 for i in $(seq 1 60); do
     INFO="$(vastai show instance "$INSTANCE_ID" --raw 2>/dev/null)"
-    read -r STATUS HOST PORT < <(printf '%s' "$INFO" | python3 -c "
+    # `show instance` is the only source of these facts that works for BOTH the
+    # selected-offer and caller-supplied --offer-id paths.
+    IFS='|' read -r STATUS HOST PORT _GN _DP _GR _CR _RL _CU < <(printf '%s' "$INFO" | python3 -c "
 import json,sys
 try: d=json.load(sys.stdin)
-except Exception: print('unknown'); raise SystemExit
-print(d.get('actual_status','unknown'), d.get('ssh_host','') or '', d.get('ssh_port','') or '')
+except Exception: print('unknown|||||||'); raise SystemExit
+def g(*ks):
+    for k in ks:
+        v=d.get(k)
+        if v not in (None,''): return str(v)
+    return ''
+print('|'.join([g('actual_status') or 'unknown', g('ssh_host'), g('ssh_port'),
+                g('gpu_name','gpu_names').replace(' ','_'),
+                g('dph_total'), g('gpu_ram'), g('cpu_ram'),
+                g('reliability'), g('cuda_max_good')]))
 ")
+    [ -n "$_GN" ] && GPU_NAME="$_GN"
+    [ -n "$_DP" ] && DPH="$_DP"
+    [ -n "$_GR" ] && GPU_RAM="$(python3 -c "print(f'{float(\"$_GR\")/1000:.1f}')" 2>/dev/null || echo "$_GR")"
+    [ -n "$_CR" ] && CPU_RAM="$(python3 -c "print(int(float(\"$_CR\")/1000))" 2>/dev/null || echo "$_CR")"
+    [ -n "$_RL" ] && REL="$_RL"
+    [ -n "$_CU" ] && CUDA="$_CU"
     echo "  [$i] status=$STATUS"
-    [ "$STATUS" = "running" ] && break
+    if [ "$STATUS" = "running" ]; then
+        T_RUNNING="$(date -u +%s)"
+        break
+    fi
     sleep 10
 done
 [ "$STATUS" = "running" ] || { echo "FATAL: instance never reached 'running'." >&2; exit 2; }
@@ -247,6 +336,9 @@ else
         < "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh"
     RUN_RC=$?
 fi
+
+BOOTSTRAP_RC="$RUN_RC"
+T_END="$(date -u +%s)"
 
 # ---- pull artifacts ----
 echo "=== pulling artifacts ==="
