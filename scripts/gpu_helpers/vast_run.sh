@@ -325,8 +325,22 @@ ONSTART_FILE="$REPO_DIR/scripts/gpu_helpers/.onstart.$$.sh"
 } > "$ONSTART_FILE"
 # umask 077 is set at the top of this script, so the file is already owner-only.
 
+# NOTE: no --ssh and no --direct. We do not use either: the transport is
+# --onstart + `vastai logs`, and a TEAM-context account refuses to register SSH
+# keys at all (show ssh-keys -> []), so requesting SSH access buys nothing.
+#
+# Worse, it appears to cost something. --ssh --direct sets
+#     image_runtype: ssh_direc ssh_proxy
+# and three consecutive instances created that way came up with
+#     intended_status: stopped
+# i.e. Vast had decided they should not run, so the container never started and
+# they sat in 'loading' until the ceiling killed them. That is what looked like a
+# stuck image pull for three attempts. One earlier instance did reach 'running'
+# with the old flags, so this is intermittent rather than deterministic -- an
+# intermittent failure is all the more reason not to request a capability we
+# never use.
 CREATE_OUT="$(vastai create instance "$OFFER_ID" \
-    --image "$IMAGE" --disk "$DISK" --ssh --direct \
+    --image "$IMAGE" --disk "$DISK" \
     --onstart "$ONSTART_FILE" \
     --label "tabpfn-pilot" --raw 2>&1)"
 rm -f "$ONSTART_FILE"   # it held the token; do not leave it on disk
