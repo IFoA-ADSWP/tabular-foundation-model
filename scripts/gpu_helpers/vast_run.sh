@@ -32,6 +32,12 @@
 
 set -uo pipefail
 
+# Temp files below (/tmp/vast_*.json, /tmp/vast_run_out.txt, artifacts) are created
+# world-readable by default. This run handles a licence token and experiment data, so
+# keep everything owner-only. The token itself is never written to disk here -- it is
+# only ever exported into the remote command.
+umask 077
+
 # Only add the uv-tool location if vastai is not already resolvable. Prepending
 # unconditionally shadows any test double, which meant a mocked test run
 # invoked the REAL CLI and created real, billing instances.
