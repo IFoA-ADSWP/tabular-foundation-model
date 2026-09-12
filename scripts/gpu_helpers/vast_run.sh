@@ -91,10 +91,18 @@ done
 # while letting the CLI read that file succeeds. The 2FA session is bound to the key
 # loaded from the config file. So `~/.config/vastai/vast_api_key` (mode 600) is the
 # CLI's store and must stay -- the keychain is used for the TabPFN token only.
+#
+# Secrets now follow ONE RULE: each is a mode-600 file under ~/.config (FileVault is
+# on, so that is encrypted at rest). keys.sh owns reading them.
 
+# TabPFN token: read from its key file via keys.sh so the parsing lives in one place.
+if [ -z "${TABPFN_TOKEN:-}" ] && [ -f "$REPO_DIR/scripts/gpu_helpers/keys.sh" ]; then
+    TABPFN_TOKEN="$(bash "$REPO_DIR/scripts/gpu_helpers/keys.sh" get tabpfn 2>/dev/null || true)"
+    [ -n "$TABPFN_TOKEN" ] && echo "[auth] TABPFN_TOKEN <- ~/.config/tfm/keys.env"
+fi
 
-: "${TABPFN_TOKEN:?No TABPFN_TOKEN. Either export it, or store it once with:
-    bash scripts/gpu_helpers/keys.sh add tabpfn   (copies from the clipboard)}"
+: "${TABPFN_TOKEN:?No TABPFN_TOKEN. Store it with:
+    bash scripts/gpu_helpers/keys.sh add tabpfn   (copy the key first)}"
 
 INSTANCE_ID=""
 T_CREATE=""; T_RUNNING=""; T_END=""
