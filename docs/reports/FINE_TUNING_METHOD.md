@@ -139,6 +139,24 @@ leave the optimiser unset — the loop would run, take **no gradient step**, and
 metrics. Both defects produced output that looked plausible. Using the shipped trainer removes
 that whole class of silent failure.
 
+### 6.1 What arm B produced: four models, not one — and none of them persist
+
+Arm B is invoked **once per dataset**, each time constructing a fresh fine-tuner fitted on that
+dataset's own training split. Two consequences a statistician must hold on to:
+
+1. **There are four independently fine-tuned models, one per dataset.** The four Δ values are
+   four separate in-domain experiments, **not four evaluations of a single adapted model**.
+   Nothing here measures the performance of "a fine-tuned TabPFN" as a reusable artefact.
+2. **No fine-tuned model is saved.** The runner writes only `predictions.npy`, `ground_truth.npy`
+   and `meta.json`. There is no checkpoint of any fine-tuned weights, and the `checkpoints` field
+   in the metadata records the *pretrained base* file on disk, not a fine-tuned one. The four
+   models existed only in memory during their runs and cannot be reloaded or re-scored.
+
+A single model fine-tuned across a pool of datasets and then applied to an unseen target is a
+**different experiment** (the design's arms C/D), and it has never been run. Until it is, the
+honest description of this work is "four one-off in-domain adaptations", not "a
+domain-specialised model".
+
 ---
 
 ## 7. What happens inside arm B — step by step
@@ -224,10 +242,15 @@ There is no test-set leakage. The threats in §10 are of validity and power, not
 
 ## 10. Threats to validity, and what a statistician should require next
 
-1. **In-domain only.** B is fine-tuned on, and scored on, the same dataset. Δ is therefore an
-   *upper bound* on what deployment would deliver, and is only available at all if labelled data
-   from the target is already in hand. The transfer question — fine-tune on some datasets,
-   evaluate on an unseen one — is **untested**: arms C/D exist in the design and have never run.
+1. **In-domain only, and one model per dataset (§6.1).** Each of the four models is fine-tuned
+   on, and scored on, the same dataset. This is **the single most important caveat**, and it is
+   the one a reviewer will raise first: "fine-tuned on the dataset it was tested on" reads as
+   impropriety even where the split is clean — and here the split *is* clean, but the design is
+   still the weakest form of the claim. Δ is an *upper bound* on what deployment would deliver,
+   available only if labelled target data is already in hand, and there is **no single
+   fine-tuned model evaluated across datasets**. The transfer question — one model fine-tuned on
+   other datasets, evaluated on an unseen target — is **untested**: arms C/D exist in the design
+   and have never run.
 2. **One seed, one split.** Δ is a single draw. There is **no variance estimate**, so no interval,
    no p-value, and no way to separate the effect from split-to-split variation.
 3. **Underpowered test sets.** For A_raw, bootstrap 95% CI widths on ROC AUC are 0.031-0.118

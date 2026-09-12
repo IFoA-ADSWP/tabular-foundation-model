@@ -7,6 +7,69 @@
 > leakage control — is described separately in **`FINE_TUNING_METHOD.md`**. What R1 did and
 > did not exercise is in **`SMOKE_TEST_SCOPE.md`**.
 
+---
+
+## 0. Interpretation warning — read before quoting any number here
+
+Two facts about the design must travel with every number in this report. They are stated first
+because they determine what the results can and cannot support, and because one of them is
+routinely treated as a red flag on review.
+
+### 0.1 There are FOUR fine-tuned models, not one
+
+Arm B was run once per dataset. Each run constructs a **fresh fine-tuner** and fits it on that
+dataset's own training split (`run_single_dataset` → `run_arm_b_in_domain` per dataset), and no
+fine-tuned model is saved to disk — the only artefacts are `predictions.npy`, `ground_truth.npy`
+and `meta.json`.
+
+So R1 produced **four independent fine-tuned models, one per dataset**, and **none of them
+persist**. There is **no single fine-tuned TabPFN that was evaluated across datasets**. The four
+Δ values below are therefore four *independent in-domain experiments*, not four evaluations of
+one adapted model.
+
+This matters because "a fine-tuned TabPFN" is the natural way to hear the result, and it is not
+what was produced. A single model fine-tuned on a pool of datasets and then evaluated on a
+target it never saw is a *different experiment* — that is the design's arm C/D, and it has never
+been run.
+
+### 0.2 Each model was fine-tuned on the dataset it was then evaluated on
+
+For every dataset, the fine-tuning data and the test data are drawn from **the same dataset**,
+separated by a random split (2,000 train / 1,000 test, seed 42).
+
+**What is sound:** there is no test-set leakage. The test rows are never seen during
+fine-tuning, the scaler is fit on training data only, the split is stratified, and the test set
+is used once, for scoring. The A-vs-B comparison is like-for-like on identical test rows. As an
+*in-domain* measurement the procedure is standard and legitimate.
+
+**What it cannot support, and why reviewers flag it:**
+
+1. **The claim is in-domain by construction.** The model is adapted to, and scored on, the same
+   population. Any apparent gain may reflect that dataset's idiosyncrasies — encoding quirks,
+   cohort effects, sampling artefacts — rather than anything that would transfer to another
+   portfolio. At best the in-domain gain is an **upper bound** on deployment performance, and it
+   is only available at all if you already hold labelled data from the target.
+2. **"Fine-tuned on the dataset it was tested on" reads as leakage** to anyone skimming, whether
+   or not the split is clean. It must therefore be stated explicitly and defended, never left
+   implicit — which is why it is stated here, first.
+3. **It is not the question the project asks.** The design's research question is whether
+   fine-tuning improves performance on **unseen insurance tasks**. That requires a model
+   fine-tuned on *other* datasets and evaluated on a target it has not seen (arms C/D). Until
+   those run, **no claim about fine-tuning as a strategy is supported** — only the narrow
+   in-domain statement in §0.3.
+
+### 0.3 The one claim these results do support
+
+> On four insurance classification datasets, at 2,000 training rows, a **3-epoch in-domain
+> fine-tune of TabPFN changed held-out ROC AUC by between −0.0008 and +0.0095** — three
+> datasets up, one down, every delta inside the sampling error of its own test set.
+
+Nothing stronger. Not "fine-tuning does not help" (the lever was small and the test sets
+underpowered), not "fine-tuning helps" (the deltas are indistinguishable from noise), and
+nothing at all about a reusable or domain-specialised model.
+
+---
+
 ## Version stamp
 
 | Field | Value |
