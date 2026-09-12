@@ -27,7 +27,9 @@
 
 set -uo pipefail
 
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 KC_USER="${USER:-$(id -un)}"
+KCGET_BIN="${KCGET_BIN:-$HOME/.cache/tabpfn-keys/kcget}"
 
 svc_for() {
     case "$1" in
@@ -37,8 +39,28 @@ svc_for() {
     esac
 }
 
+_kcget_build() {
+    # Compile the modern-API reader on first use and cache it. Needed because
+    # Passwords.app writes to the iCloud keychain, which the legacy `security`
+    # CLI cannot see at all (measured: rc=44 against its own DB file).
+    [ -x "$KCGET_BIN" ] && return 0
+    command -v swiftc >/dev/null 2>&1 || return 1
+    mkdir -p "$(dirname "$KCGET_BIN")" 2>/dev/null || return 1
+    swiftc -O -o "$KCGET_BIN" "$REPO_DIR/scripts/gpu_helpers/kcget.swift" >/dev/null 2>&1 || return 1
+    [ -x "$KCGET_BIN" ]
+}
+
 kc_get() {  # kc_get <service> -> prints secret, empty if absent
-    security find-generic-password -s "$1" -a "$KC_USER" -w 2>/dev/null
+    # 1. login keychain via the legacy CLI: fast, and the only path that works
+    #    for an unattended LaunchAgent.
+    local v
+    v="$(security find-generic-password -s "$1" -a "$KC_USER" -w 2>/dev/null)"
+    [ -n "$v" ] && { printf '%s' "$v"; return 0; }
+    # 2. modern Security API: also reaches iCloud / Passwords.app items.
+    if _kcget_build; then
+        v="$("$KCGET_BIN" get "$1" "$KC_USER" 2>/dev/null)"
+        [ -n "$v" ] && printf '%s' "$v"
+    fi
 }
 
 cmd_check() {
