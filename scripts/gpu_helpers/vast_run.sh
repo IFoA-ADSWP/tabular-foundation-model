@@ -560,13 +560,24 @@ else
     python3 - <<'PY' > /tmp/vast_artifacts.b64
 import re, sys
 s = open('/tmp/vast_artifacts.raw', errors='replace').read()
-m = re.search(r'__ARTIFACTS_B64_BEGIN__\s*([A-Za-z0-9+/=]+)\s*__ARTIFACTS_B64_END__', s, re.S)
-sys.stdout.write(m.group(1) if m else '')
+m = re.search(r'__ARTIFACTS_BEGIN__(.*?)__ARTIFACTS_END__', s, re.S)
+if not m:
+    sys.exit(0)
+# The payload arrives as many tagged lines, each well under the log's 500-char
+# line cap, and must be concatenated in order. The previous single-line form was
+# silently truncated to 500 chars, which decoded to a partial gzip -- so the
+# transfer LOOKED like it had happened and only failed at tar.
+parts = [ln[7:].strip() for ln in m.group(1).splitlines() if ln.startswith('__ART__')]
+sys.stdout.write(''.join(parts))
 PY
     if [ -s /tmp/vast_artifacts.b64 ] && \
        base64 -d < /tmp/vast_artifacts.b64 > /tmp/vast_artifacts.tar.gz 2>/dev/null && \
        tar xzf /tmp/vast_artifacts.tar.gz -C "$REPO_DIR/outputs/gpu-pilot" 2>/dev/null; then
         echo "artifacts restored to outputs/gpu-pilot"
+    elif [ -s /tmp/vast_artifacts.b64 ]; then
+        echo "WARNING: a payload was present but could not be unpacked" >&2
+        echo "         chars=$(wc -c < /tmp/vast_artifacts.b64) (base64) -- likely truncated by the log's 500-char line cap." >&2
+        echo "         log captured at /tmp/vast_run_out.txt" >&2
     else
         echo "WARNING: no artifact payload found in the container log" >&2
         echo "         log captured at /tmp/vast_run_out.txt; use --keep to inspect" >&2
