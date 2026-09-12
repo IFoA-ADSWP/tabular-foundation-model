@@ -23,7 +23,7 @@ torch>=2.0,<3
 # Visualization (notebooks)
 matplotlib>=3.7,<4
 seaborn>=0.12,<1
-plotly>=5.15,<6
+plotly>=6.9.0,<7
 
 # Model persistence
 joblib>=1.2,<2
