@@ -40,8 +40,11 @@ os.chdir(WORKDIR)
 
 # NB: not requirements.txt -- it pins numpy>=1.24,<2 which has no cp313
 # wheels, so pip compiles numpy from source (~20 min stall).
+# tabpfn is pinned deliberately: unpinned it resolves to the current major
+# (verified 8.5.0), and drift to 8.6/9.0 mid-experiment would silently change
+# the model under test. API-verified against run_pilot.py's fine-tuning calls.
 subprocess.run([sys.executable, "-m", "pip", "install", "-q",
-                "tabpfn", "torch", "scikit-learn", "pandas", "pyarrow", "catboost"],
+                "tabpfn==8.5.0", "torch", "scikit-learn", "pandas", "pyarrow", "catboost"],
                check=True)
 
 subprocess.run([sys.executable, "scripts/run_pilot.py"], check=False)
