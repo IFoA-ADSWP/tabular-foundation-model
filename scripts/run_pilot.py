@@ -22,8 +22,12 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score, brier_score_loss, average_precision_score
 
-# Ensure repo imports work
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# Ensure repo imports work (handle both __file__ and piped execution)
+if "__file__" in dir():
+    REPO_ROOT = Path(__file__).resolve().parents[1]
+else:
+    REPO_ROOT = Path(os.getcwd())
+sys.path.insert(0, str(REPO_ROOT))
 
 # Config
 PILOT_CONFIG = {
@@ -45,8 +49,46 @@ DATASETS = {
     "spanish_motor_lapse": {"file": "spanish_motor_lapse.csv", "target": "LapseB"},
 }
 
-DATA_DIR = Path("data/raw")
-OUTPUT_DIR = Path("outputs/finetune/pilot")
+DATA_DIR = REPO_ROOT / "data" / "raw"
+OUTPUT_DIR = REPO_ROOT / "outputs" / "finetune" / "pilot"
+
+
+def download_file(filename, repo="IFoA-ADSWP/tabular-foundation-model"):
+    url = f"https://raw.githubusercontent.com/{repo}/main/data/raw/{filename}"
+    dest = DATA_DIR / filename
+    if dest.exists():
+        return True
+    print(f"Downloading {filename}...", end=" ", flush=True)
+    import urllib.request
+    try:
+        urllib.request.urlretrieve(url, dest)
+        print("OK")
+        return True
+    except Exception as e:
+        print(f"FAILED: {e}")
+        return False
+
+
+def check_data():
+    missing = []
+    for name, info in DATASETS.items():
+        path = DATA_DIR / info["file"]
+        if not path.exists():
+            missing.append(info["file"])
+    if missing:
+        print(f"Missing data files: {missing}")
+        print("Downloading from GitHub...")
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        for f in missing:
+            download_file(f)
+        still_missing = []
+        for name, info in DATASETS.items():
+            if not (DATA_DIR / info["file"]).exists():
+                still_missing.append(info["file"])
+        if still_missing:
+            print(f"ERROR: Could not download: {still_missing}")
+            return False
+    return True
 
 
 def load_dataset(name, target_col, max_rows=TRAIN_SIZE + TEST_SIZE + 500):
@@ -214,8 +256,11 @@ def main():
     print(f"Device: {'cuda' if torch.cuda.is_available() else 'cpu'}")
     if torch.cuda.is_available():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
-        print(f"VRAM: {torch.cuda.get_device_properties(0).total_mem / 1e9:.1f} GB")
+        print(f"VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
     print()
+
+    if not check_data():
+        sys.exit(1)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     all_results = []
