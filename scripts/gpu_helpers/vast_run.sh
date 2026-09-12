@@ -84,20 +84,31 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# Resolve the TabPFN licence token.
-# Precedence: the environment first (so a caller can always override), then the
-# macOS keychain. Reading from the keychain keeps the secret out of shell history
-# and out of argv on every run, and makes a run a single command.
-if [ -z "${TABPFN_TOKEN:-}" ] && command -v security >/dev/null 2>&1; then
+# Resolve the secrets from the login keychain -- the single canonical store.
+# Precedence: environment first (a caller can always override), then the keychain.
+# Reading from the keychain keeps values out of shell history and out of argv, and
+# makes a run a single command. Service names must match scripts/gpu_helpers/keys.sh.
+if command -v security >/dev/null 2>&1; then
     _KC_USER="${USER:-$(id -un)}"
-    TABPFN_TOKEN="$(security find-generic-password -s tabpfn-licence -a "$_KC_USER" -w 2>/dev/null || true)"
-    if [ -n "$TABPFN_TOKEN" ]; then
-        echo "[auth] TABPFN_TOKEN loaded from the keychain (service 'tabpfn-licence')."
+
+    if [ -z "${TABPFN_TOKEN:-}" ]; then
+        TABPFN_TOKEN="$(security find-generic-password -s tabpfn-licence -a "$_KC_USER" -w 2>/dev/null || true)"
+        [ -n "$TABPFN_TOKEN" ] && echo "[auth] TABPFN_TOKEN <- keychain ('tabpfn-licence')"
+    fi
+
+    # The Vast CLI prefers VAST_API_KEY over its plaintext config file, so setting
+    # it here lets the keychain be the only place the key is stored.
+    if [ -z "${VAST_API_KEY:-}" ]; then
+        VAST_API_KEY="$(security find-generic-password -s vastai-api-key -a "$_KC_USER" -w 2>/dev/null || true)"
+        if [ -n "$VAST_API_KEY" ]; then
+            export VAST_API_KEY
+            echo "[auth] VAST_API_KEY   <- keychain ('vastai-api-key')"
+        fi
     fi
 fi
 
 : "${TABPFN_TOKEN:?No TABPFN_TOKEN. Either export it, or store it once with:
-    security add-generic-password -s tabpfn-licence -a \"\$USER\" -w}"
+    bash scripts/gpu_helpers/keys.sh add tabpfn   (copies from the clipboard)}"
 
 INSTANCE_ID=""
 T_CREATE=""; T_RUNNING=""; T_END=""
