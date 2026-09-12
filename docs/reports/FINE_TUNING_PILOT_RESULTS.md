@@ -1,6 +1,6 @@
 # Fine-Tuning Pilot — Pre-Fine-Tuning Baseline Results
 
-> **Status:** complete. All four arms — `A_raw`, `B_in_domain`, `E_glm`, `F_catboost` — are measured on all four datasets. **Arm B ran successfully for the first time on 2026-09-12** (NVIDIA L40S; see §5b–5c) after its long-standing "does not fit" diagnosis was shown to be wrong. The research question in `PRE_FINETUNING_INVESTIGATIONS.md` is answered: **in-domain fine-tuning does not reliably beat raw TabPFN** (deltas ≤0.010, one negative), while raw TabPFN's advantage over the actuarial baselines is much larger (+0.007 to +0.068). Single seed, single split — see §6.
+> **Status:** complete. All four arms — `A_raw`, `B_in_domain`, `E_glm`, `F_catboost` — are measured on all four datasets. **Arm B ran successfully for the first time on 2026-09-12** (NVIDIA L40S; see §5b–5c) after its long-standing "does not fit" diagnosis was shown to be wrong. The research question in `PRE_FINETUNING_INVESTIGATIONS.md` is answered for the configuration tested: **a 3-pass in-domain fine-tune does not reliably beat raw TabPFN** (deltas ≤0.010, one negative), while raw TabPFN's advantage over the actuarial baselines is much larger (+0.007 to +0.068). Single seed, single split, 3 fine-tune passes — see §5c for the scope limits and §6 for the caveats.
 
 ## Version stamp
 
@@ -212,10 +212,21 @@ Full arm-B metrics (ROC / Brier / PR AUC / seconds):
 | spanish_motor_lapse | 0.7272 | 0.1967 | 0.5791 | 18.3 |
 | uslapseagent | 0.9355 | 0.0870 | 0.8375 | 26.6 |
 
-**Finding: in-domain fine-tuning does not reliably beat raw TabPFN.** It wins on
+**Finding: a 3-pass in-domain fine-tune does not reliably beat raw TabPFN.** It wins on
 three datasets and loses on the fourth, and every delta is ≤0.010 — within the range
-§6.4 already flags as movable by a different split. At a single seed this is
-directional evidence of *no meaningful effect*, not evidence of a small one.
+§6.4 already flags as movable by a different split. At a single seed this is directional
+evidence of *no meaningful effect*, not evidence of a small one.
+
+**What this bounds, and what it does not.** The fine-tune was **3 passes**
+(`max_finetune_steps=3` mapped to the shipped trainer's `epochs`) with the trainer's default
+subsampling, one seed, and ROC AUC on four classification datasets. So this shows a *small*
+GPU fine-tune buys nothing measurable — it does not show that no fine-tuning configuration
+could help. A proposal to go further should name which of those limits it is changing.
+
+Worth separating from the master report's §12 ruling, which is a different question:
+that one was about which setup artifacts explain v1's losses, and its fine-tuning evidence
+was CPU small-step work (§2.3, §5.2). This run extends the "negligible" finding into the GPU
+regime rather than re-testing §12.
 
 **The effect that does exist is TabPFN-versus-baselines, and it is much larger:**
 
