@@ -109,10 +109,39 @@ done
 # Secrets now follow ONE RULE: each is a mode-600 file under ~/.config (FileVault is
 # on, so that is encrypted at rest). keys.sh owns reading them.
 
-# TabPFN token: read from its key file via keys.sh so the parsing lives in one place.
-if [ -z "${TABPFN_TOKEN:-}" ] && [ -f "$REPO_DIR/scripts/gpu_helpers/keys.sh" ]; then
-    TABPFN_TOKEN="$(bash "$REPO_DIR/scripts/gpu_helpers/keys.sh" get tabpfn 2>/dev/null || true)"
-    [ -n "$TABPFN_TOKEN" ] && echo "[auth] TABPFN_TOKEN <- ~/.config/tfm/keys.env"
+# TabPFN token: the FILE is authoritative. An environment variable that DIFFERS is
+# treated as a bug signal, not as an override.
+#
+# This used to be "env wins if set", which is dangerous in a specific, silent way: a
+# stale TABPFN_TOKEN left exported in an interactive shell would be embedded into the
+# onstart script and rejected by the API on the box (401), while every local check
+# looked healthy -- the stale value still has the same length and prefix, so nothing
+# about it looks wrong. The runner now reads the file, and when the environment
+# supplies a different value it says so with short hashes instead of quietly picking
+# one. The sha is printed on every run so the value that reached the box can be
+# compared against the local one.
+sha12() { printf '%s' "$1" | { shasum -a 256 2>/dev/null || sha256sum 2>/dev/null; } | cut -c1-12; }
+
+FILE_TOK=""
+if [ -f "$REPO_DIR/scripts/gpu_helpers/keys.sh" ]; then
+    FILE_TOK="$(bash "$REPO_DIR/scripts/gpu_helpers/keys.sh" get tabpfn 2>/dev/null || true)"
+fi
+ENV_TOK="${TABPFN_TOKEN:-}"
+
+if [ -n "$FILE_TOK" ] && [ -n "$ENV_TOK" ] && [ "$FILE_TOK" != "$ENV_TOK" ]; then
+    echo "WARNING: TABPFN_TOKEN is exported AND differs from ~/.config/tfm/keys.env" >&2
+    echo "         env  sha=$(sha12 "$ENV_TOK")" >&2
+    echo "         file sha=$(sha12 "$FILE_TOK")" >&2
+    echo "         Using the FILE. Clear the stale variable so this cannot recur:" >&2
+    echo "           unset TABPFN_TOKEN" >&2
+fi
+
+if [ -n "$FILE_TOK" ]; then
+    TABPFN_TOKEN="$FILE_TOK"
+    echo "[auth] TABPFN_TOKEN <- ~/.config/tfm/keys.env (sha $(sha12 "$TABPFN_TOKEN"))"
+elif [ -n "$ENV_TOK" ]; then
+    TABPFN_TOKEN="$ENV_TOK"
+    echo "[auth] TABPFN_TOKEN <- environment (sha $(sha12 "$TABPFN_TOKEN"))"
 fi
 
 : "${TABPFN_TOKEN:?No TABPFN_TOKEN. Store it with:
