@@ -87,6 +87,38 @@ print('torch', torch.__version__, '| cuda', torch.version.cuda,
     exit 2
 fi
 
+# ---- 3a. Get the gated weights, ONCE, explicitly (PR-9) ----
+# The licence check lives inside TabPFN's weight-download path and fires only on a
+# CACHE MISS: when the .ckpt is already on disk the library returns early and never
+# calls ensure_license_accepted. So fetching the weights here, as one explicit step,
+# means (a) the token is used exactly once per instance rather than implicitly inside
+# the first arm's fit(), (b) a failure is loud and early instead of reading like a
+# model error, and (c) the resolved checkpoint is hashed for the run manifest -- the
+# weights ID the runbook requires, recorded rather than inferred.
+#
+# This step is an OPTIMISATION, not the gate. The preflight below stays authoritative:
+# if this fetch fails we still run the preflight, because the library's own path may
+# succeed where ours did not (different auth resolution). Only a positive "cached"
+# result changes control flow, by skipping the preflight entirely.
+echo "--- fetching gated TabPFN weights (PR-9) ---"
+WEIGHTS_OUT="$(python3 scripts/gpu_helpers/fetch_weights.py 2>/dev/null)"
+WEIGHTS_RC=$?
+WEIGHTS_JSON="$(printf '%s\n' "$WEIGHTS_OUT" | awk '/^__WEIGHTS_JSON__$/{f=1;next} f')"
+WEIGHTS_CACHED="false"
+case "$WEIGHTS_JSON" in
+    *'"cached": true'*) WEIGHTS_CACHED="true" ;;
+esac
+if [ -n "$WEIGHTS_JSON" ]; then
+    printf '%s\n' "$WEIGHTS_JSON" | sed 's/^/    /'
+else
+    echo "    WARNING: fetch_weights.py produced no parseable JSON (rc=$WEIGHTS_RC)" >&2
+fi
+if [ "$WEIGHTS_CACHED" = "true" ]; then
+    echo "    weights already cached -- the licence gate will NOT fire for this run"
+else
+    echo "    weights not cached (rc=$WEIGHTS_RC) -- falling through to the preflight"
+fi
+
 # ---- 3b. Prove the TabPFN licence BEFORE running any arm ----
 # A token being PRESENT is not the same as a token WORKING. With an un-accepted
 # licence every arm dies in about a second, with a message that reads like a model
@@ -97,6 +129,10 @@ fi
 #
 # NOTE: `python3 -c` and not a heredoc. The header still documents piping this
 # script to `bash -s`, and a heredoc would swallow the rest of the script from stdin.
+if [ "$WEIGHTS_CACHED" = "true" ]; then
+    echo "########## PREFLIGHT SKIPPED (weights already cached) ##########"
+    echo "    the licence gate cannot fire: TabPFN returns before ensure_license_accepted"
+else
 echo "--- TabPFN auth preflight (forces the gated weight download) ---"
 # On failure this prints the DECISION INPUTS, not just the exception. The generic
 # licence error is raised from a fall-through that has three distinct causes --
@@ -210,6 +246,7 @@ if [ "$PREFLIGHT_RC" -ne 0 ]; then
     exit 3
 fi
 echo "########## PREFLIGHT OK ##########"
+fi
 
 # ---- 4. Run each arm in its own process ----
 for arm in ${ARMS//,/ }; do

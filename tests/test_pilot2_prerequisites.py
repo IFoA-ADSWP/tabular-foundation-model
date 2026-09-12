@@ -220,3 +220,80 @@ def test_pr1_git_and_host_info_present(rp):
     assert "commit_sha" in g and "branch" in g and "dirty" in g
     h = rp._host_info()
     assert "hostname" in h and "gpu_count" in h
+
+
+# --------------------------------------------------------------------------
+# PR-9 -- pre-fetch the gated weights so the licence gate moves off the run path
+# --------------------------------------------------------------------------
+def _load_fetch_weights():
+    spec = importlib.util.spec_from_file_location(
+        "fetch_weights", REPO_ROOT / "scripts" / "gpu_helpers" / "fetch_weights.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+@pytest.fixture(scope="module")
+def fw():
+    return _load_fetch_weights()
+
+
+def test_pr9_sha256_matches_hashlib(fw, tmp_path):
+    import hashlib
+
+    p = tmp_path / "blob.bin"
+    payload = b"tabpfn-weights-stand-in" * 1000
+    p.write_bytes(payload)
+    digest, size = fw._sha256_file(p)
+    assert digest == hashlib.sha256(payload).hexdigest()
+    assert size == len(payload)
+
+
+def test_pr9_cache_dir_resolves_to_a_path(fw):
+    cache_dir, how = fw.resolve_cache_dir()
+    assert isinstance(cache_dir, Path)
+    assert how  # names the mechanism used, so the manifest can record it
+    assert cache_dir.name == "tabpfn"
+
+
+def test_pr9_source_is_the_gated_v3_classifier(fw):
+    """Must resolve to the gated v3 repo -- the versions that skip the gate are useless."""
+    repo_id, filename, how = fw.resolve_source()
+    assert repo_id == "Prior-Labs/tabpfn_3"
+    assert filename == "tabpfn-v3-classifier-v3_default.ckpt"
+    assert how  # either the library or the documented fallback
+
+
+def test_pr9_check_only_reports_state_without_downloading(fw, monkeypatch, capsys, tmp_path):
+    """--check-only must never download; it reports and exits non-zero if absent."""
+    monkeypatch.setattr(fw, "resolve_cache_dir", lambda: (tmp_path, "test"))
+    monkeypatch.setattr(
+        fw, "resolve_source", lambda: (fw.DEFAULT_REPO, fw.DEFAULT_FILENAME, "test")
+    )
+    monkeypatch.setattr(sys, "argv", ["fetch_weights.py", "--check-only"])
+    rc = fw.main()
+    out = capsys.readouterr().out
+    assert rc == 1, "a cold cache must exit non-zero so callers can branch"
+    assert fw.MARKER in out
+    assert '"cached": false' in out
+    assert '"licence_gate_will_fire": true' in out
+    assert not (tmp_path / fw.DEFAULT_FILENAME).exists()
+
+
+def test_pr9_cached_weights_report_no_gate_and_exit_zero(fw, monkeypatch, capsys, tmp_path):
+    """A warm cache is the whole point: gate will not fire, exit 0, hash recorded."""
+    blob = tmp_path / fw.DEFAULT_FILENAME
+    blob.write_bytes(b"cached-checkpoint" * 100)
+    monkeypatch.setattr(fw, "resolve_cache_dir", lambda: (tmp_path, "test"))
+    monkeypatch.setattr(
+        fw, "resolve_source", lambda: (fw.DEFAULT_REPO, fw.DEFAULT_FILENAME, "test")
+    )
+    monkeypatch.setattr(sys, "argv", ["fetch_weights.py", "--check-only"])
+    rc = fw.main()
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert '"cached": true' in out
+    assert '"licence_gate_will_fire": false' in out
+    assert '"sha256": "' in out  # the weights ID the manifest needs
+    assert '"downloaded": false' in out

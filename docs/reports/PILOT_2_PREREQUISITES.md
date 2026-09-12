@@ -32,10 +32,11 @@ python -m pytest tests/test_pilot2_prerequisites.py -v
 | PR-6 | Dataset + split fingerprints | **DONE** | all |
 | PR-7 | Epoch ladder as a first-class factor | **DONE** | Stage 1 |
 | PR-8 | Mock-verified end-to-end at $0 | TODO | any spend |
+| PR-9 | Pre-fetch the gated weights (move the licence gate off the run path) | IN PROGRESS — logic + wiring verified, live cold→warm download outstanding | any spend |
 
-Suite status at this revision: `68 passed, 1 failed` — the failure is the pre-existing
-`tests/test_frontier_cli.py::test_reconstruct_pp` float32/float64 assertion, unrelated to these
-changes (48 pre-existing passing tests + 20 new = 68).
+Suite status at this revision: `25 passed` in `tests/test_pilot2_prerequisites.py`; full suite
+`73 passed, 1 failed` — the failure is the pre-existing `tests/test_frontier_cli.py::test_reconstruct_pp`
+float32/float64 assertion, unrelated to these changes.
 
 ---
 
@@ -221,9 +222,43 @@ verify they come back.
 
 ---
 
+## PR-9 — Pre-fetch the gated weights
+
+**Why.** TabPFN's licence check sits inside the weight-download path and fires **only on a cache
+miss**: when the checkpoint already exists, the library returns early and never calls
+`ensure_license_accepted`. Consequences: fine-tuning needs no API key at all; a warm cache needs no
+token; and an **ephemeral container takes the cache-miss path on every run**, so the gate fires every
+run. Fetching the weights as one explicit early step moves the token's use to a single, loud, early
+point instead of letting it surface inside the first arm's `fit()`, and it lets the run record the
+resolved checkpoint's hash — the weights ID the runbook requires, recorded rather than inferred.
+
+**Required.** A step that resolves the library's own cache directory, fetches the gated checkpoint
+explicitly if absent, records path/size/sha256, and lets the bootstrap **skip the licence preflight
+when the weights are already cached**.
+
+**Acceptance test.** On a cold cache the step reports `cached: false` and exits non-zero; on a warm
+cache it reports `cached: true`, `licence_gate_will_fire: false` and exit 0; and the bootstrap's
+preflight is skipped in that case.
+
+**Status.** IN PROGRESS — implemented as `scripts/gpu_helpers/fetch_weights.py` and wired into
+`bootstrap_pilot.sh` as step 3a, with the preflight at 3b now conditional. Both halves are verified
+locally: the script's resolution path runs on this machine (resolving the cache dir via the library's
+own `get_cache_dir()`, and correctly falling back for repo/filename because the local tabpfn is 6.4.1
+and lacks `get_classifier_v3`), and the shell's marker/JSON/cached parsing was exercised against all
+five cases (cached, downloaded, missing, empty output, unparseable). **Design note:** the preflight
+remains authoritative — a failed fetch falls through to it rather than aborting, because the library's
+own path may succeed where ours did not. Only a positive `cached` result changes control flow.
+Outstanding: a real cold→warm download on a box, confirming the gate genuinely does not fire.
+
+**Evidence.** Five passing tests (`test_pr9_*`); `bash -n` and `shellcheck -S error` clean on both
+scripts; a local `--check-only` run reported `cached: false` / `licence_gate_will_fire: true` on this
+machine's cold cache.
+
+---
+
 ## Gate — no spend until all of these hold
 
-- [ ] PR-1 through PR-8 are `DONE`, each with a recorded evidence artefact.
+- [ ] PR-1 through PR-9 are `DONE`, each with a recorded evidence artefact.
 - [ ] The fairness checklist in `PILOT_2_DESIGN.md` §8 is satisfied for the specific rung being run.
 - [ ] The decision rule and outcome mapping for that rung are written down **before** the run.
 - [ ] The run's cost ceiling is set, and per-run approval has been given explicitly for that run.
@@ -236,3 +271,4 @@ verify they come back.
 | --- | --- | --- |
 | 2026-09-12 | Checklist created from `PILOT_2_DESIGN.md` §7 | — |
 | 2026-09-12 | Runner rewritten to Pilot 2 schema v2: manifest, fingerprints, matched-context assertion, LODO assertion, epoch ladder, model hashing, log loss + ECE. PR-4/5/6/7 DONE; PR-1/3 IN PROGRESS; PR-2/8 TODO. 20 new acceptance tests, suite at 68 passed / 1 pre-existing failure. | — |
+| 2026-09-12 | PR-9 added and implemented: `scripts/gpu_helpers/fetch_weights.py` + bootstrap step 3a, with the licence preflight at 3b now skipped when the weights are already cached. 5 more tests (25 total in this file; full suite 73 passed / 1 pre-existing failure). `bash -n` and `shellcheck -S error` clean. | — |
