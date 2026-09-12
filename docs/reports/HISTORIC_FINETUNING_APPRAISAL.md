@@ -239,3 +239,10 @@ that fine-tuning does not work. With compute now available, the fair test is: **
 budget between arms, establish a positive in-domain control first, use the shipped trainer, scale to
 the full datasets, and record everything** — then ask whether a single model fine-tuned on other
 datasets transfers to one it has never seen.
+
+> **These requirements are implemented in `PILOT_2_DESIGN.md`** — a two-stage design (positive
+> control in-domain, then transfer) with the fairness requirements of §6 mapped to concrete design
+> choices, a pre-run fairness checklist, and gates between stages. Note the design also surfaces a
+> budget point this appraisal did not cover: the library default is **30 epochs**, and no
+> fine-tuning in this project has ever run above 3–5, so the mechanism has never been tested at a
+> realistic budget either.
