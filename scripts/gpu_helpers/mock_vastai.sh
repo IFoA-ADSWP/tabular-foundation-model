@@ -38,11 +38,19 @@ case "${1:-} ${2:-}" in
   "create ssh-key")   echo "Failed with error 400: Team SSH keys are not supported." ;;
   "create instance")  echo '{"success": true, "new_contract": 12345678}' ;;
   "show instance")
-      cat <<'JSON'
+      # MOCK_STATUS lets a test force a terminal state (exited/offline/...) to
+      # exercise the runner's early-abort branch.
+      if [ -n "${MOCK_STATUS:-}" ]; then
+          echo "{\"actual_status\": \"$MOCK_STATUS\", \"gpu_name\": \"RTX PRO 5000\","\
+"\"dph_total\": 0.6681, \"gpu_ram\": 48935, \"cpu_ram\": 64000,"\
+"\"reliability\": 0.9876, \"cuda_max_good\": 13.0}"
+      else
+          cat <<'JSON'
 {"actual_status": "running", "ssh_host": "203.0.113.9", "ssh_port": 41234,
  "gpu_name": "RTX PRO 5000", "dph_total": 0.6681, "gpu_ram": 48935,
  "cpu_ram": 64000, "reliability": 0.9876, "cuda_max_good": 13.0}
 JSON
+      fi
       ;;
   "destroy instance") echo "destroying instance $3." ;;
   "logs")             echo "  (mock logs)" ;;
