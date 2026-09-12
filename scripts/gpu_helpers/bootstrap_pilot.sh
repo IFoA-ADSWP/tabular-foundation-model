@@ -31,6 +31,20 @@ echo "============================================================"
 echo "BOOTSTRAP — branch=$BRANCH arms=$ARMS workdir=$WORKDIR"
 echo "============================================================"
 
+# ---- 0. Always emit the completion marker, on EVERY exit path ----
+# The runner polls the log for this exact string. Without it an aborted
+# bootstrap is indistinguishable from a slow one, so the runner waits out its
+# whole ceiling while the instance bills -- which is precisely how a 60-minute
+# leak happened. A trap makes that structurally impossible.
+_BOOTSTRAP_DONE=0
+finish() {
+    [ "$_BOOTSTRAP_DONE" -eq 1 ] && return 0
+    _BOOTSTRAP_DONE=1
+    echo
+    echo "BOOTSTRAP FINISHED"
+}
+trap finish EXIT
+
 # ---- 1. Verify the GPU BEFORE spending time or money ----
 echo "--- GPU check ---"
 if command -v nvidia-smi >/dev/null 2>&1; then
@@ -73,6 +87,41 @@ print('torch', torch.__version__, '| cuda', torch.version.cuda,
     exit 2
 fi
 
+# ---- 3b. Prove the TabPFN licence BEFORE running any arm ----
+# A token being PRESENT is not the same as a token WORKING. With an un-accepted
+# licence every arm dies in about a second, with a message that reads like a model
+# problem ("requires a one-time license acceptance ... no interactive terminal"),
+# so the batch burns GPU minutes to learn nothing. Force the gated weight download
+# here, once, where the outcome is unambiguous. On failure, stop -- the arms would
+# fail identically.
+#
+# NOTE: `python3 -c` and not a heredoc. The header still documents piping this
+# script to `bash -s`, and a heredoc would swallow the rest of the script from stdin.
+echo "--- TabPFN auth preflight (forces the gated weight download) ---"
+python3 -c '
+import os, sys
+tok = os.environ.get("TABPFN_TOKEN") or ""
+if not tok:
+    sys.exit("no TABPFN_TOKEN in the environment at all")
+print("  token present: %d chars, prefix %s..." % (len(tok), tok[:10]))
+import numpy as np
+from tabpfn import TabPFNClassifier
+rng = np.random.default_rng(0)
+X = rng.random((24, 4))
+y = (X[:, 0] > 0.5).astype(int)
+TabPFNClassifier(n_estimators=1, device="cpu", random_state=0).fit(X, y)
+print("  TABPFN_AUTH_OK - weights downloaded and a fit completed")
+'
+PREFLIGHT_RC=$?
+if [ "$PREFLIGHT_RC" -ne 0 ]; then
+    echo "########## PREFLIGHT FAILED (rc=$PREFLIGHT_RC) ##########" >&2
+    echo "FATAL: the token/licence cannot download weights; refusing to run arms" >&2
+    echo "       that would fail identically. Accept the licence at" >&2
+    echo "       https://ux.priorlabs.ai (Licenses tab), then re-run." >&2
+    exit 3
+fi
+echo "########## PREFLIGHT OK ##########"
+
 # ---- 4. Run each arm in its own process ----
 for arm in ${ARMS//,/ }; do
     echo
@@ -114,5 +163,4 @@ echo "__ARTIFACTS_B64_BEGIN__"
 tar czf - $PAYLOAD 2>/dev/null | base64 -w0 2>/dev/null
 echo
 echo "__ARTIFACTS_B64_END__"
-echo
-echo "BOOTSTRAP FINISHED"
+finish
