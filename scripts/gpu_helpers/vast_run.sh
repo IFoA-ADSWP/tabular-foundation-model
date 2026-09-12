@@ -194,11 +194,15 @@ o = [x for x in o
 if not o:
     print(""); raise SystemExit
 if pick == 'cheapest':
-    o.sort(key=lambda x: x.get('dph_total') or 9e9)
+    o.sort(key=lambda x: (x.get('dph_total') or 9e9, -(x.get('reliability') or 0)))
 elif pick == 'fastest':
-    o.sort(key=lambda x: -(x.get('dlperf') or 0))
+    o.sort(key=lambda x: (-(x.get('dlperf') or 0), -(x.get('reliability') or 0)))
 else:
-    o.sort(key=lambda x: -((x.get('dlperf') or 0) / (x.get('dph_total') or 1)))
+    # Value first, reliability as tiebreak: two offers at the same dlperf/$
+    # should not be separated by API return order, or a 0.978 host can be
+    # picked over a 0.998 one at the same price.
+    o.sort(key=lambda x: (-((x.get('dlperf') or 0) / (x.get('dph_total') or 1)),
+                          -(x.get('reliability') or 0)))
 x = o[0]
 print(x.get('id'), x.get('gpu_name','?').replace(' ', '_'), f"{x.get('dph_total',0):.4f}",
       x.get('cuda_max_good') or 0, f"{x.get('dlperf') or 0:.1f}",

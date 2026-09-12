@@ -685,9 +685,24 @@ is Vast's *generic* DL benchmark — a proxy, not a predictor of TabPFN's in-con
 1. **The hourly rate is a rounding error; arm B's runtime is the entire cost.** Going 5 → 60 min
    of compute multiplies cost ~9×, while switching between these cards changes it by under 10%.
    Optimising the rate optimises the wrong variable.
-2. **RTX 6000Ada dominates RTX PRO 5000 for this job** — same 49 GB VRAM class, 128 GB RAM,
-   reliability 0.9977, and cheaper per hour. The PRO 5000's higher `dlperf` only claws back
-   ~$0.06 across a *full hour* of compute, which this job will not approach.
+2. **Compare cards on throughput-adjusted cost, not headline rate.** A cheaper $/hr card can
+   lose if it is slower. Worked example at prices observed 2026-09-12:
+
+   | card | $/hr | dlperf | 5 min compute | verdict |
+   | --- | --- | --- | --- | --- |
+   | RTX PRO 5000 | 0.6681 | 165.5 | $0.078 | wins |
+   | RTX 6000Ada | 0.6614 | 113.1 | $0.103 | 46% slower for 1% less money |
+
+   ⚠ **Prices move within minutes** — re-derive this rather than trusting either figure. An
+   earlier version of this section claimed the RTX 6000Ada "dominated" the PRO 5000; that was
+   an artefact of comparing against the PRO 5000's briefly-higher $0.9352 listing, and is
+   wrong at $0.6681.
+
+3. **`--pick` now breaks ties on reliability.** Two offers at identical `dlperf/$` used to be
+   separated by API return order, which could select a `rel 0.978` host over a `rel 0.998` one
+   at the same price. Reliability is now the secondary sort key for all three `--pick` modes.
+   It does not override price or throughput: paying 46% more (+$0.31/hr) for `rel 0.9876` →
+   `0.9983` is not worth it for a minutes-long job, where the expected saving is ~$0.001.
 
 **The dominant unknown is arm B's runtime**, and it is unmeasured because arm B has never
 completed anywhere (§C.4). Buy the answer cheaply before committing to a full run:
