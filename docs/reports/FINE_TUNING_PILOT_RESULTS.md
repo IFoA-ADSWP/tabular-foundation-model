@@ -214,8 +214,17 @@ Full arm-B metrics (ROC / Brier / PR AUC / seconds):
 
 **Finding: a 3-pass in-domain fine-tune does not reliably beat raw TabPFN.** It wins on
 three datasets and loses on the fourth, and every delta is ≤0.010 — within the range
-§6.4 already flags as movable by a different split. At a single seed this is directional
-evidence of *no meaningful effect*, not evidence of a small one.
+§6.4 already flags as movable by a different split. At a single seed this is
+directional evidence of *no meaningful effect*, not evidence of a small one.
+
+**Secondary metrics — one consistent pattern, still not significant.** ROC is the primary
+metric, but the fine-tuned arm improves **PR AUC on all four datasets** (+0.0031 to +0.0083)
+and Brier on three of four, while ROC is mixed. On imbalanced targets the PR curve is the more
+sensitive instrument, so this is the one directional signal in the data worth noting — it
+*would* be consistent with fine-tuning helping the minority class specifically. Every
+increment is nevertheless inside the noise floor of §5d.6, so it is recorded as an
+observation to test with more power, **not** as a finding. It is also the one place where a
+better-powered run has a specific hypothesis to aim at.
 
 **What this bounds, and what it does not.** The fine-tune was **3 passes**
 (`max_finetune_steps=3` mapped to the shipped trainer's `epochs`) with the trainer's default
