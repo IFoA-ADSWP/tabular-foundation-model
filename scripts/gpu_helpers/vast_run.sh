@@ -154,7 +154,8 @@ cleanup() {
     if [ -n "$INSTANCE_ID" ]; then
         if [ "$KEEP" -eq 1 ]; then
             echo; echo "--- --keep: NOT destroying $INSTANCE_ID ---"
-            echo "    destroy manually: vastai destroy instance $INSTANCE_ID"
+            echo "    destroy manually:  vastai destroy instance $INSTANCE_ID -y"
+            echo "    (the instance is BILLING until you do)"
         else
             echo
             echo "--- destroying instance $INSTANCE_ID ---"
