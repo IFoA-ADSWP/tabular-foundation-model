@@ -215,9 +215,14 @@ for f in */meta.json; do [ -f "$f" ] && PAYLOAD="$PAYLOAD $f"; done
 if [ -f pilot_predictions.parquet ] && [ "$(wc -c < pilot_predictions.parquet)" -lt 300000 ]; then
     PAYLOAD="$PAYLOAD pilot_predictions.parquet"
 fi
+# NOTE: the log caps each LINE at 500 characters (measured: our payload line came
+# back exactly 500 chars, and the next-longest line in the whole log was 363). A
+# single base64 line therefore truncates silently -- the payload decoded to a
+# 375-byte gzip that tar rejected as "truncated gzip input", while every log
+# message said the transfer had happened. So the payload is folded into lines well
+# under the cap, each tagged, and reassembled on the client.
 echo
-echo "__ARTIFACTS_B64_BEGIN__"
-tar czf - $PAYLOAD 2>/dev/null | base64 -w0 2>/dev/null
-echo
-echo "__ARTIFACTS_B64_END__"
+echo "__ARTIFACTS_BEGIN__"
+tar czf - $PAYLOAD 2>/dev/null | base64 -w0 2>/dev/null | fold -w 440 | sed 's/^/__ART__/'
+echo "__ARTIFACTS_END__"
 finish
