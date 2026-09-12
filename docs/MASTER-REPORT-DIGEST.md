@@ -76,6 +76,15 @@ ran on the **same device in the same run at the same seed**, so this is like-for
 | spanish_motor_lapse | 0.7233 | **0.7272** | +0.0039 |
 | uslapseagent | **0.9363** | 0.9355 | −0.0008 |
 
+**Two design facts that must travel with those numbers.** First, this produced **four separate
+fine-tuned models — one per dataset — and none were saved**; there is no single fine-tuned TabPFN
+evaluated across datasets. Second, each model was **fine-tuned on the same dataset it was then
+tested on** (a held-out split, so there is no leakage, but in-domain by construction). That is
+the weakest form of the claim and the one reviewers flag first: it can say a small in-domain
+fine-tune changed nothing measurable, and **cannot** say anything about a fine-tuned model that
+transfers to an unseen portfolio. The arms that would test that — C/D, one model fine-tuned on
+other datasets and evaluated on a target it never saw — have never been run.
+
 Three wins, one loss, every delta ≤0.010 — inside the split-to-split movement the pilot
 report's §6.4 already flags, at a single seed with no paired testing. Fine-tuning also costs
 ~3x the compute (117 s vs 41 s of GPU across the four datasets). Meanwhile raw TabPFN's
