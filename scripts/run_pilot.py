@@ -201,6 +201,24 @@ def compute_metrics(y_true, y_prob):
     }
 
 
+def _checkpoints():
+    """Record the checkpoint file(s) actually on disk.
+
+    docs/MODEL_VERSIONS.md requires the weights ID, not just the pip version:
+    "tabpfn==2.6.0 is the pip package, not the model." The resolved cache file
+    is the only reliable proof of which weights ran.
+    """
+    roots = [
+        Path.home() / ".cache" / "tabpfn",
+        Path.home() / "Library" / "Caches" / "tabpfn",
+    ]
+    found = []
+    for root in roots:
+        if root.is_dir():
+            found += sorted(p.name for p in root.glob("*.ckpt"))
+    return found
+
+
 def _runtime_versions():
     """Record the stack that produced a result.
 
@@ -244,6 +262,7 @@ def save_results(dataset, arm, metrics, y_prob, y_test, run_time, config, output
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "status": "success",
         "versions": _runtime_versions(),
+        "checkpoints": _checkpoints(),
         **metrics,
     }
 
