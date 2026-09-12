@@ -618,6 +618,19 @@ $0.15–2.14/hr in a single session. Pass `--query` and let it select at run tim
 **Offer IDs are not searchable.** `id == <n>` returns zero rows; re-running the original query
 and matching on `id` is the only way to check whether an offer still exists.
 
+**Keep Python out of shell heredocs nested in substitutions.** macOS ships **bash 3.2.57**
+(`/bin/bash`) and it precedes Homebrew's bash on PATH. In 3.2, a heredoc inside a process
+substitution mis-parses at *runtime*:
+
+```bash
+read -r A B < <(python3 - "$x" <<'PY' ... PY)   # -> "0: ambiguous redirect"
+```
+
+and `bash -n` does **not** catch it — the file passes a syntax check and fails when executed.
+Offer selection and image tiering therefore live in `select_offer.py` / `pick_image.py`, called
+as ordinary commands. The same class of bug bit the Colab launcher (stdin is Python, not shell);
+treat the shell/Python boundary as the primary hazard in this tooling.
+
 ### C.4 Arm B memory — the central unknown
 
 Arm B has **never completed a run**. On the Colab free CPU runtime (12 GB, **no swap**) the
@@ -727,7 +740,44 @@ Then the full four-arm × four-dataset run is a known quantity instead of a gamb
 - Colab's free T4 is $0 but cannot host arm B (OOM at 11.8 GB of 12 GB, §C.4) and was
   returning HTTP 503. The spend buys capability, not convenience.
 
-### C.6 macOS portability
+### C.6 Cost safety — the failure mode that actually happened
+
+A real leak occurred twice during development (**~$0.13 total**, credit-only, no card charged). Both times a *test* reached the real CLI. The traps did not save it, for two independent reasons:
+
+**1. `vastai destroy instance` prompts for confirmation.** It has a `-y, --yes  Skip confirmation prompt` flag. The `trap cleanup EXIT` called it without `-y`, so in a non-interactive context it read EOF, printed `Aborted.`, and **left the instance running and billing**. A cost-safety trap that itself blocks on stdin is not a cost-safety trap. Now passed `-y`, with a loud warning on failure.
+
+**2. `vast_run.sh` shadowed its own test double.** The script began with an unconditional `export PATH="$HOME/.local/share/uv/tools/vastai/bin:$PATH"`, which put the **real** CLI ahead of any mock. A "dry run" therefore created three real instances. PATH is now extended only when `vastai` is not already resolvable.
+
+Two further safeguards:
+
+**Preflight leak check.** Step 1 lists any existing `tabpfn-pilot` instances and requires confirmation before starting, so a leak cannot accumulate unnoticed across runs.
+
+**Dry-run fixture.** `scripts/gpu_helpers/mock_vastai.sh` answers every call the runner makes. It refuses to run (exit 99) unless it *is* the resolved `vastai`, compared by realpath:
+
+```bash
+mkdir -p /tmp/mockbin
+cp scripts/gpu_helpers/mock_vastai.sh /tmp/mockbin/vastai
+chmod +x /tmp/mockbin/vastai
+cp <offers.json> /tmp/mock_offers.json
+
+# NOTE: /tmp/mockbin MUST be first, and the real CLI dir must NOT be ahead of it.
+PATH="/tmp/mockbin:$PATH" TABPFN_TOKEN=pk_dummy \
+    bash scripts/gpu_helpers/vast_run.sh --yes --arms B_in_domain
+```
+
+**Verify no leak at any time, and always after a run:**
+
+```bash
+vastai show instances          # must reach "Total: 0 instances"
+vastai show invoices --raw     # line items; GPU vs storage charges
+vastai show user --raw         # credit / total_spend
+```
+
+Note that **credit keeps dropping after a destroy** — Vast posts GPU charges into a daily invoice bucket in arrears, so the number moves for minutes afterwards. To distinguish arrears from live burn, sample the credit twice a minute apart with zero instances: if it is flat, nothing is billing. (Measured flat at `9.8693473543` across two minutes with 0 instances.)
+
+Storage is billed separately from GPU time, and an instance still `loading` incurs storage charges without ever taking a GPU charge — so a short-lived mistake shows up as cents, not dollars, but it is still real.
+
+### C.7 macOS portability
 
 BSD `base64` (macOS) rejects a positional filename — `base64 -d file` fails with
 `invalid argument`, where GNU `base64` accepts it. Scripts must use stdin redirection
@@ -759,4 +809,8 @@ around the output cannot corrupt the stream.
 | Vast: `cheapest` picked a Tesla V100 / ancient GPU | `dlperf/$` favours old hardware whose kernels recent PyTorch dropped. Use `--pick value` with the default architecture whitelist (§C.3). |
 | Vast: nothing matched / no offer within ceiling | `--min-vram 40` needs `--max-dph` above 0.60 — the defaults conflict (§C.5). |
 | Vast: pip appears hung for ~20 min | Something is compiling numpy from source — you used `requirements.txt` (pins `numpy<2`, no cp313 wheel). Use the bootstrap's package list (§C.3). |
-| macOS: `base64: invalid argument <file>` | BSD `base64` rejects a positional filename. Use `base64 -d < file` (§C.6). |
+| macOS: `base64: invalid argument <file>` | BSD `base64` rejects a positional filename. Use `base64 -d < file` (§C.7). |
+| Vast: `Aborted.` after a run, instance still listed | `vastai destroy instance` **prompts**; it needs `-y`. The EXIT trap used to omit it, leaking a billing instance (§C.6). |
+| Vast: `0: ambiguous redirect` at runtime although `bash -n` passed | macOS ships bash **3.2.57** and it precedes Homebrew bash on PATH; 3.2 mis-parses a heredoc nested inside a process substitution. Keep Python in real files, not heredocs-in-substitutions (§C.3). |
+| Vast: a "dry run" created real instances | The runner prepended the real CLI's dir to PATH, shadowing the test double. Use `scripts/gpu_helpers/mock_vastai.sh` with the mock dir *first* on PATH; it refuses (exit 99) if it is not the resolved `vastai` (§C.6). |
+| Vast: credit keeps falling after destroying everything | Billing posts to a daily invoice bucket in arrears. Sample `credit` twice a minute apart with 0 instances — flat means nothing is live (§C.6). |
