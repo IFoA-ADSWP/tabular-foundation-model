@@ -54,6 +54,49 @@ Question: *can the weakest axis be sidestepped by reframing the target?* Spanish
 
 Question: *does the severity verdict flip under Gamma/Tweedie deviance or MAE?* Re-scored all 6 regression datasets from #122's persisted predictions. Result: **stable — the one apparent flip is an artifact.** `spanish_motor_severity` (RMSE rank 6/8, §14.10) jumps to **MAE rank 1/8** (paired-significant vs best GBDT, p=1.1e-05) — but 117.45 is *worse* than predicting €0 for every policy (117.24). Same trap on both count targets: at ~89–95% zero mass the MAE-minimizing constant (the median) *is* zero, so every method loses to a constant and the ranking is meaningless. Where zero mass is absent the result holds and strengthens: `ausautoBI8999` (0% zeros) and `ausprivauto0405_vehvalue` (0.1%) are TabPFN rank 1 on all four metrics, paired-significant throughout on the former (p=0.0094/0.0036/0.0012). `bemtl97_amount` stays put (LGBM #1 on all three) and clears its own baseline. On `spanish_motor_severity` itself, TabPFN's own Gamma/Tweedie verdict is **rank 4/8, improved from RMSE's 6/8 but not flipped** — the uncorrupted GLM family (0% floor-clip) legitimately outranks it (best=ols, p=0.0009/0.0009). **Second artifact: the floor-clip blowup** — GBDT Gamma/Tweedie means on `spanish_motor_severity` reach 1e8–1e11, driven by near-zero predictions on real claims (xgb 8.5% of predictions floor-clipped vs tabpfn 0.065%), which is also why those deltas aren't significant (p=0.37–0.42). Net: §14.8's small-N regression picture confirmed on three metrics; no verdict reverses.
 
+## §14.16 Fine-tuning pilot — negligible gain extends to the GPU regime (09-12)
+
+Question: *does in-domain fine-tuning beat raw TabPFN when it is actually trained, on a GPU,
+rather than in the earlier small-step CPU trials?*
+
+**Scope note, because it is easy to overstate.** §12's "do not re-chase: fine-tuning" was
+about which setup artifacts explain **v1's losses**, and the fine-tuning evidence behind it
+was the CPU small-step work (§2.3, §5.2 — 1-3 steps, context 64/128, coil2000 only). This
+run does **not** re-test that ruling. It extends the question to a regime the earlier work
+could not reach: GPU, the shipped trainer, four datasets. Treat the two as separate.
+
+Result: **no reliable gain, now at GPU scale.** Four insurance classification datasets, each
+fine-tuned on its own training split (TabPFN 8.5.0, `v3_default`). `A_raw` and `B_in_domain`
+ran on the **same device in the same run at the same seed**, so this is like-for-like:
+
+| dataset | A_raw | B_in_domain | delta |
+| --- | --- | --- | --- |
+| coil2000 | 0.7675 | **0.7690** | +0.0014 |
+| eudirectlapse | 0.5881 | **0.5976** | +0.0095 |
+| spanish_motor_lapse | 0.7233 | **0.7272** | +0.0039 |
+| uslapseagent | **0.9363** | 0.9355 | −0.0008 |
+
+Three wins, one loss, every delta ≤0.010 — inside the split-to-split movement the pilot
+report's §6.4 already flags, at a single seed with no paired testing. Fine-tuning also costs
+~3x the compute (117 s vs 41 s of GPU across the four datasets). Meanwhile raw TabPFN's
+margin over the *best actuarial baseline* is an order of magnitude larger: **+0.068** on
+coil2000 against **+0.001** from fine-tuning.
+
+**Scope limits that bound this claim:** 3 fine-tune passes (`max_finetune_steps=3` mapped to
+the trainer's `epochs`), the shipped trainer's default subsampling, one seed, four
+classification datasets, ROC AUC. It shows that a *small* GPU fine-tune buys nothing
+measurable — not that no fine-tuning configuration could ever help. Anyone proposing a
+larger or differently-tuned run should say which of those limits they are testing.
+
+**Verdict change: none.** This corroborates the earlier "negligible" finding in a stronger
+regime, and leaves the standing adoption rule untouched: the value is in *using* the
+foundation model, not in adapting it.
+
+Method note worth carrying: arm B had never completed a run anywhere and was believed to be
+memory-bound. That diagnosis was wrong — it failed in 2-5 s with 50.8 GB of VRAM free, on a
+call-sequence defect — and the fix was to use the trainer TabPFN already ships rather than
+driving the model by hand. Details in `FINE_TUNING_PILOT_RESULTS.md` §5b-§5c.
+
 ## §15 Version-drift re-test policy (08-04, docs-only)
 
 The verdicts are **version-stamped**: `model_path="v3_default"`, tabpfn-client 0.3.3. Triggers: client upgrade, new model_path, any environment bump. Procedure: record versions → rerun same commands/folds/metrics/D3 rule → diff the 12 committed frontier CSVs → append a §14.x addendum → update the adoption rule *only if the pattern changes*. Sweep-reuse caveat: the frontier reuses home-turf sweep rows on 3 datasets — refresh the sweep first or the frontier won't see new model behavior.
@@ -72,4 +115,5 @@ The verdicts are **version-stamped**: `model_path="v3_default"`, tabpfn-client 0
 | §14.12–§14.13 | Ranking edge survives PR AUC, paired tests, seeds, tuned baselines (#1 of 14) |
 | §14.14 | Frequency verdict was a framing artifact — reframe wins |
 | §14.15 | Severity verdict stable under Gamma/Tweedie/MAE; the one apparent flip fails a trivial baseline |
+| §14.16 | GPU fine-tuning measured: no reliable gain for a 3-pass fine-tune (≤0.010, one negative) — extends, does not re-test, §12's CPU-scoped ruling |
 | Standing | Adopt for risk-ranking (underwriting triage, propensity); keep GLM for pricing/coefficient stories; regression stays GBDT territory except clean positive-severity targets at small N (§14.8, confirmed §14.15) |
