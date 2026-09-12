@@ -153,19 +153,20 @@ if [ -z "$IMAGE" ]; then
 fi
 echo "=== 3/7 image: $IMAGE ==="
 
-# ---- 4. SSH key (best-effort; not required on the execute transport) ----
-echo "=== 4/7 ssh key (best effort) ==="
-SSH_KEY_OUT="$(vastai create ssh-key "$(cat "$HOME/.ssh/id_ed25519.pub" 2>/dev/null || echo '')" 2>&1)"
-if printf '%s' "$SSH_KEY_OUT" | grep -q "Failed with error"; then
-    # Silence would be wrong: this is why we default to `execute`.
-    echo "note: ssh key NOT registered -- $(printf '%s' "$SSH_KEY_OUT" | grep -o 'Failed with error.*' | head -1)"
-    echo "      (expected in a team context; using the execute transport)"
-    if [ "$TRANSPORT" = "ssh" ]; then
-        echo "FATAL: --transport ssh requested but no key is registered." >&2
+# ---- 4. SSH key (only needed for the ssh transport) ----
+if [ "$TRANSPORT" = "ssh" ]; then
+    echo "=== 4/7 ssh key (required for --transport ssh) ==="
+    SSH_KEY_OUT="$(vastai create ssh-key "$(cat "$HOME/.ssh/id_ed25519.pub" 2>/dev/null || echo '')" 2>&1)"
+    if printf '%s' "$SSH_KEY_OUT" | grep -q "Failed with error"; then
+        echo "FATAL: could not register an ssh key --" >&2
+        printf '%s' "$SSH_KEY_OUT" | grep -o 'Failed with error.*' | head -1 >&2
+        echo "       'Team SSH keys are not supported' means the API key is team-scoped." >&2
+        echo "       Switch with 'vastai set api-key <PERSONAL_KEY>' or drop --transport ssh." >&2
         exit 2
     fi
-else
     echo "ssh key registered"
+else
+    echo "=== 4/7 ssh key: SKIPPED (api-only transport; no key needed) ==="
 fi
 
 # ---- 5. Create ----
@@ -238,16 +239,23 @@ fi
 echo "=== pulling artifacts ==="
 mkdir -p "$REPO_DIR/outputs/gpu-pilot"
 if [ "$TRANSPORT" = "execute" ]; then
+    # Markers so CLI decoration around the payload cannot corrupt the stream.
     vastai execute "$INSTANCE_ID" \
-        "cd /workspace/tfm/outputs/finetune/pilot 2>/dev/null && tar czf - . | base64 -w0" \
-        > /tmp/vast_artifacts.b64 2>/dev/null
-    if grep -qE '^[A-Za-z0-9+/=]+$' /tmp/vast_artifacts.b64 2>/dev/null; then
-        base64 -d /tmp/vast_artifacts.b64 > /tmp/vast_artifacts.tar.gz 2>/dev/null && \
-            tar xzf /tmp/vast_artifacts.tar.gz -C "$REPO_DIR/outputs/gpu-pilot" && \
-            echo "artifacts restored to outputs/gpu-pilot" || \
-            echo "WARNING: artifact decode failed -- re-run with --keep"
+        "cd /workspace/tfm/outputs/finetune/pilot 2>/dev/null && echo __VAST_B64_BEGIN__ && tar czf - . | base64 -w0 && echo __VAST_B64_END__" \
+        > /tmp/vast_artifacts.raw 2>/dev/null
+    python3 - <<'PY' > /tmp/vast_artifacts.b64
+import re, sys
+s = open('/tmp/vast_artifacts.raw', errors='replace').read()
+m = re.search(r'__VAST_B64_BEGIN__\s*(\S+?)\s*__VAST_B64_END__', s, re.S)
+sys.stdout.write(m.group(1) if m else '')
+PY
+    if [ -s /tmp/vast_artifacts.b64 ] && \
+       base64 -d < /tmp/vast_artifacts.b64 > /tmp/vast_artifacts.tar.gz 2>/dev/null && \
+       tar xzf /tmp/vast_artifacts.tar.gz -C "$REPO_DIR/outputs/gpu-pilot" 2>/dev/null; then
+        echo "artifacts restored to outputs/gpu-pilot"
     else
-        echo "WARNING: could not retrieve artifacts via execute; re-run with --keep to fetch manually"
+        echo "WARNING: artifact retrieval via execute failed -- re-run with --keep" >&2
+        echo "         (raw CLI output left at /tmp/vast_artifacts.raw)" >&2
     fi
 else
     scp -P "$PORT" -o StrictHostKeyChecking=accept-new -r \
