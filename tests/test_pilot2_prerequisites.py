@@ -1,0 +1,222 @@
+"""Acceptance tests for the Pilot 2 prerequisites implemented in scripts/run_pilot.py.
+
+These are the checks recorded in docs/reports/PILOT_2_PREREQUISITES.md. Each test
+corresponds to one prerequisite's acceptance criterion, so a prerequisite can only
+be marked DONE when the matching test passes.
+
+Run:  python -m pytest tests/test_pilot2_prerequisites.py -v
+"""
+import importlib.util
+import sys
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = REPO_ROOT / "scripts" / "run_pilot.py"
+
+
+def _load_run_pilot():
+    """Load scripts/run_pilot.py as a module (it is a script, not a package module)."""
+    spec = importlib.util.spec_from_file_location("run_pilot", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["run_pilot"] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+@pytest.fixture(scope="module")
+def rp():
+    return _load_run_pilot()
+
+
+# --------------------------------------------------------------------------
+# PR-6 -- dataset and split fingerprints
+# --------------------------------------------------------------------------
+def test_pf_dataset_fingerprint_has_content_hash(rp):
+    fp = rp.dataset_fingerprint("coil2000")
+    if not fp.get("exists", True):
+        pytest.skip("dataset not present locally")
+    assert len(fp["sha256"]) == 64
+    assert fp["n_rows"] > 0
+    assert fp["n_cols"] > 0
+    assert 0.0 < fp["positive_rate"] < 1.0
+    assert fp["target_col"] == rp.DATASETS["coil2000"]["target"]
+    # columns are recorded, so a schema change is visible
+    assert len(fp["columns"]) == fp["n_cols"]
+
+
+def test_pf_dataset_fingerprint_is_stable_and_content_addressed(rp):
+    a = rp.dataset_fingerprint("coil2000")
+    b = rp.dataset_fingerprint("coil2000")
+    if not a.get("exists", True):
+        pytest.skip("dataset not present locally")
+    assert a["sha256"] == b["sha256"]
+
+
+def test_pf_split_index_hash_is_reproducible(rp):
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(400, 5))
+    y = (rng.random(400) < 0.3).astype(int)
+
+    _, _, _, _, tr1, te1, fp1 = rp.make_split(X, y, seed=42, train_size=200, test_size=100)
+    _, _, _, _, tr2, te2, fp2 = rp.make_split(X, y, seed=42, train_size=200, test_size=100)
+
+    assert np.array_equal(tr1, tr2) and np.array_equal(te1, te2)
+    assert fp1["train_index_sha256"] == fp2["train_index_sha256"]
+    assert fp1["test_index_sha256"] == fp2["test_index_sha256"]
+    assert fp1["test_rows_excluded_from_fit"] is True
+
+
+def test_pf_split_changes_with_seed(rp):
+    rng = np.random.default_rng(1)
+    X = rng.normal(size=(400, 5))
+    y = (rng.random(400) < 0.3).astype(int)
+    _, _, _, _, _, _, fp42 = rp.make_split(X, y, seed=42, train_size=200, test_size=100)
+    _, _, _, _, _, _, fp43 = rp.make_split(X, y, seed=43, train_size=200, test_size=100)
+    assert fp42["test_index_sha256"] != fp43["test_index_sha256"]
+
+
+def test_pf_split_record_carries_class_counts(rp):
+    rng = np.random.default_rng(2)
+    X = rng.normal(size=(500, 4))
+    y = (rng.random(500) < 0.2).astype(int)
+    _, _, y_tr, y_te, _, _, fp = rp.make_split(X, y, seed=42, train_size=300, test_size=150)
+    assert fp["pos_train"] == int(y_tr.sum())
+    assert fp["pos_test"] == int(y_te.sum())
+    assert fp["n_train"] == len(y_tr)
+    assert fp["n_test"] == len(y_te)
+
+
+def test_pf_folds_partition_without_overlap(rp):
+    rng = np.random.default_rng(3)
+    X = rng.normal(size=(300, 3))
+    y = (rng.random(300) < 0.5).astype(int)
+    seen = []
+    for f in range(3):
+        _, _, _, _, _, te, _ = rp.make_split(X, y, seed=42, train_size=None, test_size=None,
+                                             fold=f, n_folds=3)
+        seen.append(set(te.tolist()))
+    union = set().union(*seen)
+    assert len(union) == 300, "folds must cover every row exactly once"
+    assert not (seen[0] & seen[1]), "folds must not overlap"
+
+
+# --------------------------------------------------------------------------
+# PR-4 -- matched-inference-context assertion
+# --------------------------------------------------------------------------
+def test_pr4_matched_context_passes_when_equal(rp):
+    per_arm = {
+        "A_raw": rp.inference_context_rows("A_raw", 2000),
+        "B_in_domain": rp.inference_context_rows("B_in_domain", 2000),
+    }
+    assert per_arm["A_raw"][0] == per_arm["B_in_domain"][0] == 2000
+    assert rp.assert_matched_context(per_arm) is True
+
+
+def test_pr4_matched_context_raises_on_mismatch(rp):
+    """The historic defect: fine-tuned arm with a subsampled context vs a full one."""
+    per_arm = {"A_raw": (2000, "full train"), "B_in_domain": (64, "SUBSAMPLE_SAMPLES=64")}
+    with pytest.raises(AssertionError) as exc:
+        rp.assert_matched_context(per_arm)
+    assert "MATCHED-CONTEXT VIOLATION" in str(exc.value)
+
+
+def test_pr4_context_passes_without_ft_arm(rp):
+    """A run of baselines only must not trip the assertion."""
+    assert rp.assert_matched_context({"A_raw": (1000, "full"), "E_glm": (None, "n/a")}) is True
+
+
+# --------------------------------------------------------------------------
+# PR-5 -- LODO exclusion assertion
+# --------------------------------------------------------------------------
+def test_pr5_pool_excludes_target(rp):
+    fps = {"a": {"sha256": "1" * 64}, "b": {"sha256": "2" * 64}, "t": {"sha256": "3" * 64}}
+    meta = rp.build_pool("t", ["a", "b"], fps)
+    assert meta["out_of_pool_asserted"] is True
+    assert "t" not in meta["pool_datasets"]
+    assert meta["target_sha256"] == "3" * 64
+
+
+def test_pr5_pool_raises_if_target_in_pool(rp):
+    fps = {"a": {"sha256": "1" * 64}, "t": {"sha256": "3" * 64}}
+    with pytest.raises(AssertionError) as exc:
+        rp.build_pool("t", ["a", "t"], fps)
+    assert "LODO VIOLATION" in str(exc.value)
+
+
+def test_pr5_pool_raises_on_content_hash_collision(rp):
+    """Target duplicated under another name must still be caught."""
+    fps = {"a": {"sha256": "3" * 64}, "t": {"sha256": "3" * 64}}
+    with pytest.raises(AssertionError) as exc:
+        rp.build_pool("t", ["a"], fps)
+    assert "same content hash" in str(exc.value)
+
+
+# --------------------------------------------------------------------------
+# PR-7 -- epochs as a first-class factor
+# --------------------------------------------------------------------------
+def test_pr7_epochs_is_the_reported_budget(rp):
+    fp = rp.effective_config("B_in_domain", {"epochs": 30, "learning_rate": 1e-5,
+                                            "n_estimators": 2, "context_samples": 64})
+    assert fp["kwargs"]["epochs"] == 30
+    assert "epochs" in fp["passed_params"]
+
+
+def test_pr7_legacy_context_samples_is_flagged_unused(rp):
+    """R1's metadata claimed context_samples was in force; no arm uses it."""
+    fp = rp.effective_config("B_in_domain", rp.DEFAULT_CONFIG)
+    assert "context_samples" in fp["legacy_config_keys_ignored"]
+    assert "context_samples" not in fp["kwargs"]
+
+
+def test_pr7_raw_arm_reports_no_epochs(rp):
+    fp = rp.effective_config("A_raw", rp.DEFAULT_CONFIG)
+    assert "epochs" not in fp["kwargs"]
+    assert fp["kwargs"]["n_estimators"] == 2
+
+
+def test_pr7_default_is_r1_parity_and_ladder_reachable(rp):
+    """Default stays at 3 for continuity; the ladder {3,10,30} needs no code change."""
+    assert rp.DEFAULT_CONFIG["epochs"] == 3
+    for e in (3, 10, 30):
+        cfg = dict(rp.DEFAULT_CONFIG)
+        cfg["epochs"] = e
+        assert rp.effective_config("B_in_domain", cfg)["kwargs"]["epochs"] == e
+
+
+# --------------------------------------------------------------------------
+# Metrics -- log loss primary, calibration reported
+# --------------------------------------------------------------------------
+def test_metrics_include_log_loss_and_calibration(rp):
+    y = np.array([0, 0, 1, 1] * 25)
+    p = np.clip(y * 0.8 + 0.1, 1e-6, 1 - 1e-6)
+    m = rp.compute_metrics(y, p)
+    for k in ("roc_auc", "pr_auc", "brier", "log_loss", "ece"):
+        assert k in m and np.isfinite(m[k])
+    assert 0.0 <= m["ece"] <= 1.0
+
+
+def test_ece_zero_for_perfect_calibration(rp):
+    y = np.array([0] * 50 + [1] * 50)
+    p = np.array([0.0] * 50 + [1.0] * 50)
+    assert rp.expected_calibration_error(y, p) == pytest.approx(0.0, abs=1e-9)
+
+
+def test_ece_positive_for_miscalibrated(rp):
+    y = np.array([0] * 50 + [1] * 50)
+    p = np.full(100, 0.5)  # predicts certainty of nothing; true rate is 0.5 -> ECE 0
+    assert rp.expected_calibration_error(y, p) == pytest.approx(0.0, abs=1e-9)
+    p2 = np.full(100, 0.9)  # claims 0.9, truth 0.5
+    assert rp.expected_calibration_error(y, p2) == pytest.approx(0.4, abs=1e-9)
+
+
+# --------------------------------------------------------------------------
+# PR-1 -- manifest shape
+# --------------------------------------------------------------------------
+def test_pr1_git_and_host_info_present(rp):
+    g = rp._git_info()
+    assert "commit_sha" in g and "branch" in g and "dirty" in g
+    h = rp._host_info()
+    assert "hostname" in h and "gpu_count" in h
