@@ -1,0 +1,30 @@
+{
+  "run_id": "spanish_motor_lapse_F_catboost_seed42",
+  "dataset": "spanish_motor_lapse",
+  "arm": "F_catboost",
+  "config": {
+    "context_samples": 64,
+    "max_finetune_steps": 3,
+    "n_estimators": 2,
+    "learning_rate": 1e-05,
+    "fit_mode": "batched"
+  },
+  "seed": 42,
+  "train_rows": 2000,
+  "test_rows": 1000,
+  "device": "cpu",
+  "device_name": "cpu",
+  "run_time_seconds": 0.7292017936706543,
+  "timestamp": "2026-09-12T09:20:56.498719+00:00",
+  "status": "success",
+  "versions": {
+    "python": "3.13.15",
+    "torch": "2.11.0+cpu",
+    "numpy": "2.1.3",
+    "tabpfn": "8.5.0",
+    "scikit-learn": "1.6.1"
+  },
+  "roc_auc": 0.7114227492959718,
+  "brier": 0.20145529898017475,
+  "pr_auc": 0.541185096891456
+}

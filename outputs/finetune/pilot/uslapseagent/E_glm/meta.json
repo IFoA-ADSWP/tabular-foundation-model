@@ -1,0 +1,30 @@
+{
+  "run_id": "uslapseagent_E_glm_seed42",
+  "dataset": "uslapseagent",
+  "arm": "E_glm",
+  "config": {
+    "context_samples": 64,
+    "max_finetune_steps": 3,
+    "n_estimators": 2,
+    "learning_rate": 1e-05,
+    "fit_mode": "batched"
+  },
+  "seed": 42,
+  "train_rows": 2000,
+  "test_rows": 1000,
+  "device": "cpu",
+  "device_name": "cpu",
+  "run_time_seconds": 0.009790420532226562,
+  "timestamp": "2026-09-12T09:20:46.173866+00:00",
+  "status": "success",
+  "versions": {
+    "python": "3.13.15",
+    "torch": "2.11.0+cpu",
+    "numpy": "2.1.3",
+    "tabpfn": "8.5.0",
+    "scikit-learn": "1.6.1"
+  },
+  "roc_auc": 0.927056893389853,
+  "brier": 0.09100695574277091,
+  "pr_auc": 0.8172492271530749
+}
