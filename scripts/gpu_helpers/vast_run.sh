@@ -8,6 +8,7 @@
 #   --query 'Q'      extra offer search filters
 #   --pick HOW       value | cheapest | fastest      (default: value = dlperf/$)
 #   --max-dph N      hard price ceiling in $/hr      (default 0.60)
+#   --min-vram N     minimum VRAM in GB              (default 23)
 #   --gpu-allow L    comma list of allowed gpu_name  (default: modern-only list)
 #   --disk N         local disk GB                   (default 60)
 #   --arms LIST      arms to run                     (default all four)
@@ -45,6 +46,7 @@ OFFER_ID=""
 QUERY="$DEFAULT_QUERY"
 PICK="value"
 MAX_DPH="0.60"
+MIN_VRAM="23"
 GPU_ALLOW="$DEFAULT_ALLOW"
 DISK=60
 ARMS="A_raw,B_in_domain,E_glm,F_catboost"
@@ -59,6 +61,7 @@ while [ $# -gt 0 ]; do
         --query)     QUERY="$2"; shift 2 ;;
         --pick)      PICK="$2"; shift 2 ;;
         --max-dph)   MAX_DPH="$2"; shift 2 ;;
+        --min-vram)  MIN_VRAM="$2"; shift 2 ;;
         --gpu-allow) GPU_ALLOW="$2"; shift 2 ;;
         --disk)      DISK="$2"; shift 2 ;;
         --arms)      ARMS="$2"; shift 2 ;;
@@ -97,14 +100,16 @@ fi
 echo "session OK"
 
 # ---- 2. Select an offer (restricted to usable architectures) ----
-echo "=== 2/7 selecting offer (pick=$PICK ceiling=\$$MAX_DPH/hr) ==="
+echo "=== 2/7 selecting offer (pick=$PICK ceiling=\$$MAX_DPH/hr min-vram=${MIN_VRAM}GB) ==="
 
 if [ -z "$OFFER_ID" ]; then
     vastai search offers "$QUERY" -o dph --raw 2>/dev/null > /tmp/vast_candidates.json
     read -r OFFER_ID GPU_NAME DPH CUDA DLPERF CPU_RAM GPU_RAM DISK_SP REL < <(
-        python3 - "$PICK" "$MAX_DPH" "$GPU_ALLOW" <<'PY'
+        python3 - "$PICK" "$MAX_DPH" "$GPU_ALLOW" "$MIN_VRAM" <<'PY'
 import json, sys
-pick, max_dph, allow = sys.argv[1], float(sys.argv[2]), set(a.strip() for a in sys.argv[3].split(','))
+pick, max_dph = sys.argv[1], float(sys.argv[2])
+allow = set(a.strip() for a in sys.argv[3].split(','))
+min_vram = float(sys.argv[4])
 try:
     d = json.load(open('/tmp/vast_candidates.json'))
 except Exception:
@@ -115,7 +120,8 @@ o = [x for x in o
      if x.get('gpu_name') in allow
      and x.get('gpu_name') not in bad
      and (x.get('dph_total') or 9e9) <= max_dph
-     and (x.get('cuda_max_good') or 0) >= 12.0]
+     and (x.get('cuda_max_good') or 0) >= 12.0
+     and (x.get('gpu_ram') or 0) / 1000.0 >= min_vram]
 if not o:
     print(""); raise SystemExit
 if pick == 'cheapest':
@@ -143,15 +149,22 @@ fi
 
 # ---- 3. Image matched to host CUDA ----
 if [ -z "$IMAGE" ]; then
-    if python3 -c "import sys; sys.exit(0 if float('${CUDA:-12.4}') >= 12.8 else 1)"; then
-        IMAGE="pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime"
-    elif python3 -c "import sys; sys.exit(0 if float('${CUDA:-12.4}') >= 12.4 else 1)"; then
-        IMAGE="pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime"
-    else
-        IMAGE="pytorch/pytorch:2.4.0-cuda12.1-cudnn9-runtime"
-    fi
+    # Every tier must carry torch >= 2.5: tabpfn 8.5.0 requires torch>=2.5, so
+    # a 2.4.0 image would let pip upgrade torch to a CUDA 12.4 wheel on a host
+    # that only supports 12.2 -- a mid-run CUDA failure on a paid instance.
+    # Verified tag matrix: 2.5.1 -> {cuda12.1, cuda12.4}, 2.6.0 -> cuda12.6,
+    # 2.7.0 -> cuda12.8.
+    IMAGE="$(python3 - "${CUDA:-12.4}" <<'PY'
+import sys
+c = float(sys.argv[1])
+if   c >= 12.8: print("pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime")
+elif c >= 12.6: print("pytorch/pytorch:2.6.0-cuda12.6-cudnn9-runtime")
+elif c >= 12.4: print("pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime")
+else:           print("pytorch/pytorch:2.5.1-cuda12.1-cudnn9-runtime")
+PY
+)"
 fi
-echo "=== 3/7 image: $IMAGE ==="
+echo "=== 3/7 image: $IMAGE (host cuda<=${CUDA:-?}) ==="
 
 # ---- 4. SSH key (only needed for the ssh transport) ----
 if [ "$TRANSPORT" = "ssh" ]; then
