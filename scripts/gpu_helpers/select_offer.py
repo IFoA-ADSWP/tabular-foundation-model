@@ -18,6 +18,7 @@ here removes the shell/Python boundary entirely and makes the logic testable.
 Exits 0 either way; callers must treat empty output as "no offer".
 """
 import json
+import re
 import sys
 
 # Ampere / Ada / Hopper only. Deliberately excludes Volta (V100), Pascal
@@ -27,6 +28,19 @@ EXCLUDED = {
     "Tesla V100", "Tesla P40", "Tesla P100", "Tesla T4",
     "Q RTX 8000", "Q RTX 6000", "RTX 2080 Ti",
 }
+
+
+def _norm(name) -> str:
+    """Normalise a GPU name for matching.
+
+    The marketplace and the allow-list disagree about the 'RTX ' prefix: the
+    offers API reports 'RTX A6000'/'RTX A5000' while the list carried 'A6000'/
+    'A5000'. Matching was exact, so a perfectly good 49 GB Ampere card was
+    silently filtered out and the run aborted with 'no usable offer' -- with 20
+    candidates sitting in the file. Normalise both sides so this class of
+    mismatch cannot recur.
+    """
+    return re.sub(r"^RTX\s+", "", str(name or "").strip().upper())
 
 
 def main() -> int:
@@ -49,10 +63,12 @@ def main() -> int:
         return 0
 
     offers = d if isinstance(d, list) else d.get("offers", [])
+    allow_n = {_norm(a) for a in allow}
+    excluded_n = {_norm(e) for e in EXCLUDED}
     offers = [
         x for x in offers
-        if x.get("gpu_name") in allow
-        and x.get("gpu_name") not in EXCLUDED
+        if _norm(x.get("gpu_name")) in allow_n
+        and _norm(x.get("gpu_name")) not in excluded_n
         and (x.get("dph_total") or 9e9) <= max_dph
         and (x.get("cuda_max_good") or 0) >= 12.0
         and (x.get("gpu_ram") or 0) / 1000.0 >= min_vram
