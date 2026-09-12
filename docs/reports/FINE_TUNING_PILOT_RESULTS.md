@@ -2,6 +2,11 @@
 
 > **Status:** complete. All four arms — `A_raw`, `B_in_domain`, `E_glm`, `F_catboost` — are measured on all four datasets. **Arm B ran successfully for the first time on 2026-09-12** (NVIDIA L40S; see §5b–5c) after its long-standing "does not fit" diagnosis was shown to be wrong. The research question in `PRE_FINETUNING_INVESTIGATIONS.md` is answered for the configuration tested: **a 3-pass in-domain fine-tune does not reliably beat raw TabPFN** (deltas ≤0.010, one negative), while raw TabPFN's advantage over the actuarial baselines is much larger (+0.007 to +0.068). Single seed, single split, 3 fine-tune passes — see §5c for the scope limits and §6 for the caveats.
 
+> **Reading this as a statistician?** The method itself — the estimator, the exact call
+> sequence, what happens inside the fine-tune loop, the effective configuration and every
+> leakage control — is described separately in **`FINE_TUNING_METHOD.md`**. What R1 did and
+> did not exercise is in **`SMOKE_TEST_SCOPE.md`**.
+
 ## Version stamp
 
 | Field | Value |
