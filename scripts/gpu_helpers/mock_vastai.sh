@@ -51,16 +51,28 @@ case "${1:-} ${2:-}" in
           [ "$idx" -ge "${#SEQ[@]}" ] && idx=$(( ${#SEQ[@]} - 1 ))
           st="${SEQ[$idx]}"
           echo $(( n + 1 )) > "$CNT_F"
-          echo "{\"actual_status\": \"$st\", \"ssh_host\": \"203.0.113.9\", \"ssh_port\": 41234, \"gpu_name\": \"RTX A6000\", \"dph_total\": 0.469, \"gpu_ram\": 49140, \"cpu_ram\": 128000, \"reliability\": 0.9951, \"cuda_max_good\": 13.0}"
+          echo "{\"actual_status\": \"$st\", \"ssh_host\": \"203.0.113.9\", \"ssh_port\": 41234, \"gpu_name\": \"RTX A6000\", \"dph_total\": 0.469, \"gpu_ram\": 49140, \"cpu_ram\": 128000, \"reliability\": 0.9951, \"cuda_max_good\": 13.0, \"intended_status\": \"running\", \"machine_id\": ${MOCK_MACHINE_ID:-424242}, \"host_id\": 909090}"
       elif [ -n "${MOCK_STATUS:-}" ]; then
-          echo "{\"actual_status\": \"$MOCK_STATUS\", \"gpu_name\": \"RTX A6000\","\
-"\"dph_total\": 0.469, \"gpu_ram\": 49140, \"cpu_ram\": 128000,"\
-"\"reliability\": 0.9951, \"cuda_max_good\": 13.0}"
+          # ONE LINE, deliberately. This was previously split across three
+          # adjacent double-quoted strings, which bash does NOT concatenate: the
+          # newlines ended the command, so lines 2-3 were executed as commands
+          # ("command not found") and only a truncated fragment of JSON reached
+          # stdout. Callers run with 2>/dev/null, so the noise vanished and the
+          # parse failed silently -- every field came back empty, which made the
+          # runner report status=unknown forever. That is why a terminal-state
+          # test appeared to pass: it was hitting the unknown-grace-timeout path,
+          # not the 'exited' path it claimed to exercise.
+          #
+          # intended_status and machine_id are emitted because the runner now
+          # DEPENDS on them: intended_status drives the early abort, machine_id is
+          # what a retry excludes. A mock missing them silently disables both.
+          echo "{\"actual_status\": \"$MOCK_STATUS\", \"gpu_name\": \"RTX A6000\", \"dph_total\": 0.469, \"gpu_ram\": 49140, \"cpu_ram\": 128000, \"reliability\": 0.9951, \"cuda_max_good\": 13.0, \"intended_status\": \"${MOCK_INTENDED:-running}\", \"machine_id\": ${MOCK_MACHINE_ID:-424242}, \"host_id\": 909090}"
       else
           cat <<'JSON'
 {"actual_status": "running", "ssh_host": "203.0.113.9", "ssh_port": 41234,
  "gpu_name": "RTX A6000", "dph_total": 0.469, "gpu_ram": 49140,
- "cpu_ram": 128000, "reliability": 0.9951, "cuda_max_good": 13.0}
+ "cpu_ram": 128000, "reliability": 0.9951, "cuda_max_good": 13.0,
+ "intended_status": "running", "machine_id": 424242, "host_id": 909090}
 JSON
       fi
       ;;
