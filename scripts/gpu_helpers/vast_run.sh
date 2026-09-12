@@ -365,14 +365,16 @@ HOST=""; PORT=""
 # must persist past a grace period with no provisioning state to count as dead.
 GRACE_SECS="${GRACE_SECS:-90}"
 SAW_PROVISIONING=0
+# Counts consecutive polls reporting intended_status=stopped. See the check below.
+STOPPED_STREAK=0
 for i in $(seq 1 60); do
     INFO="$(vastai show instance "$INSTANCE_ID" --raw 2>/dev/null)"
     # `show instance` is the only source of these facts that works for BOTH the
     # selected-offer and caller-supplied --offer-id paths.
-    IFS='|' read -r STATUS HOST PORT _GN _DP _GR _CR _RL _CU < <(printf '%s' "$INFO" | python3 -c "
+    IFS='|' read -r STATUS HOST PORT _GN _DP _GR _CR _RL _CU _IS < <(printf '%s' "$INFO" | python3 -c "
 import json,sys
 try: d=json.load(sys.stdin)
-except Exception: print('unknown|||||||'); raise SystemExit
+except Exception: print('unknown' + '|' * 9); raise SystemExit
 def g(*ks):
     for k in ks:
         v=d.get(k)
@@ -381,7 +383,8 @@ def g(*ks):
 print('|'.join([g('actual_status') or 'unknown', g('ssh_host'), g('ssh_port'),
                 g('gpu_name','gpu_names').replace(' ','_'),
                 g('dph_total'), g('gpu_ram'), g('cpu_ram'),
-                g('reliability'), g('cuda_max_good')]))
+                g('reliability'), g('cuda_max_good'),
+                g('intended_status')]))
 ")
     [ -n "$_GN" ] && GPU_NAME="$_GN"
     [ -n "$_DP" ] && DPH="$_DP"
@@ -390,6 +393,24 @@ print('|'.join([g('actual_status') or 'unknown', g('ssh_host'), g('ssh_port'),
     [ -n "$_RL" ] && REL="$_RL"
     [ -n "$_CU" ] && CUDA="$_CU"
     echo "  [$i] status=$STATUS"
+    # intended_status=stopped is FATAL and must be detected early, not at the
+    # ceiling. Vast has decided this instance should not run, so the container is
+    # never started and actual_status never leaves 'loading'. From outside that is
+    # indistinguishable from a slow image pull -- which is exactly how three
+    # attempts were misdiagnosed as Docker slowness. Three consecutive polls
+    # (~30s) rules out a transient provisioning state, and aborts for cents
+    # instead of paying the full 10-minute ceiling.
+    if [ "$_IS" = "stopped" ]; then
+        STOPPED_STREAK=$(( STOPPED_STREAK + 1 ))
+        if [ "$STOPPED_STREAK" -ge 3 ]; then
+            echo "FATAL: intended_status=stopped -- Vast will never start this container." >&2
+            echo "       It cannot reach 'running', so this is NOT a slow image pull." >&2
+            echo "       Aborting now rather than paying out the ceiling; retrying." >&2
+            exit 2
+        fi
+    else
+        STOPPED_STREAK=0
+    fi
     if [ "$STATUS" = "running" ]; then
         T_RUNNING="$(date -u +%s)"
         break
