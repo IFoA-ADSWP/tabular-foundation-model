@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """
-Fine-tuning pilot: 4 datasets × 4 arms × 1 config = 16 runs.
-Designed for Colab T4 (16 GB VRAM).
+Fine-tuning pilot: step-by-step execution for CLI.
 
 Usage:
-    python scripts/run_pilot.py
+    python scripts/run_pilot.py                    # run all
+    python scripts/run_pilot.py --dataset coil2000  # run one dataset
+    python scripts/run_pilot.py --aggregate        # aggregate results
 """
 import sys
 import os
 import json
 import time
-import hashlib
+import argparse
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -101,20 +102,8 @@ def load_dataset(name, target_col, max_rows=TRAIN_SIZE + TEST_SIZE + 500):
     return X, y
 
 
-def encode_data(X, y, scaler=None):
-    if scaler is None:
-        from sklearn.preprocessing import StandardScaler
-        scaler = StandardScaler()
-        X = scaler.fit_transform(X)
-    else:
-        X = scaler.transform(X)
-    return X, scaler
-
-
 def run_arm_a_raw(X_train, X_test, y_train, y_test, config):
-    """Raw TabPFN — no fine-tuning."""
     from tabpfn import TabPFNClassifier
-
     clf = TabPFNClassifier(
         ignore_pretraining_limits=True,
         device="cuda" if torch.cuda.is_available() else "cpu",
@@ -129,9 +118,11 @@ def run_arm_a_raw(X_train, X_test, y_train, y_test, config):
 
 
 def run_arm_b_in_domain(X_train, X_test, y_train, y_test, config):
-    """In-domain fine-tuning."""
     from tabpfn import TabPFNClassifier
     from tabpfn.architectures.interface import PerformanceOptions
+    from tabpfn.finetuning.data_util import get_preprocessed_dataset_chunks, meta_dataset_collator
+    from torch.optim import Adam
+    from torch.utils.data import DataLoader
 
     clf = TabPFNClassifier(
         ignore_pretraining_limits=True,
@@ -141,11 +132,6 @@ def run_arm_b_in_domain(X_train, X_test, y_train, y_test, config):
         inference_precision=torch.float32,
         fit_mode=config["fit_mode"],
     )
-
-    # Fine-tune
-    from tabpfn.finetuning.data_util import get_preprocessed_dataset_chunks, meta_dataset_collator
-    from torch.optim import Adam
-    from torch.utils.data import DataLoader
 
     try:
         clf._initialize_model_variables()
@@ -183,12 +169,10 @@ def run_arm_b_in_domain(X_train, X_test, y_train, y_test, config):
 
 
 def run_arm_e_glm(X_train, X_test, y_train, y_test):
-    """GLM baseline."""
     from sklearn.preprocessing import StandardScaler
     scaler = StandardScaler()
     X_train_s = scaler.fit_transform(X_train)
     X_test_s = scaler.transform(X_test)
-
     clf = LogisticRegression(max_iter=1000, random_state=42)
     clf.fit(X_train_s, y_train)
     probs = clf.predict_proba(X_test_s)[:, 1]
@@ -196,7 +180,6 @@ def run_arm_e_glm(X_train, X_test, y_train, y_test):
 
 
 def run_arm_f_catboost(X_train, X_test, y_train, y_test):
-    """CatBoost baseline (or RandomForest fallback)."""
     try:
         from catboost import CatBoostClassifier
         clf = CatBoostClassifier(iterations=200, verbose=0, random_state=42)
@@ -248,7 +231,99 @@ def save_results(dataset, arm, metrics, y_prob, y_test, run_time, config, output
     return meta
 
 
+def run_single_dataset(ds_name):
+    """Run all arms for one dataset. Called by CLI step script."""
+    if ds_name not in DATASETS:
+        print(f"ERROR: Unknown dataset '{ds_name}'. Choose from: {list(DATASETS.keys())}")
+        return []
+
+    print(f"\n--- {ds_name} ({DATASETS[ds_name]['file']}) ---")
+    X, y = load_dataset(ds_name, DATASETS[ds_name]["target"])
+
+    X_train_full, X_test, y_train_full, y_test = train_test_split(
+        X, y, test_size=TEST_SIZE, random_state=42, stratify=y
+    )
+    if len(X_train_full) > TRAIN_SIZE:
+        X_train, _, y_train, _ = train_test_split(
+            X_train_full, y_train_full, train_size=TRAIN_SIZE, random_state=42, stratify=y_train_full
+        )
+    else:
+        X_train, y_train = X_train_full, y_train_full
+
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    X_train_s = scaler.fit_transform(X_train)
+    X_test_s = scaler.transform(X_test)
+
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    results = []
+
+    for arm_name, arm_fn in [
+        ("A_raw", lambda: run_arm_a_raw(X_train_s, X_test_s, y_train, y_test, PILOT_CONFIG)),
+        ("B_in_domain", lambda: run_arm_b_in_domain(X_train_s, X_test_s, y_train, y_test, PILOT_CONFIG)),
+        ("E_glm", lambda: run_arm_e_glm(X_train_s, X_test_s, y_train, y_test)),
+        ("F_catboost", lambda: run_arm_f_catboost(X_train_s, X_test_s, y_train, y_test)),
+    ]:
+        print(f"  {arm_name}...", end=" ", flush=True)
+        start = time.time()
+        try:
+            probs, _ = arm_fn()
+            elapsed = time.time() - start
+            if probs is None:
+                print(f"FAILED ({elapsed:.1f}s)")
+                continue
+            metrics = compute_metrics(y_test, probs)
+            meta = save_results(ds_name, arm_name, metrics, probs, y_test, elapsed, PILOT_CONFIG, OUTPUT_DIR)
+            results.append(meta)
+            print(f"ROC={metrics['roc_auc']:.4f} Brier={metrics['brier']:.4f} ({elapsed:.1f}s)")
+        except Exception as e:
+            elapsed = time.time() - start
+            print(f"ERROR: {e} ({elapsed:.1f}s)")
+
+    return results
+
+
+def aggregate_results():
+    """Aggregate all results into pilot_metrics.parquet."""
+    print("\n" + "=" * 70)
+    print("PILOT RESULTS SUMMARY")
+    print("=" * 70)
+
+    all_results = []
+    for dataset_dir in OUTPUT_DIR.iterdir():
+        if not dataset_dir.is_dir():
+            continue
+        for arm_dir in dataset_dir.iterdir():
+            meta_path = arm_dir / "meta.json"
+            if meta_path.exists():
+                with open(meta_path) as f:
+                    meta = json.load(f)
+                    all_results.append(meta)
+
+    if not all_results:
+        print("No results found.")
+        return
+
+    df = pd.DataFrame(all_results)
+    pivot = df.pivot_table(index="dataset", columns="arm", values="roc_auc", aggfunc="first")
+    print("\nROC AUC:")
+    print(pivot.to_string())
+
+    if "B_in_domain" in pivot.columns and "A_raw" in pivot.columns:
+        pivot["delta_B_minus_A"] = pivot["B_in_domain"] - pivot["A_raw"]
+        print("\nFine-tuning delta (B - A):")
+        print(pivot[["A_raw", "B_in_domain", "delta_B_minus_A"]].to_string())
+
+    df.to_parquet(OUTPUT_DIR / "pilot_metrics.parquet", index=False)
+    print(f"\nSaved: {OUTPUT_DIR / 'pilot_metrics.parquet'}")
+
+
 def main():
+    parser = argparse.ArgumentParser(description="Fine-tuning pilot")
+    parser.add_argument("--dataset", type=str, help="Run one dataset")
+    parser.add_argument("--aggregate", action="store_true", help="Aggregate results")
+    args = parser.parse_args()
+
     print("=" * 70)
     print("FINE-TUNING PILOT — 4 datasets × 4 arms")
     print("=" * 70)
@@ -262,77 +337,19 @@ def main():
     if not check_data():
         sys.exit(1)
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    all_results = []
+    if args.aggregate:
+        aggregate_results()
+        return
 
-    for ds_name, ds_info in DATASETS.items():
-        print(f"\n--- {ds_name} ({ds_info['file']}) ---")
-        X, y = load_dataset(ds_name, ds_info["target"])
+    if args.dataset:
+        run_single_dataset(args.dataset)
+        return
 
-        # Create fixed split
-        X_train_full, X_test, y_train_full, y_test = train_test_split(
-            X, y, test_size=TEST_SIZE, random_state=42, stratify=y
-        )
-        # Subset training to TRAIN_SIZE
-        if len(X_train_full) > TRAIN_SIZE:
-            X_train, _, y_train, _ = train_test_split(
-                X_train_full, y_train_full, train_size=TRAIN_SIZE, random_state=42, stratify=y_train_full
-            )
-        else:
-            X_train, y_train = X_train_full, y_train_full
+    # Run all datasets
+    for ds_name in DATASETS:
+        run_single_dataset(ds_name)
 
-        from sklearn.preprocessing import StandardScaler
-        scaler = StandardScaler()
-        X_train_s = scaler.fit_transform(X_train)
-        X_test_s = scaler.transform(X_test)
-
-        for arm_name, arm_fn in [
-            ("A_raw", lambda: run_arm_a_raw(X_train_s, X_test_s, y_train, y_test, PILOT_CONFIG)),
-            ("B_in_domain", lambda: run_arm_b_in_domain(X_train_s, X_test_s, y_train, y_test, PILOT_CONFIG)),
-            ("E_glm", lambda: run_arm_e_glm(X_train_s, X_test_s, y_train, y_test)),
-            ("F_catboost", lambda: run_arm_f_catboost(X_train_s, X_test_s, y_train, y_test)),
-        ]:
-            print(f"  {arm_name}...", end=" ", flush=True)
-            start = time.time()
-            try:
-                probs, _ = arm_fn()
-                elapsed = time.time() - start
-
-                if probs is None:
-                    print(f"FAILED ({elapsed:.1f}s)")
-                    continue
-
-                metrics = compute_metrics(y_test, probs)
-                meta = save_results(ds_name, arm_name, metrics, probs, y_test, elapsed, PILOT_CONFIG, OUTPUT_DIR)
-                all_results.append(meta)
-                print(f"ROC={metrics['roc_auc']:.4f} Brier={metrics['brier']:.4f} ({elapsed:.1f}s)")
-
-            except Exception as e:
-                elapsed = time.time() - start
-                print(f"ERROR: {e} ({elapsed:.1f}s)")
-
-    # Summary table
-    print("\n" + "=" * 70)
-    print("PILOT RESULTS SUMMARY")
-    print("=" * 70)
-    df = pd.DataFrame(all_results)
-    if len(df) > 0:
-        pivot = df.pivot_table(index="dataset", columns="arm", values="roc_auc", aggfunc="first")
-        print("\nROC AUC:")
-        print(pivot.to_string())
-
-        # Delta: fine-tuned minus raw
-        if "B_in_domain" in pivot.columns and "A_raw" in pivot.columns:
-            pivot["delta_B_minus_A"] = pivot["B_in_domain"] - pivot["A_raw"]
-            print("\nFine-tuning delta (B - A):")
-            print(pivot[["A_raw", "B_in_domain", "delta_B_minus_A"]].to_string())
-
-    # Save summary
-    if len(df) > 0:
-        df.to_parquet(OUTPUT_DIR / "pilot_metrics.parquet", index=False)
-        print(f"\nSaved: {OUTPUT_DIR / 'pilot_metrics.parquet'}")
-
-    print("\nDone.")
+    aggregate_results()
 
 
 if __name__ == "__main__":
