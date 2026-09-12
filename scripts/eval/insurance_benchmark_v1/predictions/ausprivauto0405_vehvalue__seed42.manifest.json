@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "dataset": "ausprivauto0405_vehvalue",
+  "data_file": "ausprivauto0405.csv",
+  "target": "VehValue",
+  "drop": [],
+  "problem_type": "regression",
+  "primary_metric": "rmse",
+  "stored_scale_note": "target stored/used as returned by load_Xy (no additional transform on capture)",
+  "clip_convention": "poisson_deviance: y_pred clipped >= 1e-12 at scoring time (metric_fn); tweedieglm/poissonglm classification-mode mu clipped to [1e-6, 1-1e-6] at scoring time (run_dataset fold loop); stored arrays are raw, pre-clip",
+  "n_folds": 5,
+  "seed": 42,
+  "split": "KFold(5, shuffle=True, random_state=42)",
+  "methods": [
+    "ols",
+    "poissonglm",
+    "tweedieglm",
+    "rf",
+    "cat",
+    "lgbm",
+    "xgb",
+    "tabpfn"
+  ],
+  "model_version": "v3_default",
+  "tabpfn_client_version": "0.3.3",
+  "script_git_sha": "cf26c350b3faa2c993469fd85224d6fe1ff0d541",
+  "created_at": "2026-08-25T11:48:10Z"
+}
