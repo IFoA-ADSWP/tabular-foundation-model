@@ -631,6 +631,73 @@ Offer selection and image tiering therefore live in `select_offer.py` / `pick_im
 as ordinary commands. The same class of bug bit the Colab launcher (stdin is Python, not shell);
 treat the shell/Python boundary as the primary hazard in this tooling.
 
+**`vastai execute` is NOT a remote shell — it runs only `ls`, `rm`, `du`.** This supersedes
+the earlier advice to use `--transport execute` for running commands. Passing anything else
+returns:
+
+```
+Failed with error 400: Invalid command given.
+```
+
+so `echo <b64> | base64 -d | bash` and `tar czf - | base64` can never work through it, and a
+mock that accepts arbitrary shell will happily validate a transport that does not exist. The
+working transport is `--onstart <file>` (runs at container boot, takes a *filename* so the
+~4048-char `--onstart-cmd` argument limit does not apply) plus `vastai logs` to read results.
+`--transport ssh` remains available only with a personal-scope key.
+
+**Never pass `--ssh --direct` when you do not need SSH.** Those flags set
+`image_runtype: ssh_direc ssh_proxy`, and instances created with them came up with:
+
+```
+intended_status: stopped      <- Vast has decided this instance should not run
+cur_state:       stopped
+```
+
+The container is then never started, so `actual_status` sits at `loading` **forever** — which
+looks exactly like a very slow image pull. Three attempts were misdiagnosed as Docker
+slowness before this was spotted. One earlier instance did reach `running` with the old flags,
+so this is intermittent, which is all the more reason not to request a capability the pilot
+never uses. `vast_run.sh` no longer passes either flag, and the wait loop aborts within ~30s
+if `intended_status` is `stopped`.
+
+**The container log caps every LINE at 500 characters, and truncates silently.** Measured: a
+base64 artifact payload came back at exactly 500 chars while the next-longest line in the
+whole log was 363. The payload decoded to a 375-byte gzip that `tar` rejected as *"truncated
+gzip input"* — while every log message indicated the transfer had succeeded. Artifacts are
+therefore folded into `__ART__`-tagged lines of 440 chars and reassembled client-side
+(verified by round trip: 63 lines, longest 447, restored parquet sha256-identical).
+
+**The TabPFN licence check is separate from token validity, and easy to test wrongly.**
+
+| Endpoint | Proves |
+| --- | --- |
+| `GET {api}/protected/` | the token is valid (and which account it belongs to) |
+| `GET {api}/account/license/?version=<licence-name>` | that account ACCEPTED the licence |
+
+A token can pass the first and fail the second, and **only the second gates the weight
+download**. Two traps:
+
+- `version` is a **LICENCE NAME read from the HuggingFace model card**, not a package version:
+  `_get_license_name(hf_repo_id)` → for `Prior-Labs/tabpfn_3` that is `tabpfn-3-license-v1.0`.
+  Querying with `8.5.0` returns `{"accepted":false}` for *every* value, including ones that do
+  not exist, which reads exactly like an unaccepted licence. Use `bash scripts/gpu_helpers/keys.sh
+  licence`, which derives the name the same way the library does.
+- A locally-installed `tabpfn` may be a different version with **no licence gate at all**, in
+  which case a local fit succeeds regardless and proves nothing. Check for
+  `tabpfn/browser_auth.py` before trusting a local pass. 8.5.0's real auth modules can be
+  exercised without torch by copying `errors.py`/`settings.py`/`constants.py`/`browser_auth.py`
+  out of the sdist and stubbing `torch`.
+
+The bootstrap preflights this before running any arm and prints the decision inputs
+(`api_url`, proxy env, `verify_token`, resolved licence name, `check_license_accepted`), so a
+failure names the branch instead of repeating a generic licence error. It costs ~2 min and
+~$0.02 to fail there rather than across a 16-arm batch.
+
+**Do not pin `--image` by hand unless you must.** Hosts differ far more in whether they have a
+tag cached than in which tag is "safer". A `2.5.1-cuda12.1` pin both succeeded and stalled on
+different hosts, while the auto-picked image worked for the runs that completed. Leave the
+tier choice to `pick_image.py`.
+
 ### C.4 Arm B memory — the central unknown
 
 Arm B has **never completed a run**. On the Colab free CPU runtime (12 GB, **no swap**) the
