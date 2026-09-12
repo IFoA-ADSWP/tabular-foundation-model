@@ -241,10 +241,27 @@ with open(os.path.join(outdir, f"run_{stamp}.json"), "w") as f:
     json.dump(rec, f, indent=2)
 
 ledger = os.path.join(outdir, "run_ledger.csv")
-exists = os.path.exists(ledger)
+# The header MUST match the record's fields -- DictWriter will happily write rows
+# against an older, shorter header, silently shifting every column. That is exactly
+# what happened when machine_id/host_id/attempt were added: the ledger then reported
+# $1789231403 for a five-minute run and 1789231352 "minutes" of wall time. Compare
+# the header and start a fresh file on mismatch. The per-run JSONs are the source of
+# truth and the ledger is derived from them, so quarantining loses nothing.
+fields = list(rec)
+if os.path.exists(ledger):
+    try:
+        with open(ledger, newline="") as f:
+            hdr = next(csv.reader(f), [])
+    except Exception:
+        hdr = []
+    if hdr != fields:
+        stale = ledger + ".stale-" + stamp
+        os.rename(ledger, stale)
+        print("[cost] ledger header did not match the record fields -> moved to "
+              + os.path.basename(stale) + " and started a new ledger")
 with open(ledger, "a", newline="") as f:
-    w = csv.DictWriter(f, fieldnames=list(rec))
-    if not exists:
+    w = csv.DictWriter(f, fieldnames=fields)
+    if f.tell() == 0:
         w.writeheader()
     w.writerow(rec)
 
