@@ -46,6 +46,10 @@ trap 'rm -f "$FILE_LIST" "$TARBALL" "$B64FILE"' EXIT
 # actually returned from the box, and the per-run config/provenance never came back.
 # A `find` covers every layout instead of guessing the depth.
 find . -name meta.json 2>/dev/null | sed 's|^\./||' >> "$FILE_LIST"
+# Top-level run-level records, in particular manifest_<run_id>.json -- the audit
+# record the whole PR-1 prerequisite exists to produce. Omitting it meant the manifest
+# was written on the box and never returned, which a mock run caught.
+find . -maxdepth 1 -name "*.json" 2>/dev/null | sed 's|^\./||' >> "$FILE_LIST"
 if [ -f pilot_predictions.parquet ] && [ "$(wc -c < pilot_predictions.parquet)" -lt 300000 ]; then
     echo pilot_predictions.parquet >> "$FILE_LIST"
 fi

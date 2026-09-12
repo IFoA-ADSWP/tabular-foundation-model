@@ -44,6 +44,10 @@ umask 077
 command -v vastai >/dev/null 2>&1 || \
     export PATH="$HOME/.local/share/uv/tools/vastai/bin:$PATH"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Where run records, the ledger and returned artifacts are written. Overridable via
+# VAST_OUTDIR so a mock/dry run can be isolated from a real one instead of writing
+# into the working tree (PR-8).
+OUTDIR="${VAST_OUTDIR:-$REPO_DIR/outputs/gpu-pilot}"
 
 DEFAULT_QUERY='num_gpus=1 gpu_ram>=23 cpu_ram>=32 disk_space>=60 reliability>=0.98 inet_down>200 dph<0.80'
 # Ampere / Ada / Hopper only. Deliberately excludes Volta (V100), Pascal
@@ -203,7 +207,7 @@ record_run() {
     local wall_s=$(( end - T_CREATE ))
     [ "$wall_s" -lt 0 ] && wall_s=0
 
-    mkdir -p "$REPO_DIR/outputs/gpu-pilot"
+    mkdir -p "$OUTDIR"
     RUN_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 
     python3 - "$REPO_DIR" "$RUN_STAMP" "$wall_s" <<PY
@@ -603,11 +607,11 @@ T_END="$(date -u +%s)"
 
 # ---- pull artifacts ----
 echo "=== pulling artifacts ==="
-mkdir -p "$REPO_DIR/outputs/gpu-pilot"
+mkdir -p "$OUTDIR"
 if [ "$TRANSPORT" = "ssh" ]; then
     scp -P "$PORT" -o StrictHostKeyChecking=accept-new -r \
         "root@$HOST:/workspace/tfm/outputs/finetune/pilot/*" \
-        "$REPO_DIR/outputs/gpu-pilot/" || \
+        "$OUTDIR/" || \
         echo "WARNING: scp failed -- re-run with --keep" >&2
 else
     # The bootstrap printed its payload between markers on stdout, so the container
@@ -616,7 +620,7 @@ else
     cp /tmp/vast_run_out.txt /tmp/vast_artifacts.raw 2>/dev/null || : > /tmp/vast_artifacts.raw
     python3 "$REPO_DIR/scripts/gpu_helpers/verify_artifacts.py" \
         --raw /tmp/vast_artifacts.raw \
-        --dest "$REPO_DIR/outputs/gpu-pilot"
+        --dest "$OUTDIR"
     ART_RC=$?
     case "$ART_RC" in
         0) : ;;
@@ -632,4 +636,4 @@ fi
 
 echo
 echo "=== done (rc=$RUN_RC) ==="
-ls -l "$REPO_DIR/outputs/gpu-pilot" 2>/dev/null | head -20
+ls -l "$OUTDIR" 2>/dev/null | head -20

@@ -31,12 +31,13 @@ python -m pytest tests/test_pilot2_prerequisites.py -v
 | PR-5 | LODO exclusion assertion | **DONE** | Stage 2 |
 | PR-6 | Dataset + split fingerprints | **DONE** | all |
 | PR-7 | Epoch ladder as a first-class factor | **DONE** | Stage 1 |
-| PR-8 | Mock-verified end-to-end at $0 | TODO | any spend |
+| PR-8 | Mock-verified end-to-end at $0 | **DONE** — full mock run passes in ~3.5s, teardown asserted | any spend |
 | PR-9 | Pre-fetch the gated weights (move the licence gate off the run path) | IN PROGRESS — logic + wiring verified, live cold→warm download outstanding | any spend |
 
-Suite status at this revision: `25 passed` in `tests/test_pilot2_prerequisites.py`; full suite
-`73 passed, 1 failed` — the failure is the pre-existing `tests/test_frontier_cli.py::test_reconstruct_pp`
-float32/float64 assertion, unrelated to these changes.
+Suite status at this revision: `94 passed, 1 failed` across `tests/` — the failure is the
+pre-existing `tests/test_frontier_cli.py::test_reconstruct_pp` float32/float64 assertion,
+unrelated to these changes. Pilot 2 additions: 25 tests in `test_pilot2_prerequisites.py`,
+17 in `test_pilot2_artifact_roundtrip.py`, 4 in `test_pilot2_mock_run.py`.
 
 ---
 
@@ -247,10 +248,32 @@ at $0, asserting the teardown fired.
 **Acceptance test.** Mock run completes with the manifest and all predictions restored client-side,
 and the mock confirms the teardown was called.
 
-**Status.** TODO — blocked on PR-2, since the payload must carry predictions before the mock can
-verify they come back.
+**Status.** **DONE.** A full run of the runner's own path — create → onstart → poll → artifact
+return → destroy — now passes against the mock in ~3.5 s at $0, and three properties are asserted
+because each has failed before:
 
-**Evidence.** —
+1. **The run completes AND tears down.** The mock *records* `destroy instance -y` rather than just
+   printing it; a mock that only prints cannot prove the trap fired.
+2. **Artifacts come back and verify** — the real `verify_artifacts.py` confirms every arm's
+   predictions against the hash its `meta.json` recorded (`verified=3 mismatched=0 missing=0`).
+3. **The mock cannot drift from reality.** Its `logs` branch now calls the **real**
+   `emit_artifacts.sh` instead of emitting a private format. The previous mock invented
+   `__ARTIFACTS_B64_BEGIN__`/`END__` markers the verifier does not look for — so it validated a
+   wire format that no longer existed, which is exactly how a transport that cannot work gets
+   signed off. That drift is now structurally impossible.
+
+**A third real bug this found:** `manifest_<run_id>.json` was **not in the payload**, so the audit
+record PR-1 exists to produce was written on the box and never returned. Fixed by including
+top-level run-level JSON alongside the per-run `meta.json`.
+
+Also added: `VAST_OUTDIR`, so a mock/dry run can be isolated instead of writing into the working
+tree — the runner previously hardcoded `$REPO_DIR/outputs/gpu-pilot` in five places.
+
+**Evidence.** `tests/test_pilot2_mock_run.py` — 4 tests: the full path (create recorded, teardown
+recorded, artifacts verified, manifest returned); that the verification result is surfaced rather
+than restored silently; the interlock that refuses to run when a *different* `vastai` resolves
+(this misfire once created three real billing instances); and that the mock still models the real
+`execute` constraint (only `ls`/`rm`/`du`).
 
 ---
 
@@ -305,3 +328,4 @@ machine's cold cache.
 | 2026-09-12 | Runner rewritten to Pilot 2 schema v2: manifest, fingerprints, matched-context assertion, LODO assertion, epoch ladder, model hashing, log loss + ECE. PR-4/5/6/7 DONE; PR-1/3 IN PROGRESS; PR-2/8 TODO. 20 new acceptance tests, suite at 68 passed / 1 pre-existing failure. | — |
 | 2026-09-12 | PR-9 added and implemented: `scripts/gpu_helpers/fetch_weights.py` + bootstrap step 3a, with the licence preflight at 3b now skipped when the weights are already cached. 5 more tests (25 total in this file; full suite 73 passed / 1 pre-existing failure). `bash -n` and `shellcheck -S error` clean. | — |
 | 2026-09-12 | PR-2 done: `emit_artifacts.sh` + `verify_artifacts.py`, wired into the bootstrap, log window 5000 → 20000. Payload now carries every arm's predictions and is hash-verified on return. **Found and fixed two pre-existing bugs**: `meta.json` was never returned (glob one level too shallow), and BSD `grep -c` produced a two-line file count. 17 new tests incl. a real emit→verify round trip; full suite 90 passed / 1 pre-existing failure. | — |
+| 2026-09-12 | PR-8 done: mock run of the full runner path passes in ~3.5s at $0, asserting create, teardown, artifact verification and manifest return. Mock now delegates to the real emitter so it cannot validate a wire format that no longer exists. **Found and fixed a third bug**: `manifest_<run_id>.json` was not in the payload. Added `VAST_OUTDIR` for isolation. 4 new tests; full suite 94 passed / 1 pre-existing failure. | — |
