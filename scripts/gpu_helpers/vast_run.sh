@@ -295,6 +295,13 @@ echo "instance id: $INSTANCE_ID  (billing starts now)"
 # ---- 6. Wait for running ----
 echo "=== 6/7 waiting for the instance ==="
 HOST=""; PORT=""
+# 'unknown' is NORMAL for the first ~minute after create: the API returns it
+# while the instance is still being provisioned, and an empty poll just means the
+# record is not readable yet. Treating those as terminal destroyed healthy
+# instances on the first poll. Only 'exited' is definitively terminal; the others
+# must persist past a grace period with no provisioning state to count as dead.
+GRACE_SECS="${GRACE_SECS:-90}"
+SAW_PROVISIONING=0
 for i in $(seq 1 60); do
     INFO="$(vastai show instance "$INSTANCE_ID" --raw 2>/dev/null)"
     # `show instance` is the only source of these facts that works for BOTH the
@@ -324,15 +331,25 @@ print('|'.join([g('actual_status') or 'unknown', g('ssh_host'), g('ssh_port'),
         T_RUNNING="$(date -u +%s)"
         break
     fi
-    # Terminal states never become 'running'. Bail out instead of looping:
-    # disk/storage charges accrue for every second the instance exists, so a
-    # blind retry loop burns money for nothing. (Vast's own skill documentation
-    # calls this out; it is an easy mistake.)
+    # Terminal states never become 'running' -- but only 'exited' is definitively
+    # terminal. 'unknown'/'offline'/empty are normal during provisioning, so they
+    # must persist past GRACE_SECS with no provisioning state to count as dead.
     case "$STATUS" in
-        exited|offline|unknown|error|"")
-            echo "FATAL: instance reached terminal state '$STATUS' -- will never run." >&2
+        exited)
+            echo "FATAL: container 'exited' -- it will never become running." >&2
             echo "       Destroying and aborting; retry with a different offer." >&2
             exit 2
+            ;;
+        loading|created|starting|pulling|provisioning)
+            SAW_PROVISIONING=1
+            ;;
+        unknown|offline|"")
+            AGE=$(( $(date -u +%s) - T_CREATE ))
+            if [ "$AGE" -ge "$GRACE_SECS" ] && [ "$SAW_PROVISIONING" -eq 0 ]; then
+                echo "FATAL: instance stayed '$STATUS' for ${AGE}s with no provisioning state." >&2
+                echo "       Destroying and aborting; retry with a different offer." >&2
+                exit 2
+            fi
             ;;
     esac
     sleep 10
