@@ -32,7 +32,11 @@
 
 set -uo pipefail
 
-export PATH="$HOME/.local/share/uv/tools/vastai/bin:$PATH"
+# Only add the uv-tool location if vastai is not already resolvable. Prepending
+# unconditionally shadows any test double, which meant a mocked test run
+# invoked the REAL CLI and created real, billing instances.
+command -v vastai >/dev/null 2>&1 || \
+    export PATH="$HOME/.local/share/uv/tools/vastai/bin:$PATH"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 DEFAULT_QUERY='num_gpus=1 gpu_ram>=23 cpu_ram>=32 disk_space>=60 reliability>=0.98 inet_down>200 dph<0.80'
@@ -152,9 +156,17 @@ cleanup() {
             echo; echo "--- --keep: NOT destroying $INSTANCE_ID ---"
             echo "    destroy manually: vastai destroy instance $INSTANCE_ID"
         else
-            echo; echo "--- destroying instance $INSTANCE_ID ---"
-            vastai destroy instance "$INSTANCE_ID" || \
-                echo "WARNING: destroy failed -- check 'vastai show instances'" >&2
+            echo
+            echo "--- destroying instance $INSTANCE_ID ---"
+            # -y is REQUIRED. Without it the CLI asks for confirmation, which in
+            # a non-interactive script reads EOF, aborts, and leaves the
+            # instance running and billing -- the exact failure this trap is
+            # supposed to prevent. Verified: 'vastai destroy instance' has a
+            # '-y, --yes  Skip confirmation prompt' flag.
+            if ! vastai destroy instance "$INSTANCE_ID" -y; then
+                echo "WARNING: DESTROY FAILED -- $INSTANCE_ID is STILL BILLING." >&2
+                echo "         run: vastai destroy instance $INSTANCE_ID -y" >&2
+            fi
         fi
     fi
 }
@@ -168,48 +180,37 @@ if ! vastai show user >/dev/null 2>&1; then
 fi
 echo "session OK"
 
+# Preflight: surface any instance left over from a previous run. A leaked
+# instance bills continuously, so it is worth one extra API call to catch here.
+LEAKS="$(vastai show instances --raw 2>/dev/null | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    raise SystemExit
+insts = d if isinstance(d, list) else d.get('instances', [])
+for i in insts:
+    if (i.get('label') or '') == 'tabpfn-pilot':
+        print('  id=%s status=%s gpu=%s dph=%s' % (i.get('id'), i.get('actual_status'),
+                                                  i.get('gpu_name'), i.get('dph_total')))
+" 2>/dev/null)"
+if [ -n "$LEAKS" ]; then
+    echo "WARNING: 'tabpfn-pilot' instances from an earlier run still exist and are BILLING:" >&2
+    echo "$LEAKS" >&2
+    echo "         destroy with:  vastai destroy instance <id> -y" >&2
+    printf 'Continue anyway? [y/N] '
+    read -r _leak_reply
+    case "$_leak_reply" in [yY]*) ;; *) echo "aborted"; exit 2 ;; esac
+fi
+
 # ---- 2. Select an offer (restricted to usable architectures) ----
 echo "=== 2/7 selecting offer (pick=$PICK ceiling=\$$MAX_DPH/hr min-vram=${MIN_VRAM}GB) ==="
 
 if [ -z "$OFFER_ID" ]; then
     vastai search offers "$QUERY" -o dph --raw 2>/dev/null > /tmp/vast_candidates.json
-    read -r OFFER_ID GPU_NAME DPH CUDA DLPERF CPU_RAM GPU_RAM DISK_SP REL < <(
-        python3 - "$PICK" "$MAX_DPH" "$GPU_ALLOW" "$MIN_VRAM" <<'PY'
-import json, sys
-pick, max_dph = sys.argv[1], float(sys.argv[2])
-allow = set(a.strip() for a in sys.argv[3].split(','))
-min_vram = float(sys.argv[4])
-try:
-    d = json.load(open('/tmp/vast_candidates.json'))
-except Exception:
-    print(""); raise SystemExit
-o = d if isinstance(d, list) else d.get('offers', [])
-bad = {'Tesla V100','Tesla P40','Tesla P100','Tesla T4','Q RTX 8000','Q RTX 6000','RTX 2080 Ti'}
-o = [x for x in o
-     if x.get('gpu_name') in allow
-     and x.get('gpu_name') not in bad
-     and (x.get('dph_total') or 9e9) <= max_dph
-     and (x.get('cuda_max_good') or 0) >= 12.0
-     and (x.get('gpu_ram') or 0) / 1000.0 >= min_vram]
-if not o:
-    print(""); raise SystemExit
-if pick == 'cheapest':
-    o.sort(key=lambda x: (x.get('dph_total') or 9e9, -(x.get('reliability') or 0)))
-elif pick == 'fastest':
-    o.sort(key=lambda x: (-(x.get('dlperf') or 0), -(x.get('reliability') or 0)))
-else:
-    # Value first, reliability as tiebreak: two offers at the same dlperf/$
-    # should not be separated by API return order, or a 0.978 host can be
-    # picked over a 0.998 one at the same price.
-    o.sort(key=lambda x: (-((x.get('dlperf') or 0) / (x.get('dph_total') or 1)),
-                          -(x.get('reliability') or 0)))
-x = o[0]
-print(x.get('id'), x.get('gpu_name','?').replace(' ', '_'), f"{x.get('dph_total',0):.4f}",
-      x.get('cuda_max_good') or 0, f"{x.get('dlperf') or 0:.1f}",
-      int((x.get('cpu_ram') or 0)/1000), f"{(x.get('gpu_ram') or 0)/1000:.1f}",
-      int(x.get('disk_space') or 0), f"{x.get('reliability',0):.4f}")
-PY
-    )
+    SELECTOR_OUT="$(python3 "$REPO_DIR/scripts/gpu_helpers/select_offer.py" \
+        "$PICK" "$MAX_DPH" "$GPU_ALLOW" "$MIN_VRAM" /tmp/vast_candidates.json)"
+    read -r OFFER_ID GPU_NAME DPH CUDA DLPERF CPU_RAM GPU_RAM DISK_SP REL <<< "$SELECTOR_OUT"
     if [ -z "$OFFER_ID" ]; then
         echo "FATAL: no usable offer within \$$MAX_DPH/hr. Widen with --max-dph / --gpu-allow." >&2
         exit 2
@@ -222,20 +223,9 @@ fi
 
 # ---- 3. Image matched to host CUDA ----
 if [ -z "$IMAGE" ]; then
-    # Every tier must carry torch >= 2.5: tabpfn 8.5.0 requires torch>=2.5, so
-    # a 2.4.0 image would let pip upgrade torch to a CUDA 12.4 wheel on a host
-    # that only supports 12.2 -- a mid-run CUDA failure on a paid instance.
-    # Verified tag matrix: 2.5.1 -> {cuda12.1, cuda12.4}, 2.6.0 -> cuda12.6,
-    # 2.7.0 -> cuda12.8.
-    IMAGE="$(python3 - "${CUDA:-12.4}" <<'PY'
-import sys
-c = float(sys.argv[1])
-if   c >= 12.8: print("pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime")
-elif c >= 12.6: print("pytorch/pytorch:2.6.0-cuda12.6-cudnn9-runtime")
-elif c >= 12.4: print("pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime")
-else:           print("pytorch/pytorch:2.5.1-cuda12.1-cudnn9-runtime")
-PY
-)"
+    # Image selection logic and the tag matrix live in pick_image.py -- see that
+    # file for the two constraints (CUDA <= host ceiling, torch >= 2.5).
+    IMAGE="$(python3 "$REPO_DIR/scripts/gpu_helpers/pick_image.py" "${CUDA:-12.4}")"
 fi
 echo "=== 3/7 image: $IMAGE (host cuda<=${CUDA:-?}) ==="
 
