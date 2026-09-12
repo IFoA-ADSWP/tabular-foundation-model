@@ -64,6 +64,19 @@ IMAGE=""
 TRANSPORT="onstart"
 KEEP=0
 ASSUME_YES=0
+# Bounded retry across hosts. Provisioning failures are HOST-specific (one came up
+# with intended_status=stopped; another's image pull never advanced), and the offer
+# ranking is stable -- so without an exclusion list a retry lands on the same broken
+# host and pays to rediscover it. A failed attempt costs roughly $0.01-0.08 in
+# storage and provisioning, which is worth spending to rescue a session, but not
+# without a hard bound. MAX_ATTEMPTS counts TOTAL attempts: 2 means one retry.
+MAX_ATTEMPTS="${MAX_ATTEMPTS:-2}"
+ATTEMPT="${ATTEMPT:-1}"
+EXCLUDE_MACHINES="${EXCLUDE_MACHINES:-}"
+SELF="$0"
+# Captured BEFORE the parse loop shifts "$@", so a retry can re-exec with the
+# user's original arguments rather than the leftovers.
+ORIG_ARGS=("$@")
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -77,6 +90,7 @@ while [ $# -gt 0 ]; do
         --arms)      ARMS="$2"; shift 2 ;;
         --image)     IMAGE="$2"; shift 2 ;;
         --transport) TRANSPORT="$2"; shift 2 ;;
+        --max-attempts) MAX_ATTEMPTS="$2"; shift 2 ;;
         --keep)      KEEP=1; shift ;;
         --yes)       ASSUME_YES=1; shift ;;
         -h|--help)   sed -n '2,30p' "$0"; exit 0 ;;
@@ -138,6 +152,12 @@ INSTANCE_ID=""
 T_CREATE=""; T_RUNNING=""; T_END=""
 GPU_NAME=""; DPH=""; GPU_RAM=""; CPU_RAM="${CPU_RAM:-}"; REL=""; CUDA=""
 BOOTSTRAP_RC=""
+# Recorded so a host that successfully pulls this image can be reused: a warm
+# image cache is what separates the pulls that completed from the ones that stalled.
+MACHINE_ID=""; HOST_ID=""
+# record_run is called from the EXIT trap AND from the retry path, and a re-exec
+# would otherwise append a duplicate ledger row for the same instance.
+RECORDED=0
 
 # Record what a run actually cost, so the cost model in the runbook can be
 # replaced with measurements instead of assumptions. Writes one JSON per run
@@ -145,6 +165,10 @@ BOOTSTRAP_RC=""
 record_run() {
     [ -z "$INSTANCE_ID" ] && return 0
     [ -z "$T_CREATE" ] && return 0
+    # Idempotent: the EXIT trap and the retry path can both reach here, and a
+    # re-exec must not append a second ledger row for the same instance.
+    [ "$RECORDED" -eq 1 ] && return 0
+    RECORDED=1
 
     local end="${T_END:-$(date -u +%s)}"
     local wall_s=$(( end - T_CREATE ))
@@ -171,6 +195,9 @@ rec = {
     "image": "$IMAGE",
     "transport": "$TRANSPORT",
     "arms": "$ARMS",
+    "machine_id": "$MACHINE_ID",
+    "host_id": "$HOST_ID",
+    "attempt": "$ATTEMPT",
     "disk_requested_gb": "$DISK",
     "t_create": "$T_CREATE",
     "t_running": "$T_RUNNING",
@@ -227,6 +254,31 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Provisioning failed in a way that will not fix itself: destroy the instance so it
+# stops accruing storage, record the cost, and -- if attempts remain -- re-exec the
+# whole run with this host excluded so the retry lands somewhere new.
+#
+# Re-exec rather than an in-process loop: the provisioning path is long and mostly
+# inline, and a fresh process guarantees no stale state (INSTANCE_ID, T_CREATE, the
+# captured image) leaks into the next attempt. exec skips the EXIT trap, so the
+# destroy and record above must be complete first -- hence their idempotence guards.
+retry_or_die() {
+    echo "$*" >&2
+    record_run
+    if [ -n "$INSTANCE_ID" ]; then
+        vastai destroy instance "$INSTANCE_ID" -y >/dev/null 2>&1 || true
+        INSTANCE_ID=""      # so the EXIT trap does not retry if exec fails
+    fi
+    if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ] && [ -n "$MACHINE_ID" ]; then
+        echo "--- attempt $ATTEMPT/$MAX_ATTEMPTS failed on machine $MACHINE_ID; retrying ---" >&2
+        export ATTEMPT=$(( ATTEMPT + 1 ))
+        export EXCLUDE_MACHINES="$EXCLUDE_MACHINES $MACHINE_ID"
+        exec bash "$SELF" "${ORIG_ARGS[@]}"
+    fi
+    echo "FATAL: provisioning failed after $ATTEMPT attempt(s); not retrying." >&2
+    exit 2
+}
+
 # ---- 1. Auth ----
 echo "=== 1/7 auth ==="
 if ! vastai show user >/dev/null 2>&1; then
@@ -263,8 +315,12 @@ echo "=== 2/7 selecting offer (pick=$PICK ceiling=\$$MAX_DPH/hr min-vram=${MIN_V
 
 if [ -z "$OFFER_ID" ]; then
     vastai search offers "$QUERY" -o dph --raw 2>/dev/null > /tmp/vast_candidates.json
+    # The 6th argument is the machine_id skip-list. On a retry that is the host
+    # that just failed; without it the (stable) ranking re-picks it and we pay to
+    # rediscover the same bad pull.
     SELECTOR_OUT="$(python3 "$REPO_DIR/scripts/gpu_helpers/select_offer.py" \
-        "$PICK" "$MAX_DPH" "$GPU_ALLOW" "$MIN_VRAM" /tmp/vast_candidates.json)"
+        "$PICK" "$MAX_DPH" "$GPU_ALLOW" "$MIN_VRAM" /tmp/vast_candidates.json \
+        "$(printf '%s' "$EXCLUDE_MACHINES" | tr ' ' ',')")"
     read -r OFFER_ID GPU_NAME DPH CUDA DLPERF CPU_RAM GPU_RAM DISK_SP REL <<< "$SELECTOR_OUT"
     if [ -z "$OFFER_ID" ]; then
         echo "FATAL: no usable offer within \$$MAX_DPH/hr. Widen with --max-dph / --gpu-allow." >&2
@@ -371,10 +427,10 @@ for i in $(seq 1 60); do
     INFO="$(vastai show instance "$INSTANCE_ID" --raw 2>/dev/null)"
     # `show instance` is the only source of these facts that works for BOTH the
     # selected-offer and caller-supplied --offer-id paths.
-    IFS='|' read -r STATUS HOST PORT _GN _DP _GR _CR _RL _CU _IS < <(printf '%s' "$INFO" | python3 -c "
+    IFS='|' read -r STATUS HOST PORT _GN _DP _GR _CR _RL _CU _IS _MI _HI < <(printf '%s' "$INFO" | python3 -c "
 import json,sys
 try: d=json.load(sys.stdin)
-except Exception: print('unknown' + '|' * 9); raise SystemExit
+except Exception: print('unknown' + '|' * 11); raise SystemExit
 def g(*ks):
     for k in ks:
         v=d.get(k)
@@ -384,8 +440,10 @@ print('|'.join([g('actual_status') or 'unknown', g('ssh_host'), g('ssh_port'),
                 g('gpu_name','gpu_names').replace(' ','_'),
                 g('dph_total'), g('gpu_ram'), g('cpu_ram'),
                 g('reliability'), g('cuda_max_good'),
-                g('intended_status')]))
+                g('intended_status'), g('machine_id'), g('host_id')]))
 ")
+    [ -n "$_MI" ] && MACHINE_ID="$_MI"
+    [ -n "$_HI" ] && HOST_ID="$_HI"
     [ -n "$_GN" ] && GPU_NAME="$_GN"
     [ -n "$_DP" ] && DPH="$_DP"
     [ -n "$_GR" ] && GPU_RAM="$(python3 -c "print(f'{float(\"$_GR\")/1000:.1f}')" 2>/dev/null || echo "$_GR")"
@@ -403,10 +461,7 @@ print('|'.join([g('actual_status') or 'unknown', g('ssh_host'), g('ssh_port'),
     if [ "$_IS" = "stopped" ]; then
         STOPPED_STREAK=$(( STOPPED_STREAK + 1 ))
         if [ "$STOPPED_STREAK" -ge 3 ]; then
-            echo "FATAL: intended_status=stopped -- Vast will never start this container." >&2
-            echo "       It cannot reach 'running', so this is NOT a slow image pull." >&2
-            echo "       Aborting now rather than paying out the ceiling; retrying." >&2
-            exit 2
+            retry_or_die "FATAL: intended_status=stopped -- Vast will never start this container (this is NOT a slow image pull)."
         fi
     else
         STOPPED_STREAK=0
@@ -420,9 +475,7 @@ print('|'.join([g('actual_status') or 'unknown', g('ssh_host'), g('ssh_port'),
     # must persist past GRACE_SECS with no provisioning state to count as dead.
     case "$STATUS" in
         exited)
-            echo "FATAL: container 'exited' -- it will never become running." >&2
-            echo "       Destroying and aborting; retry with a different offer." >&2
-            exit 2
+            retry_or_die "FATAL: container 'exited' -- it will never become running."
             ;;
         loading|created|starting|pulling|provisioning)
             SAW_PROVISIONING=1
@@ -430,15 +483,13 @@ print('|'.join([g('actual_status') or 'unknown', g('ssh_host'), g('ssh_port'),
         unknown|offline|"")
             AGE=$(( $(date -u +%s) - T_CREATE ))
             if [ "$AGE" -ge "$GRACE_SECS" ] && [ "$SAW_PROVISIONING" -eq 0 ]; then
-                echo "FATAL: instance stayed '$STATUS' for ${AGE}s with no provisioning state." >&2
-                echo "       Destroying and aborting; retry with a different offer." >&2
-                exit 2
+                retry_or_die "FATAL: instance stayed '$STATUS' for ${AGE}s with no provisioning state."
             fi
             ;;
     esac
     sleep 10
 done
-[ "$STATUS" = "running" ] || { echo "FATAL: instance never reached 'running'." >&2; exit 2; }
+[ "$STATUS" = "running" ] || retry_or_die "FATAL: instance never reached 'running' (the image pull did not advance within the ceiling)."
 
 # ---- 7. Run the pilot ----
 echo "=== 7/7 running pilot ==="
