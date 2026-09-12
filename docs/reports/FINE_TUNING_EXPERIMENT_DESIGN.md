@@ -565,32 +565,126 @@ errors = np.abs(y_true - y_prob)
 - Push to Git: `git add outputs/finetune/pilot/ && git commit`
 - Large files (*.npy, *.tabpfn_fit): store in `outputs/` (gitignored), backed up to S3 if needed
 
-### Pilot Report Template
+### Pilot Results (R1) — as executed
 
-After R1 completes, fill in:
+> Filled in 2026-09-12 from `outputs/gpu-pilot/pilot_metrics.parquet` (16 arm-runs).
+> Full analysis, statistical limits and evidence gaps: `FINE_TUNING_PILOT_RESULTS.md` §3 and §5d.
+> Scope boundary (what R1 did *not* exercise): `SMOKE_TEST_SCOPE.md`.
 
-```
-## Pilot Results (R1)
+**Provenance, because the arms did not all come from one run.** A_raw and B_in_domain were
+produced on the **L40S GPU instance** (20:16-20:19, python 3.11.12 / torch 2.7.0+cu128 /
+scikit-learn 1.9.1). E_glm and F_catboost were produced **locally on CPU** earlier the same day
+(09:20, python 3.13.15 / torch 2.11.0+cpu / scikit-learn 1.6.1). The split is deterministic
+(seed 42), so the test rows are identical across arms and the comparison holds — but the
+baselines and the TabPFN arms ran in different environments, and CPU-vs-GPU timings are not
+comparable.
 
-### Dataset: coil2000 (9,822 rows, CARAVAN)
+Reported `config` in the metrics file is the same `PILOT_CONFIG` for every arm, including
+`context_samples: 64`, which **neither arm uses**. Treat the config column as nominal; the
+effective per-arm settings are in `FINE_TUNING_PILOT_RESULTS.md` §5d.4.
+
+#### coil2000 (9,822 rows, CARAVAN, 5.97% positive)
+
 | Arm | ROC AUC | PR AUC | Brier | Time (s) |
 |-----|---------|--------|-------|----------|
-| A (raw) | ? | ? | ? | ? |
-| B (in-domain) | ? | ? | ? | ? |
-| E (GLM) | ? | ? | ? | ? |
-| F (CatBoost) | ? | ? | ? | ? |
+| A (raw) | 0.767530 | 0.187545 | 0.050767 | 15.93 |
+| B (in-domain) | 0.768962 | 0.193316 | 0.050912 | 35.68 |
+| E (GLM) | 0.683029 | 0.130695 | 0.055922 | 0.03 |
+| F (CatBoost) | 0.699271 | 0.175306 | 0.051626 | 3.17 |
 
-Delta (B - A): ? (positive = fine-tuning helps)
-Delta (B - E): ? (positive = beats GLM)
+Delta (B − A): ROC **+0.001432** · PR +0.005771 · Brier +0.000145 (worse)
+Delta (B − E): ROC **+0.085933**
 
-### Dataset: eudirectlapse (23,060 rows, lapse)
-...
+#### uslapseagent (29,317 rows, surrender, 37.9% positive)
 
-### Conclusions
-- Does fine-tuning help on classification? [Yes/No/Depends]
-- Does it help EU Lapse? [Yes/No]
-- Recommendation for R2: [proceed / pivot / stop]
-```
+| Arm | ROC AUC | PR AUC | Brier | Time (s) |
+|-----|---------|--------|-------|----------|
+| A (raw) | 0.936312 | 0.834384 | 0.087321 | 6.31 |
+| B (in-domain) | 0.935505 | 0.837523 | 0.086968 | 26.59 |
+| E (GLM) | 0.927057 | 0.817249 | 0.091007 | 0.01 |
+| F (CatBoost) | 0.929690 | 0.829297 | 0.093386 | 0.54 |
+
+Delta (B − A): ROC **−0.000807** · PR +0.003139 · Brier −0.000353 (better)
+Delta (B − E): ROC **+0.008448**
+
+#### eudirectlapse (23,060 rows, lapse, 12.81% positive) — the design's known exception
+
+| Arm | ROC AUC | PR AUC | Brier | Time (s) |
+|-----|---------|--------|-------|----------|
+| A (raw) | 0.588090 | 0.194347 | 0.113679 | 12.34 |
+| B (in-domain) | 0.597603 | 0.198178 | 0.113328 | 36.36 |
+| E (GLM) | 0.574352 | 0.160071 | 0.116278 | 0.02 |
+| F (CatBoost) | 0.573768 | 0.183049 | 0.115089 | 0.59 |
+
+Delta (B − A): ROC **+0.009513** · PR +0.003831 · Brier −0.000351 (better)
+Delta (B − E): ROC **+0.023251**
+
+#### spanish_motor_lapse (53,502 rows, LapseB, 35.4% positive)
+
+| Arm | ROC AUC | PR AUC | Brier | Time (s) |
+|-----|---------|--------|-------|----------|
+| A (raw) | 0.723295 | 0.570771 | 0.197776 | 6.49 |
+| B (in-domain) | 0.727187 | 0.579063 | 0.196739 | 18.30 |
+| E (GLM) | 0.616563 | 0.446904 | 0.222162 | 0.01 |
+| F (CatBoost) | 0.711423 | 0.541185 | 0.201455 | 0.73 |
+
+Delta (B − A): ROC **+0.003892** · PR +0.008292 · Brier −0.001037 (better)
+Delta (B − E): ROC **+0.110624**
+
+#### Summary across datasets
+
+| Dataset | ΔROC (B−A) | ΔPR (B−A) | ΔBrier (B−A) | ΔROC (B−E) | B beats F? | Cost of B vs A |
+|---|---|---|---|---|---|---|
+| coil2000 | +0.001432 | +0.005771 | +0.000145 | +0.085933 | yes | 2.2x |
+| uslapseagent | −0.000807 | +0.003139 | −0.000353 | +0.008448 | yes | 4.2x |
+| eudirectlapse | +0.009513 | +0.003831 | −0.000351 | +0.023251 | yes | 2.9x |
+| spanish_motor_lapse | +0.003892 | +0.008292 | −0.001037 | +0.110624 | yes | 2.8x |
+
+**Observations:**
+
+1. **ROC is mixed and tiny** — 3 datasets up, 1 down, |ΔROC| ≤ 0.0096. Against the test-set
+   resolution computed in `FINE_TUNING_PILOT_RESULTS.md` §5d.6 (95% CI widths 0.031-0.118),
+   **no delta is distinguishable from zero.**
+2. **PR AUC improves for B on all four datasets** (+0.0031 to +0.0083), and Brier improves on
+   3 of 4. This is the only consistent directional pattern in the data. It is still inside the
+   noise floor, so it is recorded as an observation, **not a finding** — but it is the one
+   signal a better-powered run should be designed to test.
+3. **B beats E (GLM) on all four, and F (CatBoost) on all four.** So the fine-tuned model
+   clears both actuarial baselines — but so does the raw model, which is the point of §4 below.
+4. **Fine-tuning costs ~2-4x the compute** of raw inference (41.1 s → 116.9 s across the four
+   datasets) for a change indistinguishable from noise.
+
+#### Conclusions
+
+- **Does fine-tuning help on classification?** **Not measurably.** Three datasets up, one down,
+  every ROC delta ≤ 0.0096 — inside the sampling error of the test sets. The pilot can rule out
+  a *large* effect; it cannot demonstrate a small one, and at 2,000 training rows with 3 passes
+  it was not powered to.
+- **Does it help EU Lapse (eudirectlapse, the known exception)?** Directionally yes, and it is
+  the largest ROC gain (+0.0095) — but the CI width on that dataset is 0.108, so **not
+  established**. This is the hypothesis most worth re-testing with more power, because it is the
+  one case where TabPFN currently loses to GLM.
+- **Recommendation for R2:** **do not proceed as designed — pivot.** Reasoning:
+  1. The gate's *first* criterion (**B > A**) shows no signal in R1, so it fails.
+  2. The gate's *second* criterion (**B > E**) passes on all four datasets — **but so does arm A
+     (raw TabPFN beats GLM on all four).** A criterion satisfied by the baseline arm cannot
+     discriminate the fine-tuning hypothesis. **The gate needs tightening before it is used to
+     authorise spend** — see below.
+  3. R1's test sets are too small to resolve the effect size observed, so R2 at 5,000/2,000 would
+     still be underpowered for a ≤0.01 effect.
+
+  **Better use of the next spend:** run the arms that answer the design's own research question
+  (does fine-tuning help on *unseen* insurance tasks) — **C/D, the transfer arms — which have
+  never been run**, at R1 scale. That is cheap, currently untested, and speaks to deployment in a
+  way no in-domain rerun can.
+
+#### Gate defect to fix before R2/R3
+
+The `R3 Gate` above admits if `B > A` **or** `B > E`. Since raw TabPFN already beats the GLM on
+all four datasets, the second condition is satisfied without any fine-tuning at all. A gate that
+admits on a condition the baseline arm also satisfies does not test the hypothesis it was written
+for. Recommended replacement: admit only on a **B vs A** criterion, with the threshold set from a
+power calculation on the observed test-set variance, and require it on a majority of datasets.
 
 ---
 
