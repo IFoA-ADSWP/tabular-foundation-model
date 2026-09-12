@@ -1,7 +1,22 @@
 # Experiment Design: Insurance-Specialized TabPFN Fine-Tuning (v6)
 
-> Date: 2026-09-11 | Status: draft | Related: #22, #129, #156, #159
+> Date: 2026-09-11 | Status: **R1 complete — smoke test only; R2, R3 and Q4/Q5 not run** | Related: #22, #129, #156, #159
 > Builds on: PRE_FINETUNING_INVESTIGATIONS.md, master report (v3, canonical folds)
+>
+> **Reconciled 2026-09-12.** R1 has now run. Read the outcome alongside this design:
+> - **`SMOKE_TEST_SCOPE.md`** — what R1 proved and, more importantly, what it never exercised
+>   (notably **arms C/D, so the transfer question in the Research Question below is still
+>   untested**). Also records where R1 deviated from this design.
+> - **`FINE_TUNING_PILOT_RESULTS.md`** — the R1 numbers (§5c) and their statistical limits (§5d).
+>
+> The `R3 Gate` in this document is the pre-specified decision rule for advancing rungs. R1
+> evidence (arm B ≈ arm A, both inside the noise floor) points to its "otherwise stop" branch,
+> but the gate is specified on R2 and **R2 has not been run** — so it has never been formally
+> evaluated. Do not cite R1 as a gate decision.
+>
+> Deviations of R1 from this design: split was a fixed 2,000/1,000 cap rather than 70/30; the
+> 15% validation split was not implemented; `context_samples` was recorded but used by neither
+> arm; arms C/D were not run; R1 cost $0.34 on Vast rather than $0 on Colab T4 (T4 was 503).
 
 ---
 

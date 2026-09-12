@@ -389,8 +389,11 @@ dataset".
 *What would make it statistically defensible:* multiple seeds or folds so the delta has a
 distribution rather than a point; a **paired** test on the shared test rows (the pilot
 already has the necessary structure, but see the evidence gap in §5d.9); a cross-dataset
-transfer arm; ideally an out-of-time or external holdout; and a decision rule fixed in
-advance stating what effect size would count as a win given the noise floor in §5d.6.
+transfer arm; ideally an out-of-time or external holdout; and the pre-specified decision rule
+actually applied. **That rule already exists** — the R3 gate in `FINE_TUNING_EXPERIMENT_DESIGN.md`
+("proceed if arm B beats A or E in R2; otherwise stop and report"). It has never been evaluated
+against a result, because it is specified on R2 and R2 has never run. The gap is application and
+recording, not design.
 
 ### 5d.6 What the test sets can actually resolve
 
@@ -487,8 +490,12 @@ for any delta: all four are single-split point estimates.
 4. A **cross-dataset transfer arm** — fine-tune on source datasets, evaluate on a held-out
    target — if the deployment question is the one being asked.
 5. Stratify the row subsample, or drop the cap where the data volume allows.
-6. Pre-register the decision rule: what delta, at what confidence, counts as a win.
+6. **Apply and record the existing decision rule** (the design's R3 gate) against the result,
+   rather than treating the rung as complete because the arms ran.
 7. Add a calibration metric to the fine-tuned arm.
+
+> **Scope boundary:** for a full statement of what this pilot proved and never exercised —
+> including which arms and rungs remain unrun — see `SMOKE_TEST_SCOPE.md`.
 
 ## 6. Provenance gaps and deviations
 
