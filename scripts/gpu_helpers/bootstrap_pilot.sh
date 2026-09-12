@@ -93,4 +93,26 @@ python3 scripts/run_pilot.py --aggregate
 echo
 echo "########## ARTIFACTS ##########"
 ls -lR outputs/finetune/pilot 2>/dev/null | head -40
+
+# ---- 6. Emit results through the LOG STREAM ----
+# This is the only return channel that always works:
+#   * `vastai execute` is NOT a shell -- it runs only ls/rm/du, so it can neither
+#     run a script nor read a file (a 400 "Invalid command given" otherwise).
+#   * SSH needs a registered key, and a TEAM-context account refuses to create one.
+#   * `vastai copy` wants --identity, i.e. a key again.
+# So the container log is it. Keep the payload to the small essentials (metrics
+# plus each run's meta.json) -- tens of KB, not the full 252 KB output tree.
+cd outputs/finetune/pilot 2>/dev/null || { echo "__ARTIFACTS_B64_BEGIN__"; echo "__ARTIFACTS_B64_END__"; exit 0; }
+PAYLOAD="pilot_metrics.parquet"
+for f in */meta.json; do [ -f "$f" ] && PAYLOAD="$PAYLOAD $f"; done
+# Predictions are useful but sizeable; include only if modest.
+if [ -f pilot_predictions.parquet ] && [ "$(wc -c < pilot_predictions.parquet)" -lt 300000 ]; then
+    PAYLOAD="$PAYLOAD pilot_predictions.parquet"
+fi
+echo
+echo "__ARTIFACTS_B64_BEGIN__"
+tar czf - $PAYLOAD 2>/dev/null | base64 -w0 2>/dev/null
+echo
+echo "__ARTIFACTS_B64_END__"
+echo
 echo "BOOTSTRAP FINISHED"
