@@ -1,6 +1,6 @@
 # Fine-Tuning Pilot — Pre-Fine-Tuning Baseline Results
 
-> **Status:** partial. Arms A/E/F complete on all four datasets. **Arm B (fine-tuning) is not yet measured** — it cannot fit the CPU runtime (see §5). The research question in `PRE_FINETUNING_INVESTIGATIONS.md` is therefore not yet answered; this report establishes the baseline that arm B must beat.
+> **Status:** complete. All four arms — `A_raw`, `B_in_domain`, `E_glm`, `F_catboost` — are measured on all four datasets. **Arm B ran successfully for the first time on 2026-09-12** (NVIDIA L40S; see §5b–5c) after its long-standing "does not fit" diagnosis was shown to be wrong. The research question in `PRE_FINETUNING_INVESTIGATIONS.md` is answered: **in-domain fine-tuning does not reliably beat raw TabPFN** (deltas ≤0.010, one negative), while raw TabPFN's advantage over the actuarial baselines is much larger (+0.007 to +0.068). Single seed, single split — see §6.
 
 ## Version stamp
 
@@ -188,8 +188,53 @@ maps to the trainer's `epochs`, `n_estimators` to `n_estimators_finetune`, and
 `n_finetune_ctx_plus_query_samples`, default 50000). `tqdm`, which the finetuning
 package imports, is a declared tabpfn dependency and so is already installed.
 
-**Arm B remains unmeasured** — the fix is in the code but has not yet run on a GPU.
-Until it does, the B-vs-A delta has no value.
+**Result (2026-09-12 20:16-20:19 UTC, NVIDIA L40S):** the fix worked and arm B
+completed on all four datasets — the first successful run of this arm anywhere.
+
+### 5c. Arm B measured — the B-vs-A delta
+
+`A_raw` and `B_in_domain` ran **on the same device, in the same run, with the same
+seed**, so this is a like-for-like comparison:
+
+| dataset | A_raw | B_in_domain | delta | |
+| --- | --- | --- | --- | --- |
+| coil2000 | 0.7675 | **0.7690** | +0.0014 | B better |
+| eudirectlapse | 0.5881 | **0.5976** | +0.0095 | B better |
+| spanish_motor_lapse | 0.7233 | **0.7272** | +0.0039 | B better |
+| uslapseagent | **0.9363** | 0.9355 | −0.0008 | A better |
+
+Full arm-B metrics (ROC / Brier / PR AUC / seconds):
+
+| dataset | ROC | Brier | PR AUC | secs |
+| --- | --- | --- | --- | --- |
+| coil2000 | 0.7690 | 0.0509 | 0.1933 | 35.7 |
+| eudirectlapse | 0.5976 | 0.1133 | 0.1982 | 36.4 |
+| spanish_motor_lapse | 0.7272 | 0.1967 | 0.5791 | 18.3 |
+| uslapseagent | 0.9355 | 0.0870 | 0.8375 | 26.6 |
+
+**Finding: in-domain fine-tuning does not reliably beat raw TabPFN.** It wins on
+three datasets and loses on the fourth, and every delta is ≤0.010 — within the range
+§6.4 already flags as movable by a different split. At a single seed this is
+directional evidence of *no meaningful effect*, not evidence of a small one.
+
+**The effect that does exist is TabPFN-versus-baselines, and it is much larger:**
+
+| dataset | A_raw | best baseline | TabPFN gain | fine-tuning gain |
+| --- | --- | --- | --- | --- |
+| coil2000 | 0.7675 | 0.6993 | **+0.068** | +0.001 |
+| eudirectlapse | 0.5881 | 0.5744 | +0.014 | +0.010 |
+| spanish_motor_lapse | 0.7233 | 0.7114 | +0.012 | +0.004 |
+| uslapseagent | 0.9363 | 0.9297 | +0.007 | −0.001 |
+
+Fine-tuning therefore buys little and costs a lot: arm B used **117 s** of GPU
+across the four datasets against arm A's **41 s**, roughly 3x, for ≤0.01 ROC.
+
+**Caveats that must travel with this:** single seed, single split, no paired
+significance testing, and no confidence intervals. The two near-ties
+(`uslapseagent`, `eudirectlapse`) are the ones where the ordering is least secure.
+A multi-seed repeat with paired tests is the obvious next step before this is
+treated as settled — but the burden of proof now sits with the claim that
+fine-tuning *helps*, not with the claim that it doesn't.
 
 ## 6. Provenance gaps and deviations
 
