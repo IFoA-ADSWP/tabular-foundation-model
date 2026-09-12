@@ -109,6 +109,14 @@ tok = os.environ.get("TABPFN_TOKEN") or ""
 if not tok:
     sys.exit("no TABPFN_TOKEN in the environment at all")
 print("  token present: %d chars, prefix %s..." % (len(tok), tok[:10]))
+# The sha is the decisive comparison: compare it with the value on the local Mac.
+# If it DIFFERS, the token was mangled on its way into the container (the onstart
+# script embeds it via shell quoting) and no amount of server-side reasoning helps.
+# If it MATCHES, the API is rejecting a correct token based on where the request
+# comes from.
+import hashlib as _h
+print("  token sha256 :", _h.sha256(tok.encode()).hexdigest()[:12], "(compare with the local Mac)")
+print("  token suffix :", "..." + tok[-6:])
 
 # Proxy env vars matter here. The licence check makes an HTTP request that
 # 307-redirects; a proxy that drops the Authorization header across the redirect
@@ -146,6 +154,30 @@ try:
         print("  accepted?    :", acc, "(True ok / False not-accepted-or-401 / None unreachable)")
         print("  -> if verify_token is True and accepted? is False, the server is")
         print("     rejecting THIS licence name for THIS token on the box.")
+
+        # Raw status and body, because the boolean collapses 401, 403 and a
+        # malformed body into the same answer. Also report the egress IP: if the
+        # token sha matches the local value and this still returns 401, the
+        # rejection is origin-based and no local configuration will fix it.
+        import subprocess as _sp
+        import urllib.error as _ue
+        import urllib.request as _u
+        for _label, _url in (("protected", api_url.rstrip("/") + "/protected/"),
+                             ("licence", api_url.rstrip("/") + "/account/license/?version=" + lic)):
+            _req = _u.Request(_url, headers={"Authorization": "Bearer " + tok})
+            try:
+                with _u.urlopen(_req, timeout=15) as _r:
+                    print("  raw %-9s: HTTP %s %s" % (_label, _r.status, _r.read()[:110]))
+            except _ue.HTTPError as _e:
+                print("  raw %-9s: HTTP %s %s" % (_label, _e.code, _e.read()[:160]))
+            except Exception as _e:
+                print("  raw %-9s: %s %s" % (_label, type(_e).__name__, _e))
+        try:
+            _ip = _sp.run(["curl", "-s", "--max-time", "10", "https://api.ipify.org"],
+                          capture_output=True, text=True).stdout.strip()
+            print("  egress IP    :", _ip or "(unknown)")
+        except Exception:
+            pass
 
         # One run should diagnose AND, if a proxy is the cause, confirm the cure.
         if v is not True or acc is not True:
