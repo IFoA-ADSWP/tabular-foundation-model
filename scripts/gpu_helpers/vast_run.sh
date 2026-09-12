@@ -104,6 +104,50 @@ fi
 : "${TABPFN_TOKEN:?No TABPFN_TOKEN. Store it with:
     bash scripts/gpu_helpers/keys.sh add tabpfn   (copy the key first)}"
 
+# ---- TabPFN licence preflight (FREE -- runs before any GPU is provisioned) ----
+# A token that AUTHENTICATES is not a token whose LICENCE is ACCEPTED. The API
+# reports these separately: /protected proves the token, /account/license proves
+# the acceptance, and it answers {"accepted":true|false} per version.
+#
+# Getting this wrong rents a GPU to watch every arm die in ~1s with a licence
+# error -- twice so far. The check costs one HTTPS request, so do it here, where
+# a failure costs nothing at all. Fail closed on an explicit false; if the status
+# simply cannot be read (offline, endpoint moved) warn and continue rather than
+# blocking a otherwise-valid run.
+#
+# Set SKIP_LICENSE_CHECK=1 to bypass (diagnostics only).
+TABPFN_VERSION="${TABPFN_VERSION:-8.5.0}"
+if [ "${SKIP_LICENSE_CHECK:-0}" != "1" ]; then
+    # Retry: a single transient failure would otherwise silently disarm the guard
+    # (observed once -- an identical call succeeded seconds later). Then fail CLOSED
+    # on an unreadable status: the cost of a false alarm is a re-run, and the cost
+    # of a false pass is a rented GPU running doomed arms.
+    LIC=""
+    for attempt in 1 2 3; do
+        LIC="$(curl -sSL --max-time 20 \
+            -H "Authorization: Bearer $TABPFN_TOKEN" \
+            "https://api.priorlabs.ai/account/license/?version=${TABPFN_VERSION}" 2>/dev/null || true)"
+        printf '%s' "$LIC" | grep -q '"accepted":' && break
+        [ "$attempt" -lt 3 ] && sleep 3
+    done
+    case "$LIC" in
+        *'"accepted":true'*)
+            echo "[auth] licence accepted for tabpfn $TABPFN_VERSION" ;;
+        *'"accepted":false'*)
+            echo "FATAL: the licence is NOT accepted for tabpfn $TABPFN_VERSION on this account." >&2
+            echo "       Accept it at https://ux.priorlabs.ai (Licenses tab) while signed in" >&2
+            echo "       as the account that owns this token, then re-run." >&2
+            echo "       No GPU was provisioned, so this cost nothing." >&2
+            exit 4 ;;
+        *)
+            echo "FATAL: could not read the licence status for tabpfn $TABPFN_VERSION" >&2
+            echo "       after 3 attempts (got: ${LIC:-<empty>})." >&2
+            echo "       Refusing to rent a GPU blind. Re-run, or set SKIP_LICENSE_CHECK=1" >&2
+            echo "       to bypass for diagnostics." >&2
+            exit 4 ;;
+    esac
+fi
+
 INSTANCE_ID=""
 T_CREATE=""; T_RUNNING=""; T_END=""
 GPU_NAME=""; DPH=""; GPU_RAM=""; CPU_RAM="${CPU_RAM:-}"; REL=""; CUDA=""
