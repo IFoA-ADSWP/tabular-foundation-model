@@ -543,17 +543,37 @@ were wrong.
 
 ```bash
 bash scripts/gpu_helpers/vast_login.sh          # once per session; opens the 2FA session
-export TABPFN_TOKEN="pk_..."                    # Prior Labs licence token
-bash scripts/gpu_helpers/vast_run.sh --min-vram 40 --max-dph 0.75
+unset TABPFN_TOKEN                              # do NOT export it -- see below
+bash scripts/gpu_helpers/vast_run.sh --min-vram 40 --max-dph 0.75 \
+     --arms A_raw,B_in_domain --max-attempts 2
 ```
 
-`vast_run.sh` is 7 steps: select offer → match image to host CUDA → (ssh key only if
-`--transport ssh`) → create → wait for `running` → bootstrap via `vastai execute` → pull
-artifacts → **destroy**. The `trap` destroys on any exit (success, failure, Ctrl-C) unless
-`--keep`, which is the entire cost model — a forgotten instance bills indefinitely.
+**Never `export TABPFN_TOKEN`.** The token is read from `~/.config/tfm/keys.env`
+(mode 600) and that file is authoritative. An exported variable used to silently
+win, which is a specific and invisible failure: a stale token gets embedded into
+the onstart script, the API rejects it on the box (**401**, reported as
+`verify_token: False`), and nothing looks wrong locally because a stale key has
+the same length and the same `tabpfn_sk_` prefix. The runner now warns loudly when
+the two disagree and prints the token's sha on every run, so the value that
+reached the box can be compared against the local one.
 
-Artifacts land in `outputs/gpu-pilot/` (mirrors the per-run layout in
-`FINE_TUNING_PILOT_RESULTS.md`).
+`vast_run.sh` steps: select offer → match image to host CUDA → create → wait for
+`running` (aborting within ~30 s if `intended_status` is `stopped`) → bootstrap runs
+at container boot via `--onstart` → watch the log → pull artifacts from the log
+stream → **destroy**. The `trap` destroys on any exit (success, failure, Ctrl-C)
+unless `--keep`, which is the entire cost model — a forgotten instance bills
+indefinitely.
+
+The bootstrap then runs its own gates before any arm: GPU check → clone → install
+`tabpfn==8.5.0` → **torch/CUDA check** → **TabPFN auth preflight** (forces the gated
+weight download and prints the licence decision inputs). A failure there costs ~2
+minutes and ~$0.02 instead of a doomed 16-arm batch, and the bootstrap emits
+`BOOTSTRAP FINISHED` on every exit path so the runner never polls out its ceiling.
+
+Artifacts land in `outputs/gpu-pilot/`: `pilot_metrics.parquet`,
+`pilot_predictions.parquet`, plus a per-run JSON and `run_ledger.csv`. They are
+returned through the container log, folded into 440-char `__ART__` lines because
+the log truncates any line at 500 characters (see C.3).
 
 ### C.3 Hard constraints — each of these cost real time to find
 

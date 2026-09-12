@@ -89,6 +89,36 @@ Deltas (A minus baseline; positive ROC/Brier-improvement means TabPFN better):
 
 4. **Arm A is the entire compute cost.** 34–83 s per dataset versus sub-second for E and 0.5–3.2 s for F. Any future grid should be sized on arm A, and note A does not necessarily speed up proportionally on GPU (it is not FLOP-bound in the same way as training).
 
+## 4b. GPU re-run of arm A — device variance, and what the artifact now holds
+
+Arm A was re-run on a rented GPU on **2026-09-12 17:06 UTC**. The pipeline is now
+proven end to end (provisioning, transport, licence, arm loop, artifact return), and
+the GPU numbers differ slightly from the CPU table in §3:
+
+| dataset | A_raw CPU (§3) | A_raw GPU | delta |
+| --- | --- | --- | --- |
+| coil2000 | 0.7679 | **0.7673** | −0.0006 |
+| eudirectlapse | 0.5879 | **0.5872** | −0.0007 |
+| spanish_motor_lapse | 0.7230 | **0.7239** | +0.0009 |
+| uslapseagent | 0.9360 | **0.9355** | −0.0005 |
+
+Same seed, same config, same checkpoint — so this is **device-dependent
+floating-point**, not a behavioural change. It matters only for citation: quote
+one device's numbers, and say which. The direction of every §4 conclusion is
+unaffected (all four deltas are ~1e-3 against margins of 6e-3 to 1e-1).
+
+Provenance recorded by the GPU run itself: `tabpfn 8.5.0`, `torch 2.7.0+cu128`,
+`python 3.11.12`, device `cuda` on an **NVIDIA RTX PRO 5000 Blackwell**,
+checkpoint `tabpfn-v3-classifier-v3_default.ckpt`.
+
+**Caution — `outputs/gpu-pilot/` now mixes provenance.** The box clones the repo,
+so the committed CPU outputs are already on disk, and the aggregate re-reads them.
+The file therefore holds four GPU `A_raw` rows (17:06) alongside four CPU `E_glm`
+and four CPU `F_catboost` rows (09:20). That is benign here — GLM and CatBoost are
+CPU models and device cannot affect them — but it is the same failure mode that
+once printed a complete results table made entirely of stale numbers. Read the
+`device`, `timestamp` and `versions` columns before trusting any row.
+
 ## 5. Arm B: not measured, and why
 
 Arm B has never completed a run. On the 12 GB CPU runtime it was killed by the kernel OOM killer:
