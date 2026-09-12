@@ -136,9 +136,12 @@ State these when citing these numbers.
 - `scripts/run_pilot.py` — pilot runner (arms, config, per-run persistence)
 - `scripts/colab_helpers/launch_pilot.sh` — detached Colab launch (commit `eb45e0e`)
 - `scripts/colab_helpers/poll_pilot.py` — remote log poll
+- `scripts/colab_helpers/export_predictions.py` — packs the per-run `.npy` outputs into the committed predictions parquet (needed because `.gitignore` excludes `*.npy`)
 
 ## Evidence Files
 
 - `outputs/finetune/pilot/pilot_metrics.parquet` — aggregated metrics (12 rows)
+- `outputs/finetune/pilot/pilot_predictions.parquet` — per-row `y_true` / `y_prob` for all 12 runs (12,000 rows), so metrics can be recomputed or added to without re-running arm A. Verified to reproduce every ROC AUC and Brier in §3 to 1e-9
 - `outputs/finetune/pilot/<dataset>/<arm>/meta.json` — per-run config, versions, device, timings
-- `outputs/finetune/pilot/<dataset>/<arm>/predictions.npy` + `ground_truth.npy` — raw outputs, retained so metrics can be recomputed without re-running
+
+> **Not committed:** the runner's per-run `predictions.npy` / `ground_truth.npy`. `.gitignore:139` excludes `*.npy` repo-wide; `pilot_predictions.parquet` above is the committed equivalent, and the `.npy` originals remain on the run VM only.
