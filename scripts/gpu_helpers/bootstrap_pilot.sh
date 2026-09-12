@@ -110,6 +110,15 @@ if not tok:
     sys.exit("no TABPFN_TOKEN in the environment at all")
 print("  token present: %d chars, prefix %s..." % (len(tok), tok[:10]))
 
+# Proxy env vars matter here. The licence check makes an HTTP request that
+# 307-redirects; a proxy that drops the Authorization header across the redirect
+# yields 401 -> check_license_accepted returns False -> fall through to browser
+# login -> the "no interactive terminal" error, with every input looking correct.
+# A cloud container is a likely place to find one configured.
+import os as _os
+_proxies = {k: v for k, v in _os.environ.items() if "proxy" in k.lower()}
+print("  proxy env    :", _proxies if _proxies else "(none set)")
+
 try:
     from tabpfn.settings import settings
     api_url = settings.tabpfn.auth_api_url
@@ -137,6 +146,18 @@ try:
         print("  accepted?    :", acc, "(True ok / False not-accepted-or-401 / None unreachable)")
         print("  -> if verify_token is True and accepted? is False, the server is")
         print("     rejecting THIS licence name for THIS token on the box.")
+
+        # One run should diagnose AND, if a proxy is the cause, confirm the cure.
+        if v is not True or acc is not True:
+            for k in [k for k in os.environ if "proxy" in k.lower()]:
+                os.environ.pop(k, None)
+            os.environ["NO_PROXY"] = "*"
+            os.environ["no_proxy"] = "*"
+            print("  --- retry with all *_proxy vars unset, NO_PROXY=* ---")
+            print("  verify_token :", verify_token(tok, api_url))
+            print("  accepted?    :", check_license_accepted(tok, api_url, lic))
+            print("  -> if these flip to True, a PROXY was mangling the request and")
+            print("     unsetting the proxy vars is the fix.")
 except Exception as e:
     print("  auth introspection failed:", type(e).__name__, e)
 
