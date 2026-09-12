@@ -482,3 +482,85 @@ def test_pr9_cached_weights_report_no_gate_and_exit_zero(fw, monkeypatch, capsys
     assert '"licence_gate_will_fire": false' in out
     assert '"sha256": "' in out  # the weights ID the manifest needs
     assert '"downloaded": false' in out
+
+
+# --------------------------------------------------------------------------
+# Run hygiene: records must not be clobbered, and outputs must be isolatable
+# --------------------------------------------------------------------------
+def _run_cli(rp, *args, env=None):
+    """Run the CLI as a subprocess -- these are exit-code behaviours."""
+    import os
+    import subprocess
+
+    e = dict(os.environ)
+    e.pop("TFM_REQUIRE_CLEAN_TREE", None)
+    if env:
+        e.update(env)
+    return subprocess.run(
+        [sys.executable, str(Path(rp.__file__)), *args],
+        capture_output=True,
+        text=True,
+        cwd=str(Path(rp.__file__).parent.parent),
+    )
+
+
+def test_cli_refuses_to_overwrite_an_existing_record(rp, tmp_path):
+    """The exact accident this guards: an ad-hoc run replacing a committed record."""
+    slot = tmp_path / "coil2000" / "E_glm"
+    slot.mkdir(parents=True)
+    (slot / "meta.json").write_text('{"arm": "E_glm", "protected": true}')
+    r = _run_cli(
+        rp, "--dataset", "coil2000", "--arms", "E_glm",
+        "--train-size", "50", "--test-size", "25", "--outdir", str(tmp_path),
+    )
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "REFUSING TO OVERWRITE" in r.stdout
+    assert json.loads((slot / "meta.json").read_text())["protected"] is True
+
+
+def test_cli_outdir_keeps_records_out_of_the_default_tree(rp, tmp_path):
+    r = _run_cli(
+        rp, "--dataset", "coil2000", "--arms", "E_glm",
+        "--train-size", "50", "--test-size", "25", "--outdir", str(tmp_path),
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert (tmp_path / "coil2000" / "E_glm" / "meta.json").exists()
+    assert list(tmp_path.glob("manifest_*.json")), "the manifest must land in --outdir"
+
+
+def test_cli_overwrite_flag_permits_replacement(rp, tmp_path):
+    slot = tmp_path / "coil2000" / "E_glm"
+    slot.mkdir(parents=True)
+    (slot / "meta.json").write_text('{"protected": true}')
+    r = _run_cli(
+        rp, "--dataset", "coil2000", "--arms", "E_glm",
+        "--train-size", "50", "--test-size", "25", "--outdir", str(tmp_path), "--overwrite",
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    d = json.loads((slot / "meta.json").read_text())
+    assert "protected" not in d and d["arm"] == "E_glm"
+
+
+def test_git_info_separates_untracked_from_modified(rp):
+    """Untracked files must not count as dirt: the box's own bootstrap writes them."""
+    g = rp._git_info()
+    for k in ("branch", "commit_sha", "dirty", "untracked_count",
+              "modified_tracked_files", "modified_code_files"):
+        assert k in g, f"{k} must be recorded"
+    assert isinstance(g["untracked_count"], int)
+    assert all("??" not in f for f in g["modified_tracked_files"])
+
+
+def test_cli_dirty_tree_is_recorded_and_warned(rp, tmp_path):
+    """A dirty tree must be stated in the manifest, not just in a console line."""
+    r = _run_cli(
+        rp, "--dataset", "coil2000", "--arms", "E_glm",
+        "--train-size", "50", "--test-size", "25", "--outdir", str(tmp_path),
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    man = json.loads(sorted(tmp_path.glob("manifest_*.json"))[-1].read_text())
+    assert "dirty" in man["git"]
+    assert "untracked_count" in man["git"]
+    if man["git"]["dirty"]:
+        assert man["git"]["dirty_note"], "a dirty tree must explain why it matters"
+        assert "commit_sha does NOT describe" in r.stdout

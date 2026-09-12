@@ -106,6 +106,48 @@ client can read), and the box emits `ARMS_PRESENT <arm> ok=N failed=N` / `ARMS_M
 from its own filesystem — the client cannot see that filesystem, so the difference between
 an arm that was never attempted and one that died has to be stated there.
 
+### Run hygiene: records cannot be clobbered, and outputs can be isolated
+
+Producing a manifest by hand exposed a footgun that had already fired. `outputs/` is **not**
+gitignored and the committed R1 records live in the same directory that runs write into, so an
+ad-hoc local run **overwrote** `outputs/finetune/pilot/coil2000/E_glm/meta.json` and deleted
+`pilot_metrics.parquet`. Both were restored from HEAD, but the lesson is structural: this is the
+same class of accident as the mock-run pollution, and it needs a gate rather than care.
+
+Three gates now exist, all before any work runs:
+
+| Gate | Behaviour |
+| --- | --- |
+| `--outdir PATH` | writes records outside the committed experiment tree; a dry or ad-hoc run can be isolated completely |
+| overwrite refusal | if any target slot already holds a `meta.json`, the run **exits 2** and lists them, unless `--overwrite` is given. A run can no longer destroy a previous record quietly — verified by re-running the command that did the damage above: it now refuses, and the record's hash is unchanged |
+| dirty-tree gate | a **tracked** file being modified means `commit_sha` does not describe the code that ran. Locally this warns; on the box (`TFM_REQUIRE_CLEAN_TREE=1`, set by the bootstrap) it is **fatal** for changes under `scripts/`, `src/` or `tests/`. Untracked files are deliberately excluded — the bootstrap writes data and artefacts into the clone itself, and counting those would mark every real run dirty |
+
+**Evidence.** `tests/test_pilot2_prerequisites.py`: `test_cli_refuses_to_overwrite_an_existing_record`,
+`test_cli_outdir_keeps_records_out_of_the_default_tree`,
+`test_cli_overwrite_flag_permits_replacement`, `test_git_info_separates_untracked_from_modified`,
+`test_cli_dirty_tree_is_recorded_and_warned`. The box path was verified directly:
+`TFM_REQUIRE_CLEAN_TREE=1` on a tree with modified scripts aborts with the offending files listed.
+
+### Arm B has no per-arm artefact anywhere
+
+The committed aggregate was reconciled: the canonical clone's `pilot_metrics.parquet` held
+**12 rows across 3 arms** and was replaced with the complete **16 rows across 4 arms**. The two
+were compared as sets first — every canonical row was present in the incoming file, so the change
+is a pure addition of the four `B_in_domain` rows (`coil2000` 0.7690, `eudirectlapse` 0.5976,
+`spanish_motor_lapse` 0.7272, `uslapseagent` 0.9355), all matching the published table.
+
+The honest part: **this is the only place arm B exists.** Neither clone has a
+`<dataset>/B_in_domain/` directory, and both `pilot_predictions.parquet` files still hold only
+3 arms (`A_raw`, `E_glm`, `F_catboost`). So the arm carrying the pilot's central negative result
+survives as **four aggregate rows and nothing else** — no per-arm record, no per-row predictions,
+nothing a third party could recompute the metric from. That is precisely the gap PR-2 closes for
+future runs; for R1 it cannot be retrofitted, and the aggregate is the ceiling of what is
+recoverable.
+
+Also worth recording: the two clones use different layouts for the same artefacts
+(`outputs/gpu-pilot/` in the user clone, `outputs/finetune/pilot/` in the canonical one), so a
+future reconciliation should settle on one.
+
 ### GPU nondeterminism is not a reproduction requirement
 
 Requiring bit-identical re-runs on GPU hardware is unrealistic and is **not** a gate.

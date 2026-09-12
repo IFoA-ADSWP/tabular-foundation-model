@@ -138,10 +138,29 @@ def _git_info():
         except Exception:
             return None
 
+    porcelain = run("status", "--porcelain") or ""
+    tracked_changes = [
+        ln for ln in porcelain.splitlines() if ln[:2].strip() and not ln.startswith("??")
+    ]
+    # A recorded SHA only describes the code that ran if no TRACKED file was changed.
+    # Untracked files are excluded on purpose: the box's own bootstrap writes data and
+    # artefacts into the clone, and counting those would mark every real run dirty.
+    # The directories that actually affect a result are what matter.
+    code_changes = [
+        ln for ln in tracked_changes
+        if ln[3:].split("/")[0] in ("scripts", "src", "tests", "configs")
+    ]
     return {
         "branch": run("rev-parse", "--abbrev-ref", "HEAD"),
         "commit_sha": run("rev-parse", "HEAD"),
-        "dirty": bool(run("status", "--porcelain")),
+        "dirty": bool(tracked_changes),
+        "dirty_note": (
+            "tracked files modified; commit_sha does NOT describe the code that ran"
+            if tracked_changes else None
+        ),
+        "modified_tracked_files": sorted(ln[3:] for ln in tracked_changes)[:20],
+        "modified_code_files": sorted(ln[3:] for ln in code_changes)[:20],
+        "untracked_count": sum(1 for ln in porcelain.splitlines() if ln.startswith("??")),
     }
 
 
@@ -1058,6 +1077,18 @@ def main():
     parser = argparse.ArgumentParser(description="Fine-tuning pilot (Pilot 2 schema v2)")
     parser.add_argument("--dataset", type=str, help="Run one dataset")
     parser.add_argument(
+        "--outdir",
+        type=str,
+        default=None,
+        help="Where records are written (default: outputs/finetune/pilot). Use this for "
+        "ad-hoc or dry runs so they cannot touch the committed experiment records.",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Permit writing over existing records. Without it a run refuses to clobber.",
+    )
+    parser.add_argument(
         "--arms",
         type=str,
         help=f"Comma-separated arms to run (default: all). Choices: {','.join(ARMS)}",
@@ -1114,6 +1145,57 @@ def main():
     config["epochs"] = args.epochs
     config["learning_rate"] = args.learning_rate
     config["n_estimators"] = args.n_estimators
+
+    # ---------------- Reproducibility gates, before any work runs ----------------
+    # 1. Route records elsewhere when asked, so an ad-hoc run cannot land in the tree
+    #    that holds the committed experiment records. OUTPUT_DIR is read by the arm
+    #    runner, the manifest writer and the aggregator, so it is set once, here.
+    global OUTPUT_DIR
+    if args.outdir:
+        OUTPUT_DIR = Path(args.outdir).expanduser().resolve()
+
+    # 2. Never silently clobber an existing record. An ad-hoc run written with the
+    #    default path overwrote the committed R1 record for coil2000/E_glm and deleted
+    #    the aggregate -- damage invisible until somebody opened the file. Refusing is
+    #    the only failure mode that cannot lose data quietly.
+    run_datasets = [args.dataset] if args.dataset else DATASETS
+    run_arms = arms or list(ARMS)
+    clashes = []
+    for _ds in run_datasets:
+        for _arm in run_arms:
+            for _seed in seeds:
+                _slot = OUTPUT_DIR / _ds / _arm
+                if args.folds is not None:
+                    _slot = _slot / f"seed{_seed}_fold{args.folds}"
+                if (_slot / "meta.json").exists():
+                    clashes.append(_slot.relative_to(OUTPUT_DIR))
+    if clashes and not args.overwrite:
+        print(f"\nREFUSING TO OVERWRITE: {len(clashes)} existing record(s) would be replaced.")
+        for _c in clashes[:10]:
+            print(f"  {_c}/meta.json")
+        if len(clashes) > 10:
+            print(f"  ... and {len(clashes) - 10} more")
+        print("  Re-run with --overwrite to replace them, or --outdir to write elsewhere.")
+        raise SystemExit(2)
+
+    # 3. A recorded SHA is only meaningful if no tracked file was modified. Untracked
+    #    files are ignored (the box's own bootstrap writes data and artefacts into the
+    #    clone, which would mark every real run dirty). On the box this is fatal
+    #    (TFM_REQUIRE_CLEAN_TREE=1, set by the bootstrap): a real run must not record a
+    #    SHA that does not describe its code. Locally it warns, because editing scripts
+    #    is the normal state of a working tree.
+    _git_now = _git_info()
+    if _git_now.get("dirty"):
+        print("\n!! WARNING: tracked files are modified, so commit_sha does NOT describe")
+        print("!! the code about to run. The manifest records exactly which files differ.")
+        for _f in (_git_now.get("modified_tracked_files") or [])[:5]:
+            print(f"!!   {_f}")
+        if os.environ.get("TFM_REQUIRE_CLEAN_TREE") == "1" and _git_now.get("modified_code_files"):
+            print("\nFATAL: TFM_REQUIRE_CLEAN_TREE=1 and code under scripts/, src/ or tests/")
+            print("is modified. A run whose provenance matters must have a clean tree.")
+            for _f in (_git_now.get("modified_code_files") or [])[:5]:
+                print(f"  {_f}")
+            raise SystemExit(3)
 
     started = datetime.now(timezone.utc)
     run_id = started.strftime("%Y%m%dT%H%M%SZ")

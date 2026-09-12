@@ -33,8 +33,14 @@ R1 of `FINE_TUNING_EXPERIMENT_DESIGN.md`:
 | Scale | R1 = 2,000 train / 1,000 test / 2,000 pool | yes |
 | Device | design: Colab T4 (free). Actual: Vast.ai, 4 different GPUs | deviated (Colab T4 was 503) |
 
-Nominal size: 4 datasets x 4 arms = 16 arm-runs. **All 16 were produced**, on 10 provisioned
-instances, for **$0.3382**.
+Nominal size: 4 datasets x 4 arms = 16 arm-runs. **All 16 were produced**, on 13 provisioned
+instances, for a ledger estimate of **$0.5256**.
+
+> **Corrected.** An earlier revision of this document reported "10 instances, $0.3382". That
+> figure was rebuilt from the per-run records present in *one clone*; the records were split
+> across two clones and neither held the full set. The three records held only in the other clone
+> add exactly $0.0763 + $0.0850 + $0.0261 = $0.1874, giving $0.5256. The account itself reports a
+> third number (~$0.40 by credit arithmetic) — see §8, and treat the account as the authority.
 
 ---
 
@@ -47,20 +53,24 @@ Ten instances were provisioned. Only some carried a successful run:
 | 20260912T144012Z | 50756703 | RTX 6000 Ada | execute | 0.03 | $0.0003 | aborted immediately |
 | 20260912T144946Z | 50757464 | RTX 6000 Ada | execute | 3.08 | $0.0337 | **transport bug** — `execute` is not a shell; no arm ran |
 | 20260912T150830Z | 50758729 | RTX 6000 Ada | onstart | 5.08 | $0.0459 | ran; **licence gate** rejected all 4 datasets; **leaked ~64 min** |
+| 20260912T155345Z | 50762816 | RTX 4090 | onstart | 11.42 | $0.0763 | never ran (`bootstrap_rc` never set; diagnosed at the time as `intended_status: stopped`) |
+| 20260912T160600Z | 50763979 | RTX 4090 | onstart | 11.55 | $0.0850 | never ran (`bootstrap_rc` never set; no arm output) |
 | 20260912T161508Z | 50765553 | RTX 4090 | onstart | 4.97 | $0.0365 | never started (`intended_status: stopped`) |
 | 20260912T163050Z | 50766615 | RTX 4090 | onstart | 11.35 | $0.0759 | never started (image pull stalled) |
 | 20260912T164324Z | 50769223 | RTX PRO 5000 | onstart | 2.00 | $0.0219 | preflight ran |
+| 20260912T165328Z | 50770528 | RTX PRO 5000 | onstart | 2.38 | $0.0261 | `A_raw` only; `bootstrap_rc=0`; no `B` arm attempted |
 | 20260912T170033Z | 50771451 | RTX PRO 5000 | onstart | 1.88 | $0.0206 | preflight ran |
 | 20260912T170703Z | 50772306 | RTX PRO 5000 | onstart | 2.43 | $0.0266 | preflight ran |
 | 20260912T171210Z | 50773139 | RTX PRO 5000 | onstart | 2.62 | $0.0286 | produced **A_raw GPU numbers** |
 | 20260912T201944Z | 50795221 | L40S | onstart | 5.32 | $0.0482 | produced the **complete A/B result** (decisive run) |
 
-**Cost to date: $0.3382.** Of that, $0.1796 is attributable to runs with `bootstrap_rc` recorded
-as 0; the remainder includes the transport failures, the provisioning failures, and the ~64-minute
-licence-gate leak. **Roughly half the spend bought nothing.**
+**Cost to date: $0.5256 (ledger estimate) over 13 instances.** Only two runs produced a usable
+arm result — `20260912T171210Z` (`A_raw` GPU numbers) and `20260912T201944Z` (the complete A/B
+result) — and they account for **$0.0768, about 15% of the spend**. The remainder bought failures,
+stalls and leaks, including the ~64-minute licence-gate leak.
 
-This is the honest shape of a first smoke test: **6 of 10 instances failed before or at the
-gate**, and the pipeline only became reliable after four separate defects were found and fixed
+This is the honest shape of a first smoke test: **7 of 13 instances never produced an arm result**,
+and the pipeline only became reliable after four separate defects were found and fixed
 (transport, empty-log polling, `intended_status`, licence name).
 
 ---
@@ -277,10 +287,23 @@ Before spending, fix these explicitly — each corresponds to a gap in §4:
 
 | Item | Amount |
 | --- | --- |
-| Total GPU spend to date (10 instances) | **$0.3382** |
-| Spend on runs that produced usable output | ~$0.18 |
-| Spend on failures, leaks and provisioning stalls | ~$0.16 |
-| Credit remaining | ~$9.66 of $10 |
+| Total GPU spend to date (13 instances) | **$0.5256** (ledger estimate) |
+| Produced a usable arm result (2 runs) | $0.0768 |
+| Executed but produced no usable result (5 runs) | $0.0955 |
+| Never started, or failed at the gate (6 runs) | $0.3533 |
+| Credit remaining (from the account) | ~$9.60 of $10 |
+
+**Three different totals exist, and the account is the authority.** They are not reconcilable from
+inside the repo, so all three are stated:
+
+| Source | Value | Why it differs |
+| --- | --- | --- |
+| Ledger `est_cost_usd` (this document) | $0.5256 | computed as full create→end wall time x `dph_total`, so it charges time an instance existed but was not running |
+| Account credit arithmetic | ~$0.4002 | credit 9.5998 against a $10 promotional balance; the account's own `total_spend` field reads `-0.40022`, sign convention unconfirmed |
+| Earlier revision of this document | $0.3382 | rebuilt from the records present in a single clone — an incomplete set, not a different measurement |
+
+The ledger column is an **estimate of what the ledger's own model says**, not a bill. Anything
+that quotes GPU cost from this repo should cite the account, not `est_cost_usd`.
 
 Reference: the design's budget assumed **$0** for R1 (Colab T4). Colab's T4 was returning 503, so
 R1 ran on the paid path instead. Any future plan that budgets R1/R2 at $0 should not assume Colab.

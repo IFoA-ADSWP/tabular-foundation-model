@@ -1,0 +1,21 @@
+{
+  "run_id": "20260912T160600Z",
+  "instance_id": "50763979",
+  "gpu_name": "RTX_4090",
+  "dph_total": 0.4414444444444445,
+  "gpu_ram_gb": 49.1,
+  "cpu_ram_gb": 773.0,
+  "reliability": "0.9974",
+  "cuda_max_good": "12.8",
+  "image": "pytorch/pytorch:2.5.1-cuda12.1-cudnn9-runtime",
+  "transport": "onstart",
+  "arms": "A_raw,B_in_domain",
+  "disk_requested_gb": "60",
+  "t_create": "1789228467",
+  "t_running": "",
+  "t_end": "1789229160",
+  "wall_seconds": 693,
+  "wall_minutes": 11.55,
+  "est_cost_usd": 0.085,
+  "bootstrap_rc": ""
+}

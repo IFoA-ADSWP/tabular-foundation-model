@@ -25,6 +25,11 @@ REPO="https://github.com/IFoA-ADSWP/tabular-foundation-model.git"
 WORKDIR="${WORKDIR:-/workspace/tfm}"
 ARMS="${ARMS:-A_raw,B_in_domain,E_glm,F_catboost}"
 
+# A real run must record a commit_sha that describes the code that ran. The tree is a
+# fresh clone here, so any modification is a genuine provenance problem. Untracked files
+# (the data and artefacts this very script writes) are deliberately NOT counted.
+export TFM_REQUIRE_CLEAN_TREE=1
+
 TABPFN_PIN="${TABPFN_PIN:-tabpfn==8.5.0}"
 # Reproducibility pins (see the install step for why). Override any of these to
 # reproduce a specific run's environment exactly.
