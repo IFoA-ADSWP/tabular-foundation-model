@@ -84,7 +84,20 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-: "${TABPFN_TOKEN:?Export TABPFN_TOKEN before running}"
+# Resolve the TabPFN licence token.
+# Precedence: the environment first (so a caller can always override), then the
+# macOS keychain. Reading from the keychain keeps the secret out of shell history
+# and out of argv on every run, and makes a run a single command.
+if [ -z "${TABPFN_TOKEN:-}" ] && command -v security >/dev/null 2>&1; then
+    _KC_USER="${USER:-$(id -un)}"
+    TABPFN_TOKEN="$(security find-generic-password -s tabpfn-licence -a "$_KC_USER" -w 2>/dev/null || true)"
+    if [ -n "$TABPFN_TOKEN" ]; then
+        echo "[auth] TABPFN_TOKEN loaded from the keychain (service 'tabpfn-licence')."
+    fi
+fi
+
+: "${TABPFN_TOKEN:?No TABPFN_TOKEN. Either export it, or store it once with:
+    security add-generic-password -s tabpfn-licence -a \"\$USER\" -w}"
 
 INSTANCE_ID=""
 T_CREATE=""; T_RUNNING=""; T_END=""
