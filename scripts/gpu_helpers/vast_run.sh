@@ -244,9 +244,14 @@ ledger = os.path.join(outdir, "run_ledger.csv")
 # The header MUST match the record's fields -- DictWriter will happily write rows
 # against an older, shorter header, silently shifting every column. That is exactly
 # what happened when machine_id/host_id/attempt were added: the ledger then reported
-# $1789231403 for a five-minute run and 1789231352 "minutes" of wall time. Compare
+# \$1789231403 for a five-minute run and 1789231352 "minutes" of wall time. Compare
 # the header and start a fresh file on mismatch. The per-run JSONs are the source of
 # truth and the ledger is derived from them, so quarantining loses nothing.
+#
+# NOTE ON THIS HEREDOC: it is deliberately UNQUOTED (<<PY, not <<'PY') because it
+# interpolates the shell variables below into the Python source. Consequence: any
+# LITERAL dollar sign in this block must be escaped as \$, or the shell expands it
+# as a positional parameter and silently mangles that line.
 fields = list(rec)
 if os.path.exists(ledger):
     try:
@@ -558,9 +563,15 @@ else
         # A huge --tail (200000) silently returns NOTHING; with stderr discarded
         # that looks identical to "not finished yet", so the loop ran its entire
         # 60-minute ceiling while the instance billed -- and the repeat poll cost
-        # real money. Keep the tail modest (the completion marker sits at the end)
-        # and treat an empty capture as a FAULT, not a quiet no-op.
-        ERR="$(vastai logs "$INSTANCE_ID" --tail 5000 2>&1 > /tmp/vast_log_next.txt)"
+        # real money. So the tail must be bounded -- but big enough for the payload.
+        #
+        # 20000 is the compromise. The artifact payload now carries EVERY ARM'S
+        # PREDICTIONS (PR-2): ~250 tagged lines for a single split, but ~3,800 for a
+        # 3-seed x 5-fold run, against a 5000-line window that would truncate it. The
+        # box declares its payload's line count and sha256, and the receiver refuses a
+        # short read, so a mis-sized window now fails loudly instead of silently.
+        # Do not raise this to the 200000 range that caused the original leak.
+        ERR="$(vastai logs "$INSTANCE_ID" --tail 20000 2>&1 > /tmp/vast_log_next.txt)"
         if [ -s /tmp/vast_log_next.txt ]; then
             cp /tmp/vast_log_next.txt /tmp/vast_run_out.txt
             EMPTY_STREAK=0
@@ -603,31 +614,20 @@ else
     # log -- already captured in /tmp/vast_run_out.txt -- IS the transfer channel.
     # (`vastai execute` cannot read files; it only runs ls/rm/du.)
     cp /tmp/vast_run_out.txt /tmp/vast_artifacts.raw 2>/dev/null || : > /tmp/vast_artifacts.raw
-    python3 - <<'PY' > /tmp/vast_artifacts.b64
-import re, sys
-s = open('/tmp/vast_artifacts.raw', errors='replace').read()
-m = re.search(r'__ARTIFACTS_BEGIN__(.*?)__ARTIFACTS_END__', s, re.S)
-if not m:
-    sys.exit(0)
-# The payload arrives as many tagged lines, each well under the log's 500-char
-# line cap, and must be concatenated in order. The previous single-line form was
-# silently truncated to 500 chars, which decoded to a partial gzip -- so the
-# transfer LOOKED like it had happened and only failed at tar.
-parts = [ln[7:].strip() for ln in m.group(1).splitlines() if ln.startswith('__ART__')]
-sys.stdout.write(''.join(parts))
-PY
-    if [ -s /tmp/vast_artifacts.b64 ] && \
-       base64 -d < /tmp/vast_artifacts.b64 > /tmp/vast_artifacts.tar.gz 2>/dev/null && \
-       tar xzf /tmp/vast_artifacts.tar.gz -C "$REPO_DIR/outputs/gpu-pilot" 2>/dev/null; then
-        echo "artifacts restored to outputs/gpu-pilot"
-    elif [ -s /tmp/vast_artifacts.b64 ]; then
-        echo "WARNING: a payload was present but could not be unpacked" >&2
-        echo "         chars=$(wc -c < /tmp/vast_artifacts.b64) (base64) -- likely truncated by the log's 500-char line cap." >&2
-        echo "         log captured at /tmp/vast_run_out.txt" >&2
-    else
-        echo "WARNING: no artifact payload found in the container log" >&2
-        echo "         log captured at /tmp/vast_run_out.txt; use --keep to inspect" >&2
-    fi
+    python3 "$REPO_DIR/scripts/gpu_helpers/verify_artifacts.py" \
+        --raw /tmp/vast_artifacts.raw \
+        --dest "$REPO_DIR/outputs/gpu-pilot"
+    ART_RC=$?
+    case "$ART_RC" in
+        0) : ;;
+        3) echo "WARNING: no usable artifact payload in the container log" >&2
+           echo "         log captured at /tmp/vast_run_out.txt; use --keep to inspect" >&2 ;;
+        4) echo "WARNING: the payload was present but incomplete - see above" >&2
+           echo "         log captured at /tmp/vast_run_out.txt" >&2 ;;
+        5) echo "WARNING: predictions arrived but failed hash verification - see above" >&2
+           echo "         the run's metrics are NOT recomputable from these files" >&2 ;;
+        *) echo "WARNING: artifact verification exited $ART_RC" >&2 ;;
+    esac
 fi
 
 echo

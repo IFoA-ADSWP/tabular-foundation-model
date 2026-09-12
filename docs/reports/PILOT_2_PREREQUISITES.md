@@ -25,7 +25,7 @@ python -m pytest tests/test_pilot2_prerequisites.py -v
 | ID | Prerequisite | Status | Blocks |
 | --- | --- | --- | --- |
 | PR-1 | Run manifest (audit record) | IN PROGRESS — runner side done, end-to-end unverified | all |
-| PR-2 | Per-arm predictions returned from the box | TODO | Stage 1 |
+| PR-2 | Per-arm predictions returned from the box | **DONE** — verified end-to-end locally at $0 with both real scripts; box execution is PR-8 | Stage 1 |
 | PR-3 | Fine-tuned weights saved + hashed | IN PROGRESS — code path done, live save/reload outstanding | Stage 1 |
 | PR-4 | Matched-inference-context assertion | **DONE** | Stage 1 |
 | PR-5 | LODO exclusion assertion | **DONE** | Stage 2 |
@@ -81,11 +81,43 @@ client-side, verified by hash.
 a payload at least as large as the real one (~120 KB uncompressed for 4 arms x 4 datasets x 1,000
 rows).
 
-**Status.** TODO — `scripts/gpu_helpers/bootstrap_pilot.sh` still selects only `pilot_metrics.parquet`
-and `*/meta.json`. The runner now records `predictions_sha256` per arm, so the verification is ready
-on the receiving side.
+**Status.** **DONE.** The transport is now three scripts, each independently testable:
+`emit_artifacts.sh` (box side) declares the payload's byte size, sha256, line count and file
+count; `verify_artifacts.py` (receiving side) refuses a short read, checks the archive sha256,
+unpacks, and then verifies **every arm's predictions against the `predictions_sha256` its own
+`meta.json` recorded**.
 
-**Evidence.** —
+Two subtleties that would have made a naive check useless:
+
+- `meta.json` records the hash of the **array's bytes** (`array.tobytes()`), not of the `.npy`
+  container, so hashing the file directly always mismatches. `npy_data_sha256` parses the `.npy`
+  header and hashes only the data payload — pure stdlib, so no numpy is needed on the receiving side.
+- The container log caps lines at 500 characters, so the payload is folded at 440 and reassembled.
+  A 3-seed x 5-fold run is ~3,800 payload lines, which is why the runner's log window was raised
+  from 5,000 to 20,000 — bounded well below the 200,000 value that once returned nothing and caused
+  a billing leak.
+
+**Two real bugs this work found**, both previously invisible:
+
+1. **`meta.json` was never returned from the box.** The payload glob was `*/meta.json`, but the
+   runner writes `<dataset>/<arm>/meta.json` — one level deeper. The glob matched nothing, so
+   per-run metadata (and with it the config/provenance the manifest depends on) never came back.
+   Now a recursive `find`.
+2. **`grep -c` on an empty file.** BSD `grep -c` exits 1 when nothing matches, so the
+   `|| echo 0` fallback *also* fired and the file count came out as two lines (`0\n0`). Replaced
+   with a portable count, plus an explicit "nothing to send" path so the receiver can distinguish
+   "the box produced no outputs" from "the transfer was truncated".
+
+**Evidence.** `tests/test_pilot2_artifact_roundtrip.py` — 17 tests, including an **end-to-end
+round trip using the real emitter and the real verifier** (193 payload lines, 9 files, 63 KB
+compressed), asserting byte-identical predictions and matching hashes; a truncation case that must
+report a short read rather than unpack; an empty-tree case that must declare zero; tamper detection
+on both the archive and the predictions; and a regression test for the `INFO` parsing bug found
+during development. Local suite: `90 passed, 1 failed` (the pre-existing `test_reconstruct_pp`).
+
+**Residual.** The box-side script has been exercised on macOS/bash rather than Linux, so the
+environment difference (GNU vs BSD coreutils) is handled explicitly — `sha256sum` with a
+`shasum -a 256` fallback — but the first real box execution happens under PR-8.
 
 ---
 
@@ -272,3 +304,4 @@ machine's cold cache.
 | 2026-09-12 | Checklist created from `PILOT_2_DESIGN.md` §7 | — |
 | 2026-09-12 | Runner rewritten to Pilot 2 schema v2: manifest, fingerprints, matched-context assertion, LODO assertion, epoch ladder, model hashing, log loss + ECE. PR-4/5/6/7 DONE; PR-1/3 IN PROGRESS; PR-2/8 TODO. 20 new acceptance tests, suite at 68 passed / 1 pre-existing failure. | — |
 | 2026-09-12 | PR-9 added and implemented: `scripts/gpu_helpers/fetch_weights.py` + bootstrap step 3a, with the licence preflight at 3b now skipped when the weights are already cached. 5 more tests (25 total in this file; full suite 73 passed / 1 pre-existing failure). `bash -n` and `shellcheck -S error` clean. | — |
+| 2026-09-12 | PR-2 done: `emit_artifacts.sh` + `verify_artifacts.py`, wired into the bootstrap, log window 5000 → 20000. Payload now carries every arm's predictions and is hash-verified on return. **Found and fixed two pre-existing bugs**: `meta.json` was never returned (glob one level too shallow), and BSD `grep -c` produced a two-line file count. 17 new tests incl. a real emit→verify round trip; full suite 90 passed / 1 pre-existing failure. | — |

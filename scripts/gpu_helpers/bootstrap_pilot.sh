@@ -270,28 +270,24 @@ echo "########## ARTIFACTS ##########"
 ls -lR outputs/finetune/pilot 2>/dev/null | head -40
 
 # ---- 6. Emit results through the LOG STREAM ----
-# This is the only return channel that always works:
+# The only return channel that always works:
 #   * `vastai execute` is NOT a shell -- it runs only ls/rm/du, so it can neither
 #     run a script nor read a file (a 400 "Invalid command given" otherwise).
-#   * SSH needs a registered key, and a TEAM-context account refuses to create one.
+#   * SSH needs a registered key, and a TEAM-context account refuses to create one
 #   * `vastai copy` wants --identity, i.e. a key again.
-# So the container log is it. Keep the payload to the small essentials (metrics
-# plus each run's meta.json) -- tens of KB, not the full 252 KB output tree.
-cd outputs/finetune/pilot 2>/dev/null || { echo "__ARTIFACTS_B64_BEGIN__"; echo "__ARTIFACTS_B64_END__"; exit 0; }
-PAYLOAD="pilot_metrics.parquet"
-for f in */meta.json; do [ -f "$f" ] && PAYLOAD="$PAYLOAD $f"; done
-# Predictions are useful but sizeable; include only if modest.
-if [ -f pilot_predictions.parquet ] && [ "$(wc -c < pilot_predictions.parquet)" -lt 300000 ]; then
-    PAYLOAD="$PAYLOAD pilot_predictions.parquet"
-fi
-# NOTE: the log caps each LINE at 500 characters (measured: our payload line came
-# back exactly 500 chars, and the next-longest line in the whole log was 363). A
-# single base64 line therefore truncates silently -- the payload decoded to a
-# 375-byte gzip that tar rejected as "truncated gzip input", while every log
-# message said the transfer had happened. So the payload is folded into lines well
-# under the cap, each tagged, and reassembled on the client.
+# So the container log is it. The payload now includes EVERY ARM'S PREDICTIONS
+# (PR-2): R1 returned none, so its headline numbers could be read but never
+# recomputed or paired-tested. Predictions are the evidence; metrics are a claim.
+#
+# Emission lives in its own script so the whole transport can be exercised locally,
+# at zero spend, against the verifier that consumes it (verify_artifacts.py):
+#
+#     bash scripts/gpu_helpers/emit_artifacts.sh <dir> | verify_artifacts.py --raw - --dest <dir>
+#
+# The payload declares its own size and checksum, so a short read -- a too-small
+# --tail window, or a run that died mid-emit -- is reported as such instead of
+# surfacing later as a cryptic "truncated gzip input".
 echo
-echo "__ARTIFACTS_BEGIN__"
-tar czf - $PAYLOAD 2>/dev/null | base64 -w0 2>/dev/null | fold -w 440 | sed 's/^/__ART__/'
-echo "__ARTIFACTS_END__"
+echo "########## ARTIFACTS ##########"
+bash scripts/gpu_helpers/emit_artifacts.sh outputs/finetune/pilot
 finish
