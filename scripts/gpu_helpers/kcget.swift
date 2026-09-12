@@ -4,88 +4,111 @@
 // Why this exists: `security find-generic-password` uses the legacy SecKeychain*
 // API, which only sees login.keychain-db / System.keychain. Items stored in
 // Passwords.app live in the iCloud keychain and are invisible to it (rc=44).
-// SecItemCopyMatching with kSecAttrSynchronizable=Any reaches both.
 //
-//   kcget get  <service> [account]   print the secret
-//   kcget has  <service> [account]   "present"/"missing"
-//   kcget list [substr]              service/account of matching items (no secrets)
+// CRUCIAL: an item's human-visible name lives in kSecAttrLabel, NOT in
+// kSecAttrService. Searching only service+account misses anything named in the
+// GUI, so both are searched here, along with server and description.
+//
+//   kcget get  <name>        print the secret (matches service, label, or account)
+//   kcget has  <name>        "present"/"missing"
+//   kcget list [substr]      name + class + location of matching items (no secrets)
+//   kcget dump               every item's identifying metadata (no secrets)
 
 import Foundation
 import Security
 
-func query(service: String?, account: String?, all: Bool) -> [String: Any] {
-    var q: [String: Any] = [
-        kSecClass as String: kSecClassGenericPassword,
+let classes: [(String, CFString)] = [
+    ("generic ", kSecClassGenericPassword),
+    ("internet", kSecClassInternetPassword),
+]
+
+/// Every identifying attribute of an item, so a name can be found wherever the
+/// GUI happened to put it.
+func ident(_ it: [String: Any]) -> [String] {
+    var out: [String] = []
+    let keys: [(String, CFString)] = [
+        ("label", kSecAttrLabel),
+        ("svce", kSecAttrService),
+        ("acct", kSecAttrAccount),
+        ("srvr", kSecAttrServer),
+        ("desc", kSecAttrDescription),
+    ]
+    for (tag, k) in keys {
+        if let v = it[k as String] as? String, !v.isEmpty { out.append("\(tag)=\(v)") }
+    }
+    return out
+}
+
+func allItems(cls: CFString) -> [[String: Any]] {
+    let q: [String: Any] = [
+        kSecClass as String: cls,
         kSecAttrSynchronizable as String: kSecAttrSynchronizableAny,
         kSecReturnAttributes as String: true,
-        kSecMatchLimit as String: all ? kSecMatchLimitAll : kSecMatchLimitOne,
+        kSecMatchLimit as String: kSecMatchLimitAll,
     ]
-    // Asking for the data of EVERY item is errSecParam (-50); only request the
-    // secret when we're fetching a single named item.
-    if !all { q[kSecReturnData as String] = true }
-    if let s = service { q[kSecAttrService as String] = s }
-    if let a = account { q[kSecAttrAccount as String] = a }
-    return q
+    var out: CFTypeRef?
+    guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess,
+          let items = out as? [[String: Any]] else { return [] }
+    return items
+}
+
+/// Fetch one item's secret. Tries service, then label -- an item named in the GUI
+/// has an empty service, so a service-only query silently misses it.
+func fetch(name: String) -> String? {
+    for (_, cls) in classes {
+        for key in [kSecAttrService, kSecAttrLabel, kSecAttrAccount] {
+            let q: [String: Any] = [
+                kSecClass as String: cls,
+                kSecAttrSynchronizable as String: kSecAttrSynchronizableAny,
+                kSecReturnData as String: true,
+                kSecReturnAttributes as String: true,
+                kSecMatchLimit as String: kSecMatchLimitOne,
+                key as String: name,
+            ]
+            var out: CFTypeRef?
+            if SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess,
+               let d = out as? [String: Any],
+               let data = d[kSecValueData as String] as? Data,
+               let s = String(data: data, encoding: .utf8) {
+                return s
+            }
+        }
+    }
+    return nil
 }
 
 let args = CommandLine.arguments
 guard args.count >= 2 else {
-    FileHandle.standardError.write("usage: kcget get|has|list [args]\n".data(using: .utf8)!)
+    FileHandle.standardError.write("usage: kcget get|has|list|dump [name]\n".data(using: .utf8)!)
     exit(2)
 }
-let cmd = args[1]
 
-switch cmd {
+switch args[1] {
 case "get", "has":
     guard args.count >= 3 else { exit(2) }
-    let service = args[2]
-    let account = args.count > 3 ? args[3] : nil
-    var out: CFTypeRef?
-    let st = SecItemCopyMatching(query(service: service, account: account, all: false) as CFDictionary, &out)
-    if st == errSecSuccess, let d = out as? [String: Any] {
-        // Prefer the synchronized copy if several match.
-        if let data = d[kSecValueData as String] as? Data,
-           let s = String(data: data, encoding: .utf8) {
-            if cmd == "get" { print(s, terminator: "") } else { print("present") }
-            exit(0)
-        }
+    if let s = fetch(name: args[2]) {
+        if args[1] == "get" { print(s, terminator: "") } else { print("present") }
+        exit(0)
     }
-    if cmd == "has" { print("missing"); exit(1) }
-    FileHandle.standardError.write("not found (OSStatus \(st))\n".data(using: .utf8)!)
+    if args[1] == "has" { print("missing"); exit(1) }
+    FileHandle.standardError.write("not found: \(args[2])\n".data(using: .utf8)!)
     exit(1)
 
-case "list":
-    let needle = args.count > 2 ? args[2].lowercased() : nil
-    // Passwords.app saves website logins as INTERNET passwords (kSecClassInternetPassword),
-    // which is a different class from generic passwords. Search both, or the item
-    // looks missing when it is simply in the other class.
-    let classes: [(String, CFString)] = [
-        ("generic ", kSecClassGenericPassword),
-        ("internet", kSecClassInternetPassword),
-    ]
-    var total = 0, shown = 0
+case "list", "dump":
+    let needle = (args.count > 2 && args[1] == "list") ? args[2].lowercased() : nil
+    var shown = 0, total = 0
     for (label, cls) in classes {
-        var q: [String: Any] = [
-            kSecClass as String: cls,
-            kSecAttrSynchronizable as String: kSecAttrSynchronizableAny,
-            kSecReturnAttributes as String: true,
-            kSecMatchLimit as String: kSecMatchLimitAll,
-        ]
-        var out: CFTypeRef?
-        let st = SecItemCopyMatching(q as CFDictionary, &out)
-        guard st == errSecSuccess, let items = out as? [[String: Any]] else { continue }
-        for it in items {
+        for it in allItems(cls: cls) {
             total += 1
-            let svc = (it[kSecAttrService as String] as? String)
-                   ?? (it[kSecAttrServer as String] as? String) ?? ""
-            let acct = (it[kSecAttrAccount as String] as? String) ?? ""
+            let parts = ident(it)
+            let haystack = parts.joined(separator: " ").lowercased()
+            if let nd = needle, !haystack.contains(nd) { continue }
             let sync = (it[kSecAttrSynchronizable as String] as? Bool) ?? false
-            if let nd = needle, !(svc.lowercased().contains(nd) || acct.lowercased().contains(nd)) { continue }
-            print("\(label)  \(sync ? "icloud" : "local ")  \(svc)  [acct: \(acct)]")
+            print("\(label) \(sync ? "icloud" : "local ") \(parts.joined(separator: "  "))")
             shown += 1
         }
     }
-    FileHandle.standardError.write("\(shown) shown of \(total) total (generic + internet)\n".data(using: .utf8)!)
+    FileHandle.standardError.write("\(shown) shown of \(total) total\n".data(using: .utf8)!)
     exit(0)
 
 default:
