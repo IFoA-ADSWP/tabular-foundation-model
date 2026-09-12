@@ -141,6 +141,56 @@ The failure mode was worse than a normal error: the kernel SIGKILLs the interpre
 
 **Consequence:** the B-vs-A delta — the primary quantity of interest — remains unmeasured. It requires the GPU runtime, and it is not guaranteed to fit there either: 11.8 GB was *system RAM* usage, and the T4 offers 16 GB *VRAM*, which is a different budget. `TabPFNClassifier` accepts a `memory_saving_mode` argument (confirmed present in 8.5.0) if trimming is needed, but enabling it changes the recorded config and must be treated as a deliberate, documented deviation rather than a silent one.
 
+### 5b. Arm B on GPU: memory was never the blocker — CORRECTION
+
+**The paragraph above is superseded in its reasoning.** Arm B ran on a rented GPU on
+**2026-09-12 18:10 UTC** and did not come close to a memory limit:
+
+```
+########## ARM B_in_domain ##########
+Device: cuda        GPU: NVIDIA RTX PRO 5000 Blackwell        VRAM: 50.8 GB
+--- coil2000 ---            ERROR (5.1s)
+--- uslapseagent ---        ERROR (2.2s)
+--- eudirectlapse ---       ERROR (2.4s)
+--- spanish_motor_lapse --- ERROR (2.0s)
+```
+
+```
+Invalid forward pass: Bad combination of inference mode (use_inference_mode=True),
+input X, or executor type (InferenceEngineBatchedNoPreprocessing).
+```
+
+Every dataset failed identically, in seconds, with **50.8 GB free**. The CPU OOM
+recorded above was a real ceiling *for that runtime*; it was never the binding
+constraint, and "arm B does not fit" is not supported by the evidence. Arm B is a
+**deterministic code defect**, reproducible on demand and cheap to iterate on.
+
+Two defects, both hidden by the same anti-pattern:
+
+1. **The call sequence.** The hand-rolled loop left the model in batched-executor
+   mode and then called standard `predict_proba`, which that executor cannot serve.
+   Arm A survives the equivalent situation because TabPFN auto-switches it back
+   ("*The model was in 'batched' mode, likely after finetuning...*"); arm B had no
+   such reset.
+2. **A silent no-op training loop.** `optimizer` was built only `if hasattr(clf,
+   "model_")`, and `model_` is created by `_initialize_model_variables()`, itself
+   called inside a bare `except Exception: pass`. Had that failed, `optimizer` would
+   be `None`, the loop would call the fit method but take **no gradient step**, and
+   the arm would have reported numbers for a model that was never fine-tuned. The
+   loss/backward/step block was separately wrapped in `except Exception: pass`.
+
+**Fix applied:** arm B now uses the fine-tuner 8.5.0 ships —
+`tabpfn.finetuning.finetuned_classifier.FinetunedTabPFNClassifier` — instead of
+driving the model by hand. Deviating from the library's own trainer is precisely
+what made both defects invisible. Recorded config deviation: `max_finetune_steps`
+maps to the trainer's `epochs`, `n_estimators` to `n_estimators_finetune`, and
+`context_samples` is not applied (the shipped trainer subsamples via
+`n_finetune_ctx_plus_query_samples`, default 50000). `tqdm`, which the finetuning
+package imports, is a declared tabpfn dependency and so is already installed.
+
+**Arm B remains unmeasured** — the fix is in the code but has not yet run on a GPU.
+Until it does, the B-vs-A delta has no value.
+
 ## 6. Provenance gaps and deviations
 
 State these when citing these numbers.
@@ -157,7 +207,9 @@ State these when citing these numbers.
 
 ## 7. What would change the conclusion
 
-- Arm B on GPU — the outstanding blocker.
+- Arm B on GPU **with the shipped `FinetunedTabPFNClassifier`** — the fix is in the
+  code (§5b) but has not yet run; the previous GPU attempt failed on a code defect,
+  not on memory, so this is now a matter of one verification run.
 - Multi-seed replication and paired tests, particularly before claiming anything about the two near-ties.
 - Confirming that the dataset pipeline's row cap (3,500) interacts with `eudirectlapse`'s 23k+ rows, which was flagged in the design review as a sizing risk.
 
