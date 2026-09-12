@@ -105,6 +105,40 @@ cmd_check() {
             esac
         fi
     done
+
+    # Remote verification, because a STORED key is not a WORKING key -- and the
+    # distinction cost two GPU runs. The API answers two questions separately:
+    #   /protected        -> which account the key belongs to (proves validity)
+    #   /account/license  -> whether that account ACCEPTED the licence
+    # A key can pass the first and fail the second, and only the second gates the
+    # weight download. Both are one HTTPS request, so there is no excuse for not
+    # asking before renting anything.
+    local tok; tok="$(tabpfn_get 2>/dev/null || true)"
+    if [ -n "$tok" ]; then
+        local ver who lic
+        ver="${TABPFN_VERSION:-8.5.0}"
+        who="$(curl -sSL --max-time 20 -H "Authorization: Bearer $tok" \
+               https://api.priorlabs.ai/protected 2>/dev/null || true)"
+        lic="$(curl -sSL --max-time 20 -H "Authorization: Bearer $tok" \
+               "https://api.priorlabs.ai/account/license/?version=${ver}" 2>/dev/null || true)"
+        echo
+        echo "  --- remote check (free, no GPU) ---"
+        local acct
+        acct="$(printf '%s' "$who" | sed -n 's/.*"message":"\([^"]*\)".*/\1/p')"
+        if [ -n "$acct" ]; then
+            echo "  key belongs to : ${acct##*,}"
+        else
+            echo "  key belongs to : UNKNOWN -- key did not authenticate" >&2; ok=1
+        fi
+        case "$lic" in
+            *'"accepted":true'*)  echo "  licence ${ver}   : ACCEPTED" ;;
+            *'"accepted":false'*) echo "  licence ${ver}   : NOT ACCEPTED" >&2
+                                  echo "                   accept it at https://ux.priorlabs.ai" >&2
+                                  echo "                   (Licenses tab) as the account shown above" >&2
+                                  ok=1 ;;
+            *) echo "  licence ${ver}   : could not read (${lic:-<no response>})" >&2 ;;
+        esac
+    fi
     return $ok
 }
 
