@@ -391,9 +391,23 @@ else
     echo "running via: --onstart (bootstrap began at container boot)"
     : > /tmp/vast_run_out.txt
     BOOTSTRAP_DONE=0
-    for i in $(seq 1 180); do   # 180 x 20s = 60 min ceiling
-        sleep 20
-        vastai logs "$INSTANCE_ID" --tail 200000 > /tmp/vast_run_out.txt 2>/dev/null
+    EMPTY_STREAK=0
+    for i in $(seq 1 120); do   # 120 x 20s = 40 min ceiling
+        # A huge --tail (200000) silently returns NOTHING; with stderr discarded
+        # that looks identical to "not finished yet", so the loop ran its entire
+        # 60-minute ceiling while the instance billed -- and the repeat poll cost
+        # real money. Keep the tail modest (the completion marker sits at the end)
+        # and treat an empty capture as a FAULT, not a quiet no-op.
+        ERR="$(vastai logs "$INSTANCE_ID" --tail 5000 2>&1 > /tmp/vast_log_next.txt)"
+        if [ -s /tmp/vast_log_next.txt ]; then
+            cp /tmp/vast_log_next.txt /tmp/vast_run_out.txt
+            EMPTY_STREAK=0
+        else
+            EMPTY_STREAK=$(( EMPTY_STREAK + 1 ))
+            if [ "$EMPTY_STREAK" -eq 3 ]; then
+                echo "  WARNING: log capture empty 3x -- $(printf '%s' "$ERR" | cut -c1-80)" >&2
+            fi
+        fi
         if grep -q "BOOTSTRAP FINISHED" /tmp/vast_run_out.txt 2>/dev/null; then
             BOOTSTRAP_DONE=1
             break
@@ -401,9 +415,10 @@ else
         # Surface progress without flooding: the most recent milestone line.
         PROG="$(grep -aE '^##########|PILOT RESULTS|ROC=|EXITED rc=' /tmp/vast_run_out.txt 2>/dev/null | tail -1)"
         [ -n "$PROG" ] && echo "  [$i] $PROG"
+        sleep 20
     done
     if [ "$BOOTSTRAP_DONE" != "1" ]; then
-        echo "WARNING: bootstrap did not report BOOTSTRAP FINISHED within 60 min" >&2
+        echo "WARNING: bootstrap did not report BOOTSTRAP FINISHED within 40 min" >&2
         RUN_RC=1
     fi
     echo "--- log tail ---"
