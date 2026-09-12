@@ -25,11 +25,19 @@ from the team before any run.
 
 ---
 
-## 2. What the historic work already established — and why it changes the proposal
+## 2. What the historic work already attempted — and why it changes the proposal
+
+> **Read `HISTORIC_FINETUNING_APPRAISAL.md` alongside this section.** The historic study reached a
+> negative verdict, but that appraisal shows **the comparison was confounded**: the fine-tuned arm
+> was evaluated with a subsampled inference context (64 then 128 rows) while the raw arm used the
+> full training split — and the deficit shrank as the handicap was reduced. So the historic result
+> is *not* usable evidence that fine-tuning fails; it is an attempt whose design we can now correct.
+> This section reports what was run and recorded; the appraisal explains why it should not be read
+> as a verdict.
 
 `CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md` documents a **completed LODO transfer study**,
-run on the v2-era hosted API in April 2026. It is the experiment we were about to propose, and it
-already has a verdict.
+run on the v2-era model line in April 2026, on CPU, at small scale. It is the experiment we were
+about to propose, and it already has a recorded verdict.
 
 ### 2.1 The design (historic)
 
