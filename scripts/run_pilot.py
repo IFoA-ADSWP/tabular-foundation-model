@@ -201,6 +201,27 @@ def compute_metrics(y_true, y_prob):
     }
 
 
+def _runtime_versions():
+    """Record the stack that produced a result.
+
+    TabPFN changes its default checkpoint and fine-tuning API across majors,
+    so a metric without the producing version is not reproducible.
+    """
+    import platform
+
+    versions = {
+        "python": platform.python_version(),
+        "torch": torch.__version__,
+        "numpy": np.__version__,
+    }
+    for mod_name, key in (("tabpfn", "tabpfn"), ("sklearn", "scikit-learn")):
+        try:
+            versions[key] = getattr(__import__(mod_name), "__version__", "unknown")
+        except Exception:
+            versions[key] = None
+    return versions
+
+
 def save_results(dataset, arm, metrics, y_prob, y_test, run_time, config, output_dir):
     run_id = f"{dataset}_{arm}_seed42"
     run_dir = output_dir / dataset / arm
@@ -222,6 +243,7 @@ def save_results(dataset, arm, metrics, y_prob, y_test, run_time, config, output
         "run_time_seconds": run_time,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "status": "success",
+        "versions": _runtime_versions(),
         **metrics,
     }
 
