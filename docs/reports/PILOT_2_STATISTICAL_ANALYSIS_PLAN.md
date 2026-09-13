@@ -204,6 +204,15 @@ Two worked consequences:
 - To resolve **0.01** on coil2000 would need ~2,100 positives, about **35,500 test rows** where 9,822
   exist. **Not attainable** - a reason to state the limitation, not to fund repeats against it.
 
+**The mechanism behind that spread: the row cap is unstratified.** `load_dataset` caps rows with a
+*uniform* sample (`df.sample(n=max_rows, random_state=42)`) and only then splits **stratified**. So the
+split is stratified but the cap is not, and the test set's positive count is whatever the uniform cap
+happened to include -- which is why coil2000 carries 57 positives and an MDE of 0.061 while
+uslapseagent carries 369 and 0.009. **A stratified cap is the cheapest available improvement to the
+minimum detectable effect** -- it costs nothing at run time, and it is worth strictly more than
+additional repeats, which (above) buy no sensitivity at all. Recorded here as a candidate change
+rather than made, because it changes the split every existing number was computed on.
+
 **What this means for the design's claims.** A positive result at these settings is evidence of a
 large effect; a null is *not* evidence that fine-tuning is worthless at the 0.001-0.010 scale. Every
 null is therefore reported **with its minimum detectable effect beside it**, so a reader can see what
