@@ -75,6 +75,11 @@ recommendation and a blank:
 Nothing beyond the first step is funded until the step before it has produced a result, and if the
 first step is negative the programme ends there with an answer rather than an invoice.
 
+**Then, in order:** merge the design and the code → run the probe from merged `main` → read the
+result (the `ft3` rung must land in R1's band, or nothing else is interpretable) → decide whether
+the wider testing is released. **The probe is a separate pilot on purpose:** it can fail, and a
+flat result is a finding rather than a wasted run.
+
 ## The close
 
 > "The whole thing starts for seven pence. If training longer doesn't help, we find that out for 7p instead of $15 — and either way we end up with an answer we can defend."

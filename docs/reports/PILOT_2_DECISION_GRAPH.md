@@ -26,6 +26,20 @@ than folded in.
 decisions are in `PILOT_2_DECISION_LOG.md`; the isolation argument and the interaction policy are in
 `PILOT_2_DESIGN_ALTERNATIVE.md`.
 
+### Sequencing — what happens, in this order
+
+1. **Merge the design (`#168`) and the code (`#172`).** The probe runs from a commit on `main`, not from
+   an unmerged branch: a result produced by code nobody reviewed is not a result to lean on, and the
+   run's manifest records the commit it came from.
+2. **Run the probe** from that merged commit — one dataset, one split, four arms, about nine pence.
+3. **Read it**, with the `ft3` replication gate and the recorded row-epochs in hand.
+4. **Decide the wider testing on the result.** Nothing beyond the probe is released before it.
+
+**The probe is a separate pilot, deliberately.** It answers one question and it is allowed to fail — a
+flat ladder is a finding, not a wasted run. Holding the wider design (`PILOT_2_DESIGN.md`) back means
+its release is a decision taken on evidence rather than on confidence, which is also what makes the
+probe's cost defensible to a reader who is sceptical of the programme as a whole.
+
 ## Recommendation
 
 **Adopt the staged-isolation design as the route. Keep the bundled design as the reference
