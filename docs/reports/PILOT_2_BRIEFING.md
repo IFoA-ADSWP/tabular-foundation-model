@@ -99,5 +99,4 @@ Everything below is appendix. It exists for whoever wants to challenge a number 
 | How the numbers will be computed, and what counts as a positive | `PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` |
 | The decisions, with options and recommendations | `PILOT_2_DECISION_LOG.md` |
 | Why the historic "don't chase fine-tuning" verdict is unusable | `HISTORIC_FINETUNING_APPRAISAL.md` |
-| **The probe, in full** — dataset, parameters, outcomes, preconditions | **`PROBE_PLAN.md`** (PR #173) |
 | The infrastructure and the analysis code | PR #173 |

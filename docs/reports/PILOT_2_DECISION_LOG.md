@@ -185,10 +185,6 @@ OPEN; this holds what the design review settled.
 | **P11** | **The budget is recorded as row-epochs** (training rows x epochs), not as epochs alone | An epoch is one pass over the split, so the same epoch count means different amounts of training at different scales: 30 epochs is 60,000 row-passes at 2,000 rows and 150,000 at 5,000. Without row-epochs, a future run at another scale can return a different answer under the same label and the two cannot be compared |
 | **P12** | **The probe is a separate pilot, and it runs from merged code on `main`** | Kept separate so its result GATES the wider testing instead of being folded into it -- and run post-merge so the result references reviewed code at a recorded commit rather than an unmerged branch |
 
-The operative specification these decisions produced lives in **`PROBE_PLAN.md`**. This table
-records *what* was decided and *why*; that document is the single place that says what the probe
-*is*.
-
 ### Cost discipline
 
 | # | Decision | Reason |
