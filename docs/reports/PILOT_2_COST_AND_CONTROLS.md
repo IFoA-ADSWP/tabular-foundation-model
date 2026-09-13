@@ -56,6 +56,71 @@ already gated behind a positive result at the smaller scale.
 | ~$15 | confidence |
 | ~$83 | confidence and scale |
 
+## How many datasets? Four registered, fifteen available
+
+The repository holds **fifteen insurance datasets. The fine-tuning pilot wires up four of them.**
+
+| Registered in the pilot | Rows | | Present but not registered | Rows |
+| --- | --- | --- | --- | --- |
+| coil2000 | 9,822 | | bemtl97 | 163,212 |
+| eudirectlapse | 23,060 | | norauto | 183,999 |
+| uslapseagent | 29,317 | | freMTPL2freq | 678,013 |
+| spanish_motor_lapse | 53,502 | | freMTPL2freq_binary | 50,000 |
+| | | | ausprivauto0405 | 67,856 |
+| | | | bemtl16 | 58,723 |
+| | | | ausautoBI8999 | 22,036 |
+| | | | spanish_motor_freq | 53,502 |
+| | | | spanish_motor_severity | 53,502 |
+| | | | fretelematic | 1,177 |
+| | | | Spanish motor portfolio (directory) | — |
+
+**The others are not idle.** They carry the project's other benchmarks — the frontier benchmark
+already uses twelve datasets with their targets defined — so registering them for the fine-tuning
+pilot is largely configuration, not new data collection.
+
+### What widening the transfer pool costs
+
+Transfer cost scales with **both** the size of the pool and the number of held-out targets:
+
+| Datasets in scope | Pool | One repeat-set | 15 repeats | One pooled method |
+| --- | --- | --- | --- | --- |
+| **4 (first-pilot parity)** | 3 | $1.34 | **$20.07** | 11 min |
+| 8 | 7 | $5.83 | $87.40 | 25 min |
+| 12 (the frontier set) | 11 | $13.47 | $202 | 40 min |
+| 15 (everything) | 14 | $21.26 | **$319** | 51 min |
+
+Using everything available makes transfer roughly **sixteen times** more expensive at 30 epochs.
+There is also a scientific case for widening — four targets is a thin basis for a decision rule,
+and more source datasets make the transfer claim stronger — but it is bought at this price.
+
+### The pool does not have to be all-comers
+
+The recommended policy is the **same-schema pool**, which is small by construction: only datasets
+whose columns line up. It keeps the result interpretable *and* the cost near first-pilot levels.
+
+| Pool size | 4 targets, 15 repeats |
+| --- | --- |
+| 2 datasets | $14.16 |
+| 3 datasets | $20.07 |
+| 4 datasets | $25.98 |
+
+And the epoch budget still dominates everything:
+
+| Pool | 15 repeats at 30 epochs | at 3 epochs |
+| --- | --- | --- |
+| 3 datasets | $20.07 | **$2.35** |
+| 11 datasets (12 in scope) | $202 | **$7.07** |
+| 14 datasets (15 in scope) | $319 | **$8.84** |
+
+**This yields a decision rule rather than a bigger bill.** If the 5p probe shows three epochs
+performs as well as thirty, an **eleven-dataset pool costs about $7** — affordable, and a far
+stronger transfer claim than four datasets. If thirty epochs is genuinely required, the pool must
+stay small (same-schema) and so must the target set.
+
+**Decision needed from the team: which datasets are in scope** — the four the first pilot used, the
+twelve the frontier benchmark uses, or all fifteen. The design currently says "all other datasets",
+which this inventory shows is ambiguous.
+
 ## What we test: four datasets, two experiments, and pooling
 
 **Four datasets**, all used in both experiments:
