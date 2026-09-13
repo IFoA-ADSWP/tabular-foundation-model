@@ -94,3 +94,43 @@ now sums to $0.0933 for 13 Sep — the figure above — and the account's own cu
 against the ledger's $0.6189, so the per-run figures are estimates and **the account is the number to
 quote**. The distinction that matters for the wider decision is the first row against the second: the
 answer cost $0.0122, and the pipeline that could produce it cost $0.0933.
+
+## Why this negative, per the literature
+
+Cross-referenced against the primary sources recorded in `TABPFN_FINETUNING_LITERATURE.md`. Each condition
+below is checked against this pilot's profile, in four buckets: it **fits** (we satisfy it and it predicts
+the negative), it is **ruled out**, our regime is **outside the evidence**, or it **predicts the opposite**.
+
+| Documented condition | This pilot | Bucket |
+| --- | --- | --- |
+| Gradual temporal shifts with rich feature sets: fine-tuning less stable, prior methods remain better | Insurance lapse is cohort-structured, temporal and rich-featured | **fits** |
+| Baseline already within a few percent of the target: less likely to help; exhaust feature engineering and preprocessing first | The arms sit within about 0.25 ROC AUC points of `A_raw` | **fits** |
+| Niche or specialised domain not covered by the pretraining priors: a *good* candidate for fine-tuning | Insurance lapse is exactly such a domain, and financial instruments are named as an example | **predicts the opposite** |
+| Datasets under 1,000 rows: overfitting risk | 2,000 training rows | ruled out |
+| The learning rate was wrong for the task | 1e-5 is the vendor's documented default | ruled out |
+| The published regime: benchmark average about 15K examples, up to about 1M cells | 2,000 rows, far below both | **outside the evidence** |
+
+Three conclusions follow, and the second is the one that matters.
+
+**The simple story is wrong.** "The pretraining priors did not cover our data, so fine-tuning failed" is the
+domain-gap explanation, and this domain is precisely the vendor's *good-candidate* case. What fits instead
+is the temporal condition: fine-tuning sharpens similarity toward the training distribution, which is the
+wrong thing to sharpen in a drifting one.
+
+**Our regime is outside the evidence.** The negative is not covered by published results in either
+direction, so it should not be presented as a confirmation of a studied boundary. It is consistent with one.
+
+**One methodological gap on our side, recorded as a limitation.** The vendor requires that on time-dependent
+data the split respect the time ordering. This run used the loader's stratified **random** split. That makes
+the task *easier* than the domain presents, so it cannot explain the negative — but it limits how far the
+verdict generalises, and it is the first thing to fix before any re-run.
+
+**The one observation no source explains.** Calibration improved monotonically with epochs while ROC AUC did
+not move. The published mechanism predicts a *ranking* gain, so this sits outside the explanation above.
+Either it is noise at one seed, or it is a distinct effect — and it is the observation with commercial
+relevance, since a fixed schema scored repeatedly is the amortised setting the vendor names.
+
+**What would separate these explanations,** each one dataset and costs in cents: a **temporal split** (the
+vendor's guidance, and the fix for our own limitation); an **I.I.D. academic dataset** (where the same
+literature reports fine-tuning winning, which would turn a flat negative into a domain boundary); and the
+**batch-size** axis the paper reports on, which we have never tested.
