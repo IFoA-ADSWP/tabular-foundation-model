@@ -18,7 +18,7 @@ Five steps. Each is cheap, and each can stop the whole programme.
 
 | # | Step | Cost | If it fails |
 | --- | --- | --- | --- |
-| 1 | Train longer — one dataset, one split | **7p** | **Stop.** The budget question is closed |
+| 1 | Train longer — **uslapseagent**, one split | **7p** | The budget question closes: the bigger rungs are not bought. The in-domain question stays answerable at 3 epochs, for pence |
 | 2 | Does it survive a different data split? | 12p | **Stop.** The first pilot's effect was split luck |
 | 3 | Does it hold across all four datasets? | 43p | **Stop.** Report "no consistent gain" |
 | 4 | Does it work on a dataset it has **never seen**? | from $1 | **Stop.** A clean transfer negative |
