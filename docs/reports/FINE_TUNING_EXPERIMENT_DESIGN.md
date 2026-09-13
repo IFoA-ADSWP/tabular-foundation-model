@@ -1,5 +1,10 @@
 # Experiment Design: Insurance-Specialized TabPFN Fine-Tuning (v6)
 
+> **Historical document.** Superseded by `PILOT_2_DESIGN.md` and `PILOT_2_DECISION_GRAPH.md`
+> (2026-09-13). Kept for the record -- **do not reconcile it against the current design**,
+> which deliberately differs from it.
+
+
 > Date: 2026-09-11 | Status: **R1 complete — smoke test only; R2, R3 and Q4/Q5 not run** | Related: #22, #129, #156, #159
 > Builds on: PRE_FINETUNING_INVESTIGATIONS.md, master report (v3, canonical folds)
 >
@@ -8,6 +13,10 @@
 >   (notably **arms C/D, so the transfer question in the Research Question below is still
 >   untested**). Also records where R1 deviated from this design.
 > - **`FINE_TUNING_PILOT_RESULTS.md`** — the R1 numbers (§5c) and their statistical limits (§5d).
+> - **`NEXT_STAGE_PROPOSAL.md`** — the proposed next stage (LODO transfer, audit schema, gates).
+>   Note it leads with the fact that the transfer experiment was already run and came out
+>   pooled-negative on v2 (`CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md`), so the next stage is a
+>   **re-test on v3**, not a first look. Nothing in it is approved or funded.
 >
 > The `R3 Gate` in this document is the pre-specified decision rule for advancing rungs. R1
 > evidence (arm B ≈ arm A, both inside the noise floor) points to its "otherwise stop" branch,

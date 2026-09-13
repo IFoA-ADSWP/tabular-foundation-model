@@ -695,7 +695,39 @@ therefore folded into `__ART__`-tagged lines of 440 chars and reassembled client
 | `GET {api}/account/license/?version=<licence-name>` | that account ACCEPTED the licence |
 
 A token can pass the first and fail the second, and **only the second gates the weight
-download**. Two traps:
+download**.
+
+**What the gate actually gates — and what it does not.** The check is *not* an inference or
+fine-tuning credential. It sits inside the weight-download path and fires only on a **cache
+miss**:
+
+```
+model_loading.py
+  if to.exists(): return ...          # weights already on disk -> NO licence check at all
+  return _download_model(...)         # cache miss only
+
+  _download_model(...):
+      _HF_REPOS = {V2_5: "tabpfn_2_5", V2_6: "tabpfn_2_6", V3: "tabpfn_3"}
+      if version in _HF_REPOS:        # every current version is gated
+          ensure_license_accepted(hf_repo_id=...)   # -> then hf_hub_download
+```
+
+Three consequences that matter operationally:
+
+- **No token is needed for local inference or fine-tuning once the weights are cached.** On a
+  machine with the `.ckpt` already in `~/.cache/tabpfn/`, the cache check short-circuits and the
+  gate never runs. Fine-tuning itself is entirely local — no cloud compute, no API call.
+- **Our ephemeral Vast containers take the cache-miss path on every run**, so the gate fires
+  every time and `TABPFN_TOKEN` is required every time. That is why the bootstrap enforces it.
+- **The token is *how* licence acceptance is verified — it is not an alternative to accepting
+  the licence.** "You need a licence, not a key" is a distinction without a difference here:
+  `TABPFN_TOKEN` is the mechanism by which Prior Labs records acceptance. In a non-interactive
+  container it is the only supported path, which is why the failure reads as a licence error.
+
+Baking the checkpoint into the image would move the gate from every run to once per image
+build. Not implemented; recorded as the obvious optimisation.
+
+Two traps:
 
 - `version` is a **LICENCE NAME read from the HuggingFace model card**, not a package version:
   `_get_license_name(hf_repo_id)` → for `Prior-Labs/tabpfn_3` that is `tabpfn-3-license-v1.0`.
