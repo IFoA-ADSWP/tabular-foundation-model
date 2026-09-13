@@ -210,6 +210,8 @@ reference specification; the alternative is the recommended route to it.
 
 ## 5. Gate 1
 
+> Inputs to these criteria are computed per `PILOT_2_STATISTICAL_ANALYSIS_PLAN.md`.
+
 **Proceed to Stage 2 if and only if all four criteria in §4.4 hold.**
 
 **The winning configuration is FROZEN at this gate.** Stage 2 inherits the epoch budget that won in
@@ -298,6 +300,11 @@ comparability with the R2/R3 evidence, or the R1 four for continuity. **Needs a 
 the historic set makes the re-test legible; the R1 set connects to R1.
 
 ### 6.5 Pre-registered decision rule
+
+> **How the inputs to this rule are computed is fixed in `PILOT_2_STATISTICAL_ANALYSIS_PLAN.md`**
+> (estimands, pairing, intervals, the D4 aggregation and multiplicity rule, the escalation and
+> inconclusive rules, and the reporting format). This section states the rule; that plan states the
+> arithmetic.
 
 **Comparators are named explicitly, and the control is tested first.** A rule that does not name
 its comparators can be satisfied by the wrong arm — which is the defect the rejected R3 gate below
