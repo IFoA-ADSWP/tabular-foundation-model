@@ -42,7 +42,12 @@ specification. Let the 7p probe decide the rest.**
 | **Bundled design** | retained as the reference specification | the isolation route arrives at it once each factor is known to matter — a better position to spend from, not a retreat |
 
 **Not recommended, for the record:** running the bundled design first (~$31, needs a ~$21 top-up, and
-a negative would be unattributable); running at full data scale (~$368, with no evidence yet that the
+a negative would be unattributable); running at full data scale (not estimated, with no evidence yet that the
+
+> **No programme-scale figure is quoted.** An earlier draft gave one (~$368) by stacking three
+> unmeasured assumptions at once -- the training-length curve, the pool sizes and the row scaling --
+> before the probe that measures the largest of them. A number for that scope returns only when it
+> can be derived from measurements, not from a curve we have not run.
 effect grows with rows); pursuing an interaction before the isolation steps have produced a mechanism
 and a near-miss to justify it.
 
