@@ -81,7 +81,7 @@ flowchart TD
 | # | Test | Comparison | Positive → | Negative → | Cost | Cumulative |
 | --- | --- | --- | --- | --- | --- | --- |
 | 0 | Training ladder, 1 dataset, 1 split | 30 vs 10 vs 3 epochs | step 1 | **stop, report** | 7c | 7c |
-| 1 | 1 dataset, 3 seeds, 1 split | fine-tuned vs raw | step 2 | **stop, report** | 2-11c | ~20c |
+| 1 | 1 dataset, 3 seeds, 1 split | fine-tuned vs raw | step 2 | **stop, report** | 12-14c | ~20c |
 | 2 | 4 datasets, 3 seeds, 1 split | fine-tuned vs raw, per dataset | step 3 | **stop, report, no transfer** | 7-43c | ~60c |
 | 3 | 1 target, coherent pool + control | pooled vs raw, vs shuffled labels | step 4 | **stop, report** | 12c-$1.02 | ~$1.70 |
 | 4 | 3 remaining targets (step 3's is reused) | pooled vs raw, per target | step 5 | report at sample scale | 35c-$3.07 | ~$4.70 |
