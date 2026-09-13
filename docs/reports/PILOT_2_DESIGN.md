@@ -419,9 +419,10 @@ confound.
    `D_pooled_schema`) acceptable as the starting point, with H3 (`C_pooled_all`) second and read only
    if H1 was interpretable? Who owns the schema-matching call?
 3. **Target set for Stage 2** (§6.4) — historic four or R1 four?
-4. **Budget envelope** (§4.5.1) — the full design is ~$35–50 against ~$9.60 of credit. Recommended:
-   fund **P1a + P1b (~$5)** and treat P1c and Stage 2 as a separate top-up decision. Confirm, or set
-   a different ceiling.
+  4. **Budget envelope** (§4.5) — the design as written is **~$31** on the modelled basis, against
+     ~$9.60 of credit. Recommended: fund the **7p first step** (which measures the one unmeasured
+     relationship), then the in-domain steps, with transfer and data scale as later decisions taken on
+     measured numbers. Confirm, or set a different ceiling.
 5. **Pool policy** — the historic comparison was a coin flip under a confounded design. Re-test
    `similarity_topk` vs `mixed_baseline`, or fix one policy and spend the budget on power?
 6. **Audit schema sign-off** — is the manifest in `NEXT_STAGE_PROPOSAL.md` §4.2 sufficient for the
