@@ -32,7 +32,7 @@ def cdf():
 
 CLEAN = """# A document
 
-The recommended path costs ~$4.70, the design as written ~$31, and full scale ~$368.
+The recommended path costs ~$4.70 and the design as written ~$31.
 Credit available is $9.60. One successful four-dataset comparison cost 5p.
 The ladder probe is 7c and a designed interaction probe $1.11.
 """
@@ -92,11 +92,16 @@ def test_a_missing_canonical_figure_is_a_finding(cdf, tmp_path, capsys):
     assert "steps 0-4" in capsys.readouterr().out
 
 
-def test_a_variant_spelling_is_reported_but_not_fatal(cdf, tmp_path, capsys):
-    _write(tmp_path, "PILOT_2_A.md", CLEAN)
-    _write(tmp_path, "PILOT_2_B.md", "At full scale the figure is ~$367.\n")
-    assert cdf.main(["--docs-dir", str(tmp_path)]) == 0
-    assert "note:" in capsys.readouterr().out
+def test_the_withdrawn_full_scale_figure_is_not_canonical(cdf):
+    """The programme quote was withdrawn: it stacked three unmeasured assumptions.
+
+    A regression guard, so nobody quietly reinstates it as a headline. If a figure for that scope
+    ever returns it must come from measurement, and this test is where that argument gets made.
+    """
+    stated = [v for values in cdf.CANONICAL.values() for v in values]
+    assert "$368" not in stated and "$367" not in stated
+    assert not any("full scale" in k for k in cdf.CANONICAL)
+    assert "$368" in cdf.SUPERSEDED, "a withdrawn figure must be flagged if it reappears"
 
 
 def test_a_missing_directory_is_an_error(cdf, tmp_path):

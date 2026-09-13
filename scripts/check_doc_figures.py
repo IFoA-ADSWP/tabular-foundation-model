@@ -37,7 +37,6 @@ from pathlib import Path
 CANONICAL: dict[str, list[str]] = {
     "steps 0-4, the recommended path": ["$4.70"],
     "the design as written, 15 repeats": ["$31"],
-    "everything at full data scale": ["$368"],
     "available credit": ["$9.60"],
     "one successful four-dataset comparison": ["5p"],
     "the 7p ladder probe": ["7c"],
@@ -47,6 +46,10 @@ CANONICAL: dict[str, list[str]] = {
 # Figures that were published at some point and have since been corrected. Any occurrence must
 # be marked as historical on the same line.
 SUPERSEDED: list[str] = [
+    # WITHDRAWN, not merely stale: "$368" stacked three unmeasured assumptions (the training-length
+    # curve, the pool sizes, the row scaling) and read as a cost when it was an extrapolation. No
+    # document should quote a programme-scale figure again until it can be derived from measurements.
+    "$368", "$367",
     "$4.15",   # execution plan, before the pooled-arm count and the step-4 double-count were fixed
     "$15.05",  # the very first envelope, before measurement
     "$82.93",  # ditto, at full scale
@@ -64,7 +67,7 @@ MARKERS: tuple[str, ...] = (
 
 # Accepted alternative spellings of a canonical quantity: reported so the reader knows the
 # documents round differently, but not treated as a defect.
-VARIANTS: dict[str, str] = {"$367": "$368"}
+VARIANTS: dict[str, str] = {}  # no rounding variants of record
 
 _SKIP_SUFFIXES = (".md~", ".bak")
 
