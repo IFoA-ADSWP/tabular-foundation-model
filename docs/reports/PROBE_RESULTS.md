@@ -81,4 +81,16 @@ So the wider proposal is **not** earned on the basis it was designed to test. Th
 team, not for this document, and it should be taken with the calibration trend in view: it may be worth one
 narrow question about the probability head, and it is not worth the staged programme as written.
 
-Total programme spend to reach this answer: **$0.0922** of the $0.25 ceiling.
+## Cost, corrected
+
+| | |
+| --- | --- |
+| **the probe run itself** | **$0.0122** — 2.53 min on an RTX PRO 4000 at $0.2893/hr |
+| **reaching it** — the seven runs of 13 Sep, four of which produced no result | **$0.0933** |
+| **the account's authoritative cumulative spend**, all work on this account | **$0.5461** |
+
+An earlier draft of this section said $0.0922: that was my arithmetic, and it missed one run. The ledger
+now sums to $0.0933 for 13 Sep — the figure above — and the account's own cumulative total is $0.5461
+against the ledger's $0.6189, so the per-run figures are estimates and **the account is the number to
+quote**. The distinction that matters for the wider decision is the first row against the second: the
+answer cost $0.0122, and the pipeline that could produce it cost $0.0933.
