@@ -4,6 +4,11 @@
 > graph: the recommendation, what every stopping point lets us claim, and the cost of each step.
 > This document is the reference specification that route arrives at; the graph page is the entry
 > point for a reviewer.
+>
+> **The wider testing's code does not exist yet.** The transfer arms, the pool construction, the schema rule
+> and the label harmonisation are all unbuilt, and four open decisions (D1–D3, D8) determine their shape —
+> see *What the WIDER testing still needs built* in `PILOT_2_PREREQUISITES.md`. The probe is separate and
+> needs none of it.
 
 > Date: 2026-09-12, revised 2026-09-13 | **Status: DESIGN — awaiting team sign-off. No spend is
 > authorised by this document.** Related: #22

@@ -517,3 +517,25 @@ carries `n_validation`, `validation_index_sha256`, `validation_split_ratio` and 
 `test_pr10_a_reserve_outside_training_is_fatal`,
 `test_pr10_make_split_records_the_reserve_and_the_assertion`. The three fatal modes were also
 exercised directly against the real module, each raising with a message naming the row indices.
+
+## What the WIDER testing still needs built (not started)
+
+The probe (its own proposal, `PROBE_PLAN.md`) is complete and needs nothing from this list. **The wider
+testing described in `PILOT_2_DESIGN.md` cannot run yet: the code does not exist**, and the shape of it
+depends on decisions that are still open.
+
+| Missing build | State | Blocked by |
+| --- | --- | --- |
+| **Transfer arms** — `C_pooled_all`, `D_pooled_schema`, `R_random` | Not implemented. The arm registry holds `A_raw`, `B_in_domain`, the three ladder rungs, `E_glm`, `F_catboost`. The others appear only in the *intended* list | **D1** (does the transfer arm see any target rows) changes their construction |
+| **Pool construction** | `build_pool` **asserts** that the target is absent from its pool (by name and content hash) — it does not build one. No rows, features, alignment, encoding or scaler | **D2** defines the pool; **D5** names its row source |
+| **Schema-matching rule** (H1, the recommended policy) | Not implemented | **D2** — the rule and its owner are undecided, and it is a leakage vector until they are |
+| **Label harmonisation** | Pool members carry *different target events* (`CARAVAN`, `surrender`, `lapse`, `LapseB`), so a pooled model is trained on a mixture of outcome definitions | **D8** |
+| **Dataset registration** | Only 4 of the 15 datasets are wired into the loader; the rest need a target column and preprocessing. The other eleven are already used by the project's other benchmarks, so this is configuration rather than new data work | **D3** decides how many are in scope |
+
+**Also to settle before implementing:** the pooled arm has **two names**. The code's intended-arms list
+says `D_pooled_homog`; the design, this checklist and the analysis plan say `D_pooled_schema`. Same arm.
+Whoever writes it will pick one, and if they pick differently from the analysis, the two will disagree
+about which arm was run. **Decide the name before the code, not after.**
+
+**Sequence:** answer D1–D3, D5 and D8 → build the arms and pooling → then the wider testing is runnable.
+Nothing on this list is blocked on the probe, and nothing about the probe changes it.
