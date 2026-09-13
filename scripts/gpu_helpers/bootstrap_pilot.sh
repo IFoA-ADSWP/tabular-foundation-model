@@ -24,6 +24,7 @@ BRANCH="${BRANCH:-finetune-v2}"
 REPO="https://github.com/IFoA-ADSWP/tabular-foundation-model.git"
 WORKDIR="${WORKDIR:-/workspace/tfm}"
 ARMS="${ARMS:-A_raw,B_in_domain,E_glm,F_catboost}"
+DATASET="${DATASET:-}"   # empty = every registered dataset
 
 # A real run must record a commit_sha that describes the code that ran. The tree is a
 # fresh clone here, so any modification is a genuine provenance problem. Untracked files
@@ -280,7 +281,8 @@ fi
 for arm in ${ARMS//,/ }; do
     echo
     echo "########## ARM $arm ##########"
-    python3 scripts/run_pilot.py --arms "$arm"
+    # shellcheck disable=SC2086  # DATASET is a dataset name, not unquoted input
+    python3 scripts/run_pilot.py --arms "$arm" ${DATASET:+--dataset "$DATASET"}
     rc=$?
     if [ "$rc" -ne 0 ]; then
         # 137 => 128+9 SIGKILL, i.e. the OOM killer. Reported, not fatal.

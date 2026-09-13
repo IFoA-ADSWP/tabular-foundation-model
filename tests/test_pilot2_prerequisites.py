@@ -602,7 +602,11 @@ def test_pr10_make_split_records_the_dropped_rows_and_the_assertion(rp):
     y = (rng.random(200) > 0.5).astype(int)
     *_, fp = rp.make_split(X, y, seed=42, train_size=100, test_size=40, fold=None, n_folds=None)
     assert fp["leakage_assertion"]["train_test_disjoint"] is True
-    assert fp["leakage_assertion"]["context_source"] == "train_split_only"
+    # The context is now CHECKED against the split rather than claimed in prose, and the
+    # record says the bound was actually applied.
+    assert fp["leakage_assertion"]["context_source"] == "explicit_indices_checked"
+    assert fp["leakage_assertion"]["context_allowed_checked"] is True
+    assert fp["leakage_assertion"]["n_context"] == 100
     # 200 rows -> 40 test, 160 train-candidates -> 100 kept + 60 dropped by the cap
     assert fp["n_train"] == 100
     assert fp["n_test"] == 40
@@ -676,3 +680,185 @@ def test_preflight_checks_the_slot_the_writer_actually_uses(rp, tmp_path):
     assert "REFUSING TO OVERWRITE" in r.stdout
     assert "seed43_foldNone" in r.stdout, "the pre-flight must name the slot it found"
     assert json.loads((slot / "meta.json").read_text())["protected"] is True
+
+
+# --------------------------------------------------------------------------
+# P11 -- the budget is recorded in row-passes, not only in epochs
+# --------------------------------------------------------------------------
+def test_row_epochs_uses_the_arms_own_budget(rp):
+    """A rung must report its own rung, not the run's global epoch setting."""
+    cfg = dict(rp.DEFAULT_CONFIG, epochs=3)
+    assert rp.row_epochs("B_ft3", 2000, cfg) == 6000
+    assert rp.row_epochs("B_ft10", 2000, cfg) == 20000
+    assert rp.row_epochs("B_ft30", 2000, cfg) == 60000
+
+
+def test_row_epochs_marks_non_finetuning_arms_as_not_applicable(rp):
+    """0 would wrongly suggest a raw arm trains on nothing; it does not train at all."""
+    cfg = dict(rp.DEFAULT_CONFIG)
+    for arm in ("A_raw", "E_glm", "F_catboost"):
+        assert rp.row_epochs(arm, 2000, cfg) is None
+
+
+def test_row_epochs_makes_two_scales_comparable(rp):
+    """The point of the field: the same label, different training, made visible."""
+    cfg = dict(rp.DEFAULT_CONFIG)
+    small = rp.row_epochs("B_ft30", 2000, cfg)
+    large = rp.row_epochs("B_ft30", 5000, cfg)
+    assert large == small * 2.5
+
+
+# --------------------------------------------------------------------------
+# P8 -- the training budget must not be silently cut short
+# --------------------------------------------------------------------------
+def test_early_stopping_is_pinned_off_by_default(rp):
+    assert rp.DEFAULT_CONFIG["early_stopping"] is False
+
+
+def test_the_effective_config_records_the_pin(rp):
+    """A declared epoch count means nothing if stopping was allowed to cut it short."""
+    for arm in ("B_in_domain", "B_ft3", "B_ft10", "B_ft30"):
+        cfg = rp.effective_config(arm, dict(rp.DEFAULT_CONFIG))
+        assert cfg["kwargs"]["early_stopping"] is False
+        assert "early_stopping" in cfg["passed_params"]
+        assert "early_stopping" not in cfg["library_defaulted_params"]
+
+
+def test_the_trainer_receives_the_pin_and_never_relies_on_a_default(rp):
+    """Source guard: the trainer cannot be imported locally, so the call site is asserted.
+
+    The package takes early_stopping (+ patience when enabled) as constructor arguments; a
+    construction that omits the flag would silently inherit the library's default, which is the
+    defect P8 exists to prevent.
+    """
+    src = Path(rp.__file__).read_text()
+    # the flag is set on the kwargs dict, and that dict is what the trainer is called with
+    i = src.index("_ft_kwargs = dict(")
+    block = src[i : i + 600]
+    assert "early_stopping=" in block, block[:200]
+    j = src.index("FinetunedTabPFNClassifier(**")
+    assert "_ft_kwargs" in src[j : j + 40]
+
+
+def test_a_ladder_arm_does_not_change_the_pin(rp, monkeypatch):
+    """Each rung varies epochs only. If a rung could change the pin, the ladder would vary two things."""
+    base = dict(rp.DEFAULT_CONFIG)
+    seen = {}
+
+    def fake_b(X_train, X_test, y_train, y_test, config):
+        seen.update(config)
+        return None, None
+
+    monkeypatch.setattr(rp, "run_arm_b_in_domain", fake_b)
+    rp.ARMS["B_ft30"](None, None, None, None, base)
+    assert seen["early_stopping"] is False
+    assert seen["epochs"] == 30
+
+
+# --------------------------------------------------------------------------
+# The context half of the leakage guarantee (PILOT_2_DESIGN 3.1)
+# --------------------------------------------------------------------------
+def test_context_disjoint_from_test_rows_is_recorded(rp):
+    rec = rp.assert_context_is_training_only([0, 1, 2, 3], [4, 5], allowed_idx=[0, 1, 2, 3])
+    assert rec["context_test_disjoint"] is True
+    assert rec["n_context"] == 4
+    assert rec["context_allowed_checked"] is True
+
+
+def test_context_containing_a_test_row_is_fatal(rp):
+    with pytest.raises(ValueError, match="CONTEXT CONTAMINATION"):
+        rp.assert_context_is_training_only([0, 1, 4], [4, 5], allowed_idx=[0, 1, 2, 3, 4])
+
+
+def test_context_drawing_outside_its_allowance_is_fatal(rp):
+    """A pooled arm's context must come from pool(T), not from whatever is to hand."""
+    with pytest.raises(ValueError, match="CONTEXT OUT OF BOUNDS"):
+        rp.assert_context_is_training_only([0, 1, 9], [4, 5], allowed_idx=[0, 1, 2, 3])
+
+
+def test_context_with_no_allowance_says_no_bound_was_checked(rp):
+    """The weaker check is still honest about being weaker."""
+    rec = rp.assert_context_is_training_only([0, 1, 2], [4, 5])
+    assert rec["context_allowed_checked"] is False
+    assert rec["context_test_disjoint"] is True
+
+
+def test_contamination_check_verifies_the_context_when_given_one(rp):
+    rec = rp.assert_no_test_contamination([0, 1, 2, 3], [4, 5], None, None,
+                                          context_idx=[0, 1, 2], allowed_idx=[0, 1, 2, 3])
+    assert rec["context_source"] == "explicit_indices_checked"
+    assert rec["context_allowed_checked"] is True
+    assert rec["n_context"] == 3
+
+
+def test_contamination_check_says_so_when_no_context_indices_were_supplied(rp):
+    rec = rp.assert_no_test_contamination([0, 1, 2, 3], [4, 5], [2, 3])
+    assert rec["context_indices_supplied"] is False
+    assert rec["context_source"] == "train_split_only"
+
+
+def test_contamination_check_is_fatal_on_a_contaminated_context(rp):
+    with pytest.raises(ValueError, match="CONTEXT CONTAMINATION"):
+        rp.assert_no_test_contamination([0, 1, 2, 3], [4, 5], None, None, context_idx=[0, 4])
+
+
+# --------------------------------------------------------------------------
+# The epoch ladder (PILOT_2 step 0): each rung carries its own budget
+# --------------------------------------------------------------------------
+def test_the_ladder_arms_are_registered_and_distinct(rp):
+    for arm in ("B_ft3", "B_ft10", "B_ft30"):
+        assert arm in rp.ARMS, f"{arm} missing from the arm registry"
+    budgets = {rp.ARM_EPOCH_OVERRIDES[a] for a in rp.LADDER_ARMS}
+    assert budgets == {3, 10, 30}
+
+
+def test_ladder_invariants_hold_so_the_lists_cannot_drift(rp):
+    assert set(rp.ARM_EPOCH_OVERRIDES) == set(rp.LADDER_ARMS)
+    assert all(a in rp.ARMS for a in rp.LADDER_ARMS)
+    assert all(a in rp.FT_ARMS for a in rp.LADDER_ARMS)
+
+
+def test_effective_config_reports_the_rungs_own_budget_not_the_global(rp):
+    """The defect this guards: a 30-epoch rung whose record says it ran the global 3."""
+    config = dict(rp.DEFAULT_CONFIG, epochs=3)
+    for arm, epochs in rp.ARM_EPOCH_OVERRIDES.items():
+        assert rp.effective_config(arm, config)["kwargs"]["epochs"] == epochs
+    # and the non-ladder arm still reports the global
+    assert rp.effective_config("B_in_domain", config)["kwargs"]["epochs"] == 3
+
+
+def test_a_ladder_arm_runs_with_its_own_budget(rp, monkeypatch):
+    seen = {}
+
+    def fake_b(X_train, X_test, y_train, y_test, config):
+        seen["epochs"] = config["epochs"]
+        return None, None
+
+    monkeypatch.setattr(rp, "run_arm_b_in_domain", fake_b)
+    config = dict(rp.DEFAULT_CONFIG, epochs=3)
+    rp.ARMS["B_ft30"](None, None, None, None, config)
+    assert seen["epochs"] == 30
+
+
+def test_a_ladder_arm_does_not_mutate_the_shared_config(rp, monkeypatch):
+    """The caller's dict is shared across every arm in the run."""
+    monkeypatch.setattr(rp, "run_arm_b_in_domain",
+                        lambda *_a, **_k: (None, None))
+    config = dict(rp.DEFAULT_CONFIG, epochs=3)
+    rp.ARMS["B_ft30"](None, None, None, None, config)
+    assert config["epochs"] == 3, "the arm leaked its budget into the shared config"
+
+
+def test_the_global_epochs_flag_still_governs_a_single_budget_run(rp):
+    config = dict(rp.DEFAULT_CONFIG, epochs=10)
+    assert rp.arm_epochs("B_in_domain", config) == 10
+    assert rp.effective_config("B_in_domain", config)["kwargs"]["epochs"] == 10
+
+
+def test_the_cli_offers_the_ladder_arms(rp, tmp_path):
+    """An unknown arm trips the parser, whose error lists every valid choice."""
+    r = _run_cli(rp, "--dataset", "coil2000", "--arms", "not_an_arm")
+    combined = r.stdout + r.stderr
+    assert r.returncode != 0
+    for arm in ("B_ft3", "B_ft10", "B_ft30"):
+        assert arm in combined, f"{arm} is not offered as a valid arm"

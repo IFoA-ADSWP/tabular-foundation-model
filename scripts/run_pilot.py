@@ -64,6 +64,10 @@ SCHEMA_VERSION = 2
 # see FINE_TUNING_PILOT_RESULTS.md §5d.4.
 DEFAULT_CONFIG = {
     "epochs": 3,
+    # P8: the budget test must measure the TRAINING BUDGET, not whatever early stopping allowed.
+    # Pinned off for every fine-tuning arm, and recorded, so a ladder rung cannot silently become
+    # "as far as patience got" while its manifest claims 30 epochs.
+    "early_stopping": False,
     "n_estimators": 2,
     "learning_rate": 1e-5,
     "fit_mode": "batched",
@@ -403,7 +407,55 @@ def load_dataset(name, target_col, max_rows=None):
     return X, y, {"row_cap": max_rows, "row_cap_applied": sampled, "rows_loaded": int(len(df))}
 
 
-def assert_no_test_contamination(train_idx, test_idx, dropped_idx=None, pool_idx=None):
+def assert_context_is_training_only(
+    context_idx,
+    test_idx,
+    *,
+    allowed_idx=None,
+    label="inference context",
+):
+    """Refuse an inference context that contains test rows (PILOT_2_DESIGN 3.1).
+
+    The other half of the leakage guarantee. `assert_no_test_contamination` proves the test rows
+    are absent from everything FITTED on; this proves they are absent from what the model is
+    CONDITIONED on, which is the same failure by a different route -- a context carrying test
+    rows would not raise anywhere, it would simply improve the metrics.
+
+    `allowed_idx` is the set the context is permitted to draw from, and it is deliberately a
+    parameter rather than an assumption: for the in-domain arms it is the training split, but for
+    a **pooled** arm it must be `pool(T)`, so a pooled arm must pass its own allowance rather than
+    inherit the training split's. Passing the wrong allowance here would make the check vacuous
+    while still reporting success, which is why the recorded `context_allowed_checked` says
+    whether a bound was checked at all.
+    """
+    ctx = np.asarray(context_idx).ravel()
+    test = np.asarray(test_idx).ravel()
+    out = {
+        "n_context": int(ctx.size),
+        "context_test_disjoint": True,
+        "context_allowed_checked": allowed_idx is not None,
+    }
+
+    overlap = np.intersect1d(ctx, test, assume_unique=False)
+    if overlap.size:
+        raise ValueError(
+            f"CONTEXT CONTAMINATION: {overlap.size} test row(s) appear in the {label} "
+            f"(first: {overlap[:5].tolist()}). The model would be conditioned on rows it is "
+            f"being scored on -- the leak PILOT_2_DESIGN.md 3.1 forbids."
+        )
+
+    if allowed_idx is not None:
+        allowed = np.asarray(allowed_idx).ravel()
+        if ctx.size and not np.isin(ctx, allowed).all():
+            raise ValueError(
+                f"CONTEXT OUT OF BOUNDS: {label} contains rows outside the supplied allowance "
+                f"-- a context may only draw from rows its arm owns."
+            )
+    return out
+
+
+def assert_no_test_contamination(train_idx, test_idx, dropped_idx=None, pool_idx=None,
+                                 context_idx=None, allowed_idx=None):
     """Refuse a split in which test rows could reach fitting (PR-10).
 
     The mirror of the PR-5 pool assertion. `build_pool` proves the transfer target is
@@ -465,6 +517,14 @@ def assert_no_test_contamination(train_idx, test_idx, dropped_idx=None, pool_idx
                     f"SPLIT OUT OF BOUNDS: {label} indices contain rows outside the "
                     f"supplied pool -- a split may only use rows it owns."
                 )
+
+    if context_idx is not None:
+        out.update(assert_context_is_training_only(context_idx, test, allowed_idx=allowed_idx))
+        out["context_source"] = "explicit_indices_checked"
+    else:
+        # The claim is structural, not verified: say so, rather than reporting the
+        # reassuring string without the check behind it.
+        out["context_indices_supplied"] = False
     return out
 
 
@@ -505,7 +565,14 @@ def make_split(X, y, *, seed, train_size, test_size, fold=None, n_folds=None):
         dropped_idx = np.sort(np.asarray(dropped_idx))
 
     # PR-10: fatal before any arm runs, exactly like the PR-4 context assertion.
-    contamination = assert_no_test_contamination(train_idx, test_idx, dropped_idx, pool_idx)
+    # The context half is checked rather than asserted in prose: every arm implemented today
+    # conditions on its training split, so it is passed explicitly here. A pooled arm
+    # (C/D/R_random) draws its context from pool(T) instead and must pass that allowance
+    # itself -- see assert_context_is_training_only.
+    contamination = assert_no_test_contamination(
+        train_idx, test_idx, dropped_idx, pool_idx,
+        context_idx=train_idx, allowed_idx=train_idx,
+    )
 
     fp = {
         "policy": "stratified_kfold" if fold is not None else "holdout_then_train_cap",
@@ -563,6 +630,22 @@ def compute_metrics(y_true, y_prob):
 # ---------------------------------------------------------------------------
 # Effective configuration + matched context  (PR-4, PR-7)
 # ---------------------------------------------------------------------------
+def row_epochs(arm, n_train, config):
+    """The fine-tuning budget actually applied, in ROW-PASSES (P11).
+
+    An epoch is one pass over the training split, so the same epoch count means different amounts of
+    training at different scales: 30 epochs is 60,000 row-passes at 2,000 rows and 150,000 at 5,000.
+    Recording rows x epochs is what makes a future run at another scale comparable rather than merely
+    similarly labelled -- and it uses the ARM's own budget, so a ladder rung reports its own rung.
+
+    None for arms that are not fine-tuning arms. The unit does not apply to a raw or baseline arm,
+    and reporting 0 would wrongly suggest such an arm trains on nothing.
+    """
+    if arm not in FT_ARMS:
+        return None
+    return int(n_train) * int(arm_epochs(arm, config))
+
+
 def effective_config(arm, config):
     """Return the kwargs an arm will actually use, and the provenance of each.
 
@@ -581,11 +664,17 @@ def effective_config(arm, config):
         passed = ["n_estimators", "fit_mode"]
     elif arm in FT_ARMS:
         kwargs = {
-            "epochs": config["epochs"],  # PR-7: the real budget
+            # PR-7: the real budget -- and for a ladder arm, ITS OWN budget, never the global.
+            # Recording the global here would make a 30-epoch rung's record claim it ran 3.
+            "epochs": arm_epochs(arm, config),
+            # P8: recorded, because a declared epoch count means nothing if stopping cut it short.
+            # .get, defaulting to the pinned value: a caller passing a partial config must get the
+            # PIN, never the library's default, which is the whole point of P8.
+            "early_stopping": config.get("early_stopping", DEFAULT_CONFIG["early_stopping"]),
             "learning_rate": config["learning_rate"],
             "n_estimators_finetune": config["n_estimators"],
         }
-        passed = ["epochs", "learning_rate", "n_estimators"]
+        passed = ["epochs", "learning_rate", "n_estimators", "early_stopping"]
 
     defaulted = [k for k in kwargs if k not in passed]
     unused = [k for k in LEGACY_UNUSED_KEYS if k in config]
@@ -721,13 +810,19 @@ def run_arm_b_in_domain(X_train, X_test, y_train, y_test, config):
     """
     from tabpfn.finetuning.finetuned_classifier import FinetunedTabPFNClassifier
 
-    clf = FinetunedTabPFNClassifier(
+    # P8: pass the pin explicitly. If it is ever enabled (not for this pilot), patience is passed
+    # too -- the package takes the pair together and no default is assumed here.
+    _ft_kwargs = dict(
         device="cuda" if torch.cuda.is_available() else "cpu",
         epochs=config["epochs"],
         learning_rate=config["learning_rate"],
         n_estimators_finetune=config["n_estimators"],
         random_state=DEFAULT_SEED,
+        early_stopping=config.get("early_stopping", DEFAULT_CONFIG["early_stopping"]),
     )
+    if config.get("early_stopping", DEFAULT_CONFIG["early_stopping"]):
+        _ft_kwargs["early_stopping_patience"] = config.get("early_stopping_patience", 2)
+    clf = FinetunedTabPFNClassifier(**_ft_kwargs)
     clf.fit(X_train, y_train)
     probs = clf.predict_proba(X_test)[:, 1]
     return probs, clf
@@ -760,12 +855,50 @@ def run_arm_f_catboost(X_train, X_test, y_train, y_test, config=None):
         return probs, clf
 
 
+# The epoch ladder (PILOT_2 step 0, the 7p probe). Each arm carries its OWN budget so the ladder
+# runs as a single pass; a global `--epochs` cannot express it. The override lives here and is
+# read by `effective_config`, so the RECORDED budget is the EXECUTED one -- a ladder arm that ran
+# 30 epochs while its record said the global 3 would be exactly the silent mismatch this file
+# keeps having to defend against.
+ARM_EPOCH_OVERRIDES = {"B_ft3": 3, "B_ft10": 10, "B_ft30": 30}
+LADDER_ARMS = ("B_ft3", "B_ft10", "B_ft30")
+
+
+def arm_epochs(arm, config):
+    """The epoch budget an arm will actually run."""
+    return ARM_EPOCH_OVERRIDES.get(arm, config["epochs"])
+
+
+def _arm_b_at_epochs(epochs):
+    """Arm B pinned to one epoch budget, for the ladder."""
+    def _run(X_train, X_test, y_train, y_test, config):
+        # A COPY: the caller's config is shared across every arm in the run, so mutating it
+        # would leak this arm's budget into the next one.
+        cfg = dict(config)
+        cfg["epochs"] = epochs
+        return run_arm_b_in_domain(X_train, X_test, y_train, y_test, cfg)
+
+    _run.__name__ = f"arm_b_ft{epochs}"
+    _run.__doc__ = f"Arm B at {epochs} epochs (the ladder's {epochs}-epoch rung)."
+    return _run
+
+
 ARMS = {
     "A_raw": run_arm_a_raw,
     "B_in_domain": run_arm_b_in_domain,
+    "B_ft3": _arm_b_at_epochs(3),
+    "B_ft10": _arm_b_at_epochs(10),
+    "B_ft30": _arm_b_at_epochs(30),
     "E_glm": run_arm_e_glm,
     "F_catboost": run_arm_f_catboost,
 }
+
+# The two lists must not be able to drift apart: a ladder arm named but not registered would be
+# silently skipped, and a registered arm with no override would run the global budget while
+# claiming to be a rung.
+assert set(ARM_EPOCH_OVERRIDES) == set(LADDER_ARMS), "ladder arms and their budgets disagree"
+assert all(a in ARMS for a in LADDER_ARMS), "a ladder arm is not registered"
+assert all(a in FT_ARMS for a in LADDER_ARMS), "a ladder arm is not treated as a fine-tuning arm"
 
 
 # ---------------------------------------------------------------------------
@@ -866,6 +999,9 @@ def save_results(
         "fold": fold,
         "n_folds": n_folds,
         "train_rows": split_fp["n_train"],
+        # P11: the budget that drove the model, in row-passes, so a run at another scale can be
+        # compared with this one instead of merely sharing a label.
+        "row_epochs": row_epochs(arm, split_fp["n_train"], config),
         "test_rows": split_fp["n_test"],
         "device": "cuda" if torch.cuda.is_available() else "cpu",
         "device_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu",
