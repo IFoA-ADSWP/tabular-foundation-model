@@ -56,6 +56,86 @@ already gated behind a positive result at the smaller scale.
 | ~$15 | confidence |
 | ~$83 | confidence and scale |
 
+## What we test: four datasets, two experiments, and pooling
+
+**Four datasets**, all used in both experiments:
+
+| Dataset | Rows | Raw model | Fine-tuned (3 epochs) |
+| --- | --- | --- | --- |
+| coil2000 | 9,822 | 15.9 s | 35.6 s |
+| eudirectlapse | 23,060 | 12.3 s | 36.4 s |
+| uslapseagent | 29,317 | 6.3 s | 26.6 s |
+| spanish_motor_lapse | 53,502 | 6.5 s | 18.3 s |
+
+*(Times are the first pilot's measured figures, per dataset, at a 2,000-row sample.)*
+
+### Experiment 1 — in-domain: fine-tune and test on the *same* dataset
+
+Each dataset is split into training and test rows. The model is fine-tuned on a dataset's training
+rows, then tested on **that same dataset's** held-out rows. Six methods per dataset: the existing
+model (no training), fine-tuned at 3, 10 and 30 epochs, and two actuarial baselines.
+
+**24 runs per repeat** (4 datasets x 6 methods). It answers: *does fine-tuning help at all, and does
+training longer help more?*
+
+### Experiment 2 — transfer: fine-tune on *other* datasets, test on a dataset never seen
+
+Each dataset takes a turn being **held out entirely**. The model is fine-tuned on the *other*
+datasets and tested on the one it has never seen. Seven methods per target dataset — including the
+in-domain arm, so we can report the transfer gain as a fraction of the in-domain one.
+
+**28 runs per repeat** (4 targets x 7 methods). It answers your generalisation question: *does
+adaptation carry to a dataset the model has never seen?*
+
+### Pooling — what it is, and why it costs the most
+
+Pooling is how experiment 2 works: rather than fine-tuning on one dataset, the model is fine-tuned
+on **rows concatenated from several datasets at once**, then tested on the held-out target. Three
+pooled methods run per target:
+
+- **All-comers pool** — every other dataset, harmonised, missing values imputed.
+- **Same-schema pool** — only datasets with a compatible column layout. *Recommended first*, because
+  a negative result under a coherent pool is interpretable; under an all-comers pool it is not.
+- **A control** — the same pooled training with **shuffled labels**, so we can separate "pooling
+  helped" from "any fine-tuning at all did something".
+
+**One pooled method trains on three datasets' rows (3x a single dataset) for 30 epochs — 23x the
+work of the 3-epoch single-dataset method the first pilot used.** Three of them run for each of four
+targets. That is where the money goes.
+
+### Runs and cost, both experiments
+
+| Experiment | Runs per repeat | Cost per repeat | At 3 repeats | Cost | At 15 repeats | Cost |
+| --- | --- | --- | --- | --- | --- | --- |
+| **In-domain** (same dataset) | 24 | **$0.21** | 72 runs | $0.63 | 360 runs | $3.13 |
+| **Transfer** (held-out dataset) | 28 | **$1.34** | 84 runs | $4.01 | 420 runs | $20.07 |
+| **Total** | 52 | $1.55 | **156 runs** | **$4.64** | **780 runs** | **$23.20** |
+
+**The transfer experiment costs about six times the in-domain one**, because each pooled method
+trains on three datasets at once and three pooled methods run for each of four targets.
+
+> **Correction to earlier figures in this document.** The previous version of this page put transfer
+> at $4.08 for 15 repeats. That was wrong twice: it counted **two** pooled methods rather than three
+> (the shuffled-label control is a full pooled training run), and it modelled the pool at 10 epochs
+> instead of the 30 the design freezes. Transfer at 15 repeats is **$20.07**, not $4.08.
+
+### What this does to the headline
+
+| Scenario | Runs | Cost | vs ~$9.60 credit |
+| --- | --- | --- | --- |
+| **Lean** (probe + both experiments, 3 repeats) | ~156 | **~$4.70** | fits |
+| **As the design specifies** (P1a + P1b, 15 repeats, transfer at sample scale) | ~780 | **~$31** | needs +$21 |
+| **Everything at full data scale** | ~11,300 | **~$367** | not affordable |
+
+**The single largest lever is still the epoch budget.** If the 5p probe shows three epochs is as good
+as thirty, the pooled training divides by about eight: transfer at 15 repeats falls from **$20.07 to
+about $2.35**, and the whole programme with it. That is the same five pence, buying a decision worth
+hundreds.
+
+**One number here is still soft**: the same-schema pool's size is undefined until the schemas are
+inspected, and that arm is the recommended starting point. A smaller coherent pool makes transfer
+proportionally cheaper.
+
 ## What the runs actually are, and where the volume comes from
 
 A **run** is one dataset, one method, one repeat. Counting them:
