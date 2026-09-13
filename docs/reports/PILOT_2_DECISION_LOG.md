@@ -183,6 +183,7 @@ OPEN; this holds what the design review settled.
 | **P9** | **The `ft3` rung is a replication gate** | R1 measured +0.0014 on coil2000 and -0.0008 to +0.0095 across the four. If `ft3` misses that band the pipeline has changed and nothing else in the run is interpretable |
 | **P10** | **Every result is reported with its minimum detectable effect** | So a null is never read as evidence of absence beyond the resolution the test actually had |
 | **P11** | **The budget is recorded as row-epochs** (training rows x epochs), not as epochs alone | An epoch is one pass over the split, so the same epoch count means different amounts of training at different scales: 30 epochs is 60,000 row-passes at 2,000 rows and 150,000 at 5,000. Without row-epochs, a future run at another scale can return a different answer under the same label and the two cannot be compared |
+| **P12** | **The probe is a separate pilot, and it runs from merged code on `main`** | Kept separate so its result GATES the wider testing instead of being folded into it -- and run post-merge so the result references reviewed code at a recorded commit rather than an unmerged branch |
 
 ### Cost discipline
 
