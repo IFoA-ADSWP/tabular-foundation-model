@@ -208,6 +208,7 @@ esac
 export TFM_DRY_RUN="$DRY_RUN"
 # One id for the whole run: it is interpolated into the onstart environment so the
 # box-written manifest and this runner's cost record share a join key.
+TFM_COMMIT_SHA="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo unknown)"
 RUN_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 
 # Record what a run actually cost, so the cost model in the runbook can be
@@ -493,6 +494,7 @@ BOOTSTRAP_B64="$(gzip -9c "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh" | b
     # create response, after this file is built); empty values are recorded as null.
     printf 'export TFM_DRY_RUN=%q\n' "$DRY_RUN"
     printf 'export TFM_RUN_STAMP=%q\n' "$RUN_STAMP"
+    printf 'export TFM_COMMIT_SHA=%q\n' "$TFM_COMMIT_SHA"
     printf 'export TFM_IMAGE_REF=%q\n' "$IMAGE"
     printf 'export TFM_MACHINE_ID=%q\n' "${MACHINE_ID:-}"
     printf 'export TFM_HOST_ID=%q\n' "${HOST_ID:-}"

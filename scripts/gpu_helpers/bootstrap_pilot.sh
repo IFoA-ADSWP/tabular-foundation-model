@@ -20,7 +20,7 @@ set -uo pipefail
 
 : "${TABPFN_TOKEN:?Set TABPFN_TOKEN before running}"
 
-BRANCH="${BRANCH:-finetune-v2}"
+BRANCH="${BRANCH:-main}"   # the box must run the reviewed code, not a stale branch
 REPO="https://github.com/IFoA-ADSWP/tabular-foundation-model.git"
 WORKDIR="${WORKDIR:-/workspace/tfm}"
 ARMS="${ARMS:-A_raw,B_in_domain,E_glm,F_catboost}"
@@ -77,6 +77,17 @@ if [ -d "$WORKDIR/.git" ]; then
 else
     echo "--- cloning ---"
     git clone --branch "$BRANCH" "$REPO" "$WORKDIR" || exit 2
+# PIN TO THE EXACT COMMIT THE LAUNCHER RAN. A branch name is a moving target: the box cloned a stale
+# default and silently ran code whose arm registry held the FIRST PILOT's arms, so three ladder arms
+# died as unknown arguments while the run reported rc=0. The launcher now passes the commit it
+# resolved locally, and the box checks that out -- so "the code that ran" is a fact, not a hope.
+if [ -n "${TFM_COMMIT_SHA:-}" ]; then
+    git -C "$WORKDIR" checkout -q "$TFM_COMMIT_SHA" || {
+        echo "FATAL: the box cannot check out $TFM_COMMIT_SHA -- refusing to run different code" >&2
+        exit 2
+    }
+    echo "pinned to commit $TFM_COMMIT_SHA ($(git -C "$WORKDIR" log -1 --format=%s | cut -c1-60))"
+fi
 fi
 cd "$WORKDIR" || exit 2
 
