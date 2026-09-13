@@ -54,6 +54,10 @@ the ones it cannot: a killed process, a closed terminal, a sleeping laptop · a 
 machine · a pre-flight that **refuses to start** if anything is wrong · every stage funded only after
 the last produced a result · and the first step costs **7p**.
 
+Each of those controls is implemented and unit-tested. **None has yet been exercised on real hardware,
+and the watchdog's firing has been scheduled rather than confirmed** — the 7p first step is the run that
+does both, which is a second reason it is the right first step.
+
 ## What we are asking for
 
 **Two decisions now:**
