@@ -64,6 +64,19 @@ IMAGE=""
 TRANSPORT="onstart"
 KEEP=0
 ASSUME_YES=0
+# Bounded retry across hosts. Provisioning failures are HOST-specific (one came up
+# with intended_status=stopped; another's image pull never advanced), and the offer
+# ranking is stable -- so without an exclusion list a retry lands on the same broken
+# host and pays to rediscover it. A failed attempt costs roughly $0.01-0.08 in
+# storage and provisioning, which is worth spending to rescue a session, but not
+# without a hard bound. MAX_ATTEMPTS counts TOTAL attempts: 2 means one retry.
+MAX_ATTEMPTS="${MAX_ATTEMPTS:-2}"
+ATTEMPT="${ATTEMPT:-1}"
+EXCLUDE_MACHINES="${EXCLUDE_MACHINES:-}"
+SELF="$0"
+# Captured BEFORE the parse loop shifts "$@", so a retry can re-exec with the
+# user's original arguments rather than the leftovers.
+ORIG_ARGS=("$@")
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -77,6 +90,7 @@ while [ $# -gt 0 ]; do
         --arms)      ARMS="$2"; shift 2 ;;
         --image)     IMAGE="$2"; shift 2 ;;
         --transport) TRANSPORT="$2"; shift 2 ;;
+        --max-attempts) MAX_ATTEMPTS="$2"; shift 2 ;;
         --keep)      KEEP=1; shift ;;
         --yes)       ASSUME_YES=1; shift ;;
         -h|--help)   sed -n '2,30p' "$0"; exit 0 ;;
@@ -95,19 +109,84 @@ done
 # Secrets now follow ONE RULE: each is a mode-600 file under ~/.config (FileVault is
 # on, so that is encrypted at rest). keys.sh owns reading them.
 
-# TabPFN token: read from its key file via keys.sh so the parsing lives in one place.
-if [ -z "${TABPFN_TOKEN:-}" ] && [ -f "$REPO_DIR/scripts/gpu_helpers/keys.sh" ]; then
-    TABPFN_TOKEN="$(bash "$REPO_DIR/scripts/gpu_helpers/keys.sh" get tabpfn 2>/dev/null || true)"
-    [ -n "$TABPFN_TOKEN" ] && echo "[auth] TABPFN_TOKEN <- ~/.config/tfm/keys.env"
+# TabPFN token: the FILE is authoritative. An environment variable that DIFFERS is
+# treated as a bug signal, not as an override.
+#
+# This used to be "env wins if set", which is dangerous in a specific, silent way: a
+# stale TABPFN_TOKEN left exported in an interactive shell would be embedded into the
+# onstart script and rejected by the API on the box (401), while every local check
+# looked healthy -- the stale value still has the same length and prefix, so nothing
+# about it looks wrong. The runner now reads the file, and when the environment
+# supplies a different value it says so with short hashes instead of quietly picking
+# one. The sha is printed on every run so the value that reached the box can be
+# compared against the local one.
+sha12() { printf '%s' "$1" | { shasum -a 256 2>/dev/null || sha256sum 2>/dev/null; } | cut -c1-12; }
+
+FILE_TOK=""
+if [ -f "$REPO_DIR/scripts/gpu_helpers/keys.sh" ]; then
+    FILE_TOK="$(bash "$REPO_DIR/scripts/gpu_helpers/keys.sh" get tabpfn 2>/dev/null || true)"
+fi
+ENV_TOK="${TABPFN_TOKEN:-}"
+
+if [ -n "$FILE_TOK" ] && [ -n "$ENV_TOK" ] && [ "$FILE_TOK" != "$ENV_TOK" ]; then
+    echo "WARNING: TABPFN_TOKEN is exported AND differs from ~/.config/tfm/keys.env" >&2
+    echo "         env  sha=$(sha12 "$ENV_TOK")" >&2
+    echo "         file sha=$(sha12 "$FILE_TOK")" >&2
+    echo "         Using the FILE. Clear the stale variable so this cannot recur:" >&2
+    echo "           unset TABPFN_TOKEN" >&2
+fi
+
+if [ -n "$FILE_TOK" ]; then
+    TABPFN_TOKEN="$FILE_TOK"
+    echo "[auth] TABPFN_TOKEN <- ~/.config/tfm/keys.env (sha $(sha12 "$TABPFN_TOKEN"))"
+elif [ -n "$ENV_TOK" ]; then
+    TABPFN_TOKEN="$ENV_TOK"
+    echo "[auth] TABPFN_TOKEN <- environment (sha $(sha12 "$TABPFN_TOKEN"))"
 fi
 
 : "${TABPFN_TOKEN:?No TABPFN_TOKEN. Store it with:
     bash scripts/gpu_helpers/keys.sh add tabpfn   (copy the key first)}"
 
+# ---- TabPFN licence preflight (FREE -- runs before any GPU is provisioned) ----
+# A token that AUTHENTICATES is not a token whose LICENCE is ACCEPTED. The API
+# answers those separately (/protected vs /account/license), and renting a GPU to
+# discover the difference costs a whole run.
+#
+# keys.sh owns this check because the endpoint's `version` parameter is a LICENCE
+# NAME taken from the HuggingFace model card ("tabpfn-3-license-v1.0"), NOT a
+# package version. Querying it with "8.5.0" returns {"accepted":false} for every
+# value -- including ones that do not exist -- which reads exactly like an
+# unaccepted licence. That false alarm already sent us chasing a licence that was
+# accepted all along. One owner per fact: do not re-implement this here.
+#
+# Exit codes: 0 accepted, 1 not accepted, 2 could not tell.
+if [ "${SKIP_LICENSE_CHECK:-0}" != "1" ]; then
+    LIC_OUT="$(bash "$REPO_DIR/scripts/gpu_helpers/keys.sh" licence 2>&1)"; LIC_RC=$?
+    if [ "$LIC_RC" -eq 0 ]; then
+        echo "[auth] $LIC_OUT"
+    else
+        printf '%s\n' "$LIC_OUT" | sed 's/^/  /' >&2
+        if [ "$LIC_RC" -eq 1 ]; then
+            echo "FATAL: the licence is not accepted, so every arm would fail." >&2
+            echo "       No GPU was provisioned, so this cost nothing." >&2
+        else
+            echo "FATAL: could not verify the licence -- refusing to rent a GPU blind." >&2
+            echo "       Re-run, or set SKIP_LICENSE_CHECK=1 to bypass." >&2
+        fi
+        exit 4
+    fi
+fi
+
 INSTANCE_ID=""
 T_CREATE=""; T_RUNNING=""; T_END=""
 GPU_NAME=""; DPH=""; GPU_RAM=""; CPU_RAM="${CPU_RAM:-}"; REL=""; CUDA=""
 BOOTSTRAP_RC=""
+# Recorded so a host that successfully pulls this image can be reused: a warm
+# image cache is what separates the pulls that completed from the ones that stalled.
+MACHINE_ID=""; HOST_ID=""
+# record_run is called from the EXIT trap AND from the retry path, and a re-exec
+# would otherwise append a duplicate ledger row for the same instance.
+RECORDED=0
 
 # Record what a run actually cost, so the cost model in the runbook can be
 # replaced with measurements instead of assumptions. Writes one JSON per run
@@ -115,6 +194,10 @@ BOOTSTRAP_RC=""
 record_run() {
     [ -z "$INSTANCE_ID" ] && return 0
     [ -z "$T_CREATE" ] && return 0
+    # Idempotent: the EXIT trap and the retry path can both reach here, and a
+    # re-exec must not append a second ledger row for the same instance.
+    [ "$RECORDED" -eq 1 ] && return 0
+    RECORDED=1
 
     local end="${T_END:-$(date -u +%s)}"
     local wall_s=$(( end - T_CREATE ))
@@ -141,6 +224,9 @@ rec = {
     "image": "$IMAGE",
     "transport": "$TRANSPORT",
     "arms": "$ARMS",
+    "machine_id": "$MACHINE_ID",
+    "host_id": "$HOST_ID",
+    "attempt": "$ATTEMPT",
     "disk_requested_gb": "$DISK",
     "t_create": "$T_CREATE",
     "t_running": "$T_RUNNING",
@@ -197,6 +283,31 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Provisioning failed in a way that will not fix itself: destroy the instance so it
+# stops accruing storage, record the cost, and -- if attempts remain -- re-exec the
+# whole run with this host excluded so the retry lands somewhere new.
+#
+# Re-exec rather than an in-process loop: the provisioning path is long and mostly
+# inline, and a fresh process guarantees no stale state (INSTANCE_ID, T_CREATE, the
+# captured image) leaks into the next attempt. exec skips the EXIT trap, so the
+# destroy and record above must be complete first -- hence their idempotence guards.
+retry_or_die() {
+    echo "$*" >&2
+    record_run
+    if [ -n "$INSTANCE_ID" ]; then
+        vastai destroy instance "$INSTANCE_ID" -y >/dev/null 2>&1 || true
+        INSTANCE_ID=""      # so the EXIT trap does not retry if exec fails
+    fi
+    if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ] && [ -n "$MACHINE_ID" ]; then
+        echo "--- attempt $ATTEMPT/$MAX_ATTEMPTS failed on machine $MACHINE_ID; retrying ---" >&2
+        export ATTEMPT=$(( ATTEMPT + 1 ))
+        export EXCLUDE_MACHINES="$EXCLUDE_MACHINES $MACHINE_ID"
+        exec bash "$SELF" "${ORIG_ARGS[@]}"
+    fi
+    echo "FATAL: provisioning failed after $ATTEMPT attempt(s); not retrying." >&2
+    exit 2
+}
+
 # ---- 1. Auth ----
 echo "=== 1/7 auth ==="
 if ! vastai show user >/dev/null 2>&1; then
@@ -233,8 +344,12 @@ echo "=== 2/7 selecting offer (pick=$PICK ceiling=\$$MAX_DPH/hr min-vram=${MIN_V
 
 if [ -z "$OFFER_ID" ]; then
     vastai search offers "$QUERY" -o dph --raw 2>/dev/null > /tmp/vast_candidates.json
+    # The 6th argument is the machine_id skip-list. On a retry that is the host
+    # that just failed; without it the (stable) ranking re-picks it and we pay to
+    # rediscover the same bad pull.
     SELECTOR_OUT="$(python3 "$REPO_DIR/scripts/gpu_helpers/select_offer.py" \
-        "$PICK" "$MAX_DPH" "$GPU_ALLOW" "$MIN_VRAM" /tmp/vast_candidates.json)"
+        "$PICK" "$MAX_DPH" "$GPU_ALLOW" "$MIN_VRAM" /tmp/vast_candidates.json \
+        "$(printf '%s' "$EXCLUDE_MACHINES" | tr ' ' ',')")"
     read -r OFFER_ID GPU_NAME DPH CUDA DLPERF CPU_RAM GPU_RAM DISK_SP REL <<< "$SELECTOR_OUT"
     if [ -z "$OFFER_ID" ]; then
         echo "FATAL: no usable offer within \$$MAX_DPH/hr. Widen with --max-dph / --gpu-allow." >&2
@@ -295,8 +410,22 @@ ONSTART_FILE="$REPO_DIR/scripts/gpu_helpers/.onstart.$$.sh"
 } > "$ONSTART_FILE"
 # umask 077 is set at the top of this script, so the file is already owner-only.
 
+# NOTE: no --ssh and no --direct. We do not use either: the transport is
+# --onstart + `vastai logs`, and a TEAM-context account refuses to register SSH
+# keys at all (show ssh-keys -> []), so requesting SSH access buys nothing.
+#
+# Worse, it appears to cost something. --ssh --direct sets
+#     image_runtype: ssh_direc ssh_proxy
+# and three consecutive instances created that way came up with
+#     intended_status: stopped
+# i.e. Vast had decided they should not run, so the container never started and
+# they sat in 'loading' until the ceiling killed them. That is what looked like a
+# stuck image pull for three attempts. One earlier instance did reach 'running'
+# with the old flags, so this is intermittent rather than deterministic -- an
+# intermittent failure is all the more reason not to request a capability we
+# never use.
 CREATE_OUT="$(vastai create instance "$OFFER_ID" \
-    --image "$IMAGE" --disk "$DISK" --ssh --direct \
+    --image "$IMAGE" --disk "$DISK" \
     --onstart "$ONSTART_FILE" \
     --label "tabpfn-pilot" --raw 2>&1)"
 rm -f "$ONSTART_FILE"   # it held the token; do not leave it on disk
@@ -321,14 +450,16 @@ HOST=""; PORT=""
 # must persist past a grace period with no provisioning state to count as dead.
 GRACE_SECS="${GRACE_SECS:-90}"
 SAW_PROVISIONING=0
+# Counts consecutive polls reporting intended_status=stopped. See the check below.
+STOPPED_STREAK=0
 for i in $(seq 1 60); do
     INFO="$(vastai show instance "$INSTANCE_ID" --raw 2>/dev/null)"
     # `show instance` is the only source of these facts that works for BOTH the
     # selected-offer and caller-supplied --offer-id paths.
-    IFS='|' read -r STATUS HOST PORT _GN _DP _GR _CR _RL _CU < <(printf '%s' "$INFO" | python3 -c "
+    IFS='|' read -r STATUS HOST PORT _GN _DP _GR _CR _RL _CU _IS _MI _HI < <(printf '%s' "$INFO" | python3 -c "
 import json,sys
 try: d=json.load(sys.stdin)
-except Exception: print('unknown|||||||'); raise SystemExit
+except Exception: print('unknown' + '|' * 11); raise SystemExit
 def g(*ks):
     for k in ks:
         v=d.get(k)
@@ -337,8 +468,11 @@ def g(*ks):
 print('|'.join([g('actual_status') or 'unknown', g('ssh_host'), g('ssh_port'),
                 g('gpu_name','gpu_names').replace(' ','_'),
                 g('dph_total'), g('gpu_ram'), g('cpu_ram'),
-                g('reliability'), g('cuda_max_good')]))
+                g('reliability'), g('cuda_max_good'),
+                g('intended_status'), g('machine_id'), g('host_id')]))
 ")
+    [ -n "$_MI" ] && MACHINE_ID="$_MI"
+    [ -n "$_HI" ] && HOST_ID="$_HI"
     [ -n "$_GN" ] && GPU_NAME="$_GN"
     [ -n "$_DP" ] && DPH="$_DP"
     [ -n "$_GR" ] && GPU_RAM="$(python3 -c "print(f'{float(\"$_GR\")/1000:.1f}')" 2>/dev/null || echo "$_GR")"
@@ -346,6 +480,21 @@ print('|'.join([g('actual_status') or 'unknown', g('ssh_host'), g('ssh_port'),
     [ -n "$_RL" ] && REL="$_RL"
     [ -n "$_CU" ] && CUDA="$_CU"
     echo "  [$i] status=$STATUS"
+    # intended_status=stopped is FATAL and must be detected early, not at the
+    # ceiling. Vast has decided this instance should not run, so the container is
+    # never started and actual_status never leaves 'loading'. From outside that is
+    # indistinguishable from a slow image pull -- which is exactly how three
+    # attempts were misdiagnosed as Docker slowness. Three consecutive polls
+    # (~30s) rules out a transient provisioning state, and aborts for cents
+    # instead of paying the full 10-minute ceiling.
+    if [ "$_IS" = "stopped" ]; then
+        STOPPED_STREAK=$(( STOPPED_STREAK + 1 ))
+        if [ "$STOPPED_STREAK" -ge 3 ]; then
+            retry_or_die "FATAL: intended_status=stopped -- Vast will never start this container (this is NOT a slow image pull)."
+        fi
+    else
+        STOPPED_STREAK=0
+    fi
     if [ "$STATUS" = "running" ]; then
         T_RUNNING="$(date -u +%s)"
         break
@@ -355,9 +504,7 @@ print('|'.join([g('actual_status') or 'unknown', g('ssh_host'), g('ssh_port'),
     # must persist past GRACE_SECS with no provisioning state to count as dead.
     case "$STATUS" in
         exited)
-            echo "FATAL: container 'exited' -- it will never become running." >&2
-            echo "       Destroying and aborting; retry with a different offer." >&2
-            exit 2
+            retry_or_die "FATAL: container 'exited' -- it will never become running."
             ;;
         loading|created|starting|pulling|provisioning)
             SAW_PROVISIONING=1
@@ -365,15 +512,13 @@ print('|'.join([g('actual_status') or 'unknown', g('ssh_host'), g('ssh_port'),
         unknown|offline|"")
             AGE=$(( $(date -u +%s) - T_CREATE ))
             if [ "$AGE" -ge "$GRACE_SECS" ] && [ "$SAW_PROVISIONING" -eq 0 ]; then
-                echo "FATAL: instance stayed '$STATUS' for ${AGE}s with no provisioning state." >&2
-                echo "       Destroying and aborting; retry with a different offer." >&2
-                exit 2
+                retry_or_die "FATAL: instance stayed '$STATUS' for ${AGE}s with no provisioning state."
             fi
             ;;
     esac
     sleep 10
 done
-[ "$STATUS" = "running" ] || { echo "FATAL: instance never reached 'running'." >&2; exit 2; }
+[ "$STATUS" = "running" ] || retry_or_die "FATAL: instance never reached 'running' (the image pull did not advance within the ceiling)."
 
 # ---- 7. Run the pilot ----
 echo "=== 7/7 running pilot ==="
@@ -391,9 +536,23 @@ else
     echo "running via: --onstart (bootstrap began at container boot)"
     : > /tmp/vast_run_out.txt
     BOOTSTRAP_DONE=0
-    for i in $(seq 1 180); do   # 180 x 20s = 60 min ceiling
-        sleep 20
-        vastai logs "$INSTANCE_ID" --tail 200000 > /tmp/vast_run_out.txt 2>/dev/null
+    EMPTY_STREAK=0
+    for i in $(seq 1 120); do   # 120 x 20s = 40 min ceiling
+        # A huge --tail (200000) silently returns NOTHING; with stderr discarded
+        # that looks identical to "not finished yet", so the loop ran its entire
+        # 60-minute ceiling while the instance billed -- and the repeat poll cost
+        # real money. Keep the tail modest (the completion marker sits at the end)
+        # and treat an empty capture as a FAULT, not a quiet no-op.
+        ERR="$(vastai logs "$INSTANCE_ID" --tail 5000 2>&1 > /tmp/vast_log_next.txt)"
+        if [ -s /tmp/vast_log_next.txt ]; then
+            cp /tmp/vast_log_next.txt /tmp/vast_run_out.txt
+            EMPTY_STREAK=0
+        else
+            EMPTY_STREAK=$(( EMPTY_STREAK + 1 ))
+            if [ "$EMPTY_STREAK" -eq 3 ]; then
+                echo "  WARNING: log capture empty 3x -- $(printf '%s' "$ERR" | cut -c1-80)" >&2
+            fi
+        fi
         if grep -q "BOOTSTRAP FINISHED" /tmp/vast_run_out.txt 2>/dev/null; then
             BOOTSTRAP_DONE=1
             break
@@ -401,9 +560,10 @@ else
         # Surface progress without flooding: the most recent milestone line.
         PROG="$(grep -aE '^##########|PILOT RESULTS|ROC=|EXITED rc=' /tmp/vast_run_out.txt 2>/dev/null | tail -1)"
         [ -n "$PROG" ] && echo "  [$i] $PROG"
+        sleep 20
     done
     if [ "$BOOTSTRAP_DONE" != "1" ]; then
-        echo "WARNING: bootstrap did not report BOOTSTRAP FINISHED within 60 min" >&2
+        echo "WARNING: bootstrap did not report BOOTSTRAP FINISHED within 40 min" >&2
         RUN_RC=1
     fi
     echo "--- log tail ---"
@@ -429,13 +589,24 @@ else
     python3 - <<'PY' > /tmp/vast_artifacts.b64
 import re, sys
 s = open('/tmp/vast_artifacts.raw', errors='replace').read()
-m = re.search(r'__ARTIFACTS_B64_BEGIN__\s*([A-Za-z0-9+/=]+)\s*__ARTIFACTS_B64_END__', s, re.S)
-sys.stdout.write(m.group(1) if m else '')
+m = re.search(r'__ARTIFACTS_BEGIN__(.*?)__ARTIFACTS_END__', s, re.S)
+if not m:
+    sys.exit(0)
+# The payload arrives as many tagged lines, each well under the log's 500-char
+# line cap, and must be concatenated in order. The previous single-line form was
+# silently truncated to 500 chars, which decoded to a partial gzip -- so the
+# transfer LOOKED like it had happened and only failed at tar.
+parts = [ln[7:].strip() for ln in m.group(1).splitlines() if ln.startswith('__ART__')]
+sys.stdout.write(''.join(parts))
 PY
     if [ -s /tmp/vast_artifacts.b64 ] && \
        base64 -d < /tmp/vast_artifacts.b64 > /tmp/vast_artifacts.tar.gz 2>/dev/null && \
        tar xzf /tmp/vast_artifacts.tar.gz -C "$REPO_DIR/outputs/gpu-pilot" 2>/dev/null; then
         echo "artifacts restored to outputs/gpu-pilot"
+    elif [ -s /tmp/vast_artifacts.b64 ]; then
+        echo "WARNING: a payload was present but could not be unpacked" >&2
+        echo "         chars=$(wc -c < /tmp/vast_artifacts.b64) (base64) -- likely truncated by the log's 500-char line cap." >&2
+        echo "         log captured at /tmp/vast_run_out.txt" >&2
     else
         echo "WARNING: no artifact payload found in the container log" >&2
         echo "         log captured at /tmp/vast_run_out.txt; use --keep to inspect" >&2

@@ -34,7 +34,11 @@ command -v vastai >/dev/null 2>&1 || \
 # is the CLI's store; keep it at mode 600.
 
 LABEL="${LABEL:-tabpfn-pilot}"
-MAX_AGE_MIN="${MAX_AGE_MIN:-90}"
+# 60 min, not 90: the runner's own poll ceiling is now 40 min, so a legitimate run
+# cannot reach 60. A leaked instance was left billing for 64 minutes by a runner
+# whose log-poll never saw its completion marker, and the watchdog was the only
+# thing that would have stopped it. Catch that class sooner.
+MAX_AGE_MIN="${MAX_AGE_MIN:-60}"
 DRY=0
 
 while [ $# -gt 0 ]; do

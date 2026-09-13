@@ -54,6 +54,10 @@ def main() -> int:
     allow = {a.strip() for a in sys.argv[3].split(",") if a.strip()}
     min_vram = float(sys.argv[4])
     path = sys.argv[5] if len(sys.argv) > 5 else "/tmp/vast_candidates.json"
+    # Optional 6th arg: machine_ids to skip. A bounded retry needs this, because
+    # the ranking is stable -- without it a retry re-picks the same host that just
+    # failed, and you pay to rediscover the same broken pull.
+    skip = {s.strip() for s in (sys.argv[6] if len(sys.argv) > 6 else "").split(",") if s.strip()}
 
     try:
         with open(path) as f:
@@ -72,6 +76,7 @@ def main() -> int:
         and (x.get("dph_total") or 9e9) <= max_dph
         and (x.get("cuda_max_good") or 0) >= 12.0
         and (x.get("gpu_ram") or 0) / 1000.0 >= min_vram
+        and str(x.get("machine_id") or "") not in skip
     ]
     if not offers:
         print("")
