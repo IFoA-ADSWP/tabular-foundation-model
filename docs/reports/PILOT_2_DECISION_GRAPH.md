@@ -280,3 +280,16 @@ rather than to *run*.
 
 That is the whole visual argument for "isolation by default, interaction by decision": **the default
 path never touches the interaction node, and the off-ramp has a guard on it.**
+
+## Step 0 has run (13 Sep)
+
+The probe cost **$0.0122** and found the ladder flat, with the arms at or below `A_raw`. **Step 0's stop rule
+fired.** So, concretely:
+
+- the later steps are **not funded**, not pending;
+- the transfer stage loses its premise, because it was gated on in-domain showing a gain;
+- the only thing worth spending on is narrower than any step above -- calibration at the full row count, one
+  dataset, still cents.
+
+The graph and its steps remain the reference specification for what a staged programme would have been. They
+are not the programme being proposed.

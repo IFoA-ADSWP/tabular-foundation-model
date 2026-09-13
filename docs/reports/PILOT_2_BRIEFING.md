@@ -115,3 +115,10 @@ thing that might justify a narrower question.
 
 Cost figures in this document are re-anchored on that measurement; see the section at the end of
 `PILOT_2_COST_AND_CONTROLS.md`.
+
+## What we would ask for now
+
+Either **close the fine-tuning line** -- the probe corroborates the master report's warning not to re-chase
+it, and it did so for a penny -- or fund **one narrow question**: does the calibration gain survive at the
+full row count? One dataset, one pre-registered metric, cents. Nothing in the staged programme above is
+being asked for.
