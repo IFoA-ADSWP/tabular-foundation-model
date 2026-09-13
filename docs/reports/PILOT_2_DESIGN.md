@@ -213,10 +213,10 @@ from what R1 actually measured is the honest basis.
 The section 4.2 ladder-first rule settles it on one dataset:
 
 ```
-1 dataset, 1 split, full ladder (A + B3 + B10 + B30)  =  22.5 min  =  $0.20
+1 dataset, 1 split, full ladder (A + B3 + B10 + B30)  =  ~6 min  =  ~$0.05
 ```
 
-**Funded First Step: $0.20.** One run that measures the epoch->cost *and* epoch->gain curves
+**Funded First Step: ~$0.05.** One run that measures the epoch->cost *and* epoch->gain curves
 together, before anything is scaled. If the ladder is flat, the budget hypothesis dies at twenty
 cents instead of at fifteen dollars.
 
@@ -252,13 +252,35 @@ Budgeting Pilot 2 at R1's total would price in a mistake we have already paid fo
 
 | Step | Cost | What it buys |
 | --- | --- | --- |
-| The ladder probe (1 dataset, 1 split, 3/10/30) | **$0.20** | the epoch->cost and epoch->gain curves |
+| The ladder probe (1 dataset, 1 split, 3/10/30) | **~$0.05** | the epoch->cost and epoch->gain curves |
 | P1a at 3 seeds x 1 split | **~$0.62** | a first in-domain answer with a variance estimate |
-| *Subtotal* | **~$0.82** | |
+| *Subtotal* | **~$0.67** | |
 | P1a at full 3x5 | $3.12 | a tighter paired CI — a separate decision |
 | P1b | $7.80 | gated on P1a |
 | P1c | $31.21 | gated on P1b; optional |
 | Stage 2 (LODO, P1a scale) | ~$0.85 | gated on Gate 1 |
+
+### 4.5.2 What it costs to complete Pilot 2 — three scenarios
+
+There is no single figure, because two choices drive it: **how many repeats** (3 or 15) and **how far
+up the ladder** we go. On the measured model:
+
+| Scenario | Includes | Total | vs ~$9.60 credit |
+| --- | --- | --- | --- |
+| **Lean** — *recommended* | probe + P1a (3 seeds x 1 split) + Stage 2 at P1a scale (3 seeds x 1 split) | **~$1.49** | fits, ~$8 left |
+| **As the design specifies** | probe + P1a + P1b at full 3x5 + Stage 2 at P1a, 3x5 | **~$15.05** | needs **+$5.45** |
+| **Full ladder** | the above plus P1c at 3x5 and Stage 2 at P1c scale | **~$82.9** | needs **+$73** |
+
+The dominant line in the full scenario is **Stage 2 at P1c scale (~$40)**, driven by pooling ~74,000
+rows at 30 epochs; P1c's own Stage 1 rung is another ~$31.
+
+**So the honest answer to "what will it cost to finish?" is: ~$1.50 to answer the hypothesis, ~$15 to
+run the design as written, and ~$83 to run it end to end at the top of every axis.** Only the first
+fits the current credit.
+
+**The estimate's weak point is the epoch model** (~30 s fixed plus ~29 s per epoch), which is
+assumed rather than measured and sets the 10x multiplier in every figure above. The ~$0.05 probe
+replaces it with a measurement before any of this is committed.
 
 Against ~$9.60 of credit, **the probe plus a reduced-repeat P1a fit comfortably**; the full rungs and
 Stage 2 need a top-up decision taken in light of the probe's result.
