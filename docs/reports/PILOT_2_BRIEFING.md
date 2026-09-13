@@ -100,3 +100,18 @@ Everything below is appendix. It exists for whoever wants to challenge a number 
 | The decisions, with options and recommendations | `PILOT_2_DECISION_LOG.md` |
 | Why the historic "don't chase fine-tuning" verdict is unusable | `HISTORIC_FINETUNING_APPRAISAL.md` |
 | The infrastructure and the analysis code | PR #173 |
+
+## Status: the probe has run and answered
+
+The budget probe -- the first gated step this proposal depends on -- ran on 13 Sep for **$0.0122**. It found
+**outcome 3: the epoch ladder is flat and the arms do not beat `A_raw`.** Both preconditions passed,
+including the replication gate (`A_raw` reproduced the first pilot's value to 0.0003).
+
+That fires this proposal's first gate. The wider testing below was contingent on in-domain fine-tuning
+showing a gain; at this scale it does not, so the programme as written is **not earned on the basis it was
+designed to test**. The one signal moving in order is calibration -- PR AUC, Brier and log loss improve
+monotonically from 3 to 30 epochs while ROC AUC does not -- recorded in `PROBE_RESULTS.md`, and the only
+thing that might justify a narrower question.
+
+Cost figures in this document are re-anchored on that measurement; see the section at the end of
+`PILOT_2_COST_AND_CONTROLS.md`.

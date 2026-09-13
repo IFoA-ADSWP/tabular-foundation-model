@@ -299,3 +299,30 @@ measured everything else; that relationship we have modelled.
 It is worth **5p** to replace the assumption with a measurement — one small run, which also answers
 whether training longer helps at all. If it does not, the programme stops there for five pence
 rather than fifteen dollars.
+
+## Re-anchored on a measured unit (probe, 13 Sep) — supersedes the figures above
+
+The figures earlier in this document were modelled: a rate of $0.544-0.657/hr from the first pilot's GPUs,
+and per-arm times inferred from that run. The probe has now measured the same shape of experiment.
+
+| | |
+| --- | --- |
+| measured unit | `A_raw` + `B_ft3` + `B_ft10` + `B_ft30` on one dataset, 2,000 training rows |
+| wall | 2.53 min |
+| rate | $0.2893/hr (RTX PRO 4000, selected on value) |
+| **cost** | **$0.0122** |
+
+**Rate correction:** 1.9-2.3x below what the model assumed, so every modelled rung figure above is high by
+roughly that factor and should be re-derived rather than quoted.
+
+**Re-derived from the measured unit** (linear in datasets and seeds; modelled, not measured): the probe over
+all four registered datasets ~$0.049; an in-domain stage of 4 datasets x 3 seeds ~$0.146. **No figure for
+the transfer stage** -- pooling and the transfer arms are unbuilt and unmeasured, so there is nothing to
+scale.
+
+**Warm, not cold, and measured:** the unit above had weights already cached. A cold machine measured
+**$0.0429 for a pull that never finished**. Budget about $0.05 of overhead per cold attempt, separately
+from the science.
+
+**The number for the funding conversation:** seven runs on 13 Sep cost $0.0933 in total, of which the answer
+itself cost **$0.0122**. The account reports $0.5461 cumulative; the ledger's $0.6189 is an estimate.
