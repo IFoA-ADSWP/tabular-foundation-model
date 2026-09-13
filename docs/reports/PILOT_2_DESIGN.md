@@ -200,7 +200,7 @@ Two points a reviewer should hold on to:
 **`PILOT_2_DESIGN_ALTERNATIVE.md`** states a staged-isolation design as a genuine alternative to this
 one. It changes **one factor at a time**, so a negative names its cause instead of leaving the
 combination to blame, and it reaches the same decisions for roughly **$4 rather than $31**. Its
-trade is explicit: it will not detect interactions between factors. This design remains the
+trade is explicit: it will not detect interactions between factors. Where an interaction is worth pursuing, the alternative states the **four entry criteria** (a stated technical mechanism, an isolation result that implies it, an attributing design, and pre-registration) and prices a designed 2x2 probe at **$1.11** against an incidental one at $31. This design remains the
 reference specification; the alternative is the recommended route to it.
 
 ## 5. Gate 1

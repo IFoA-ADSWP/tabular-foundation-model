@@ -68,6 +68,64 @@ Stated plainly, because it is a real trade:
    finding. This is why every step's decision rule and the noise floor must be **fixed in advance**,
    and the stop rules in `PILOT_2_EXECUTION_PLAN.md` are written to be pre-registerable.
 
+## Interaction policy — by decision, with a stated mechanism
+
+**Isolation by default. An interaction is investigated only when it is entered deliberately, and only
+with a technical reason for expecting it.**
+
+The reason is attribution. The bundled design *is* an interaction measurement — but an **incidental**
+one. With repeats, training length, data scale and pool policy all moving across its arms, a positive
+result cannot be attributed: two factors are jointly the possible cause, and the design offers no
+contrast that separates them. That is the "A and B as possible causation" problem, and it is not
+fixed by running more repeats.
+
+An interaction is a legitimate and interesting question — **two factors can each be null in isolation
+and positive in combination.** The point is not to rule such questions out, but to design them.
+
+### Entry criteria — all four must hold
+
+1. **A stated technical mechanism.** Not "it might work", but *why the combination should differ from
+   the sum of its parts*. For example: *"training longer should help more under a coherent pool,
+   because the gradient signal is not diluted by schema-mismatched columns."* If the mechanism cannot
+   be written in one sentence before the run, the hypothesis is unfalsifiable and must not be run.
+2. **It is implied by the isolation results.** At least one factor shows an effect, or two are
+   near-misses *in the direction the mechanism predicts* — for example each alone is +0.002 against a
+   noise floor of 0.003, and the mechanism names the threshold the combination should cross.
+3. **A design that can attribute it.** A contrast between cells that differ in **exactly** the factors
+   of interest, with everything else held fixed. Never "everything at once".
+4. **Pre-registered.** The interaction being tested, the expected direction, the arms, the decision
+   rule and the stop rule, all fixed before the run. Without this, an interaction search is fishing.
+
+### Cost of a designed probe
+
+The most plausible interaction here is **training length x pool coherence**, testable as a 2x2 on a
+single target:
+
+| | in-domain | pooled (3 datasets) |
+| --- | --- | --- |
+| **3 epochs** | 29 s | 73 s |
+| **30 epochs** | 225 s | 659 s |
+
+Plus the shuffled-label control at both pooled cells (1,464 s).
+
+**3 seeds, one split: $1.11.** At 5 folds: $5.55.
+
+### Why it must be entered deliberately: it is the most expensive claim available
+
+In a 2x2 with equal cells the interaction contrast is a *difference of differences*, whose variance is
+**four times** a single cell's. It therefore needs roughly **four times the repeats for the same
+precision as a main effect**. An interaction is the hardest thing in this programme to establish.
+
+Which gives the comparison in one line:
+
+- **Designed interaction:** $1.11 for a specific, attributable answer to a question with a stated
+  mechanism.
+- **Incidental interaction:** $31 for an answer with two factors jointly to blame and no contrast to
+  separate them.
+
+Whatever the outcome, an interaction result is reported as an **estimate with an interval**, never as a
+headline.
+
 ## Which to choose
 
 Design B is the better default **if the goal is to learn what is true**. Design A is defensible
