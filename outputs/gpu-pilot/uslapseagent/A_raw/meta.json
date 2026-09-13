@@ -1,0 +1,153 @@
+{
+  "schema_version": 2,
+  "run_id": "uslapseagent_A_raw_seed42",
+  "dataset": "uslapseagent",
+  "arm": "A_raw",
+  "seed": 42,
+  "fold": null,
+  "n_folds": null,
+  "train_rows": 2000,
+  "row_epochs": null,
+  "test_rows": 1000,
+  "device": "cuda",
+  "device_name": "NVIDIA RTX PRO 4000 Blackwell",
+  "run_time_seconds": 2.929454803466797,
+  "timestamp": "2026-09-13T22:51:55.877914+00:00",
+  "status": "success",
+  "versions": {
+    "python": "3.11.12",
+    "torch": "2.7.0+cu128",
+    "numpy": "2.2.5",
+    "tabpfn": "8.5.0",
+    "scikit-learn": "1.9.1",
+    "pandas": "2.3.3",
+    "catboost": "1.2.10"
+  },
+  "checkpoints": [
+    "tabpfn-v3-classifier-v3_default.ckpt"
+  ],
+  "weights": {
+    "path": "/root/.cache/tabpfn/tabpfn-v3-classifier-v3_default.ckpt",
+    "sha256": "d0d865d54dfbc524f5703104be90620182dca7e5fb2c16de72e9959ea18f3988",
+    "bytes": 212804803,
+    "cached_before": true,
+    "downloaded": true,
+    "source": "Prior-Labs/tabpfn_3",
+    "manifest_file": "/tmp/tfm_weights.json"
+  },
+  "container": {
+    "image_ref": "pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime",
+    "run_stamp": "20260913T225032Z",
+    "machine_id": null,
+    "host_id": null
+  },
+  "estimator_class": "tabpfn.classifier.TabPFNClassifier",
+  "inference_context": {
+    "rows": 2000,
+    "mechanism": "TabPFNClassifier.fit(X_train) -- full training split"
+  },
+  "dataset_fingerprint": {
+    "name": "uslapseagent",
+    "path": "data/raw/uslapseagent.csv",
+    "file": "uslapseagent.csv",
+    "sha256": "c56e7c9a3d6d03579f89e5da140007394ed357cb1481f21419700b6d39aa1112",
+    "n_rows": 29317,
+    "n_cols": 11,
+    "columns": [
+      "duration",
+      "acc.death.rider",
+      "gender",
+      "premium.frequency",
+      "risk.state",
+      "underwriting.age",
+      "living.place",
+      "annual.premium",
+      "DJIA",
+      "surrender",
+      "allcause"
+    ],
+    "target_col": "surrender",
+    "positive_rate": 0.378552,
+    "n_positive": 11098,
+    "source_url": "https://raw.githubusercontent.com/IFoA-ADSWP/tabular-foundation-model/main/data/raw/uslapseagent.csv",
+    "source_repo": "IFoA-ADSWP/tabular-foundation-model",
+    "source_ref": "main",
+    "source_ref_is_pinned": false,
+    "rows_used": 3500,
+    "load_info": {
+      "row_cap": 3500,
+      "row_cap_applied": true,
+      "rows_loaded": 3500
+    },
+    "pos_rate_used": 0.368571
+  },
+  "split_fingerprint": {
+    "policy": "holdout_then_train_cap",
+    "seed": 42,
+    "fold": null,
+    "n_folds": null,
+    "n_train": 2000,
+    "n_test": 1000,
+    "pos_train": 737,
+    "pos_test": 369,
+    "train_index_sha256": "dce0850a073444aeea9d9c71d5eb94256ca52f276cc7a1e9cbc61a0c352320d9",
+    "test_index_sha256": "c49d8e177507bcdec93b141279e97c857e03192a31a0b80c5ba7d67e6f9ece92",
+    "test_rows_excluded_from_fit": true,
+    "n_dropped": 500,
+    "dropped_index_sha256": "97dd9218df758291752af44aa8953dcef28630c4f0e2264b5e185973d54a53f2",
+    "leakage_assertion": {
+      "train_test_disjoint": true,
+      "dropped_test_disjoint": true,
+      "n_dropped": 500,
+      "context_source": "explicit_indices_checked",
+      "checked": "constructed_split_only",
+      "n_context": 2000,
+      "context_test_disjoint": true,
+      "context_allowed_checked": true
+    }
+  },
+  "predictions_sha256": "03831a89ec28ca5024f0540a83f56660321eaa150d69aa46e05b9f087be188d3",
+  "effective_config": {
+    "arm": "A_raw",
+    "kwargs": {
+      "ignore_pretraining_limits": true,
+      "n_estimators": 2,
+      "fit_mode": "batched",
+      "inference_precision": "float32"
+    },
+    "passed_params": [
+      "n_estimators",
+      "fit_mode"
+    ],
+    "library_defaulted_params": [
+      "ignore_pretraining_limits",
+      "inference_precision"
+    ],
+    "legacy_config_keys_ignored": [
+      "context_samples"
+    ],
+    "source_config": {
+      "epochs": 3,
+      "early_stopping": false,
+      "n_estimators": 2,
+      "learning_rate": 1e-05,
+      "fit_mode": "batched",
+      "context_samples": 64
+    }
+  },
+  "config": {
+    "epochs": 3,
+    "early_stopping": false,
+    "n_estimators": 2,
+    "learning_rate": 1e-05,
+    "fit_mode": "batched",
+    "context_samples": 64
+  },
+  "roc_auc": 0.9362606779792044,
+  "brier": 0.08680012822151184,
+  "pr_auc": 0.8367064514779563,
+  "log_loss": 0.2663871645927429,
+  "ece": 0.024003042002444096,
+  "model_saved": false,
+  "model_save_note": "not requested (--save-models)"
+}
