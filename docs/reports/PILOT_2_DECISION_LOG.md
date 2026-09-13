@@ -106,14 +106,11 @@ DECISION: ______  Owner: ______  Date: ______  Section: §6.2
 
 ### D7 — The funded envelope
 
-**Why it matters.** The figures are modelled from the first pilot's measured arm times, and the model
-rests on **one** relationship nobody has measured: how cost grows with training length. On that basis
-the design as written is **~$31** against **~$9.60** of credit, and the recommended staged path is
-**~$4.70** (`PILOT_2_COST_AND_CONTROLS.md`, which states the basis of every figure).
+**Why it matters.** The full design is ~$35–50 against ~$9.60 of credit; P1c alone can consume it
+(§4.5.1).
 
-**Recommendation:** fund the **first step only (7p)**, which measures that relationship on one dataset.
-Fund the in-domain steps on its result, and take the transfer experiment and any increase in data
-scale as **separate decisions made with measured numbers rather than modelled ones**.
+**Recommendation:** fund **P1a + P1b (~$5)**, leaving ~$4.6 of headroom, and treat **P1c and Stage 2
+as an explicit top-up decision** taken in light of P1b.
 
 DECISION: ______  Owner: ______  Date: ______  Section: §4.5.1
 
