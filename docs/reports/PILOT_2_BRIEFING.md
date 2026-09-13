@@ -32,22 +32,40 @@ Five steps. Each is cheap, and each can stop the whole programme.
 | --- | --- |
 | **This plan** | **~$4.70** |
 | The full design as written | ~$31 |
-| Everything, at full data scale | ~$368 |
+
+> **No programme-scale figure is quoted.** An earlier draft gave one (~$368) by stacking three
+> unmeasured assumptions at once -- the training-length curve, the pool sizes and the row scaling --
+> before the probe that measures the largest of them. A number for that scope returns only when it
+> can be derived from measurements, not from a curve we have not run.
 | Credit available | **$9.60** |
 
-The comparison we have already run cost 5p, so the recommended path is about **90 of those**. The larger figures are volume — more repeats, longer training, more data — not overhead.
+The comparison we have already run cost 5p, so the recommended path is about **90 of those**. The larger
+figure is the same computation repeated fifteen times rather than three — volume, not overhead.
 
 ## Why it is safe
 
 Destroyed on **every** exit path including crashes · a watchdog checking every 5 minutes · a hard price ceiling per machine · a pre-flight that **refuses to start** if anything is wrong · every stage funded only after the last produced a result · and the first step costs **7p**.
 
-## The five answers we need — none of them technical
+## What we are asking for
 
-1. Does the transfer test get to see rows from the dataset it is tested on?
-2. Who owns the rule for **which datasets may be pooled together**? *(Undefined today — and it is a way to leak data.)*
-3. How many datasets: the **4** we have used, the **12** the frontier work uses, or all **15**?
-4. How much calibration drift is acceptable?
-5. Which dataset is the primary target?
+**Two decisions now:**
+
+1. **The route** — the staged, gated plan above (recommended), or the full design as written?
+2. **Whether to fund the 7p first step.**
+
+**Then a review, not a snap answer in this meeting.** The design has deliberate holes, and they need
+reading rather than deciding on the spot. `PILOT_2_DECISION_LOG.md` holds each with options, a
+recommendation and a blank:
+
+3. Does the transfer test get to see rows from the dataset it is tested on?
+4. Who owns the rule for **which datasets may be pooled together**? *(Undefined today — and it is a way to leak data.)*
+5. How many datasets: the **4** we have used, the **12** the frontier work uses, or all **15**?
+6. How much calibration drift is acceptable?
+7. Which dataset is the primary target?
+
+**We are asking for seven pence, not a programme budget — precisely because those holes exist.**
+Nothing beyond the first step is funded until the step before it has produced a result, and if the
+first step is negative the programme ends there with an answer rather than an invoice.
 
 ## The close
 

@@ -89,6 +89,10 @@ Transfer cost scales with **both** the size of the pool and the number of held-o
 | 12 (the frontier set) | 11 | $13.47 | $202 | 40 min |
 | 15 (everything) | 14 | $21.26 | **$319** | 51 min |
 
+**These are scaling illustrations, not estimates.** They stack the pool-size and training-length
+assumptions the probe has not yet measured, so nothing in this section should be used for
+budgeting; the pool decision is taken after the probe, on measured numbers.
+
 Using everything available makes transfer roughly **sixteen times** more expensive at 30 epochs.
 There is also a scientific case for widening — four targets is a thin basis for a decision rule,
 and more source datasets make the transfer claim stronger — but it is bought at this price.
@@ -190,7 +194,12 @@ trains on three datasets at once and three pooled methods run for each of four t
 | --- | --- | --- | --- |
 | **Lean** (probe + both experiments, 3 repeats) | ~156 | **~$4.70** | fits |
 | **As the design specifies** (P1a + P1b, 15 repeats, transfer at sample scale) | ~780 | **~$31** | needs +$21 |
-| **Everything at full data scale** | ~11,300 | **~$368** | not affordable |
+| **Everything at full data scale** | ~11,300 | **not estimated** | not affordable |
+
+> **No programme-scale figure is quoted.** An earlier draft gave one (~$368) by stacking three
+> unmeasured assumptions at once -- the training-length curve, the pool sizes and the row scaling --
+> before the probe that measures the largest of them. A number for that scope returns only when it
+> can be derived from measurements, not from a curve we have not run.
 
 **The single largest lever is still the epoch budget.** If the 5p probe shows three epochs is as good
 as thirty, the pooled training divides by about eight: transfer at 15 repeats falls from **$20.07 to
