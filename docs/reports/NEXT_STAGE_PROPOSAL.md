@@ -1,5 +1,10 @@
 # Next-Stage Proposal — A Single Fine-Tuned Model Tested on an Unseen Dataset
 
+> **Historical document.** Superseded by `PILOT_2_DESIGN.md` and `PILOT_2_DECISION_GRAPH.md`
+> (2026-09-13). Kept for the record -- **do not reconcile it against the current design**,
+> which deliberately differs from it.
+
+
 > Date: 2026-09-12 | **Status: PROPOSAL — awaiting team confirmation. Nothing here is approved,
 > funded or scheduled; no GPU spend is authorised by this document.**
 > Related: #22, `FINE_TUNING_EXPERIMENT_DESIGN.md`, `CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md`,

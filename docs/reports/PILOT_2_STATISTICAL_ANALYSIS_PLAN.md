@@ -2,7 +2,7 @@
 
 > **Status: DRAFT for sign-off.** This plan fixes the analysis **before** any data exists, so that the
 > result cannot be chosen after seeing it. Any departure is recorded as a dated deviation (§10).
-> Related: `PILOT_2_DESIGN.md` (§5, §6.5), `PILOT_2_DECISION_LOG.md` (D4, D8), `PILOT_2_EXECUTION_PLAN.md`.
+> Related: `PILOT_2_DESIGN.md` (§5, §6.5), `PILOT_2_DECISION_LOG.md` (D4, D8), `PILOT_2_DECISION_GRAPH.md`.
 
 ## 1. Purpose and scope
 
@@ -14,7 +14,7 @@ two pool policies, a control, several metrics). **Without a fixed analysis, a pr
 outputs will find something positive in it**, and the finding will be an artefact of which comparison
 was reported.
 
-Scope: the five gated steps of `PILOT_2_EXECUTION_PLAN.md` and the guarded interaction off-ramp. It does
+Scope: the five gated steps of `PILOT_2_DECISION_GRAPH.md` and the guarded interaction off-ramp. It does
 not re-open anything the design has settled.
 
 ## 2. Estimands — what is actually being estimated

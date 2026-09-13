@@ -7,6 +7,25 @@ each one. Costs are cumulative along a path; the figure at each node is what *th
 Why a graph rather than a list: the design's whole claim is that **nothing is bought in advance**, and
 that claim is a statement about the *edges* — what happens after each result — not about the steps.
 
+## What is being tested, and on what evidence
+
+**One question:** does fine-tuning TabPFN beat raw TabPFN and the actuarial baselines on insurance
+data, first on the same dataset and then on a dataset it has never seen?
+
+**The evidence this rests on is `FINE_TUNING_PILOT_RESULTS.md`** (the first pilot's results) with
+`SMOKE_TEST_SCOPE.md` for what that pilot did and did not exercise. In one line: a 3-epoch in-domain
+fine-tune did **not** reliably beat raw TabPFN (deltas of 0.0008-0.0095; one dataset negative), while
+**using TabPFN at all** beat the best baseline by +0.068 on coil2000 at roughly a third of the
+compute. That is why the budget is tested first and the transfer question is asked separately rather
+than folded in.
+
+**Read, in this order:** this page → `PILOT_2_DESIGN.md` (the specification this plan arrives at) →
+`PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` (how the numbers are computed) →
+`PILOT_2_COST_AND_CONTROLS.md` (what it costs, and the controls). Background and evidence:
+`FINE_TUNING_PILOT_RESULTS.md`, `SMOKE_TEST_SCOPE.md`, `HISTORIC_FINETUNING_APPRAISAL.md`. The
+decisions are in `PILOT_2_DECISION_LOG.md`; the isolation argument and the interaction policy are in
+`PILOT_2_DESIGN_ALTERNATIVE.md`.
+
 ## Recommendation
 
 **Adopt the staged-isolation design as the route. Keep the bundled design as the reference
@@ -23,7 +42,7 @@ specification. Let the 7p probe decide the rest.**
 | **Bundled design** | retained as the reference specification | the isolation route arrives at it once each factor is known to matter — a better position to spend from, not a retreat |
 
 **Not recommended, for the record:** running the bundled design first (~$31, needs a ~$21 top-up, and
-a negative would be unattributable); running at full data scale (~$367, with no evidence yet that the
+a negative would be unattributable); running at full data scale (~$368, with no evidence yet that the
 effect grows with rows); pursuing an interaction before the isolation steps have produced a mechanism
 and a near-miss to justify it.
 
@@ -109,6 +128,45 @@ the negative ones.
 | 4 | "Transfer is consistent across the four held-out targets, at sample scale." |
 | 5 | "The effect is *X* with interval *Y*, against a noise floor of *Z*." The definitive figure |
 | I | "Factors *P* and *Q* interact: *X* with interval *Y*." Attributable, because the design isolates the pair |
+
+## The assumptions we choose to make
+
+Being surgical means deciding in advance what we are willing to *assume* rather than measure, and
+choosing assumptions that are cheap to be wrong about.
+
+1. **An effect invisible on one split will not be rescued by five folds.** If three seeds on a single
+   split cannot see it, more folds buy precision on a null. Five folds are the *last* thing we buy,
+   not the first.
+2. **The test set's own noise is the floor, and we have already measured it.** R1's unpaired 95%
+   interval width on ROC is 0.031-0.118 depending on the dataset, while R1's own in-domain deltas
+   were 0.0008-0.0095 — an order of magnitude inside it. Comparing each delta against that width
+   tells us whether more repeats are worth buying, so we need not buy them to find out.
+3. **The heterogeneous pool is only worth running if the coherent one is interpretable.** This is
+   already the design's pre-registered order; it saves a third of the transfer cost at every scale
+   until the coherent pool has a result.
+4. **Full data scale is only worth running if the sample shows the effect growing with rows.** The
+   sample-to-full multiplier is ~14x; it is a reward for evidence, not an entry fee.
+5. **The cheap baselines do not need re-running at every scale.** The GLM and CatBoost arms take
+   seconds on CPU and are already recorded at every scale they matter.
+
+## What we deliberately do not do
+
+These are the experiments that would fill a schedule without changing the answer:
+
+- five folds before an effect exists on one split;
+- four targets before one target shows any signal;
+- two pool policies before the coherent one has been read;
+- the full epoch ladder at full data scale;
+- fifteen repeats where the test set's own noise exceeds the effect being measured;
+- any full-dataset run before the sample shows the effect growing.
+
+## Monitoring: what we record at every step
+
+Each step reports **the effect size, its interval, and the test set's noise floor**, and then asks a
+single question: *is the effect bigger than the noise?* Only a yes buys the next step.
+
+That is the whole control mechanism. Progress is visible after every step, the programme can stop at
+any step with a reportable answer, and the largest cost in it sits behind the cheapest test in it.
 
 ## Three things a plain binary tree would get wrong
 
