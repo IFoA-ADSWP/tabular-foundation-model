@@ -797,6 +797,20 @@ def save_model_artifact(clf, run_dir, arm):
     return out
 
 
+def record_slot(output_dir, dataset, arm, seed, fold):
+    """Where an arm-run record lives. ONE definition, deliberately.
+
+    The overwrite guard and the writer MUST agree on this path. The previous guard checked
+    `if folds is not None` while the writer checks `if fold is None and seed == DEFAULT_SEED`,
+    so for a multi-seed run without folds the guard inspected a flat slot the writer never
+    uses -- a guard that reports clean while the write clobbers something, which is worse
+    than no guard because it is trusted.
+    """
+    if fold is None and seed == DEFAULT_SEED:
+        return Path(output_dir) / dataset / arm
+    return Path(output_dir) / dataset / arm / f"seed{seed}_fold{fold}"
+
+
 def save_results(
     dataset,
     arm,
@@ -818,12 +832,24 @@ def save_results(
     extra=None,
     model_info=None,
     estimator_class=None,
+    overwrite=False,
 ):
-    """Write one arm-run record. Layout is legacy-compatible for the single-split case."""
-    if fold is None and seed == DEFAULT_SEED:
-        run_dir = output_dir / dataset / arm
-    else:
-        run_dir = output_dir / dataset / arm / f"seed{seed}_fold{fold}"
+    """Write one arm-run record. Layout is legacy-compatible for the single-split case.
+
+    REFUSES to replace an existing record unless `overwrite` is set. The CLI's pre-flight
+    check is a courtesy that lists every clash up front; THIS is the enforcement, because
+    the pre-flight only covers the CLI. An in-process caller -- a notebook, a test, an
+    import -- reaches this function directly, and a 200/100 toy run reached it and replaced
+    a committed record without anything complaining.
+    """
+    run_dir = record_slot(output_dir, dataset, arm, seed, fold)
+    existing = run_dir / "meta.json"
+    if existing.exists() and not overwrite:
+        raise FileExistsError(
+            f"REFUSING TO OVERWRITE: {existing} already exists. A record at this slot was "
+            f"produced by an earlier run -- an ad-hoc run must not replace it. Re-run with "
+            f"--overwrite to replace it deliberately, or --outdir to write elsewhere."
+        )
     run_dir.mkdir(parents=True, exist_ok=True)
 
     np.save(run_dir / "predictions.npy", y_prob)
@@ -898,6 +924,7 @@ def run_single_dataset(
     *,
     config=None,
     seeds=None,
+    overwrite=False,
     folds=None,
     train_size=TRAIN_SIZE,
     test_size=TEST_SIZE,
@@ -1020,6 +1047,7 @@ def run_single_dataset(
                         context_note=ctx_note,
                         model_info=model_info,
                         estimator_class=est_cls,
+                        overwrite=overwrite,
                     )
                     meta["_split_index_hash"] = split_fp["train_index_sha256"][:12]
                     results.append(meta)
@@ -1249,11 +1277,13 @@ def main():
     for _ds in run_datasets:
         for _arm in run_arms:
             for _seed in seeds:
-                _slot = OUTPUT_DIR / _ds / _arm
-                if args.folds is not None:
-                    _slot = _slot / f"seed{_seed}_fold{args.folds}"
-                if (_slot / "meta.json").exists():
-                    clashes.append(_slot.relative_to(OUTPUT_DIR))
+                # Same helper as the writer -- never a second copy of this rule.
+                for _fold in (range(args.folds) if args.folds else [None]):
+                    _slot = record_slot(OUTPUT_DIR, _ds, _arm, _seed, _fold)
+                    if (_slot / "meta.json").exists():
+                        _rel = _slot.relative_to(OUTPUT_DIR)
+                        if _rel not in clashes:
+                            clashes.append(_rel)
     if clashes and not args.overwrite:
         print(f"\nREFUSING TO OVERWRITE: {len(clashes)} existing record(s) would be replaced.")
         for _c in clashes[:10]:
@@ -1372,6 +1402,7 @@ def main():
                 arms,
                 config=config,
                 seeds=seeds,
+                overwrite=args.overwrite,
                 folds=args.folds,
                 train_size=train_size,
                 test_size=test_size,
@@ -1385,6 +1416,7 @@ def main():
                     arms,
                     config=config,
                     seeds=seeds,
+                    overwrite=args.overwrite,
                     folds=args.folds,
                     train_size=train_size,
                     test_size=test_size,

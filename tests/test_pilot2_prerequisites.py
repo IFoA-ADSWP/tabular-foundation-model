@@ -619,3 +619,60 @@ def test_pr10_the_fold_path_is_also_asserted(rp):
     *_, fp = rp.make_split(X, y, seed=42, train_size=None, test_size=None, fold=0, n_folds=5)
     assert fp["leakage_assertion"]["train_test_disjoint"] is True
     assert fp["n_dropped"] == 0
+
+
+# --------------------------------------------------------------------------
+# Write-site guard: the pre-flight is a courtesy, this is the enforcement
+# --------------------------------------------------------------------------
+def _save_kwargs(arm="A_raw", **over):
+    base = dict(seed=42, fold=None, n_folds=None, split_fp={"n_train": 100, "n_test": 50},
+                dataset_fp={"name": "ds"}, arm_fp={"arm": arm},
+                context_rows=None, context_note="n/a")
+    base.update(over)
+    return base
+
+
+def _once(rp, d, arm="A_raw", **over):
+    """One save_results call, with the kwargs it requires actually passed."""
+    y = np.random.default_rng(0).random(8)
+    return rp.save_results("ds", arm, {"log_loss": .5, "roc_auc": .7, "ece": .01,
+                                       "brier": .1, "pr_auc": .2},
+                           y, (y > .5).astype(int), 1.0, dict(rp.DEFAULT_CONFIG), d,
+                           **_save_kwargs(arm=arm, **over))
+
+
+def test_write_guard_refuses_to_replace_an_existing_record(rp, tmp_path):
+    """The path that actually bit us: an in-process caller replacing a committed record."""
+    _once(rp, tmp_path)
+    before = (tmp_path / "ds" / "A_raw" / "meta.json").read_text()
+    with pytest.raises(FileExistsError, match="REFUSING TO OVERWRITE"):
+        _once(rp, tmp_path)
+    assert (tmp_path / "ds" / "A_raw" / "meta.json").read_text() == before
+
+
+def test_write_guard_allows_a_deliberate_override(rp, tmp_path):
+    _once(rp, tmp_path)
+    _once(rp, tmp_path, overwrite=True)          # must not raise
+    assert (tmp_path / "ds" / "A_raw" / "meta.json").exists()
+
+
+def test_record_slot_is_the_legacy_rule(rp, tmp_path):
+    """Flat only for the default seed with no folds; everything else nests."""
+    assert rp.record_slot(tmp_path, "ds", "A", 42, None) == tmp_path / "ds" / "A"
+    assert rp.record_slot(tmp_path, "ds", "A", 43, None).name == "seed43_foldNone"
+    assert rp.record_slot(tmp_path, "ds", "A", 42, 3).name == "seed42_fold3"
+
+
+def test_preflight_checks_the_slot_the_writer_actually_uses(rp, tmp_path):
+    """The drift bug: the pre-flight used `folds is not None` while the writer used
+    `fold is None and seed == DEFAULT_SEED`, so a multi-seed run without folds was checked
+    against a path the writer never touches. A record at the REAL slot must be seen."""
+    slot = tmp_path / "coil2000" / "E_glm" / "seed43_foldNone"
+    slot.mkdir(parents=True)
+    (slot / "meta.json").write_text('{"arm": "E_glm", "protected": true}')
+    r = _run_cli(rp, "--dataset", "coil2000", "--arms", "E_glm", "--seeds", "43",
+                 "--train-size", "50", "--test-size", "25", "--outdir", str(tmp_path))
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "REFUSING TO OVERWRITE" in r.stdout
+    assert "seed43_foldNone" in r.stdout, "the pre-flight must name the slot it found"
+    assert json.loads((slot / "meta.json").read_text())["protected"] is True
