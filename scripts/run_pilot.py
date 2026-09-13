@@ -118,52 +118,53 @@ def run_arm_a_raw(X_train, X_test, y_train, y_test, config):
 
 
 def run_arm_b_in_domain(X_train, X_test, y_train, y_test, config):
-    from tabpfn import TabPFNClassifier
-    from tabpfn.architectures.interface import PerformanceOptions
-    from tabpfn.finetuning.data_util import get_preprocessed_dataset_chunks, meta_dataset_collator
-    from torch.optim import Adam
-    from torch.utils.data import DataLoader
+    """Arm B: TabPFN fine-tuned on this dataset's own training split.
 
-    clf = TabPFNClassifier(
-        ignore_pretraining_limits=True,
+    Uses the SHIPPED fine-tuner rather than driving the model by hand. The
+    hand-rolled version this replaces called ``clf.fit_from_preprocessed`` in a
+    loop and then ``clf.predict_proba``, which raises:
+
+        Invalid forward pass: Bad combination of inference mode
+        (use_inference_mode=True), input X, or executor type
+        (InferenceEngineBatchedNoPreprocessing)
+
+    The model was left in batched-executor mode, which cannot serve a standard
+    predict. It failed on all four datasets in 2-5 s with 50.8 GB of VRAM free,
+    so arm B's long-standing "does not fit" story was never memory -- it was this
+    call sequence.
+
+    The old code also carried two silent-failure traps, both removed by using the
+    library's own trainer:
+
+    * ``optimizer = Adam(clf.model_.parameters()) if hasattr(clf, "model_") else
+      None`` -- ``model_`` is created by ``_initialize_model_variables()``, which
+      was itself called inside a bare ``except Exception: pass``. A failure there
+      left ``optimizer=None``, so the loop called the fit method but took NO
+      gradient step, and the arm would have reported numbers for a model that was
+      never fine-tuned.
+    * the loss/backward/step block was wrapped in ``except Exception: pass``,
+      hiding any error in the one part of the arm that actually learns.
+
+    CONFIG MAPPING (a deliberate, recorded deviation -- the shipped trainer exposes
+    different knobs than the pilot config):
+
+        max_finetune_steps -> epochs            (steps became passes)
+        learning_rate      -> learning_rate     (unchanged)
+        n_estimators       -> n_estimators_finetune
+        context_samples    -> not applied; the shipped trainer subsamples via
+                              n_finetune_ctx_plus_query_samples (default 50000)
+                              and n_inference_subsample_samples
+    """
+    from tabpfn.finetuning.finetuned_classifier import FinetunedTabPFNClassifier
+
+    clf = FinetunedTabPFNClassifier(
         device="cuda" if torch.cuda.is_available() else "cpu",
-        n_estimators=config["n_estimators"],
+        epochs=config["max_finetune_steps"],
+        learning_rate=config["learning_rate"],
+        n_estimators_finetune=config["n_estimators"],
         random_state=42,
-        inference_precision=torch.float32,
-        fit_mode=config["fit_mode"],
     )
-
-    try:
-        clf._initialize_model_variables()
-    except Exception:
-        pass
-
-    split_fn = lambda X, y, stratify=None: train_test_split(X, y, test_size=0.2, random_state=42, stratify=stratify)
-    training_datasets = get_preprocessed_dataset_chunks(
-        calling_instance=clf, X_raw=X_train, y_raw=y_train, split_fn=split_fn,
-        max_data_size=None, model_type="classifier", equal_split_size=True,
-        data_shuffle_seed=42, preprocessing_random_state=42, shuffle=True,
-    )
-
-    optimizer = Adam(clf.model_.parameters(), lr=config["learning_rate"]) if hasattr(clf, "model_") else None
-    dataloader = DataLoader(training_datasets, batch_size=1, collate_fn=meta_dataset_collator)
-    loss_fn = torch.nn.CrossEntropyLoss()
-
-    for epoch in range(config["max_finetune_steps"]):
-        for batch_item in dataloader:
-            try:
-                clf.fit_from_preprocessed(batch_item.X_context, batch_item.y_context, batch_item.cat_indices, batch_item.configs, performance_options=PerformanceOptions())
-            except Exception as e:
-                print(f"fit_from_preprocessed failed: {e}")
-                return None, clf
-            if optimizer is not None and hasattr(clf, "forward"):
-                try:
-                    preds = clf.forward(batch_item.X_query, return_logits=True)
-                    loss = loss_fn(preds, batch_item.y_query.to(clf.devices_[0]))
-                    optimizer.zero_grad(); loss.backward(); optimizer.step()
-                except Exception:
-                    pass
-
+    clf.fit(X_train, y_train)
     probs = clf.predict_proba(X_test)[:, 1]
     return probs, clf
 

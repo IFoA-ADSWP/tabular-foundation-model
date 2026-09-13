@@ -741,6 +741,14 @@ Two consequences worth internalising:
 
 ### C.5 Cost — measured, not estimated
 
+**The ledger is derived; the per-run JSONs are the source of truth.** `run_ledger.csv` is
+appended to, so adding a field to the run record silently misaligned every later row
+(`csv.DictWriter` only writes a header when the file is missing): the ledger reported
+`$1789231403` for a five-minute run. It now compares the header against the record's fields
+and quarantines a mismatch as `run_ledger.csv.stale-<stamp>` instead of appending garbage.
+If a figure looks absurd, rebuild from `run_*.json` — the ledger can be wrong, the JSONs
+were not.
+
 **Every run records its own cost.** `vast_run.sh` writes `outputs/gpu-pilot/run_<stamp>.json`
 plus an appended `outputs/gpu-pilot/run_ledger.csv` with 19 columns:
 
