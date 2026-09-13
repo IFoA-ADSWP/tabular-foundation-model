@@ -3,7 +3,7 @@
 > **Status: proposal for review. No spend is authorised by this document.** It runs only after the
 > plan and the code it needs are merged, and only on an explicit go-ahead.
 >
-> **Deliberately separate from the wider Pilot 2 design** (`PILOT_2_DESIGN.md`). The probe's outcome
+> **Deliberately separate from the wider Pilot 2 design** (held in the wider proposal, which is **not merged and not required for this pilot**). The probe's outcome
 > will change that design, so the two are decoupled: approving, running and reading this commits
 > nobody to the wider testing.
 
