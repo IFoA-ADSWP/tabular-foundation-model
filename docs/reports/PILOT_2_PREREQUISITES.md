@@ -1,8 +1,11 @@
 # Pilot 2 — Prerequisites Checklist
 
-> Date: 2026-09-12 | Status: **IN PROGRESS (4 of 8 done)**
+> Date: 2026-09-12 (counts corrected 2026-09-13) | Status: **6 of 9 DONE, 3 IN PROGRESS**
+> The three open items (PR-1, PR-3, PR-9) are code-complete and free-verified; each is
+> waiting on the SAME thing -- one real box -- which is what the Gate Amendment below resolves.
 > Design: `PILOT_2_DESIGN.md` §7 (this is that section, expanded and tracked)
-> Related: #22 | No paid run may proceed until the Gate in this file is green.
+> Related: #22 | No paid run may proceed until the Gate in this file is green — see the Gate
+> Amendment below for how a run may satisfy three prerequisites without breaking that rule.
 
 ---
 
@@ -38,6 +41,55 @@ Suite status at this revision: `94 passed, 1 failed` across `tests/` — the fai
 pre-existing `tests/test_frontier_cli.py::test_reconstruct_pp` float32/float64 assertion,
 unrelated to these changes. Pilot 2 additions: 25 tests in `test_pilot2_prerequisites.py`,
 17 in `test_pilot2_artifact_roundtrip.py`, 4 in `test_pilot2_mock_run.py`.
+
+---
+
+## Gate Amendment — resolving the circular gate
+
+**The problem, stated plainly.** The rule above is "no paid run may proceed until the Gate is
+green", and the Gate cannot go green without one: PR-1, PR-3 and PR-9 are code-complete but each
+is waiting on the same live verification, which requires an instance. Read strictly, the file
+forbids the only action that can complete it. That is a deadlock, not a safety property, and it is
+why this pilot is stalled rather than blocked by anything technical.
+
+**The amendment.** One **minimal verification run** is admitted as part of the prerequisite work.
+It is not Stage 1, it produces no result, and it is scoped to proving the three open items work on
+real hardware.
+
+| | |
+| --- | --- |
+| Command | `--dataset coil2000 --arms A_raw,B_in_domain --seeds 42 --epochs 3 --save-models --min-vram 40 --max-dph 0.65 --max-attempts 2` |
+| Expected | ~4 min, ~$0.042 |
+| Worst case | ~8 min (one retry), ~$0.084 |
+| **Ceiling** | **$0.15 — 1.6% of the $9.60 credit.** Stop and report if it is approached |
+
+**What it discharges, and why only a run can.**
+
+| Prerequisite | What the run proves |
+| --- | --- |
+| PR-1 | a real manifest, with the `weights` (hash) and `container` (image) blocks *populated* rather than null — a local run cannot populate them, since nothing fetches or containerises |
+| PR-3 | fine-tuned weights are saved, hashed, and **reload to identical predictions** on live hardware |
+| PR-9 | a cold→warm weight fetch, and that the licence gate **stops firing** on the warm cache |
+| PR-2 | the artifact return path exercised by a real box rather than the mock |
+
+**What it does NOT discharge — say this out loud when reporting it.** It is not Stage 1. Three
+epochs on one dataset is the configuration R1 already showed to be null, so any number it produces
+must **not** be reported as a finding. Its only product is a green plumbing light. It also does not
+touch Stage 2, whose transfer arm is not yet written.
+
+**Conditions.**
+
+1. **The ceiling is $0.15, and it needs an explicit, current yes** — a standing "shall we try"
+   is not authorisation to spend (see the cost rules in `vastai-gpu-provisioning`).
+2. **If the licence token has been rotated, update the box's key file first.** A stale credential
+   fails at the licence gate, which is how an earlier run was lost after being paid for.
+3. **A failure here is information, not waste.** This is the first execution of code paths that
+   have only ever run against a mock; finding a defect at ~$0.04 is the cheapest this discovery
+   will ever be.
+
+**Once green.** PR-1, PR-3 and PR-9 move to DONE, the Gate becomes satisfiable for the first time,
+and the Stage 1 decision is a genuinely open one — to be taken on its own merits at a realistic
+epoch budget (30, the library's own default; 3 has already been answered).
 
 ---
 
