@@ -1,6 +1,6 @@
 # Report Registry
 
-Purpose: prevent duplicate report topics and keep reports traceable to source workbooks and evidence files.
+Purpose: prevent duplicate report topics and keep reports traceable to source workbooks and evidence files. Companion: `docs/analyses/benchmark_portfolio.md` indexes the same work from the benchmark axis (benchmark → question → finding); this registry indexes the governance axis (topic → workbooks → evidence).
 
 > Version policy: every row carries `model_version` + `last_updated`. Legacy rows below are **v2 era (Mar–Apr 2026)** — see [../MODEL_VERSIONS.md](../MODEL_VERSIONS.md). New runs on v3 must add new rows, never silently overwrite.
 

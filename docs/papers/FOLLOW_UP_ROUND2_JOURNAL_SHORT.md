@@ -1,5 +1,7 @@
 # Follow-Up to Initial TabPFN Insurance Study (Short Journal Format)
 
+> Plain-English version: `FOLLOW_UP_ROUND2_JOURNAL_PLAIN.md` (same findings).
+
 ## Abstract
 
 Our initial study on EU Direct Lapse showed that TabPFN did not dominate logistic regression (GLM) on raw discrimination, but improved probability quality after calibration. This follow-up evaluates whether that pattern generalizes across additional insurance classification datasets and extends the analysis to regression tasks. Classification testing covered four datasets (EU Direct Lapse, COIL 2000, Aus. Vehicle, freMTPL2 Binary) with ROC AUC and PR AUC as primary metrics. Regression benchmarking covered three datasets (freMTPL2 Frequency, EU Direct Premium, AUS Auto Vehicle Value) using MAE, RMSE, and R2 with LinearRegression, RandomForestRegressor, and CatBoostRegressor baselines.

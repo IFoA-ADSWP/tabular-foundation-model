@@ -6,6 +6,8 @@ Status: living index of every benchmark this project has built, current as of 20
 
 ## 1. Purpose
 
+> Companion: `docs/reports/REPORT_REGISTRY.md` indexes the same work from the governance axis (topic → workbooks → evidence); this portfolio indexes the benchmark axis (benchmark → question → finding).
+
 This portfolio is the project's "custom benchmarking to assess insurance performance" mandate in concrete form. Each benchmark is a question, not an event: the smoke test asks whether the harness runs, the default-config baseline asks who wins at default configuration, the hypothesis tests ask why, and the parsimony frontier asks what the accuracy-vs-parsimony trade-off is. Every benchmark is re-runnable with a single command, with outputs committed under `scripts/eval/`, which is what makes them custom benchmarks rather than one-off analyses.
 
 ## 2. Benchmark inventory
