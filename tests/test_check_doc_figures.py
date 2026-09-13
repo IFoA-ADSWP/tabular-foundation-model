@@ -66,6 +66,15 @@ def test_the_same_figure_marked_as_historical_passes(cdf, tmp_path):
     assert cdf.main(["--docs-dir", str(tmp_path)]) == 0
 
 
+def test_a_correction_line_is_accepted(cdf, tmp_path):
+    """The real case: a document explaining what the figure is NOT is not a stale figure."""
+    _write(tmp_path, "PILOT_2_A.md", CLEAN)
+    _write(tmp_path, "PILOT_2_B.md",
+           "> instead of the 30 the design freezes. Transfer at 15 repeats is **$20.07**, "
+           "not $4.08.\n")
+    assert cdf.main(["--docs-dir", str(tmp_path)]) == 0
+
+
 def test_every_superseded_figure_is_caught(cdf, tmp_path, capsys):
     """Neither a stale total nor a stale step cost may survive in a document."""
     _write(tmp_path, "PILOT_2_A.md", CLEAN)

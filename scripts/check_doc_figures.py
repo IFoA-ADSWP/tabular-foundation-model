@@ -59,7 +59,7 @@ SUPERSEDED: list[str] = [
 
 MARKERS: tuple[str, ...] = (
     "earlier", "supersed", "previous", "revision", "correction", "corrected", "historical",
-    "no longer", "before the", "was ", "used to",
+    "no longer", "before the", "was ", "used to", "instead", "rather than", "not ",
 )
 
 # Accepted alternative spellings of a canonical quantity: reported so the reader knows the
