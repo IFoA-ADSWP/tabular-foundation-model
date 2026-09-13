@@ -42,6 +42,11 @@ Five steps. Each is cheap, and each can stop the whole programme.
 The comparison we have already run cost 5p, so the recommended path is about **90 of those**. The larger
 figure is the same computation repeated fifteen times rather than three — volume, not overhead.
 
+**What "modelled" means, and why it is said plainly:** every figure except the 5p and the credit comes
+from the first pilot's measured timings multiplied by a plan — and the plan rests on **one**
+relationship nobody has measured: how cost grows with training length. **The 7p first step measures
+it.** No later figure should be quoted as a cost until it has been re-derived from that result.
+
 ## Why it is safe
 
 Destroyed on **every** exit path including crashes · a watchdog checking every 5 minutes · a hard price ceiling per machine · a pre-flight that **refuses to start** if anything is wrong · every stage funded only after the last produced a result · and the first step costs **7p**.
