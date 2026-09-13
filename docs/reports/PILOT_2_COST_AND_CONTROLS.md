@@ -188,6 +188,25 @@ trains on three datasets at once and three pooled methods run for each of four t
 > (the shuffled-label control is a full pooled training run), and it modelled the pool at 10 epochs
 > instead of the 30 the design freezes. Transfer at 15 repeats is **$20.07**, not $4.08.
 
+### The basis of every figure in this document
+
+Stated so a reader can tell an estimate from a measurement, and so no number here has to be taken on
+trust.
+
+| Figure | Value | Basis | What would make it a measurement |
+| --- | --- | --- | --- |
+| One successful four-dataset comparison | **5p** | **measured** — the first pilot's own run | nothing: this *is* the measurement |
+| Credit available | **$9.60** | **measured** — the account | nothing |
+| Arm times (A 41.1 s, fine-tuned 116.9 s) | — | **measured**, per dataset, on one GPU | a second GPU run |
+| The probe steps (7p / 12p / 43p) | — | modelled: measured arm times x repeats | one run of the probe |
+| The recommended path | **~$4.70** | **modelled** — measured timings, one **assumed** relationship: cost vs training length | the 7p probe measures that relationship |
+| The design as written | **~$31** | same basis, at 15 repeats and two data scales | the probe, then the in-domain steps |
+| Every pooled or transfer figure | — | modelled, and assumes the pool's SIZE, which D2/D3 have not fixed | the pool decision, then a run |
+
+**The one assumption, named:** cost grows with training length as ~30 s fixed plus ~29 s per epoch.
+That is a model, not a measurement, and it sets the multiplier on every modelled figure above. It is
+also exactly what the 7p probe measures.
+
 ### What this does to the headline
 
 | Scenario | Runs | Cost | vs ~$9.60 credit |

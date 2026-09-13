@@ -30,14 +30,14 @@ Five steps. Each is cheap, and each can stop the whole programme.
 
 | | |
 | --- | --- |
-| **This plan** | **~$4.70** |
-| The full design as written | ~$31 |
+| **This plan** | **~$4.70** *(modelled)* |
+| The full design as written | ~$31 *(modelled)* |
 
 > **No programme-scale figure is quoted.** An earlier draft gave one (~$368) by stacking three
 > unmeasured assumptions at once -- the training-length curve, the pool sizes and the row scaling --
 > before the probe that measures the largest of them. A number for that scope returns only when it
 > can be derived from measurements, not from a curve we have not run.
-| Credit available | **$9.60** |
+| Credit available | **$9.60** *(measured)* |
 
 The comparison we have already run cost 5p, so the recommended path is about **90 of those**. The larger
 figure is the same computation repeated fifteen times rather than three — volume, not overhead.
@@ -45,6 +45,8 @@ figure is the same computation repeated fifteen times rather than three — volu
 ## Why it is safe
 
 Destroyed on **every** exit path including crashes · a watchdog checking every 5 minutes · a hard price ceiling per machine · a pre-flight that **refuses to start** if anything is wrong · every stage funded only after the last produced a result · and the first step costs **7p**.
+
+Each of those controls is implemented and unit-tested. **None has yet been exercised on real hardware** — the 7p first step is the run that does that, which is a second reason it is the right first step.
 
 ## What we are asking for
 
@@ -69,7 +71,7 @@ first step is negative the programme ends there with an answer rather than an in
 
 ## The close
 
-> "The whole thing starts for seven pence. If training longer doesn't help, we find that out for 7p instead of $15 — and either way we end up with an answer we can defend."
+> "The whole thing starts for seven pence. If training longer doesn't help, we find that out for seven pence rather than after the full budget — and either way we end up with an answer we can defend."
 
 ## Where to check the working
 
