@@ -28,7 +28,7 @@ varies several factors at once reproduces that risk at a larger price.
 | A negative means | the combination failed — **cause unresolved** | *this factor* failed — a specific, reportable claim |
 | Comparisons per read | ~24 across datasets, epochs, targets and policies | **one** |
 | Multiplicity | large surface, and the Gate 1 criteria add more | one hypothesis per step, so no correction needed |
-| Cost to a first answer | ~$31 (as written), ~$367 at full scale | **~$4.15**, or ~$0.58 if the probe says 3 epochs is enough |
+| Cost to a first answer | ~$31 (as written), ~$368 at full scale | **~$4.70**, or ~66c if the probe says 3 epochs is enough |
 | Repeat structure | 3 seeds x 5 folds throughout | 3 seeds x 1 split first; **5 folds only after an effect exists** |
 | When a result is reportable | at the end | **after every step** |
 
