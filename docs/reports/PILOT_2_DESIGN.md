@@ -177,9 +177,9 @@ Interpretation is fixed in advance:
 
 | | Cost | In units of one successful first-pilot comparison (5p) |
 | --- | --- | --- |
-| **Pilot 2, as recommended** | **~$1.50** | ~30 |
-| With 15 repeats per experiment (confidence) | ~$15 | ~310 |
-| Also at full data scale | ~$83 | ~1,700 |
+| **Pilot 2, as recommended** | **~$4.70** | ~97 |
+| With 15 repeats per experiment (confidence) | ~$31 | ~640 |
+| Also at full data scale | ~$367 | ~7,600 |
 
 Everything is priced from R1's measured arm times (A_raw 41.1 s, fine-tuned 116.9 s across four
 datasets at 2,000/1,000), so the larger figures are **volume** — repeats x epochs x rows — not
