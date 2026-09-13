@@ -148,76 +148,16 @@ the negative ones.
 | 5 | "The effect is *X* with interval *Y*, against a noise floor of *Z*." The definitive figure |
 | I | "Factors *P* and *Q* interact: *X* with interval *Y*." Attributable, because the design isolates the pair |
 
-### Step 0 in full — the probe
+### Step 0 — the probe (specified in its own proposal)
 
-One dataset, one split, four arms. Every parameter, and the reason it has that value.
+Step 0 is the budget probe. **Its specification lives in `PROBE_PLAN.md`** — the dataset and why it was
+chosen, every parameter with its reason, the three outcomes rather than two, the two preconditions, and
+the approval and sequencing steps. It is packaged with its own code as **PR #173**.
 
-| Parameter | Value | Why this value |
-| --- | --- | --- |
-| **Dataset** | **uslapseagent** | selected on **resolution, not cost**: 369 positives, resolves **≥ 0.009 ROC**. coil2000 — the repository's habitual first choice — resolves only **≥ 0.061**, because 6% of its rows are positive |
-| Training rows | 2,000 | R1 parity: the same scale as every comparison we already hold, so the result is comparable rather than novel |
-| Test rows | 1,000 | this is what sets the resolution above |
-| Reserved rows | 500 | loaded but excluded, so the train-size cap can never reach the test rows; fingerprinted in the manifest |
-| Epochs | 3 / 10 / 30 | 3 = R1 parity · 10 = midpoint · 30 = the library default, the "fair budget" nobody has tested |
-| Arms | `A_raw` + the three rungs | `A_raw` is the baseline; without it the probe can only say whether the budget matters, not whether fine-tuning works |
-| Seeds / splits | 1 × 1 | screening, not estimation — step 2 buys 3 seeds if this shows something |
-| Context | matched across arms | asserted before any arm runs (PR-4): the confound the historic comparison died of |
-
-### Why this split, and how it relates to the epochs
-
-**2,000 train / 1,000 test, one split.** Three independent reasons, worth separating because they are
-routinely conflated:
-
-| Choice | Why |
-| --- | --- |
-| 2,000 training rows | **R1 parity** — the same scale as every comparison we already hold, so the probe's `ft3` rung is directly comparable to R1's result rather than merely similar |
-| 1,000 test rows | **this is what sets the resolution.** The floor is driven by the TEST set's positives (369 here → ≥ 0.009 ROC), not by the training rows |
-| 500 reserved | loaded and then excluded, so the train-size cap can never reach a test row. Their indices are fingerprinted in the manifest, so a reader can see they were dropped deliberately rather than lost |
-| Stratified split | keeps the test set's positive rate at the dataset's rate. The resolution depends on the positive count, so leaving that to chance would make the detection floor a lottery |
-| One split | screening, not estimation — three seeds is step 2, bought only on a positive |
-
-**The cap is uniform, and that weakness is recorded rather than hidden.** `load_dataset` takes a uniform
-sample of 3,500 rows *before* the stratified split, so the positive count is whatever that sample
-happened to include — 57 for coil2000, 369 for uslapseagent. **A stratified cap would equalise positives
-across datasets and is the cheapest available improvement to the minimum detectable effect**
-(`PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` §12.1). It is a candidate change, not a made one, because it would
-alter the split that every existing number was computed on.
-
-**How the split relates to the epoch budget: they are not independent.**
-
-An epoch is one pass over the training split, so the quantity that actually drives the model is
-**rows × epochs**:
-
-- 30 epochs over 2,000 rows = **60,000 row-passes**
-- 30 epochs over 5,000 rows = **150,000 row-passes** — two and a half times the training, under the same label
-
-Two consequences, both of which constrain how the result may be read:
-
-1. **"30 epochs" is not a fixed amount of training.** It is 30 passes over *this* split. A flat ladder at
-   2,000 rows closes the budget question **at 2,000 rows** — not "30 epochs does not help".
-2. **Changing the split's scale changes the meaning of the budget.** Moving to 5,000 rows is not only more
-   data; it is a different optimiser trajectory (more steps per epoch) at the same nominal epoch count.
-
-So every arm records **row-epochs** (training rows × epochs) beside the declared epoch count. Without it,
-a future run at another scale can return a different answer under the same label, and the two results
-cannot be compared — the same class of ambiguity this design exists to remove.
-
-**Three outcomes, not two:**
-
-1. **The ladder rises** → the budget matters; carry the winning rung forward.
-2. **The ladder is flat, but the fine-tuned arms beat `A_raw`** → fine-tuning works and the budget does
-   not matter; carry **3 epochs** forward, which is the cheaper configuration.
-3. **The ladder is flat and the fine-tuned arms do not beat `A_raw`** → the fine-tuning hypothesis is
-   dead **at this scale**; report it with its minimum detectable effect beside it.
-
-**Two preconditions before the result may be read:**
-
-- **Early stopping must be disabled, or the executed epoch count recorded.** Otherwise "30 epochs"
-  means "whatever early stopping allowed" and the probe measures a different quantity from the one it
-  names.
-- **The `ft3` arm replicates R1** — same dataset, same setting. R1 measured +0.0014 on coil2000 and
-  −0.0008 to +0.0095 across the four. If `ft3` does not land in that band, the pipeline has changed and
-  nothing else in the run is interpretable. A free validity gate.
+It is deliberately separate from this design, because the probe's outcome will change what follows:
+the two are reviewed and merged independently, and **approving the probe commits nobody to the wider
+testing**. This page keeps only what the wider plan needs from it — step 0 is the first step, it is
+cheap, and its result decides whether the later steps are worth funding.
 
 ## The assumptions we choose to make
 
