@@ -149,6 +149,45 @@ One dataset, one split, four arms. Every parameter, and the reason it has that v
 | Seeds / splits | 1 × 1 | screening, not estimation — step 2 buys 3 seeds if this shows something |
 | Context | matched across arms | asserted before any arm runs (PR-4): the confound the historic comparison died of |
 
+### Why this split, and how it relates to the epochs
+
+**2,000 train / 1,000 test, one split.** Three independent reasons, worth separating because they are
+routinely conflated:
+
+| Choice | Why |
+| --- | --- |
+| 2,000 training rows | **R1 parity** — the same scale as every comparison we already hold, so the probe's `ft3` rung is directly comparable to R1's result rather than merely similar |
+| 1,000 test rows | **this is what sets the resolution.** The floor is driven by the TEST set's positives (369 here → ≥ 0.009 ROC), not by the training rows |
+| 500 reserved | loaded and then excluded, so the train-size cap can never reach a test row. Their indices are fingerprinted in the manifest, so a reader can see they were dropped deliberately rather than lost |
+| Stratified split | keeps the test set's positive rate at the dataset's rate. The resolution depends on the positive count, so leaving that to chance would make the detection floor a lottery |
+| One split | screening, not estimation — three seeds is step 2, bought only on a positive |
+
+**The cap is uniform, and that weakness is recorded rather than hidden.** `load_dataset` takes a uniform
+sample of 3,500 rows *before* the stratified split, so the positive count is whatever that sample
+happened to include — 57 for coil2000, 369 for uslapseagent. **A stratified cap would equalise positives
+across datasets and is the cheapest available improvement to the minimum detectable effect**
+(`PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` §12.1). It is a candidate change, not a made one, because it would
+alter the split that every existing number was computed on.
+
+**How the split relates to the epoch budget: they are not independent.**
+
+An epoch is one pass over the training split, so the quantity that actually drives the model is
+**rows × epochs**:
+
+- 30 epochs over 2,000 rows = **60,000 row-passes**
+- 30 epochs over 5,000 rows = **150,000 row-passes** — two and a half times the training, under the same label
+
+Two consequences, both of which constrain how the result may be read:
+
+1. **"30 epochs" is not a fixed amount of training.** It is 30 passes over *this* split. A flat ladder at
+   2,000 rows closes the budget question **at 2,000 rows** — not "30 epochs does not help".
+2. **Changing the split's scale changes the meaning of the budget.** Moving to 5,000 rows is not only more
+   data; it is a different optimiser trajectory (more steps per epoch) at the same nominal epoch count.
+
+So every arm records **row-epochs** (training rows × epochs) beside the declared epoch count. Without it,
+a future run at another scale can return a different answer under the same label, and the two results
+cannot be compared — the same class of ambiguity this design exists to remove.
+
 **Three outcomes, not two:**
 
 1. **The ladder rises** → the budget matters; carry the winning rung forward.
