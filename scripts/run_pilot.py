@@ -644,7 +644,9 @@ def effective_config(arm, config):
         passed = ["n_estimators", "fit_mode"]
     elif arm in FT_ARMS:
         kwargs = {
-            "epochs": config["epochs"],  # PR-7: the real budget
+            # PR-7: the real budget -- and for a ladder arm, ITS OWN budget, never the global.
+            # Recording the global here would make a 30-epoch rung's record claim it ran 3.
+            "epochs": arm_epochs(arm, config),
             "learning_rate": config["learning_rate"],
             "n_estimators_finetune": config["n_estimators"],
         }
@@ -823,12 +825,50 @@ def run_arm_f_catboost(X_train, X_test, y_train, y_test, config=None):
         return probs, clf
 
 
+# The epoch ladder (PILOT_2 step 0, the 7p probe). Each arm carries its OWN budget so the ladder
+# runs as a single pass; a global `--epochs` cannot express it. The override lives here and is
+# read by `effective_config`, so the RECORDED budget is the EXECUTED one -- a ladder arm that ran
+# 30 epochs while its record said the global 3 would be exactly the silent mismatch this file
+# keeps having to defend against.
+ARM_EPOCH_OVERRIDES = {"B_ft3": 3, "B_ft10": 10, "B_ft30": 30}
+LADDER_ARMS = ("B_ft3", "B_ft10", "B_ft30")
+
+
+def arm_epochs(arm, config):
+    """The epoch budget an arm will actually run."""
+    return ARM_EPOCH_OVERRIDES.get(arm, config["epochs"])
+
+
+def _arm_b_at_epochs(epochs):
+    """Arm B pinned to one epoch budget, for the ladder."""
+    def _run(X_train, X_test, y_train, y_test, config):
+        # A COPY: the caller's config is shared across every arm in the run, so mutating it
+        # would leak this arm's budget into the next one.
+        cfg = dict(config)
+        cfg["epochs"] = epochs
+        return run_arm_b_in_domain(X_train, X_test, y_train, y_test, cfg)
+
+    _run.__name__ = f"arm_b_ft{epochs}"
+    _run.__doc__ = f"Arm B at {epochs} epochs (the ladder's {epochs}-epoch rung)."
+    return _run
+
+
 ARMS = {
     "A_raw": run_arm_a_raw,
     "B_in_domain": run_arm_b_in_domain,
+    "B_ft3": _arm_b_at_epochs(3),
+    "B_ft10": _arm_b_at_epochs(10),
+    "B_ft30": _arm_b_at_epochs(30),
     "E_glm": run_arm_e_glm,
     "F_catboost": run_arm_f_catboost,
 }
+
+# The two lists must not be able to drift apart: a ladder arm named but not registered would be
+# silently skipped, and a registered arm with no override would run the global budget while
+# claiming to be a rung.
+assert set(ARM_EPOCH_OVERRIDES) == set(LADDER_ARMS), "ladder arms and their budgets disagree"
+assert all(a in ARMS for a in LADDER_ARMS), "a ladder arm is not registered"
+assert all(a in FT_ARMS for a in LADDER_ARMS), "a ladder arm is not treated as a fine-tuning arm"
 
 
 # ---------------------------------------------------------------------------

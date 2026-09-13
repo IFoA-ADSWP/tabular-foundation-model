@@ -727,3 +727,65 @@ def test_contamination_check_says_so_when_no_context_indices_were_supplied(rp):
 def test_contamination_check_is_fatal_on_a_contaminated_context(rp):
     with pytest.raises(ValueError, match="CONTEXT CONTAMINATION"):
         rp.assert_no_test_contamination([0, 1, 2, 3], [4, 5], None, None, context_idx=[0, 4])
+
+
+# --------------------------------------------------------------------------
+# The epoch ladder (PILOT_2 step 0): each rung carries its own budget
+# --------------------------------------------------------------------------
+def test_the_ladder_arms_are_registered_and_distinct(rp):
+    for arm in ("B_ft3", "B_ft10", "B_ft30"):
+        assert arm in rp.ARMS, f"{arm} missing from the arm registry"
+    budgets = {rp.ARM_EPOCH_OVERRIDES[a] for a in rp.LADDER_ARMS}
+    assert budgets == {3, 10, 30}
+
+
+def test_ladder_invariants_hold_so_the_lists_cannot_drift(rp):
+    assert set(rp.ARM_EPOCH_OVERRIDES) == set(rp.LADDER_ARMS)
+    assert all(a in rp.ARMS for a in rp.LADDER_ARMS)
+    assert all(a in rp.FT_ARMS for a in rp.LADDER_ARMS)
+
+
+def test_effective_config_reports_the_rungs_own_budget_not_the_global(rp):
+    """The defect this guards: a 30-epoch rung whose record says it ran the global 3."""
+    config = dict(rp.DEFAULT_CONFIG, epochs=3)
+    for arm, epochs in rp.ARM_EPOCH_OVERRIDES.items():
+        assert rp.effective_config(arm, config)["kwargs"]["epochs"] == epochs
+    # and the non-ladder arm still reports the global
+    assert rp.effective_config("B_in_domain", config)["kwargs"]["epochs"] == 3
+
+
+def test_a_ladder_arm_runs_with_its_own_budget(rp, monkeypatch):
+    seen = {}
+
+    def fake_b(X_train, X_test, y_train, y_test, config):
+        seen["epochs"] = config["epochs"]
+        return None, None
+
+    monkeypatch.setattr(rp, "run_arm_b_in_domain", fake_b)
+    config = dict(rp.DEFAULT_CONFIG, epochs=3)
+    rp.ARMS["B_ft30"](None, None, None, None, config)
+    assert seen["epochs"] == 30
+
+
+def test_a_ladder_arm_does_not_mutate_the_shared_config(rp, monkeypatch):
+    """The caller's dict is shared across every arm in the run."""
+    monkeypatch.setattr(rp, "run_arm_b_in_domain",
+                        lambda *_a, **_k: (None, None))
+    config = dict(rp.DEFAULT_CONFIG, epochs=3)
+    rp.ARMS["B_ft30"](None, None, None, None, config)
+    assert config["epochs"] == 3, "the arm leaked its budget into the shared config"
+
+
+def test_the_global_epochs_flag_still_governs_a_single_budget_run(rp):
+    config = dict(rp.DEFAULT_CONFIG, epochs=10)
+    assert rp.arm_epochs("B_in_domain", config) == 10
+    assert rp.effective_config("B_in_domain", config)["kwargs"]["epochs"] == 10
+
+
+def test_the_cli_offers_the_ladder_arms(rp, tmp_path):
+    """An unknown arm trips the parser, whose error lists every valid choice."""
+    r = _run_cli(rp, "--dataset", "coil2000", "--arms", "not_an_arm")
+    combined = r.stdout + r.stderr
+    assert r.returncode != 0
+    for arm in ("B_ft3", "B_ft10", "B_ft30"):
+        assert arm in combined, f"{arm} is not offered as a valid arm"
