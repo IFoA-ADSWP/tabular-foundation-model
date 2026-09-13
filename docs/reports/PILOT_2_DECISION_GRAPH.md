@@ -28,7 +28,7 @@ decisions are in `PILOT_2_DECISION_LOG.md`; the isolation argument and the inter
 
 ### Sequencing — what happens, in this order
 
-1. **Merge the design (`#168`) and the code (`#172`).** The probe runs from a commit on `main`, not from
+1. **Merge the design (`#168`) and the code (`#173`).** The probe runs from a commit on `main`, not from
    an unmerged branch: a result produced by code nobody reviewed is not a result to lean on, and the
    run's manifest records the commit it came from.
 2. **Run the probe** from that merged commit — one dataset, one split, four arms, about nine pence.
