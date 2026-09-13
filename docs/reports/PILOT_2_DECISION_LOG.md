@@ -215,3 +215,16 @@ full*, with a reason beside every value.
 - [ ] The funded envelope is settled, and any top-up is an explicit decision
 - [ ] `PILOT_2_PREREQUISITES.md` counts re-checked after the build (PR-1, PR-3, PR-9 still await
       one real box; see the Gate Amendment there)
+
+## P13 — the probe's outcome, and what it stands down
+
+**Settled by measurement:** the in-domain fine-tuning hypothesis is dead at 2,000 training rows. The epoch
+ladder is flat and the arms do not beat `A_raw` on the pre-registered primary; the one signal moving in
+order is calibration. Which pre-registered outcome that is, and the evidence, are in `PROBE_RESULTS.md`.
+
+**Stood down as a consequence:** D1 (transfer leakage), D2 (pool rule), D3 (dataset count), D5 (pool row
+source), D8 (label harmonisation). Every one was contingent on in-domain fine-tuning showing a gain. None is
+worth a team decision now, and leaving them open would imply a programme the first gate has already stopped.
+
+**Still live:** the calibration tolerance (D6). If a follow-up asks about probabilities rather than ranking,
+that number has to be set in advance -- an unset tolerance is not a pre-registration.

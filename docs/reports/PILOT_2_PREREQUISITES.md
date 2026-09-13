@@ -539,3 +539,16 @@ about which arm was run. **Decide the name before the code, not after.**
 
 **Sequence:** answer D1–D3, D5 and D8 → build the arms and pooling → then the wider testing is runnable.
 Nothing on this list is blocked on the probe, and nothing about the probe changes it.
+
+## Discharged by the probe (13 Sep)
+
+Three of these were waiting on one real box where the licence path, the weights save/reload and the
+manifest all ran together. The probe provided it -- run `20260913T225032Z`, pinned to `d5aebe7`:
+
+- **PR-1 (manifest)** -- discharged. The manifest carries `git`, `datasets`, `dataset_fingerprints`,
+  `config`, `seeds`, `folds`, `train_size`, `test_size`, `epochs`, `weights`, `checkpoints`, `container`.
+- **PR-3 (weights save/reload)** -- discharged. `checkpoints` and `weights` are recorded per arm, and the
+  run used cached weights rather than re-deriving them.
+- **PR-9 (licence path)** -- discharged. The licence check ran on the box and its result is in the log.
+
+Evidence: `outputs/gpu-pilot/manifest_20260913T2252*.json` and `logs/20260913T225032Z.log`.
