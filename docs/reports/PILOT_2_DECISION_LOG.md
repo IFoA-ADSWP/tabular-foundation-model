@@ -162,6 +162,39 @@ DECISION (accept as written / amend): ______  Owner: ______  Date: ______
 
 ---
 
+## Decided in review (2026-09-13)
+
+Recorded so these are not re-argued, and so the *reason* survives with the decision -- a decision
+without its reason cannot be re-checked when the situation changes. Section 1 holds what is still
+OPEN; this holds what the design review settled.
+
+### The probe (step 0)
+
+| # | Decision | Reason |
+| --- | --- | --- |
+| **P1** | **Scope: one dataset.** The probe is not widened to four | The original plan stands. Four datasets would measure heterogeneity across datasets, but it moves two things at once and multiplies the cost. Deferred, not rejected |
+| **P2** | **Dataset: `uslapseagent`** | Selected on **resolution, not cost**: 369 positives, resolves >= 0.009 ROC. `coil2000`, the repository's habitual first choice, resolves only >= 0.061 because 6% of its rows are positive. A null on the wrong dataset is not evidence |
+| **P3** | **Scale: 2,000 train / 1,000 test only.** The 5,000-row rung is deferred | R1 parity, and this is a budget screen rather than a scale study. The 5,000-row rung is a separate decision if the ladder is positive but small |
+| **P4** | **Epochs 3 / 10 / 30** | 3 = R1 parity, 10 = midpoint, 30 = the library default -- the "fair budget" nobody has tested |
+| **P5** | **`A_raw` runs in the same pass** | Without it the probe can say only whether the budget matters, not whether fine-tuning works at all |
+| **P6** | **One seed, one split** | Screening, not estimation. Three seeds is step 2, bought only on a positive |
+| **P7** | **Three outcomes, not two** | A flat ladder whose arms still beat `A_raw` is not a dead programme: it is fine-tuning working with no budget effect, and it should carry **3 epochs** forward because that is cheaper |
+| **P8** | **Early stopping disabled, or the executed epoch count recorded** | Otherwise "30 epochs" means "whatever early stopping allowed" and the probe measures a different quantity from the one it names. A precondition on the code, not a preference |
+| **P9** | **The `ft3` rung is a replication gate** | R1 measured +0.0014 on coil2000 and -0.0008 to +0.0095 across the four. If `ft3` misses that band the pipeline has changed and nothing else in the run is interpretable |
+| **P10** | **Every result is reported with its minimum detectable effect** | So a null is never read as evidence of absence beyond the resolution the test actually had |
+
+### Cost discipline
+
+| # | Decision | Reason |
+| --- | --- | --- |
+| **C1** | **No programme-scale figure is quoted** | The one that existed stacked three unmeasured assumptions and read as a cost. A figure for that scope returns only when derived from measurements |
+| **C2** | **Every figure states its basis** -- measured or modelled -- **and what would make it a measurement** | The single assumption is named: cost versus training length, which the probe measures |
+| **C3** | **R1's total spend is not a planning figure** | Only ~8p of 53p produced a result; the rest bought a working pipeline. The planning figure is the marginal cost of a successful comparison |
+| **C4** | **Controls are described by what is proven, not what is built** | Implemented and unit-tested is not the same as exercised on real hardware, and the watchdog's firing is scheduled rather than observed |
+
+The parameters these decisions produce are tabulated in `PILOT_2_DECISION_GRAPH.md` under *Step 0 in
+full*, with a reason beside every value.
+
 ## 4. Sign-off
 
 | Name | Role | Approve / conditional | Conditions | Date |
