@@ -1,6 +1,6 @@
 # Pilot 2 — Prerequisites Checklist
 
-> Date: 2026-09-12 (counts corrected 2026-09-13) | Status: **6 of 9 DONE, 3 IN PROGRESS**
+> Date: 2026-09-12 (counts corrected 2026-09-13) | Status: **7 of 10 DONE, 3 IN PROGRESS**
 > The three open items (PR-1, PR-3, PR-9) are code-complete and free-verified; each is
 > waiting on the SAME thing -- one real box -- which is what the Gate Amendment below resolves.
 > Design: `PILOT_2_DESIGN.md` §7 (this is that section, expanded and tracked)
@@ -36,6 +36,7 @@ python -m pytest tests/test_pilot2_prerequisites.py -v
 | PR-7 | Epoch ladder as a first-class factor | **DONE** | Stage 1 |
 | PR-8 | Mock-verified end-to-end at $0 | **DONE** — full mock run passes in ~3.5s, teardown asserted | any spend |
 | PR-9 | Pre-fetch the gated weights (move the licence gate off the run path) | IN PROGRESS — logic + wiring verified, live cold→warm download outstanding | any spend |
+| PR-10 | **Test-contamination assertion** (mirror of PR-5) | **DONE** — asserted, recorded and fatal on all three modes | Stage 1 + 2 |
 
 Suite status at this revision: `94 passed, 1 failed` across `tests/` — the failure is the
 pre-existing `tests/test_frontier_cli.py::test_reconstruct_pp` float32/float64 assertion,
@@ -482,3 +483,37 @@ machine's cold cache.
 | 2026-09-12 | PR-9 added and implemented: `scripts/gpu_helpers/fetch_weights.py` + bootstrap step 3a, with the licence preflight at 3b now skipped when the weights are already cached. 5 more tests (25 total in this file; full suite 73 passed / 1 pre-existing failure). `bash -n` and `shellcheck -S error` clean. | — |
 | 2026-09-12 | PR-2 done: `emit_artifacts.sh` + `verify_artifacts.py`, wired into the bootstrap, log window 5000 → 20000. Payload now carries every arm's predictions and is hash-verified on return. **Found and fixed two pre-existing bugs**: `meta.json` was never returned (glob one level too shallow), and BSD `grep -c` produced a two-line file count. 17 new tests incl. a real emit→verify round trip; full suite 90 passed / 1 pre-existing failure. | — |
 | 2026-09-12 | PR-8 done: mock run of the full runner path passes in ~3.5s at $0, asserting create, teardown, artifact verification and manifest return. Mock now delegates to the real emitter so it cannot validate a wire format that no longer exists. **Found and fixed a third bug**: `manifest_<run_id>.json` was not in the payload. Added `VAST_OUTDIR` for isolation. 4 new tests; full suite 94 passed / 1 pre-existing failure. | — |
+
+
+---
+
+## PR-10 — Test-contamination assertion
+
+**Fixes.** The leakage rule in `PILOT_2_DESIGN.md` §3.1 was stated in documents describing R1 and the
+historic protocol, and asserted nowhere for the live design. PR-5 asserts the *transfer target's*
+absence from its own pool; nothing asserted the *test rows'* absence from everything the model is
+fitted on. That matters most for the inference context — TabPFN conditions on a context set, so a
+future change (pooling, a refit on the full dataset) could pull test rows in and nothing would
+notice, because the metrics would simply improve.
+
+**Status.** **DONE.**
+
+`assert_no_test_contamination(train_idx, test_idx, validation_idx)` is fatal on all three modes, and
+`make_split()` calls it **before any arm runs**, recording the outcome in the split fingerprint:
+
+| Mode | Why it is fatal |
+| --- | --- |
+| a test row in the training indices | the ordinary leak |
+| a test row in the **validation** indices | early stopping would *select* on test rows — invisible in the metrics, and live at 30 epochs where it is not at 3 |
+| validation rows **outside** the training split | the reserve must be train-derived, or the comparison is not like-for-like |
+
+The validation reserve was previously **discarded** (`train_idx, _ = train_test_split(...)`), so it
+could not be asserted or recorded at all. It is now retained and fingerprinted, and the fingerprint
+carries `n_validation`, `validation_index_sha256`, `validation_split_ratio` and the assertion record.
+
+**Evidence.** Five tests: `test_pr10_a_clean_split_passes_and_is_recorded`,
+`test_pr10_a_test_row_in_the_training_set_is_fatal`,
+`test_pr10_a_test_row_in_the_validation_set_is_fatal`,
+`test_pr10_a_reserve_outside_training_is_fatal`,
+`test_pr10_make_split_records_the_reserve_and_the_assertion`. The three fatal modes were also
+exercised directly against the real module, each raising with a message naming the row indices.

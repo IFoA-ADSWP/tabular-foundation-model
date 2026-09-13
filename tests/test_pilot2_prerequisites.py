@@ -564,3 +564,58 @@ def test_cli_dirty_tree_is_recorded_and_warned(rp, tmp_path):
     if man["git"]["dirty"]:
         assert man["git"]["dirty_note"], "a dirty tree must explain why it matters"
         assert "commit_sha does NOT describe" in r.stdout
+
+
+# --------------------------------------------------------------------------
+# PR-10 -- no test row may reach fitting, validation, or the context
+# --------------------------------------------------------------------------
+def test_pr10_a_clean_split_passes_and_is_recorded(rp):
+    rec = rp.assert_no_test_contamination([0, 1, 2, 3], [4, 5], [2, 3])
+    assert rec["train_test_disjoint"] is True
+    assert rec["dropped_test_disjoint"] is True
+    assert rec["n_dropped"] == 2
+    assert rec["context_source"] == "train_split_only"
+    # Honest about its own limits: it checks the split WE construct, and says so.
+    assert rec["checked"] == "constructed_split_only"
+
+
+def test_pr10_a_test_row_in_the_training_set_is_fatal(rp):
+    with pytest.raises(ValueError, match="TEST CONTAMINATION"):
+        rp.assert_no_test_contamination([0, 1, 2, 4], [4, 5])
+
+
+def test_pr10_a_test_row_in_the_dropped_remainder_is_fatal(rp):
+    with pytest.raises(ValueError, match="TEST CONTAMINATION"):
+        rp.assert_no_test_contamination([0, 1, 2, 3], [4, 5], dropped_idx=[2, 4])
+
+
+def test_pr10_a_split_using_rows_it_does_not_own_is_fatal(rp):
+    """pool=[0,1,2,3] cannot supply test row 4."""
+    with pytest.raises(ValueError, match="OUT OF BOUNDS"):
+        rp.assert_no_test_contamination([0, 1, 2], [3, 4], None, [0, 1, 2, 3])
+
+
+def test_pr10_make_split_records_the_dropped_rows_and_the_assertion(rp):
+    """make_split must RECORD the rows the cap drops, not discard them silently."""
+    rng = np.random.default_rng(0)
+    X = rng.random((200, 3))
+    y = (rng.random(200) > 0.5).astype(int)
+    *_, fp = rp.make_split(X, y, seed=42, train_size=100, test_size=40, fold=None, n_folds=None)
+    assert fp["leakage_assertion"]["train_test_disjoint"] is True
+    assert fp["leakage_assertion"]["context_source"] == "train_split_only"
+    # 200 rows -> 40 test, 160 train-candidates -> 100 kept + 60 dropped by the cap
+    assert fp["n_train"] == 100
+    assert fp["n_test"] == 40
+    assert fp["n_dropped"] == 60, "the dropped rows must be recorded, not dropped silently"
+    assert fp["dropped_index_sha256"], "the selection step needs a fingerprint too"
+    assert fp["leakage_assertion"]["n_dropped"] == 60
+
+
+def test_pr10_the_fold_path_is_also_asserted(rp):
+    """StratifiedKFold splits must pass the same gate, not bypass it."""
+    rng = np.random.default_rng(1)
+    X = rng.random((120, 2))
+    y = (rng.random(120) > 0.5).astype(int)
+    *_, fp = rp.make_split(X, y, seed=42, train_size=None, test_size=None, fold=0, n_folds=5)
+    assert fp["leakage_assertion"]["train_test_disjoint"] is True
+    assert fp["n_dropped"] == 0

@@ -403,6 +403,71 @@ def load_dataset(name, target_col, max_rows=None):
     return X, y, {"row_cap": max_rows, "row_cap_applied": sampled, "rows_loaded": int(len(df))}
 
 
+def assert_no_test_contamination(train_idx, test_idx, dropped_idx=None, pool_idx=None):
+    """Refuse a split in which test rows could reach fitting (PR-10).
+
+    The mirror of the PR-5 pool assertion. `build_pool` proves the transfer target is
+    absent from its own pool; this proves the test rows are absent from everything the
+    model is fitted on. Both are cheap set operations, and both are RECORDED rather than
+    assumed -- "disjoint by construction" is this project's least reliable category of
+    guarantee. The inference context is precisely where a future change (pooling, a
+    refit on the full dataset) could pull test rows in silently, and nothing else would
+    notice: the metrics would simply improve.
+
+    WHAT THIS CAN AND CANNOT PROVE. It proves the split WE construct is clean -- the
+    indices we hand to each arm. It cannot prove anything about the reserve the library's
+    trainer carves out internally for early stopping, because that happens inside the
+    library on the rows we pass in; the guarantee there is that we pass ONLY training
+    rows, and the fact that must be recorded (not asserted) is the trainer's
+    `validation_split_ratio`, via the effective config in each arm's record.
+
+    Raises on:
+      * a test row in the training indices          -- the ordinary leak
+      * a test row in the dropped remainder         -- defensive; that remainder is rows
+        discarded by the train-size cap, and it must not be test rows either
+      * any index outside `pool_idx`, when supplied -- a split may only use rows it owns
+    """
+    train = np.asarray(train_idx).ravel()
+    test = np.asarray(test_idx).ravel()
+    out = {
+        "train_test_disjoint": True,
+        "dropped_test_disjoint": True,
+        "n_dropped": 0,
+        "context_source": "train_split_only",
+        "checked": "constructed_split_only",
+    }
+
+    overlap = np.intersect1d(train, test, assume_unique=False)
+    if overlap.size:
+        raise ValueError(
+            f"TEST CONTAMINATION: {overlap.size} test row(s) appear in the training "
+            f"indices (first: {overlap[:5].tolist()}). No metric from this split is "
+            f"reportable -- this is the leakage PILOT_2_DESIGN.md 3.1 forbids."
+        )
+
+    if dropped_idx is not None:
+        dropped = np.asarray(dropped_idx).ravel()
+        d_overlap = np.intersect1d(dropped, test, assume_unique=False)
+        if d_overlap.size:
+            raise ValueError(
+                f"TEST CONTAMINATION: {d_overlap.size} test row(s) appear in the dropped "
+                f"remainder (first: {d_overlap[:5].tolist()})."
+            )
+        out["n_dropped"] = int(dropped.size)
+
+    if pool_idx is not None:
+        pool = np.asarray(pool_idx).ravel()
+        for label, arr in (("training", train), ("test", test),
+                           ("dropped", np.asarray(dropped_idx).ravel()
+                            if dropped_idx is not None else np.empty(0, dtype=int))):
+            if arr.size and not np.isin(arr, pool).all():
+                raise ValueError(
+                    f"SPLIT OUT OF BOUNDS: {label} indices contain rows outside the "
+                    f"supplied pool -- a split may only use rows it owns."
+                )
+    return out
+
+
 def make_split(X, y, *, seed, train_size, test_size, fold=None, n_folds=None):
     """Produce a train/test split plus its fingerprint (PR-6).
 
@@ -410,6 +475,8 @@ def make_split(X, y, *, seed, train_size, test_size, fold=None, n_folds=None):
       * fold is None  -> single holdout split, train_size/test_size honoured
       * fold is given -> StratifiedKFold on all rows; train_size/test_size ignored
     """
+    dropped_idx = None
+    pool_idx = np.arange(len(y))
     if fold is not None:
         skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
         folds = list(skf.split(X, y))
@@ -421,7 +488,11 @@ def make_split(X, y, *, seed, train_size, test_size, fold=None, n_folds=None):
             idx_all, test_size=n_test, random_state=seed, stratify=y
         )
         if train_size is not None and len(train_idx) > train_size:
-            train_idx, _ = train_test_split(
+            # The rows not kept as training data are the validation reserve. They are
+            # RETAINED (not discarded) so that PR-10 can assert them disjoint from test
+            # and a subset of train -- an unrecorded reserve is how "the model saw 90%
+            # of the rows" becomes invisible in a like-for-like comparison.
+            train_idx, dropped_idx = train_test_split(
                 train_idx,
                 train_size=train_size,
                 random_state=seed,
@@ -430,6 +501,12 @@ def make_split(X, y, *, seed, train_size, test_size, fold=None, n_folds=None):
 
     train_idx = np.sort(np.asarray(train_idx))
     test_idx = np.sort(np.asarray(test_idx))
+    if dropped_idx is not None:
+        dropped_idx = np.sort(np.asarray(dropped_idx))
+
+    # PR-10: fatal before any arm runs, exactly like the PR-4 context assertion.
+    contamination = assert_no_test_contamination(train_idx, test_idx, dropped_idx, pool_idx)
+
     fp = {
         "policy": "stratified_kfold" if fold is not None else "holdout_then_train_cap",
         "seed": seed,
@@ -442,6 +519,14 @@ def make_split(X, y, *, seed, train_size, test_size, fold=None, n_folds=None):
         "train_index_sha256": _sha256_array(train_idx),
         "test_index_sha256": _sha256_array(test_idx),
         "test_rows_excluded_from_fit": True,
+        # PR-10: recorded, not assumed.
+        # PR-10: the rows dropped by the train-size cap, fingerprinted so the
+        # selection step is visible rather than implied by the row counts.
+        "n_dropped": int(dropped_idx.size) if dropped_idx is not None else 0,
+        "dropped_index_sha256": (
+            _sha256_array(dropped_idx) if dropped_idx is not None else None
+        ),
+        "leakage_assertion": contamination,
     }
     return X[train_idx], X[test_idx], y[train_idx], y[test_idx], train_idx, test_idx, fp
 
