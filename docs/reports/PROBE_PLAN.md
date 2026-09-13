@@ -82,11 +82,53 @@ The first real run against the paid path, which confirms three things that have 
 in theory: the run **manifest** (audit record), the **weights save/reload**, and the **licence check**
 on a cold container.
 
+## How to run it
+
+The launcher is `scripts/gpu_helpers/vast_run.sh`: it selects a box, creates the instance, runs the
+bootstrap, pulls the artifacts, and destroys the box on every exit it can catch — with the watchdog as
+the backstop for the exits it cannot.
+
+```bash
+# the licence token lives in its mode-600 file; load it into THIS shell only
+eval "$(bash scripts/gpu_helpers/keys.sh env)"     # confirm with: keys.sh check
+
+bash scripts/gpu_helpers/vast_run.sh \
+  --dataset uslapseagent \
+  --arms A_raw,B_ft3,B_ft10,B_ft30 \
+  --max-dph 0.65
+```
+
+Then read it, off the artifacts the run pulled down:
+
+```bash
+python3 scripts/analyse_pilot.py --outdir outputs/finetune/pilot --baseline A_raw
+```
+
+`--baseline A_raw` is where the estimand comes from: `Delta = arm - A_raw`, and a **negative** Delta means
+fine-tuning won.
+
+**Why each value:**
+
+| Flag | Value | Reason |
+| --- | --- | --- |
+| `--dataset` | `uslapseagent` | chosen on **resolution**, not cost or familiarity: 369 test positives resolve an effect of about 0.009, where coil2000's 57 resolve only about 0.061 |
+| `--arms` | `A_raw,B_ft3,B_ft10,B_ft30` | the ladder and its baseline. Each rung carries its **own** epoch budget, so a stray `--epochs` cannot flatten the ladder |
+| `--max-dph` | `0.65` | the default ceiling of 0.60/hr excludes the cheapest acceptable boxes observed (about 0.628/hr) |
+| `--yes` | **not passed** | the confirmation prompt *is* the gate: nothing is provisioned without an explicit, current go-ahead |
+
+**Attempts and ceiling:** one attempt, **0.25 all-in** — about 9p of compute inside roughly 2.7 minutes of
+boot, pull, licence and teardown around 7.4 minutes of work. A second attempt is a new decision, not a retry.
+
+**On the dataset pass-through.** `--dataset` was not exposed by the launcher when this plan was written, so
+the flow ran *every* registered dataset — the first pilot's behaviour, four times the price here, and not
+this experiment. The pass-through ships in this same PR, which is what lets the probe be initiated from a
+merged `main` exactly as specified above.
+
 ## Approval and sequencing
 
 | # | Step |
 | --- | --- |
-| 0 | Land the early-stopping change (and row-epochs) — the only missing code |
+| 0 | *(in this PR)* The early-stopping pin, row-epochs recording and the dataset pass-through |
 | 1 | **Merge the code and this document.** The probe runs from a commit on `main`, not an unmerged branch |
 | 2 | **Run it** — ~9p, ceiling $0.25, one attempt, **watched** (every control is unit-tested and none has yet run on real hardware) |
 | 3 | **Read it** — with the replication gate and the row-epochs in hand |
