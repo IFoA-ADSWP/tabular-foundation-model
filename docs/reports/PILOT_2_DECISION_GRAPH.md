@@ -14,12 +14,12 @@ specification. Let the 7p probe decide the rest.**
 
 | Decision | Recommendation | Why |
 | --- | --- | --- |
-| **Route** | staged isolation (this page) | reaches the same decisions as the bundled design for ~$4.15, and a negative **names its cause** |
+| **Route** | staged isolation (this page) | reaches the same decisions as the bundled design for ~$4.70, and a negative **names its cause** |
 | **First spend** | the **7p probe** | tests the assumption carrying 65% of the programme's cost; if it fails, the programme stops for seven pence |
 | **Datasets** | the four registered ones for the in-domain steps; the pool decided *after* the probe | if 3 epochs wins, an 11-dataset pool costs ~$7; if 30 epochs is needed, the pool must stay small (same-schema) |
 | **Interactions** | gated off-ramp only | $1.11 for an attributable answer, against $31 for an ambiguous one |
 | **Repeat structure** | 3 seeds x 1 split first; 5 folds only after an effect exists | a visible effect is a precondition for buying precision, not a reward for having none |
-| **Budget** | ~$4.15 to the same decisions as the ~$31 design | fits the ~$9.60 credit with **no top-up** |
+| **Budget** | ~$4.70 to the same decisions as the ~$31 design | fits the ~$9.60 credit with **no top-up** |
 | **Bundled design** | retained as the reference specification | the isolation route arrives at it once each factor is known to matter — a better position to spend from, not a retreat |
 
 **Not recommended, for the record:** running the bundled design first (~$31, needs a ~$21 top-up, and
@@ -40,10 +40,10 @@ flowchart TD
     S1N["<b>Stop.</b> Report: the R1<br/>delta was split luck"]
     S2["<b>2 · Across datasets</b> — 7-43c<br/>4 datasets, 3 seeds, 1 split<br/><i>does it hold beyond one dataset?</i>"]
     S2N["<b>Stop.</b> Report: no consistent<br/>gain. Transfer is not funded"]
-    S3["<b>3 · Transfer signal</b> — 8-70c<br/>1 target + shuffled-label control<br/><i>does adaptation carry at all?</i>"]
+    S3["<b>3 · Transfer signal</b> — 12c-$1.02<br/>1 target + shuffled-label control<br/><i>does adaptation carry at all?</i>"]
     S3N["<b>Stop.</b> Report: a clean,<br/>interpretable transfer negative"]
-    S4["<b>4 · All targets</b> — 33c-$2.82<br/>4 held-out targets<br/><i>is the signal consistent?</i>"]
-    S5["<b>5 · Confidence</b> — $0.41-$3.24<br/>5-fold on the decisive arms<br/><i>how large is it, precisely?</i>"]
+    S4["<b>4 · All targets</b> — 35c-$3.07<br/>4 held-out targets<br/><i>is the signal consistent?</i>"]
+    S5["<b>5 · Confidence</b> — $0.9-$6.3<br/>extra folds on the decisive arms<br/><i>how large is it, precisely?</i>"]
     OUT["<b>Reportable answer</b><br/>effect size, interval, noise floor"]
     INT{"<b>Interaction gate</b><br/>all four criteria met?<br/>mechanism · implied by isolation<br/>attributing design · pre-registered"}
     I1["<b>Designed 2x2 probe</b> — $1.11<br/>training length x pool, one target<br/>+ control at both pooled cells"]
@@ -83,10 +83,17 @@ flowchart TD
 | 0 | Training ladder, 1 dataset, 1 split | 30 vs 10 vs 3 epochs | step 1 | **stop, report** | 7c | 7c |
 | 1 | 1 dataset, 3 seeds, 1 split | fine-tuned vs raw | step 2 | **stop, report** | 12-14c | ~20c |
 | 2 | 4 datasets, 3 seeds, 1 split | fine-tuned vs raw, per dataset | step 3 | **stop, report, no transfer** | 7-43c | ~60c |
-| 3 | 1 target, coherent pool + control | pooled vs raw, vs shuffled labels | step 4 | **stop, report** | 8-70c | ~$1.30 |
-| 4 | 4 targets | pooled vs raw, per target | step 5 | report at sample scale | 33c-$2.82 | ~$4.15 |
-| 5 | 5-fold on decisive arms | effect with an interval | report | report | $0.41-$3.24 | ~$7.40 |
+| 3 | 1 target, coherent pool + control | pooled vs raw, vs shuffled labels | step 4 | **stop, report** | 12c-$1.02 | ~$1.70 |
+| 4 | 3 remaining targets (step 3's is reused) | pooled vs raw, per target | step 5 | report at sample scale | 35c-$3.07 | ~$4.70 |
+| 5 | Extra folds on the decisive arms | effect with an interval | report | report | $0.9-$6.3 | ~$5.6-$11 |
 | I | Interaction, 2x2, 1 target | difference of differences | report as an estimate | report | $1.11 | — |
+
+> **Two method notes, because an earlier revision got both wrong.** The transfer steps count **three**
+> pooled arms per target — `C_pooled_all`, `D_pooled_schema`, and the label-shuffled control
+> `R_random`, which is a full pooled training run — and **step 4 does not re-run step 3's target**;
+> its result carries forward. Counting two pooled arms and re-running the probe target understated the
+> steps 0-4 total by about 50c. The corrected figure, **~$4.70**, agrees with the independent
+> calculation in `PILOT_2_COST_AND_CONTROLS.md`.
 
 ## What each stopping point lets us claim
 

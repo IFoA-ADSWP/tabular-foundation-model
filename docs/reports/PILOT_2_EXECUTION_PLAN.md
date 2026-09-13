@@ -10,14 +10,19 @@ step before it justifies it. No experiment is bought in advance.
 | # | Step | Cost | The assumption it tests | Stop rule |
 | --- | --- | --- | --- | --- |
 | 0 | **Probe.** One dataset, one split, the full training ladder (3 / 10 / 30 epochs) | **7c** | *training longer than 3 epochs helps.* This one assumption carries 65% of the programme's cost | If the ladder is flat or degrades: stop. The budget hypothesis is dead, and everything after this can be answered at 3 epochs for cents |
-| 1 | **Is it real?** One dataset, 3 seeds, one split, winning budget vs raw | **2-14c** | *the in-domain effect survives more than one split* | If the effect vanishes: stop. R1's +0.001-0.010 was split luck |
+| 1 | **Is it real?** One dataset, 3 seeds, one split, winning budget vs raw | **2-11c** | *the in-domain effect survives more than one split* | If the effect vanishes: stop. R1's +0.001-0.010 was split luck |
 | 2 | **Does it hold across datasets?** 4 datasets, 3 seeds, one split | **7-43c** | *the effect generalises across the four datasets* | If only one dataset shows it: report "no consistent gain" and **do not fund transfer** |
-| 3 | **Is there any transfer signal?** One held-out target, coherent pool + label-shuffled control, 3 seeds, one split | **8-70c** | *adaptation carries to an unseen dataset at all* | If negative: stop. That is a clean, interpretable negative for transfer — the answer the historic work never established |
-| 4 | **All targets.** 4 held-out targets, 3 seeds, one split | **33c-$2.82** | *the signal is consistent across targets* | Report at the sample scale; decide on widening only with a positive in hand |
-| 5 | **Confidence.** Repeat the decisive comparisons at 5 folds | **~$0.41-$3.24** | *the effect is stable across data splits* | Optional, and only ever bought **after** an effect exists |
+| 3 | **Is there any transfer signal?** One held-out target, coherent pool + label-shuffled control, 3 seeds, one split | **12c-$1.02** | *adaptation carries to an unseen dataset at all* | If negative: stop. That is a clean, interpretable negative for transfer — the answer the historic work never established |
+| 4 | **All targets.** 4 held-out targets, 3 seeds, one split | **35c-$3.07** | *the signal is consistent across targets* | Report at the sample scale; decide on widening only with a positive in hand |
+| 5 | **Confidence.** Repeat the decisive comparisons at 5 folds | **~$0.9-$6.3** | *the effect is stable across data splits* | Optional, and only ever bought **after** an effect exists |
 
-**Steps 0-4 cost about $4.15, or about 58c if the probe shows three epochs is enough.** The design as
-written costs ~$31; the full-scale version ~$367. This path reaches the same decisions.
+**Steps 0-4 cost about $4.70, or about 66c if the probe shows three epochs is enough.** The design as
+written costs ~$31; the full-scale version ~$368.
+
+**Two notes on method, because both affected an earlier revision of this page.** The transfer steps
+count **three** pooled arms per target (`C_pooled_all`, `D_pooled_schema`, and the label-shuffled
+control `R_random`, which is a full pooled training run), and **step 4 does not re-run step 3's
+target** — its result is carried forward. An earlier revision did neither and understated the total. This path reaches the same decisions.
 
 ## The assumptions we choose to make
 
