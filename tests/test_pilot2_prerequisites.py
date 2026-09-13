@@ -683,6 +683,32 @@ def test_preflight_checks_the_slot_the_writer_actually_uses(rp, tmp_path):
 
 
 # --------------------------------------------------------------------------
+# P11 -- the budget is recorded in row-passes, not only in epochs
+# --------------------------------------------------------------------------
+def test_row_epochs_uses_the_arms_own_budget(rp):
+    """A rung must report its own rung, not the run's global epoch setting."""
+    cfg = dict(rp.DEFAULT_CONFIG, epochs=3)
+    assert rp.row_epochs("B_ft3", 2000, cfg) == 6000
+    assert rp.row_epochs("B_ft10", 2000, cfg) == 20000
+    assert rp.row_epochs("B_ft30", 2000, cfg) == 60000
+
+
+def test_row_epochs_marks_non_finetuning_arms_as_not_applicable(rp):
+    """0 would wrongly suggest a raw arm trains on nothing; it does not train at all."""
+    cfg = dict(rp.DEFAULT_CONFIG)
+    for arm in ("A_raw", "E_glm", "F_catboost"):
+        assert rp.row_epochs(arm, 2000, cfg) is None
+
+
+def test_row_epochs_makes_two_scales_comparable(rp):
+    """The point of the field: the same label, different training, made visible."""
+    cfg = dict(rp.DEFAULT_CONFIG)
+    small = rp.row_epochs("B_ft30", 2000, cfg)
+    large = rp.row_epochs("B_ft30", 5000, cfg)
+    assert large == small * 2.5
+
+
+# --------------------------------------------------------------------------
 # P8 -- the training budget must not be silently cut short
 # --------------------------------------------------------------------------
 def test_early_stopping_is_pinned_off_by_default(rp):

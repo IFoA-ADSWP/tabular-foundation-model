@@ -630,6 +630,22 @@ def compute_metrics(y_true, y_prob):
 # ---------------------------------------------------------------------------
 # Effective configuration + matched context  (PR-4, PR-7)
 # ---------------------------------------------------------------------------
+def row_epochs(arm, n_train, config):
+    """The fine-tuning budget actually applied, in ROW-PASSES (P11).
+
+    An epoch is one pass over the training split, so the same epoch count means different amounts of
+    training at different scales: 30 epochs is 60,000 row-passes at 2,000 rows and 150,000 at 5,000.
+    Recording rows x epochs is what makes a future run at another scale comparable rather than merely
+    similarly labelled -- and it uses the ARM's own budget, so a ladder rung reports its own rung.
+
+    None for arms that are not fine-tuning arms. The unit does not apply to a raw or baseline arm,
+    and reporting 0 would wrongly suggest such an arm trains on nothing.
+    """
+    if arm not in FT_ARMS:
+        return None
+    return int(n_train) * int(arm_epochs(arm, config))
+
+
 def effective_config(arm, config):
     """Return the kwargs an arm will actually use, and the provenance of each.
 
@@ -983,6 +999,9 @@ def save_results(
         "fold": fold,
         "n_folds": n_folds,
         "train_rows": split_fp["n_train"],
+        # P11: the budget that drove the model, in row-passes, so a run at another scale can be
+        # compared with this one instead of merely sharing a label.
+        "row_epochs": row_epochs(arm, split_fp["n_train"], config),
         "test_rows": split_fp["n_test"],
         "device": "cuda" if torch.cuda.is_available() else "cpu",
         "device_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu",
