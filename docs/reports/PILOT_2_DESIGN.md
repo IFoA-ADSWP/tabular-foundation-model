@@ -139,15 +139,12 @@ no harmonisation problem. If it cannot show a gain here, the transfer question i
   for continuity with R1. Add `ausprivauto0405` and `freMTPL2freq_binary` only if the budget ladder
   shows something worth confirming on the historic targets.
 - **Arms:** §3, with the epoch ladder `B_ft3` / `B_ft10` / `B_ft30`.
-- **Budget-ladder-first rule:** run the epoch ladder on the **cheapest dataset** (coil2000, 9,822
-  rows) across all seeds and folds before scaling. If Δlog loss is flat from 3 → 30 epochs, the
-  budget hypothesis is dead and we stop before paying for the bigger rungs.
-- **Early stopping must be handled explicitly, because it becomes live at 30 epochs.** It is inert at
-  3 epochs but the library default is *on*, so `B_ft30` may not run 30 epochs at all — it runs however
-  many the validation split permitted. That would silently convert the design's central correction
-  ("give the mechanism its default budget") into "give it whatever early stopping allowed". Either
-  **fix the epoch count with early stopping disabled** for the budget comparison, or **record the
-  epochs actually executed per arm** and report the ladder against those. State which, before the run.
+- **Budget-ladder-first rule:** run the epoch ladder on **uslapseagent** — chosen on
+  **resolution, not cost**. It carries 369 positives and resolves an effect >= **0.009 ROC**;
+  coil2000, the repository's default first choice, resolves only >= **0.061** because 6% of its
+  rows are positive. A null on the wrong dataset is not evidence, and this is the one place
+  where that choice is free to get right. The result is always reported with that dataset's
+  minimum detectable effect beside it.
 
 ### 4.3 Scale rungs
 

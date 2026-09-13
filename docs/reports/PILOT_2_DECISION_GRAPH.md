@@ -134,6 +134,38 @@ the negative ones.
 | 5 | "The effect is *X* with interval *Y*, against a noise floor of *Z*." The definitive figure |
 | I | "Factors *P* and *Q* interact: *X* with interval *Y*." Attributable, because the design isolates the pair |
 
+### Step 0 in full — the probe
+
+One dataset, one split, four arms. Every parameter, and the reason it has that value.
+
+| Parameter | Value | Why this value |
+| --- | --- | --- |
+| **Dataset** | **uslapseagent** | selected on **resolution, not cost**: 369 positives, resolves **≥ 0.009 ROC**. coil2000 — the repository's habitual first choice — resolves only **≥ 0.061**, because 6% of its rows are positive |
+| Training rows | 2,000 | R1 parity: the same scale as every comparison we already hold, so the result is comparable rather than novel |
+| Test rows | 1,000 | this is what sets the resolution above |
+| Reserved rows | 500 | loaded but excluded, so the train-size cap can never reach the test rows; fingerprinted in the manifest |
+| Epochs | 3 / 10 / 30 | 3 = R1 parity · 10 = midpoint · 30 = the library default, the "fair budget" nobody has tested |
+| Arms | `A_raw` + the three rungs | `A_raw` is the baseline; without it the probe can only say whether the budget matters, not whether fine-tuning works |
+| Seeds / splits | 1 × 1 | screening, not estimation — step 2 buys 3 seeds if this shows something |
+| Context | matched across arms | asserted before any arm runs (PR-4): the confound the historic comparison died of |
+
+**Three outcomes, not two:**
+
+1. **The ladder rises** → the budget matters; carry the winning rung forward.
+2. **The ladder is flat, but the fine-tuned arms beat `A_raw`** → fine-tuning works and the budget does
+   not matter; carry **3 epochs** forward, which is the cheaper configuration.
+3. **The ladder is flat and the fine-tuned arms do not beat `A_raw`** → the fine-tuning hypothesis is
+   dead **at this scale**; report it with its minimum detectable effect beside it.
+
+**Two preconditions before the result may be read:**
+
+- **Early stopping must be disabled, or the executed epoch count recorded.** Otherwise "30 epochs"
+  means "whatever early stopping allowed" and the probe measures a different quantity from the one it
+  names.
+- **The `ft3` arm replicates R1** — same dataset, same setting. R1 measured +0.0014 on coil2000 and
+  −0.0008 to +0.0095 across the four. If `ft3` does not land in that band, the pipeline has changed and
+  nothing else in the run is interpretable. A free validity gate.
+
 ## The assumptions we choose to make
 
 Being surgical means deciding in advance what we are willing to *assume* rather than measure, and
