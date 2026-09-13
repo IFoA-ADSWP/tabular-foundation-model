@@ -602,7 +602,11 @@ def test_pr10_make_split_records_the_dropped_rows_and_the_assertion(rp):
     y = (rng.random(200) > 0.5).astype(int)
     *_, fp = rp.make_split(X, y, seed=42, train_size=100, test_size=40, fold=None, n_folds=None)
     assert fp["leakage_assertion"]["train_test_disjoint"] is True
-    assert fp["leakage_assertion"]["context_source"] == "train_split_only"
+    # The context is now CHECKED against the split rather than claimed in prose, and the
+    # record says the bound was actually applied.
+    assert fp["leakage_assertion"]["context_source"] == "explicit_indices_checked"
+    assert fp["leakage_assertion"]["context_allowed_checked"] is True
+    assert fp["leakage_assertion"]["n_context"] == 100
     # 200 rows -> 40 test, 160 train-candidates -> 100 kept + 60 dropped by the cap
     assert fp["n_train"] == 100
     assert fp["n_test"] == 40
@@ -676,3 +680,50 @@ def test_preflight_checks_the_slot_the_writer_actually_uses(rp, tmp_path):
     assert "REFUSING TO OVERWRITE" in r.stdout
     assert "seed43_foldNone" in r.stdout, "the pre-flight must name the slot it found"
     assert json.loads((slot / "meta.json").read_text())["protected"] is True
+
+
+# --------------------------------------------------------------------------
+# The context half of the leakage guarantee (PILOT_2_DESIGN 3.1)
+# --------------------------------------------------------------------------
+def test_context_disjoint_from_test_rows_is_recorded(rp):
+    rec = rp.assert_context_is_training_only([0, 1, 2, 3], [4, 5], allowed_idx=[0, 1, 2, 3])
+    assert rec["context_test_disjoint"] is True
+    assert rec["n_context"] == 4
+    assert rec["context_allowed_checked"] is True
+
+
+def test_context_containing_a_test_row_is_fatal(rp):
+    with pytest.raises(ValueError, match="CONTEXT CONTAMINATION"):
+        rp.assert_context_is_training_only([0, 1, 4], [4, 5], allowed_idx=[0, 1, 2, 3, 4])
+
+
+def test_context_drawing_outside_its_allowance_is_fatal(rp):
+    """A pooled arm's context must come from pool(T), not from whatever is to hand."""
+    with pytest.raises(ValueError, match="CONTEXT OUT OF BOUNDS"):
+        rp.assert_context_is_training_only([0, 1, 9], [4, 5], allowed_idx=[0, 1, 2, 3])
+
+
+def test_context_with_no_allowance_says_no_bound_was_checked(rp):
+    """The weaker check is still honest about being weaker."""
+    rec = rp.assert_context_is_training_only([0, 1, 2], [4, 5])
+    assert rec["context_allowed_checked"] is False
+    assert rec["context_test_disjoint"] is True
+
+
+def test_contamination_check_verifies_the_context_when_given_one(rp):
+    rec = rp.assert_no_test_contamination([0, 1, 2, 3], [4, 5], None, None,
+                                          context_idx=[0, 1, 2], allowed_idx=[0, 1, 2, 3])
+    assert rec["context_source"] == "explicit_indices_checked"
+    assert rec["context_allowed_checked"] is True
+    assert rec["n_context"] == 3
+
+
+def test_contamination_check_says_so_when_no_context_indices_were_supplied(rp):
+    rec = rp.assert_no_test_contamination([0, 1, 2, 3], [4, 5], [2, 3])
+    assert rec["context_indices_supplied"] is False
+    assert rec["context_source"] == "train_split_only"
+
+
+def test_contamination_check_is_fatal_on_a_contaminated_context(rp):
+    with pytest.raises(ValueError, match="CONTEXT CONTAMINATION"):
+        rp.assert_no_test_contamination([0, 1, 2, 3], [4, 5], None, None, context_idx=[0, 4])

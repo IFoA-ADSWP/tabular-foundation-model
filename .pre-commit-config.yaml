@@ -69,3 +69,13 @@ repos:
         language: system
         pass_filenames: false
         files: '^(src|tests)/.*\.py$'
+      - id: doc-figures
+        name: Pilot 2 figures agree across documents
+        # Fires only when a Pilot 2 document is staged: these documents quote the same cost
+        # figures in several places, and a recomputation that misses one copy has already
+        # reached a reviewer once. The checker is strict (an empty match set is an error), so
+        # the hook is scoped to the documents themselves rather than run unconditionally.
+        entry: python scripts/check_doc_figures.py --docs-dir docs/reports --quiet
+        language: system
+        pass_filenames: false
+        files: '^docs/reports/PILOT_2_.*\.md$'

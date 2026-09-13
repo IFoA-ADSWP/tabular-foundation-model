@@ -403,7 +403,55 @@ def load_dataset(name, target_col, max_rows=None):
     return X, y, {"row_cap": max_rows, "row_cap_applied": sampled, "rows_loaded": int(len(df))}
 
 
-def assert_no_test_contamination(train_idx, test_idx, dropped_idx=None, pool_idx=None):
+def assert_context_is_training_only(
+    context_idx,
+    test_idx,
+    *,
+    allowed_idx=None,
+    label="inference context",
+):
+    """Refuse an inference context that contains test rows (PILOT_2_DESIGN 3.1).
+
+    The other half of the leakage guarantee. `assert_no_test_contamination` proves the test rows
+    are absent from everything FITTED on; this proves they are absent from what the model is
+    CONDITIONED on, which is the same failure by a different route -- a context carrying test
+    rows would not raise anywhere, it would simply improve the metrics.
+
+    `allowed_idx` is the set the context is permitted to draw from, and it is deliberately a
+    parameter rather than an assumption: for the in-domain arms it is the training split, but for
+    a **pooled** arm it must be `pool(T)`, so a pooled arm must pass its own allowance rather than
+    inherit the training split's. Passing the wrong allowance here would make the check vacuous
+    while still reporting success, which is why the recorded `context_allowed_checked` says
+    whether a bound was checked at all.
+    """
+    ctx = np.asarray(context_idx).ravel()
+    test = np.asarray(test_idx).ravel()
+    out = {
+        "n_context": int(ctx.size),
+        "context_test_disjoint": True,
+        "context_allowed_checked": allowed_idx is not None,
+    }
+
+    overlap = np.intersect1d(ctx, test, assume_unique=False)
+    if overlap.size:
+        raise ValueError(
+            f"CONTEXT CONTAMINATION: {overlap.size} test row(s) appear in the {label} "
+            f"(first: {overlap[:5].tolist()}). The model would be conditioned on rows it is "
+            f"being scored on -- the leak PILOT_2_DESIGN.md 3.1 forbids."
+        )
+
+    if allowed_idx is not None:
+        allowed = np.asarray(allowed_idx).ravel()
+        if ctx.size and not np.isin(ctx, allowed).all():
+            raise ValueError(
+                f"CONTEXT OUT OF BOUNDS: {label} contains rows outside the supplied allowance "
+                f"-- a context may only draw from rows its arm owns."
+            )
+    return out
+
+
+def assert_no_test_contamination(train_idx, test_idx, dropped_idx=None, pool_idx=None,
+                                 context_idx=None, allowed_idx=None):
     """Refuse a split in which test rows could reach fitting (PR-10).
 
     The mirror of the PR-5 pool assertion. `build_pool` proves the transfer target is
@@ -465,6 +513,14 @@ def assert_no_test_contamination(train_idx, test_idx, dropped_idx=None, pool_idx
                     f"SPLIT OUT OF BOUNDS: {label} indices contain rows outside the "
                     f"supplied pool -- a split may only use rows it owns."
                 )
+
+    if context_idx is not None:
+        out.update(assert_context_is_training_only(context_idx, test, allowed_idx=allowed_idx))
+        out["context_source"] = "explicit_indices_checked"
+    else:
+        # The claim is structural, not verified: say so, rather than reporting the
+        # reassuring string without the check behind it.
+        out["context_indices_supplied"] = False
     return out
 
 
@@ -505,7 +561,14 @@ def make_split(X, y, *, seed, train_size, test_size, fold=None, n_folds=None):
         dropped_idx = np.sort(np.asarray(dropped_idx))
 
     # PR-10: fatal before any arm runs, exactly like the PR-4 context assertion.
-    contamination = assert_no_test_contamination(train_idx, test_idx, dropped_idx, pool_idx)
+    # The context half is checked rather than asserted in prose: every arm implemented today
+    # conditions on its training split, so it is passed explicitly here. A pooled arm
+    # (C/D/R_random) draws its context from pool(T) instead and must pass that allowance
+    # itself -- see assert_context_is_training_only.
+    contamination = assert_no_test_contamination(
+        train_idx, test_idx, dropped_idx, pool_idx,
+        context_idx=train_idx, allowed_idx=train_idx,
+    )
 
     fp = {
         "policy": "stratified_kfold" if fold is not None else "holdout_then_train_cap",
