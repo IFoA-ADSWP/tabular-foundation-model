@@ -343,7 +343,10 @@ is satisfied by raw TabPFN, so it cannot discriminate the fine-tuning hypothesis
 ### 6.6 Cost
 
 Stage 2 multiplies Stage 1's per-target cost by the number of targets and pool policies. At P1a
-scale, roughly **$2–4**; at P1c scale, **$15–30**. Gated behind Gate 1, so nothing is spent until the
+   **modelled, and now consistent with the cost page:** the transfer experiment is ~$20 at 15
+   repeats at sample scale (`PILOT_2_COST_AND_CONTROLS.md` derives it from the measured arm
+   times). An earlier revision of this section quoted $2-4 and $15-30, which predated the
+   pooled-arm correction and did not count the shuffled-label control as a training run.
 mechanism is established. Note that at P1c scale Stage 2 **cannot be funded from the current
 balance** — see §4.5.1; the gate bounds the *order* of spending, not its ceiling.
 
