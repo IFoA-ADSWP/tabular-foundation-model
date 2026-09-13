@@ -7,6 +7,29 @@ each one. Costs are cumulative along a path; the figure at each node is what *th
 Why a graph rather than a list: the design's whole claim is that **nothing is bought in advance**, and
 that claim is a statement about the *edges* — what happens after each result — not about the steps.
 
+## Recommendation
+
+**Adopt the staged-isolation design as the route. Keep the bundled design as the reference
+specification. Let the 7p probe decide the rest.**
+
+| Decision | Recommendation | Why |
+| --- | --- | --- |
+| **Route** | staged isolation (this page) | reaches the same decisions as the bundled design for ~$4.15, and a negative **names its cause** |
+| **First spend** | the **7p probe** | tests the assumption carrying 65% of the programme's cost; if it fails, the programme stops for seven pence |
+| **Datasets** | the four registered ones for the in-domain steps; the pool decided *after* the probe | if 3 epochs wins, an 11-dataset pool costs ~$7; if 30 epochs is needed, the pool must stay small (same-schema) |
+| **Interactions** | gated off-ramp only | $1.11 for an attributable answer, against $31 for an ambiguous one |
+| **Repeat structure** | 3 seeds x 1 split first; 5 folds only after an effect exists | a visible effect is a precondition for buying precision, not a reward for having none |
+| **Budget** | ~$4.15 to the same decisions as the ~$31 design | fits the ~$9.60 credit with **no top-up** |
+| **Bundled design** | retained as the reference specification | the isolation route arrives at it once each factor is known to matter — a better position to spend from, not a retreat |
+
+**Not recommended, for the record:** running the bundled design first (~$31, needs a ~$21 top-up, and
+a negative would be unattributable); running at full data scale (~$367, with no evidence yet that the
+effect grows with rows); pursuing an interaction before the isolation steps have produced a mechanism
+and a near-miss to justify it.
+
+**Spending note.** The recommendation is that the next action is the 7p probe — which is spend, and
+therefore needs an explicit, current go-ahead. Nothing is provisioned on the strength of this page.
+
 ## The graph
 
 ```mermaid
