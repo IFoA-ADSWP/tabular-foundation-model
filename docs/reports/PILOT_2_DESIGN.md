@@ -301,13 +301,31 @@ the historic set makes the re-test legible; the R1 set connects to R1.
 
 ### 6.5 Pre-registered decision rule
 
-Reuse the historic rule's shape (it was well designed):
+**Comparators are named explicitly, and the control is tested first.** A rule that does not name
+its comparators can be satisfied by the wrong arm — which is the defect the rejected R3 gate below
+has. So: **apply every criterion to `R_random` first.** If the control passes a criterion, that
+criterion cannot discriminate the hypothesis and must be replaced before the run.
 
-1. pooled mean Δlog loss (and ΔROC AUC) **positive** for at least one pool policy;
-2. **stable across seeds** — not driven by one target or seed;
-3. calibration not materially degraded;
-4. **and** the transfer arm's gain is reported as a fraction of `B_in_domain`'s gain, so the
-   "how much transfers" question is answered numerically.
+"The mechanism works" for transfer requires **all** of:
+
+1. **`C`/`D` beat `A_raw`** on pooled mean Δlog loss (and ΔROC AUC), and
+2. **`C`/`D` beat `R_random`** — the label-permuted control. Without this, "fine-tuning on *any*
+   data helps" cannot be separated from "the pool's *signal* helps", and the control's own stated
+   reading ("separates fine-tuning degrades from wrong pool data degrades") overstates what a
+   permuted-label pool can show: it controls *fine-tuning on signal-free data*, which is narrower;
+3. the **primary** pool policy is the one that must clear the bar — `D_pooled_schema` (H1, coherent),
+   per the pre-registered order in §6.3. `C_pooled_all` is **confirmatory, not an alternative bite
+   at the cherry**: "positive for at least one policy" across two policies is a multiplicity hazard,
+   and with the order fixed in advance there is no justification for choosing the winner after seeing
+   both;
+4. **stable across seeds and targets** — not driven by one seed or one target. The aggregation rule
+   must be stated (inverse-variance / random-effects summary), because a plain mean over targets of
+   9.8K–53.5K rows lets the largest target dominate;
+5. calibration not materially degraded — **with the ECE/Brier tolerance set numerically in advance**;
+   an unset tolerance is not a pre-registration;
+6. **and** the transfer arm's gain is reported as a **fraction of `B_in_domain`'s gain**, so the
+   "how much transfers" question is answered numerically — and so a small absolute gain cannot be
+   presented as a large one relative to what in-domain adaptation achieved.
 
 **Rejected:** the `R3 gate` in `FINE_TUNING_EXPERIMENT_DESIGN.md` — its second criterion (B > E)
 is satisfied by raw TabPFN, so it cannot discriminate the fine-tuning hypothesis.
@@ -380,6 +398,11 @@ confound.
 ---
 
 ## 10. Open decisions for the team
+
+**These are tracked with options, recommendations and blanks to fill in
+`PILOT_2_DECISION_LOG.md`**, which is the document the review works through. Three of them
+(**D1** transfer vs few-shot, **D2** the schema-matching rule, **D3** the target set) change the
+*shape of the code*, not its parameters, so Stage 2 is not built until they are answered.
 
 1. **Sign-off on the two-stage, gated structure** — Stage 1 first, transfer only on a positive.
 2. **Feature harmonisation** (§6.3) — is option **H1** (same-schema sub-pools, run as
