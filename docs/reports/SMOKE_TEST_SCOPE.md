@@ -293,6 +293,17 @@ Before spending, fix these explicitly — each corresponds to a gap in §4:
 | Never started, or failed at the gate (6 runs) | $0.3533 |
 | Credit remaining (from the account) | ~$9.60 of $10 |
 
+**What this spend bought, and what it did not.** **$0.0768** of it produced results; **$0.4488** created
+instances that errored, stalled, or never started. That is the shape of a first attempt at a paid
+pipeline: four defects were found on the paid path — a transport that could not run commands, a poll
+that silently captured nothing, instances that could never start (`intended_status: stopped`), and a
+licence gate rejecting every dataset — and each one spun up billable instances and returned nothing.
+
+It is therefore **not the price of an experiment**. The marginal cost of a successful four-dataset
+A/B run was **$0.0482**, and that is the number Pilot 2 should be budgeted from
+(`PILOT_2_DESIGN.md` section 4.5.1). Nor is it a cost a second attempt repeats: every one of those
+defects now has a fix and an assertion behind it, which is what the prerequisite work exists for.
+
 **Three different totals exist, and the account is the authority.** They are not reconcilable from
 inside the repo, so all three are stated:
 
