@@ -190,7 +190,7 @@ trains on three datasets at once and three pooled methods run for each of four t
 | --- | --- | --- | --- |
 | **Lean** (probe + both experiments, 3 repeats) | ~156 | **~$4.70** | fits |
 | **As the design specifies** (P1a + P1b, 15 repeats, transfer at sample scale) | ~780 | **~$31** | needs +$21 |
-| **Everything at full data scale** | ~11,300 | **~$367** | not affordable |
+| **Everything at full data scale** | ~11,300 | **~$368** | not affordable |
 
 **The single largest lever is still the epoch budget.** If the 5p probe shows three epochs is as good
 as thirty, the pooled training divides by about eight: transfer at 15 repeats falls from **$20.07 to

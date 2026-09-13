@@ -1,5 +1,10 @@
 # Experiment Design: Insurance-Specialized TabPFN Fine-Tuning (v6)
 
+> **Historical document.** Superseded by `PILOT_2_DESIGN.md` and `PILOT_2_DECISION_GRAPH.md`
+> (2026-09-13). Kept for the record -- **do not reconcile it against the current design**,
+> which deliberately differs from it.
+
+
 > Date: 2026-09-11 | Status: **R1 complete — smoke test only; R2, R3 and Q4/Q5 not run** | Related: #22, #129, #156, #159
 > Builds on: PRE_FINETUNING_INVESTIGATIONS.md, master report (v3, canonical folds)
 >

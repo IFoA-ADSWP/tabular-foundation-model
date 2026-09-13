@@ -21,7 +21,7 @@ varies several factors at once reproduces that risk at a larger price.
 
 ## The two designs
 
-| | **A. As specified** (`PILOT_2_DESIGN.md`) | **B. Staged isolation** (`PILOT_2_EXECUTION_PLAN.md`) |
+| | **A. As specified** (`PILOT_2_DESIGN.md`) | **B. Staged isolation** (`PILOT_2_DECISION_GRAPH.md`) |
 | --- | --- | --- |
 | Factors varied at once | repeats, epochs, rows, pool policy | **one per step** |
 | Order | all arms, all stages, then read | each step gated on the last |
@@ -66,7 +66,7 @@ Stated plainly, because it is a real trade:
    Stage 1 is negative.
 4. **Isolation invites peeking.** Stopping when a result looks good is a way to manufacture a
    finding. This is why every step's decision rule and the noise floor must be **fixed in advance**,
-   and the stop rules in `PILOT_2_EXECUTION_PLAN.md` are written to be pre-registerable.
+   and the stop rules in `PILOT_2_DECISION_GRAPH.md` are written to be pre-registerable.
 
 ## Interaction policy — by decision, with a stated mechanism
 

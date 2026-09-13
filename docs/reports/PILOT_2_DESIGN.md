@@ -184,7 +184,7 @@ Interpretation is fixed in advance:
 | --- | --- | --- |
 | **Pilot 2, as recommended** | **~$4.70** | ~97 |
 | With 15 repeats per experiment (confidence) | ~$31 | ~640 |
-| Also at full data scale | ~$367 | ~7,600 |
+| Also at full data scale | ~$368 | ~7,600 |
 
 Everything is priced from R1's measured arm times (A_raw 41.1 s, fine-tuned 116.9 s across four
 datasets at 2,000/1,000), so the larger figures are **volume** — repeats x epochs x rows — not
