@@ -192,3 +192,4 @@ CLAUDE.md
 # would have prevented a live token reaching the remote.
 scripts/gpu_helpers/.onstart.*.sh
 *.onstart.sh
+outputs/finetune/pilot/*/*/
