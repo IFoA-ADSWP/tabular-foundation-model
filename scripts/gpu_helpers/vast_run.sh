@@ -305,6 +305,22 @@ cleanup() {
     # exit path including failures and signals -- the leak happened because the only
     # cleanup was an inline `rm` on the success path, which an abort never reached.
     [ -n "${ONSTART_DIR:-}" ] && rm -rf "$ONSTART_DIR" 2>/dev/null
+    # SAVE THE LOG BEFORE DESTROYING. A destroyed instance's log is gone for good: `vastai logs`
+    # then answers "No such container", so a failed run becomes undiagnosable after the fact -- and
+    # two real failures were lost exactly that way. The log is the box's only narrative: what the
+    # bootstrap did, which arms ran, and how each of them failed. It is written beside the run's
+    # other records, before the record itself, so the record can read it.
+    if [ -n "$INSTANCE_ID" ]; then
+        LOG_DIR="$REPO_DIR/outputs/gpu-pilot/logs"
+        LOG_FILE="$LOG_DIR/${RUN_STAMP:-run}.log"
+        mkdir -p "$LOG_DIR" 2>/dev/null
+        if vastai logs "$INSTANCE_ID" > "$LOG_FILE" 2>&1; then
+            echo "[log] saved $(wc -l < "$LOG_FILE" | tr -d ' ') lines -> $LOG_FILE"
+        else
+            echo "[log] could NOT fetch the container log (the instance may already be gone)"
+        fi
+    fi
+
     # Record BEFORE destroying: the record must survive a failed destroy.
     record_run
     if [ -n "$INSTANCE_ID" ]; then

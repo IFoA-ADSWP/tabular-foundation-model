@@ -278,6 +278,10 @@ echo "########## PREFLIGHT OK ##########"
 fi
 
 # ---- 4. Run each arm in its own process ----
+# Tracked so this script can STATE which arms ran and which died. The exit code cannot:
+# the loop is deliberately non-fatal, so rc=0 has always meant "the bootstrap finished",
+# never "the arms worked" -- which is how a run whose arms all died recorded as success.
+ARMS_OK=""; ARMS_FAILED=""
 for arm in ${ARMS//,/ }; do
     echo
     echo "########## ARM $arm ##########"
@@ -287,8 +291,15 @@ for arm in ${ARMS//,/ }; do
     if [ "$rc" -ne 0 ]; then
         # 137 => 128+9 SIGKILL, i.e. the OOM killer. Reported, not fatal.
         echo "########## ARM $arm EXITED rc=$rc (137 = OOM SIGKILL) ##########"
+        ARMS_FAILED="$ARMS_FAILED ${arm}(rc=$rc)"
+    else
+        ARMS_OK="$ARMS_OK $arm"
     fi
 done
+
+# One line, greppable, stated rather than inferred. bootstrap_rc still cannot carry this: the loop
+# is non-fatal by design, so the script exits 0 either way.
+echo "########## ARM SUMMARY ok=${ARMS_OK:-none} failed=${ARMS_FAILED:-none} ##########"
 
 # ---- 5a. Which arms actually produced a record? ----
 # An arm subprocess can be killed (OOM) leaving NOTHING written, so absence is
