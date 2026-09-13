@@ -56,9 +56,11 @@ Attributed to (1) unless noted:
 | Fine-tuning helps on I.I.D. academic benchmarks | `verified` | (1), stated directly |
 | Fine-tuning fails under gradual temporal shift | `verified` | (1), stated directly — see the quotation above |
 | The limit is "50,000 rows or 1M cells" | `corrected` | (1) frames it as **1M cells (rows × columns)**. Row count and cell count diverge by the feature count |
-| "1,000 to 50,000 rows" is Prior Labs' recommended band | `unverified` | (2) has the matching section structure; **the numeric band was not present in the portion we could read**. Read the page directly before quoting it |
+| "1,000 to 50,000 rows" is Prior Labs' recommended band | `corrected` | Read directly, 13 Sep. **No such band exists on the page.** Its only row threshold is the small-data one below 1,000 rows. The upper figure was not theirs |
 | Drift-Resilient TabPFN is irrelevant to this question | `corrected` | It is the most relevant paper for a temporal domain, and it is absent from the common summaries |
-| Fine-tuning is amortised over repeated inference on a fixed schema | `unverified` | Consistent with (2)'s framing; no numbers seen |
+| Fine-tuning is amortised over repeated inference on a fixed schema | `verified` | (2) names it as a good candidate in its own words: an upfront cost that pays off across many future predictions |
+| Fine-tuning a single model across several related tables | `verified` | (2) names this as a good candidate -- relevant to the pooling idea in `PILOT_2_DESIGN.md` |
+| Fine-tuning is worth trying when the baseline is already close | `corrected` | (2) lists the opposite: if baseline TabPFN is within a few percent of the target metric, simpler approaches usually close the gap first |
 
 ## What this does to our own result
 
@@ -69,10 +71,11 @@ documented boundary.
 
 Three implications, in order of how cheap they are to act on:
 
-1. **Audit our fine-tuning configuration against (1) before believing the verdict.** We ran
-   `learning_rate=1e-5` with `n_estimators=2`, inherited from the reduced first-pilot exercise. Given (1)'s
-   batch-size finding, a negative from that config is evidence about *our configuration*, not about
-   fine-tuning.
+1. **Our learning rate is not the suspect.** The vendor's own example is `epochs=30` with
+   `learning_rate=1e-5` -- what we ran. The config axis (1) actually reports on is **batch size**, which
+   is untested here. And a second, sharper point: (2) says fine-tuning is less likely to help *when the
+   baseline is already within a few percent of the target*, which is exactly our situation (the arms sit
+   within about 0.25 ROC AUC points of `A_raw`). That is a predicted failure condition we meet.
 2. **Distinguish "fine-tuning doesn't help" from "fine-tuning isn't the tool here."** For a temporal
    domain the literature predicts the second. That distinction changes what we would tell the team, and it
    changes whether the follow-up is worth funding.
@@ -95,3 +98,26 @@ exactly the amortised setting.
 - Does fine-tuning gain on an I.I.D. academic dataset at our scale? *(one run, one dataset)*
 - Is the calibration effect real, and does it survive at the full row count? *(the narrow follow-up the
   proposal already names)*
+
+## Read directly from the vendor's page (13 Sep)
+
+Fetched at source (`docs.priorlabs.ai/capabilities/fine-tuning.md`), so these are `verified`:
+
+**Good candidates, in their framing.** Amortised prediction cost -- the same schema predicted repeatedly.
+Niche or specialised domains whose distribution the pretraining priors do not cover well, with
+domain-specific financial instruments named among the examples. And **multiple related tables**, where one
+model is fine-tuned across a family of datasets -- which is the pooling idea in `PILOT_2_DESIGN.md`, and the
+vendor names it as a reason to fine-tune.
+
+**Less likely to help.** Datasets under **1,000 rows**, where overfitting risk outweighs adaptation. Cases
+where the **baseline is already within a few percent** of the target metric, where their own advice is to try
+feature engineering, metric tuning and preprocessing first. And **gradual temporal shifts with many
+features**, where fine-tuning can be less stable.
+
+**The operational sentence we did not follow.** On temporal data the page says plainly: *make sure your
+train/validation split respects the time ordering.* Our probe used the loader's **stratified random split**
+on insurance lapse data. That is a breach of the vendor's own guidance for exactly this kind of domain, and
+it belongs beside the verdict as a limitation -- it is a stronger explanation of the negative than the
+"domain boundary" framing alone, and it is fixable.
+
+**Their defaults.** The documented example is `epochs=30`, `learning_rate=1e-5` -- the configuration we used.
