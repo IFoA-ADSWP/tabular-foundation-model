@@ -44,6 +44,10 @@ umask 077
 command -v vastai >/dev/null 2>&1 || \
     export PATH="$HOME/.local/share/uv/tools/vastai/bin:$PATH"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Where run records, the ledger and returned artifacts are written. Overridable via
+# VAST_OUTDIR so a mock/dry run can be isolated from a real one instead of writing
+# into the working tree (PR-8).
+OUTDIR="${VAST_OUTDIR:-$REPO_DIR/outputs/gpu-pilot}"
 
 DEFAULT_QUERY='num_gpus=1 gpu_ram>=23 cpu_ram>=32 disk_space>=60 reliability>=0.98 inet_down>200 dph<0.80'
 # Ampere / Ada / Hopper only. Deliberately excludes Volta (V100), Pascal
@@ -187,6 +191,18 @@ MACHINE_ID=""; HOST_ID=""
 # record_run is called from the EXIT trap AND from the retry path, and a re-exec
 # would otherwise append a duplicate ledger row for the same instance.
 RECORDED=0
+# A mocked `vastai` (scripts/gpu_helpers/mock_vastai.sh) cannot spend money, so a run
+# driven by it must never be mistakable for a real one -- at the record level, not only
+# in whoever's memory. Detected here, passed to the box, recorded in both records.
+VASTAI_BIN="$(command -v vastai 2>/dev/null || true)"
+case "$VASTAI_BIN" in
+    *mock*) DRY_RUN=1 ;;
+    *)      DRY_RUN=0 ;;
+esac
+export TFM_DRY_RUN="$DRY_RUN"
+# One id for the whole run: it is interpolated into the onstart environment so the
+# box-written manifest and this runner's cost record share a join key.
+RUN_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 
 # Record what a run actually cost, so the cost model in the runbook can be
 # replaced with measurements instead of assumptions. Writes one JSON per run
@@ -203,13 +219,11 @@ record_run() {
     local wall_s=$(( end - T_CREATE ))
     [ "$wall_s" -lt 0 ] && wall_s=0
 
-    mkdir -p "$REPO_DIR/outputs/gpu-pilot"
-    RUN_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+    mkdir -p "$OUTDIR"
 
-    python3 - "$REPO_DIR" "$RUN_STAMP" "$wall_s" <<PY
+    python3 - "$REPO_DIR" "$RUN_STAMP" "$wall_s" "$OUTDIR" <<PY
 import csv, json, os, sys
-repo, stamp, wall_s = sys.argv[1], sys.argv[2], int(sys.argv[3])
-outdir = os.path.join(repo, "outputs", "gpu-pilot")
+repo, stamp, wall_s, outdir = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
 os.makedirs(outdir, exist_ok=True)
 
 rec = {
@@ -244,9 +258,14 @@ ledger = os.path.join(outdir, "run_ledger.csv")
 # The header MUST match the record's fields -- DictWriter will happily write rows
 # against an older, shorter header, silently shifting every column. That is exactly
 # what happened when machine_id/host_id/attempt were added: the ledger then reported
-# $1789231403 for a five-minute run and 1789231352 "minutes" of wall time. Compare
+# \$1789231403 for a five-minute run and 1789231352 "minutes" of wall time. Compare
 # the header and start a fresh file on mismatch. The per-run JSONs are the source of
 # truth and the ledger is derived from them, so quarantining loses nothing.
+#
+# NOTE ON THIS HEREDOC: it is deliberately UNQUOTED (<<PY, not <<'PY') because it
+# interpolates the shell variables below into the Python source. Consequence: any
+# LITERAL dollar sign in this block must be escaped as \$, or the shell expands it
+# as a positional parameter and silently mangles that line.
 fields = list(rec)
 if os.path.exists(ledger):
     try:
@@ -271,11 +290,15 @@ with open(ledger, "a", newline="") as f:
 # shell variables, so they expand to nothing and the line prints blank.
 print("[cost] wall %s min x $%s/hr = $%s"
       % (rec['wall_minutes'], rec['dph_total'], rec['est_cost_usd']))
-print("[cost] recorded -> outputs/gpu-pilot/run_%s.json + run_ledger.csv" % stamp)
+print("[cost] recorded -> %s + %s" % (os.path.join(outdir, "run_%s.json" % stamp), os.path.join(outdir, "run_ledger.csv")))
 PY
 }
 
 cleanup() {
+    # Remove the generated onstart script, which holds the token. This runs on EVERY
+    # exit path including failures and signals -- the leak happened because the only
+    # cleanup was an inline `rm` on the success path, which an abort never reached.
+    [ -n "${ONSTART_DIR:-}" ] && rm -rf "$ONSTART_DIR" 2>/dev/null
     # Record BEFORE destroying: the record must survive a failed destroy.
     record_run
     if [ -n "$INSTANCE_ID" ]; then
@@ -417,12 +440,30 @@ fi
 # That leaves --onstart, which runs at container boot. --onstart takes a FILENAME
 # (unlike --onstart-cmd, which is one argument capped around 4048 chars), so
 # length is not a concern.
-ONSTART_FILE="$REPO_DIR/scripts/gpu_helpers/.onstart.$$.sh"
+# The onstart script carries the license token verbatim. It is generated OUTSIDE the
+# repository on purpose: it previously lived at $REPO_DIR/scripts/gpu_helpers/.onstart.$$.sh,
+# and although the run deletes it (below), an aborted run skips that -- four such files
+# were left in the working tree and swept into a commit by a directory-wide `git add`,
+# putting a live token into the shared remote's history. A /tmp path cannot be committed
+# by accident. ONSTART_DIR is removed by the EXIT trap.
+ONSTART_DIR="$(mktemp -d "${TMPDIR:-/tmp}/tfm-onstart.XXXXXX")"
+ONSTART_FILE="$ONSTART_DIR/onstart.sh"
 {
     echo '#!/bin/bash'
     echo "# generated by vast_run.sh; contains a secret, never commit or keep"
     printf 'export TABPFN_TOKEN=%q\n' "$TABPFN_TOKEN"
     printf 'export ARMS=%q\n' "$ARMS"
+    # Identity for the audit record. The container image is chosen at RUN TIME from the
+    # host's CUDA capability, so it is a moving part -- a re-run has to be able to say
+    # which image produced the numbers, and the box has no way to know it otherwise.
+    # RUN_STAMP is the join key between the box-written manifest and the runner's cost
+    # record. MACHINE_ID/HOST_ID may still be empty here (they are parsed from the
+    # create response, after this file is built); empty values are recorded as null.
+    printf 'export TFM_DRY_RUN=%q\n' "$DRY_RUN"
+    printf 'export TFM_RUN_STAMP=%q\n' "$RUN_STAMP"
+    printf 'export TFM_IMAGE_REF=%q\n' "$IMAGE"
+    printf 'export TFM_MACHINE_ID=%q\n' "${MACHINE_ID:-}"
+    printf 'export TFM_HOST_ID=%q\n' "${HOST_ID:-}"
     cat "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh"
 } > "$ONSTART_FILE"
 # umask 077 is set at the top of this script, so the file is already owner-only.
@@ -558,9 +599,15 @@ else
         # A huge --tail (200000) silently returns NOTHING; with stderr discarded
         # that looks identical to "not finished yet", so the loop ran its entire
         # 60-minute ceiling while the instance billed -- and the repeat poll cost
-        # real money. Keep the tail modest (the completion marker sits at the end)
-        # and treat an empty capture as a FAULT, not a quiet no-op.
-        ERR="$(vastai logs "$INSTANCE_ID" --tail 5000 2>&1 > /tmp/vast_log_next.txt)"
+        # real money. So the tail must be bounded -- but big enough for the payload.
+        #
+        # 20000 is the compromise. The artifact payload now carries EVERY ARM'S
+        # PREDICTIONS (PR-2): ~250 tagged lines for a single split, but ~3,800 for a
+        # 3-seed x 5-fold run, against a 5000-line window that would truncate it. The
+        # box declares its payload's line count and sha256, and the receiver refuses a
+        # short read, so a mis-sized window now fails loudly instead of silently.
+        # Do not raise this to the 200000 range that caused the original leak.
+        ERR="$(vastai logs "$INSTANCE_ID" --tail 20000 2>&1 > /tmp/vast_log_next.txt)"
         if [ -s /tmp/vast_log_next.txt ]; then
             cp /tmp/vast_log_next.txt /tmp/vast_run_out.txt
             EMPTY_STREAK=0
@@ -592,44 +639,33 @@ T_END="$(date -u +%s)"
 
 # ---- pull artifacts ----
 echo "=== pulling artifacts ==="
-mkdir -p "$REPO_DIR/outputs/gpu-pilot"
+mkdir -p "$OUTDIR"
 if [ "$TRANSPORT" = "ssh" ]; then
     scp -P "$PORT" -o StrictHostKeyChecking=accept-new -r \
         "root@$HOST:/workspace/tfm/outputs/finetune/pilot/*" \
-        "$REPO_DIR/outputs/gpu-pilot/" || \
+        "$OUTDIR/" || \
         echo "WARNING: scp failed -- re-run with --keep" >&2
 else
     # The bootstrap printed its payload between markers on stdout, so the container
     # log -- already captured in /tmp/vast_run_out.txt -- IS the transfer channel.
     # (`vastai execute` cannot read files; it only runs ls/rm/du.)
     cp /tmp/vast_run_out.txt /tmp/vast_artifacts.raw 2>/dev/null || : > /tmp/vast_artifacts.raw
-    python3 - <<'PY' > /tmp/vast_artifacts.b64
-import re, sys
-s = open('/tmp/vast_artifacts.raw', errors='replace').read()
-m = re.search(r'__ARTIFACTS_BEGIN__(.*?)__ARTIFACTS_END__', s, re.S)
-if not m:
-    sys.exit(0)
-# The payload arrives as many tagged lines, each well under the log's 500-char
-# line cap, and must be concatenated in order. The previous single-line form was
-# silently truncated to 500 chars, which decoded to a partial gzip -- so the
-# transfer LOOKED like it had happened and only failed at tar.
-parts = [ln[7:].strip() for ln in m.group(1).splitlines() if ln.startswith('__ART__')]
-sys.stdout.write(''.join(parts))
-PY
-    if [ -s /tmp/vast_artifacts.b64 ] && \
-       base64 -d < /tmp/vast_artifacts.b64 > /tmp/vast_artifacts.tar.gz 2>/dev/null && \
-       tar xzf /tmp/vast_artifacts.tar.gz -C "$REPO_DIR/outputs/gpu-pilot" 2>/dev/null; then
-        echo "artifacts restored to outputs/gpu-pilot"
-    elif [ -s /tmp/vast_artifacts.b64 ]; then
-        echo "WARNING: a payload was present but could not be unpacked" >&2
-        echo "         chars=$(wc -c < /tmp/vast_artifacts.b64) (base64) -- likely truncated by the log's 500-char line cap." >&2
-        echo "         log captured at /tmp/vast_run_out.txt" >&2
-    else
-        echo "WARNING: no artifact payload found in the container log" >&2
-        echo "         log captured at /tmp/vast_run_out.txt; use --keep to inspect" >&2
-    fi
+    python3 "$REPO_DIR/scripts/gpu_helpers/verify_artifacts.py" \
+        --raw /tmp/vast_artifacts.raw \
+        --dest "$OUTDIR"
+    ART_RC=$?
+    case "$ART_RC" in
+        0) : ;;
+        3) echo "WARNING: no usable artifact payload in the container log" >&2
+           echo "         log captured at /tmp/vast_run_out.txt; use --keep to inspect" >&2 ;;
+        4) echo "WARNING: the payload was present but incomplete - see above" >&2
+           echo "         log captured at /tmp/vast_run_out.txt" >&2 ;;
+        5) echo "WARNING: predictions arrived but failed hash verification - see above" >&2
+           echo "         the run's metrics are NOT recomputable from these files" >&2 ;;
+        *) echo "WARNING: artifact verification exited $ART_RC" >&2 ;;
+    esac
 fi
 
 echo
 echo "=== done (rc=$RUN_RC) ==="
-ls -l "$REPO_DIR/outputs/gpu-pilot" 2>/dev/null | head -20
+ls -l "$OUTDIR" 2>/dev/null | head -20
