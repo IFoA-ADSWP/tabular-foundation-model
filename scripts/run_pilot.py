@@ -64,6 +64,10 @@ SCHEMA_VERSION = 2
 # see FINE_TUNING_PILOT_RESULTS.md §5d.4.
 DEFAULT_CONFIG = {
     "epochs": 3,
+    # P8: the budget test must measure the TRAINING BUDGET, not whatever early stopping allowed.
+    # Pinned off for every fine-tuning arm, and recorded, so a ladder rung cannot silently become
+    # "as far as patience got" while its manifest claims 30 epochs.
+    "early_stopping": False,
     "n_estimators": 2,
     "learning_rate": 1e-5,
     "fit_mode": "batched",
@@ -647,10 +651,14 @@ def effective_config(arm, config):
             # PR-7: the real budget -- and for a ladder arm, ITS OWN budget, never the global.
             # Recording the global here would make a 30-epoch rung's record claim it ran 3.
             "epochs": arm_epochs(arm, config),
+            # P8: recorded, because a declared epoch count means nothing if stopping cut it short.
+            # .get, defaulting to the pinned value: a caller passing a partial config must get the
+            # PIN, never the library's default, which is the whole point of P8.
+            "early_stopping": config.get("early_stopping", DEFAULT_CONFIG["early_stopping"]),
             "learning_rate": config["learning_rate"],
             "n_estimators_finetune": config["n_estimators"],
         }
-        passed = ["epochs", "learning_rate", "n_estimators"]
+        passed = ["epochs", "learning_rate", "n_estimators", "early_stopping"]
 
     defaulted = [k for k in kwargs if k not in passed]
     unused = [k for k in LEGACY_UNUSED_KEYS if k in config]
@@ -786,13 +794,19 @@ def run_arm_b_in_domain(X_train, X_test, y_train, y_test, config):
     """
     from tabpfn.finetuning.finetuned_classifier import FinetunedTabPFNClassifier
 
-    clf = FinetunedTabPFNClassifier(
+    # P8: pass the pin explicitly. If it is ever enabled (not for this pilot), patience is passed
+    # too -- the package takes the pair together and no default is assumed here.
+    _ft_kwargs = dict(
         device="cuda" if torch.cuda.is_available() else "cpu",
         epochs=config["epochs"],
         learning_rate=config["learning_rate"],
         n_estimators_finetune=config["n_estimators"],
         random_state=DEFAULT_SEED,
+        early_stopping=config.get("early_stopping", DEFAULT_CONFIG["early_stopping"]),
     )
+    if config.get("early_stopping", DEFAULT_CONFIG["early_stopping"]):
+        _ft_kwargs["early_stopping_patience"] = config.get("early_stopping_patience", 2)
+    clf = FinetunedTabPFNClassifier(**_ft_kwargs)
     clf.fit(X_train, y_train)
     probs = clf.predict_proba(X_test)[:, 1]
     return probs, clf

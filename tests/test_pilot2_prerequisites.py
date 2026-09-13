@@ -683,6 +683,53 @@ def test_preflight_checks_the_slot_the_writer_actually_uses(rp, tmp_path):
 
 
 # --------------------------------------------------------------------------
+# P8 -- the training budget must not be silently cut short
+# --------------------------------------------------------------------------
+def test_early_stopping_is_pinned_off_by_default(rp):
+    assert rp.DEFAULT_CONFIG["early_stopping"] is False
+
+
+def test_the_effective_config_records_the_pin(rp):
+    """A declared epoch count means nothing if stopping was allowed to cut it short."""
+    for arm in ("B_in_domain", "B_ft3", "B_ft10", "B_ft30"):
+        cfg = rp.effective_config(arm, dict(rp.DEFAULT_CONFIG))
+        assert cfg["kwargs"]["early_stopping"] is False
+        assert "early_stopping" in cfg["passed_params"]
+        assert "early_stopping" not in cfg["library_defaulted_params"]
+
+
+def test_the_trainer_receives_the_pin_and_never_relies_on_a_default(rp):
+    """Source guard: the trainer cannot be imported locally, so the call site is asserted.
+
+    The package takes early_stopping (+ patience when enabled) as constructor arguments; a
+    construction that omits the flag would silently inherit the library's default, which is the
+    defect P8 exists to prevent.
+    """
+    src = Path(rp.__file__).read_text()
+    # the flag is set on the kwargs dict, and that dict is what the trainer is called with
+    i = src.index("_ft_kwargs = dict(")
+    block = src[i : i + 600]
+    assert "early_stopping=" in block, block[:200]
+    j = src.index("FinetunedTabPFNClassifier(**")
+    assert "_ft_kwargs" in src[j : j + 40]
+
+
+def test_a_ladder_arm_does_not_change_the_pin(rp, monkeypatch):
+    """Each rung varies epochs only. If a rung could change the pin, the ladder would vary two things."""
+    base = dict(rp.DEFAULT_CONFIG)
+    seen = {}
+
+    def fake_b(X_train, X_test, y_train, y_test, config):
+        seen.update(config)
+        return None, None
+
+    monkeypatch.setattr(rp, "run_arm_b_in_domain", fake_b)
+    rp.ARMS["B_ft30"](None, None, None, None, base)
+    assert seen["early_stopping"] is False
+    assert seen["epochs"] == 30
+
+
+# --------------------------------------------------------------------------
 # The context half of the leakage guarantee (PILOT_2_DESIGN 3.1)
 # --------------------------------------------------------------------------
 def test_context_disjoint_from_test_rows_is_recorded(rp):
