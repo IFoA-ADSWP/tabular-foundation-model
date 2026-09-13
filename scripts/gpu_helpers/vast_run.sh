@@ -489,6 +489,12 @@ ONSTART_FILE="$ONSTART_DIR/onstart.sh"
 # with the old flags, so this is intermittent rather than deterministic -- an
 # intermittent failure is all the more reason not to request a capability we
 # never use.
+# DEBUGGING HAZARD -- READ BEFORE USING --explain. It prints the prepared request INCLUDING the
+# full `Authorization: Bearer` header: your live API key, in your terminal. It is still the fastest
+# way to see which field the API rejects -- that is how 400/3471 "len(args) > 16384" was diagnosed,
+# by showing the request carried the onstart file's CONTENTS rather than a path. So never run it
+# where the output is shared, pasted or recorded, and rotate the key afterwards if it does run.
+# The guard above is the cheaper first check and fails locally, for free.
 CREATE_OUT="$(vastai create instance "$OFFER_ID" \
     --image "$IMAGE" --disk "$DISK" \
     --onstart "$ONSTART_FILE" \
