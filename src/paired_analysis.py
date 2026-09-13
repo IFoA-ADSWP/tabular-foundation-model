@@ -147,6 +147,77 @@ def inverse_variance_summary(
     }
 
 
+def nested_paired_bootstrap(
+    repeats: list[tuple],
+    metric_fn: MetricFn,
+    *,
+    n_resamples: int = SHIPPED_RESAMPLES,
+    alpha: float = SHIPPED_ALPHA,
+    seed: int = SHIPPED_SEED,
+) -> dict:
+    """Paired interval for the MEAN over repeats (SAP section 5).
+
+    `repeats` is a list of `(y_true, scores_a, scores_b)` -- one per seed or fold, each with its
+    OWN test rows. Rows are resampled *within* a repeat and repeats are resampled *with each
+    other*, which is what makes this the interval for the mean over repeats rather than the
+    interval for a single split. Using one repeat's interval as the dataset's would understate the
+    uncertainty that comes from the split itself, which is precisely the component the repeats are
+    there to measure.
+
+    A drawn repeat whose row-resample has one class only is redrawn (bounded); if the sample
+    cannot support the metric the failure is raised rather than papered over.
+    """
+    if not repeats:
+        raise ValueError("no repeats to summarise")
+    prepared = []
+    for y_true, scores_a, scores_b in repeats:
+        y = np.asarray(y_true)
+        a = np.asarray(scores_a, dtype=float)
+        b = np.asarray(scores_b, dtype=float)
+        if not (len(y) == len(a) == len(b)):
+            raise ValueError("y_true, scores_a and scores_b must have the same length")
+        prepared.append((y, a, b))
+
+    point = float(np.mean([metric_fn(y, b) - metric_fn(y, a) for y, a, b in prepared]))
+
+    rng = np.random.default_rng(seed)
+    n_rep = len(prepared)
+    draws = np.empty(n_resamples, dtype=float)
+    degenerate = 0
+    for i in range(n_resamples):
+        chosen = rng.integers(0, n_rep, size=n_rep)
+        diffs = []
+        for j in chosen:
+            y, a, b = prepared[j]
+            for _ in range(16):  # bounded redraw for a single-class row-resample
+                idx = rng.integers(0, y.size, size=y.size)
+                yb = y[idx]
+                if np.unique(yb).size >= 2:
+                    diffs.append(metric_fn(yb, b[idx]) - metric_fn(yb, a[idx]))
+                    break
+            else:
+                degenerate += 1
+        if not diffs:
+            raise ValueError(
+                "metric undefined on every resample: the repeats cannot support this comparison"
+            )
+        draws[i] = float(np.mean(diffs))
+
+    lo = float(np.percentile(draws, 100 * (alpha / 2)))
+    hi = float(np.percentile(draws, 100 * (1 - alpha / 2)))
+    return {
+        "estimate": point,
+        "ci_low": lo,
+        "ci_high": hi,
+        "excludes_zero": bool(lo > 0.0 or hi < 0.0),
+        "n_repeats": n_rep,
+        "n_resamples": int(n_resamples),
+        "n_degenerate_repeats": int(degenerate),
+        "alpha": float(alpha),
+        "seed": int(seed),
+    }
+
+
 def holm_adjust(pvalues: np.ndarray | list[float]) -> list[float]:
     """Holm-Bonferroni adjusted p-values, order preserved.
 
