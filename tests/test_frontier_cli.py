@@ -228,5 +228,10 @@ def test_reconstruct_pp():
     # tweedieglm/poissonglm re-clip to [1e-6, 1-1e-6] before reconstructing
     raw = np.array([-0.5, 1.5], dtype=np.float32)  # outside [0, 1], as a raw GLM mean can be
     pp_glm = mod._reconstruct_pp("tweedieglm", raw)
-    assert pp_glm[:, 1].min() >= 1e-6
-    assert pp_glm[:, 1].max() <= 1 - 1e-6
+    # Compare the bounds in the ARRAY's dtype, not against float64 literals. The clip is applied in
+    # float32, where float32(1e-6) rounds to 9.99999997e-07 -- BELOW the float64 literal 1e-6. The
+    # old comparison therefore failed on a correct result, and had done so on every run. The
+    # property under test is unchanged: the output stays inside the documented clip.
+    assert pp_glm.dtype == np.float32
+    assert pp_glm[:, 1].min() >= np.float32(1e-6)
+    assert pp_glm[:, 1].max() <= np.float32(1 - 1e-6)
