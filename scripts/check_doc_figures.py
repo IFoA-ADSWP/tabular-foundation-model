@@ -54,6 +54,7 @@ SUPERSEDED: list[str] = [
     "$15.05",  # the very first envelope, before measurement
     "$82.93",  # ditto, at full scale
     "$1.49",   # the first "lean" figure, before the two-experiment breakdown
+    "$35", "$50", "$15", "$1.50", "$83",  # the ORIGINAL envelope, before the model was rebuilt
     "$2.82",   # step 4 over four targets, when it is three
     "$4.08",   # transfer at 15 repeats, counted two pooled arms and 10 epochs
     "8-70c",   # step 3 before the same correction
