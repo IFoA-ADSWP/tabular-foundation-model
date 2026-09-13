@@ -49,7 +49,10 @@ it.** No later figure should be quoted as a cost until it has been re-derived fr
 
 ## Why it is safe
 
-Destroyed on **every** exit path including crashes · a watchdog checking every 5 minutes · a hard price ceiling per machine · a pre-flight that **refuses to start** if anything is wrong · every stage funded only after the last produced a result · and the first step costs **7p**.
+Destroyed on every exit path the run can **catch** — and an independent watchdog as the backstop for
+the ones it cannot: a killed process, a closed terminal, a sleeping laptop · a hard price ceiling per
+machine · a pre-flight that **refuses to start** if anything is wrong · every stage funded only after
+the last produced a result · and the first step costs **7p**.
 
 ## What we are asking for
 
