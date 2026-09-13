@@ -209,6 +209,9 @@ export TFM_DRY_RUN="$DRY_RUN"
 # One id for the whole run: it is interpolated into the onstart environment so the
 # box-written manifest and this runner's cost record share a join key.
 TFM_COMMIT_SHA="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo unknown)"
+# The box clones THIS branch; the launcher states it rather than leaving the bootstrap to
+# its own default, so both ends agree on which branch is being run.
+BRANCH="${BRANCH:-main}"
 RUN_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 
 # Record what a run actually cost, so the cost model in the runbook can be
@@ -469,6 +472,19 @@ fi
 # were left in the working tree and swept into a commit by a directory-wide `git add`,
 # putting a live token into the shared remote's history. A /tmp path cannot be committed
 # by accident. ONSTART_DIR is removed by the EXIT trap.
+# ---- Fail locally, for free, if the box could not run this commit ----
+# The box clones $BRANCH and then checks out the commit resolved here. If that commit is not on
+# the remote branch, the box can only refuse -- after an instance has been created and billed.
+# That happened once: $0.0039 and a minute to learn a local fact. The box keeps its own check,
+# which is authoritative because it verifies the actual tree; this is the fast-fail in front of it.
+git -C "$REPO_DIR" fetch -q origin "$BRANCH" 2>/dev/null || true
+if ! git -C "$REPO_DIR" merge-base --is-ancestor "$TFM_COMMIT_SHA" "origin/$BRANCH" 2>/dev/null; then
+    echo "REFUSING: this checkout is at $TFM_COMMIT_SHA, which is not on origin/$BRANCH." >&2
+    echo "The box clones $BRANCH, so it could not run this commit -- refusing before provisioning." >&2
+    exit 2
+fi
+echo "commit $TFM_COMMIT_SHA is on origin/$BRANCH -- the box can run it"
+
 ONSTART_DIR="$(mktemp -d "${TMPDIR:-/tmp}/tfm-onstart.XXXXXX")"
 ONSTART_FILE="$ONSTART_DIR/onstart.sh"
 # The inlined bootstrap ships COMPRESSED. The CLI sends this file's CONTENTS through the API's
@@ -495,6 +511,7 @@ BOOTSTRAP_B64="$(gzip -9c "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh" | b
     printf 'export TFM_DRY_RUN=%q\n' "$DRY_RUN"
     printf 'export TFM_RUN_STAMP=%q\n' "$RUN_STAMP"
     printf 'export TFM_COMMIT_SHA=%q\n' "$TFM_COMMIT_SHA"
+    printf 'export BRANCH=%q\n' "$BRANCH"
     printf 'export TFM_IMAGE_REF=%q\n' "$IMAGE"
     printf 'export TFM_MACHINE_ID=%q\n' "${MACHINE_ID:-}"
     printf 'export TFM_HOST_ID=%q\n' "${HOST_ID:-}"
