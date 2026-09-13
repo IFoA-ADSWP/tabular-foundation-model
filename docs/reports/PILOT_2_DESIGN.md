@@ -195,6 +195,14 @@ Two points a reviewer should hold on to:
    multiplier in every figure above. The **~$0.05 ladder probe** (section 4.2) replaces it with a
    measurement before anything is committed.
 
+## 4.9 An alternative design
+
+**`PILOT_2_DESIGN_ALTERNATIVE.md`** states a staged-isolation design as a genuine alternative to this
+one. It changes **one factor at a time**, so a negative names its cause instead of leaving the
+combination to blame, and it reaches the same decisions for roughly **$4 rather than $31**. Its
+trade is explicit: it will not detect interactions between factors. This design remains the
+reference specification; the alternative is the recommended route to it.
+
 ## 5. Gate 1
 
 **Proceed to Stage 2 if and only if all four criteria in §4.4 hold.**
