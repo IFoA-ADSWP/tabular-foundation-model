@@ -171,97 +171,29 @@ Interpretation is fixed in advance:
 | Gain at no budget | Fine-tuning is not a promising lever for this dataset family. **Stop.** Record a decisive negative — now a *fair* one. |
 | Gain only in-domain, not transferable | **Stop after Stage 2** and report in-domain adaptation as the limit. |
 
-### 4.5 Cost — measured, not estimated
+### 4.5 Cost
 
-**The unit cost is known.** R1 ran the full A/B comparison on all four datasets at 2,000/1,000, one
-seed, one split. The run that produced it cost **$0.0482**, including provisioning — 5.3 min on an
-L40S at $0.544/hr.
+**Full explanation, written for a non-specialist reader: `PILOT_2_COST_AND_CONTROLS.md`.** In brief:
 
-Every projection below is built from R1's measured arm times:
-
-| | coil2000 | eudirectlapse | spanish_motor_lapse | uslapseagent | **total** |
-| --- | --- | --- | --- | --- | --- |
-| `A_raw` | 15.9 s | 12.3 s | 6.5 s | 6.3 s | **41.1 s** |
-| `B_in_domain` (3 epochs) | 35.7 s | 36.4 s | 18.3 s | 26.6 s | **116.9 s** |
-
-So **fine-tuning costs 2.85x the raw arm** at 3 epochs, and one split of A+B is 158 s (~$0.024 of
-compute).
-
-**Pilot 2 multiplies that by three independent choices.**
-
-| Factor | R1 | Pilot 2 | Multiplier |
-| --- | --- | --- | --- |
-| Repeats | 1 seed x 1 split | 3 seeds x 5 folds | **15x** |
-| Epochs | 3 | up to 30 | **~10x** on the gradient work |
-| Rows | 2,000 | up to full | **~10x** |
-
-That is the whole explanation of a large programme figure: not overhead, but **up to ~1,500x R1's
-compute** if every axis is taken to its top. The purpose of the rungs is to let us decline parts of
-that stack, not to buy it whole.
-
-| Rung | GPU time | **Measured model** | Earlier estimate |
-| --- | --- | --- | --- |
-| P1a (2,000/1,000, 3x5) | 5.7 h | **$3.12** | ~$1 |
-| P1b (~2.5x rows) | 14.3 h | **$7.80** | ~$3.5 |
-| P1c (full, ~10x rows) | 57.4 h | **$31.21** | ~$12 |
-
-The earlier figures were **optimistic by 2.5-3x** because they assumed a modest epoch cost. Scaling
-from what R1 actually measured is the honest basis.
-
-**The dominant uncertainty is cheap to settle.** The 3->30 epoch multiplier is an *assumption*
-(modeled as ~30 s fixed plus ~29 s per epoch) and the 30-epoch rung is ~65% of the ladder's cost.
-The section 4.2 ladder-first rule settles it on one dataset:
-
-```
-1 dataset, 1 split, full ladder (A + B3 + B10 + B30)  =  22.5 min  =  $0.20
-```
-
-**Funded First Step: $0.20.** One run that measures the epoch->cost *and* epoch->gain curves
-together, before anything is scaled. If the ladder is flat, the budget hypothesis dies at twenty
-cents instead of at fifteen dollars.
-
-**The levers, in order of size**
-
-1. **Repeats** — the largest multiplier and the cheapest to cut. 15x -> 3x (3 seeds, one split) takes
-   P1a from $3.12 to **~$0.62**, trading a variance estimate for 80% of the cost. A deliberate
-   choice, not a default.
-2. **Epochs** — the top rung is two-thirds of the ladder; the $0.20 probe decides whether it earns it.
-3. **Rows** — P1c is optional and already gated behind P1b.
-
-### 4.5.1 What R1's spend does and does not tell us
-
-**$0.5256 across 13 instances was spent, and it is not the price of an experiment. It is the price of
-a pipeline that did not yet work.** R1 hit four defects on the paid path: a transport that could not
-run commands, a poll that silently captured nothing, instances that could never start
-(`intended_status: stopped`), and a licence gate that rejected every dataset. Instances were created,
-billed, and returned nothing — **6 of the 13 produced no arm result at all**, and a further five ran
-only a preflight.
-
-| | |
-| --- | --- |
-| The two runs that produced results | **$0.0768** |
-| The other eleven — failed, stalled, or preflight-only | $0.4488 |
-| Total | $0.5256 |
-
-So the right anchor for Pilot 2 is the **marginal cost of a successful run — $0.0482** for a full
-four-dataset A/B comparison — not R1's average. The debugging spend is one-off: those defects are
-fixed, and the assertions in `PILOT_2_PREREQUISITES.md` exist so they cannot return silently.
-Budgeting Pilot 2 at R1's total would price in a mistake we have already paid for.
-
-**Recommended envelope, on the measured model:**
-
-| Step | Cost | What it buys |
+| | Cost | In units of one successful first-pilot comparison (5p) |
 | --- | --- | --- |
-| The ladder probe (1 dataset, 1 split, 3/10/30) | **$0.20** | the epoch->cost and epoch->gain curves |
-| P1a at 3 seeds x 1 split | **~$0.62** | a first in-domain answer with a variance estimate |
-| *Subtotal* | **~$0.82** | |
-| P1a at full 3x5 | $3.12 | a tighter paired CI — a separate decision |
-| P1b | $7.80 | gated on P1a |
-| P1c | $31.21 | gated on P1b; optional |
-| Stage 2 (LODO, P1a scale) | ~$0.85 | gated on Gate 1 |
+| **Pilot 2, as recommended** | **~$1.50** | ~30 |
+| With 15 repeats per experiment (confidence) | ~$15 | ~310 |
+| Also at full data scale | ~$83 | ~1,700 |
 
-Against ~$9.60 of credit, **the probe plus a reduced-repeat P1a fit comfortably**; the full rungs and
-Stage 2 need a top-up decision taken in light of the probe's result.
+Everything is priced from R1's measured arm times (A_raw 41.1 s, fine-tuned 116.9 s across four
+datasets at 2,000/1,000), so the larger figures are **volume** — repeats x epochs x rows — not
+overhead. The 15 repeats and the full-data rungs are both **optional and separately gated**.
+
+Two points a reviewer should hold on to:
+
+1. **The right planning figure is the marginal cost of a successful comparison — $0.0482 — not R1's
+   total of $0.5256.** R1's bill bought a working pipeline, not a result: four defects on the paid
+   path created instances that returned nothing, and 6 of 13 produced no arm result at all. Each
+   defect now has a fix and a test.
+2. **One assumption remains** — how cost scales with training length — and it sets the ~10x epoch
+   multiplier in every figure above. The **~$0.05 ladder probe** (section 4.2) replaces it with a
+   measurement before anything is committed.
 
 ## 5. Gate 1
 
