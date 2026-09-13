@@ -56,6 +56,49 @@ already gated behind a positive result at the smaller scale.
 | ~$15 | confidence |
 | ~$83 | confidence and scale |
 
+## What the runs actually are, and where the volume comes from
+
+A **run** is one dataset, one method, one repeat. Counting them:
+
+| | Runs |
+| --- | --- |
+| Stage 1 (in-domain), one data scale, 15 repeats | 4 datasets x 4 methods x 15 = **240** |
+| Stage 2 (transfer), 15 repeats | 4 target datasets x ~7 methods x 15 = **420** |
+| The full programme | ~**1,140 runs** |
+
+**But the cost is not spread evenly across those runs, and that is the important part.** Measured on
+the first pilot's own timings, one repeat of Stage 1 breaks down as:
+
+| Method | Time per repeat | Share of the work |
+| --- | --- | --- |
+| The existing model, no training | 41 s | **3%** |
+| Fine-tuned, 3 epochs (what the first pilot did) | 117 s | **8%** |
+| Fine-tuned, 10 epochs | 320 s | **23%** |
+| Fine-tuned, 30 epochs (the library default) | 899 s | **65%** |
+
+**Two-thirds of the entire computing volume is one method: training the model thirty times longer
+than the first pilot trained it.** The baseline that answers "is this better than doing nothing?" is
+3% of the cost. So the headline figures are not driven by "the number of runs" in any vague sense —
+they are driven by a single, deliberate question: *does training longer help?*
+
+### The three things that multiply the volume
+
+| Knob | Effect on cost | What it buys |
+| --- | --- | --- |
+| Repeat each experiment 15 times | **x15** | so one lucky split of the data cannot produce a false result |
+| Train 30 times longer instead of 3 | **x~10** on the training part | the actual hypothesis under test |
+| Use all the rows instead of a sample | **x2.5 to x10** | whether the effect grows with more data |
+
+### Why this is the argument for spending 5p first
+
+If the small probe shows that **training longer does not help**, the 10- and 30-epoch methods are
+dropped — and with them **89% of Stage 1's computing**. The programme shrinks to roughly a seventh
+of the figures above, and the answer arrives just as clearly, because the remaining question (does
+fine-tuning help at all) is answered by the 3-epoch method the first pilot already ran.
+
+**That is the confidence argument in one line: the largest cost in the programme is attached to the
+one question we can settle for five pence before committing to any of it.**
+
 ## Why the first pilot's 53p is *not* the benchmark
 
 The first pilot spent **53p in total**, but only **8p of it produced a result**. The rest created
