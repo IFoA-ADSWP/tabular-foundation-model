@@ -38,40 +38,65 @@ case "${1:-} ${2:-}" in
   "create ssh-key")   echo "Failed with error 400: Team SSH keys are not supported." ;;
   "create instance")  echo '{"success": true, "new_contract": 12345678}' ;;
   "show instance")
-      # MOCK_STATUS lets a test force a terminal state (exited/offline/...) to
-      # exercise the runner's early-abort branch.
-      if [ -n "${MOCK_STATUS:-}" ]; then
-          echo "{\"actual_status\": \"$MOCK_STATUS\", \"gpu_name\": \"RTX PRO 5000\","\
-"\"dph_total\": 0.6681, \"gpu_ram\": 48935, \"cpu_ram\": 64000,"\
-"\"reliability\": 0.9876, \"cuda_max_good\": 13.0}"
+      # MOCK_SEQUENCE: comma-separated statuses consumed one per call, so a test
+      # can reproduce the real provisioning order (unknown -> loading -> running).
+      # MOCK_STATUS forces a single constant state. Add MOCK_DELAY to make the
+      # grace period elapse quickly.
+      if [ -n "${MOCK_SEQUENCE:-}" ]; then
+          CNT_F="${MOCK_SEQ_FILE:-/tmp/mock_seq_count}"
+          [ -n "${MOCK_DELAY:-}" ] && sleep "$MOCK_DELAY"
+          n=$(cat "$CNT_F" 2>/dev/null || echo 0)
+          IFS=',' read -ra SEQ <<< "$MOCK_SEQUENCE"
+          idx=$n
+          [ "$idx" -ge "${#SEQ[@]}" ] && idx=$(( ${#SEQ[@]} - 1 ))
+          st="${SEQ[$idx]}"
+          echo $(( n + 1 )) > "$CNT_F"
+          echo "{\"actual_status\": \"$st\", \"ssh_host\": \"203.0.113.9\", \"ssh_port\": 41234, \"gpu_name\": \"RTX A6000\", \"dph_total\": 0.469, \"gpu_ram\": 49140, \"cpu_ram\": 128000, \"reliability\": 0.9951, \"cuda_max_good\": 13.0}"
+      elif [ -n "${MOCK_STATUS:-}" ]; then
+          echo "{\"actual_status\": \"$MOCK_STATUS\", \"gpu_name\": \"RTX A6000\","\
+"\"dph_total\": 0.469, \"gpu_ram\": 49140, \"cpu_ram\": 128000,"\
+"\"reliability\": 0.9951, \"cuda_max_good\": 13.0}"
       else
           cat <<'JSON'
 {"actual_status": "running", "ssh_host": "203.0.113.9", "ssh_port": 41234,
- "gpu_name": "RTX PRO 5000", "dph_total": 0.6681, "gpu_ram": 48935,
- "cpu_ram": 64000, "reliability": 0.9876, "cuda_max_good": 13.0}
+ "gpu_name": "RTX A6000", "dph_total": 0.469, "gpu_ram": 49140,
+ "cpu_ram": 128000, "reliability": 0.9951, "cuda_max_good": 13.0}
 JSON
       fi
       ;;
   "destroy instance") echo "destroying instance $3." ;;
-  "logs")             echo "  (mock logs)" ;;
-  "execute "*)
-      # $3 is the command. (An earlier version read $4, an off-by-one that
-      # silently hid this whole branch.)
-      if printf '%s' "${3:-}" | grep -q "VAST_B64_BEGIN"; then
-          # Must echo the markers as well as the payload, or the extractor has
-          # nothing to anchor on and artifact retrieval reports failure.
-          echo "__VAST_B64_BEGIN__"
+  "logs "*)
+      # NOTE the trailing space: the dispatch is `case "$1 $2"`, so a bare
+      # `"logs")` never matches `vastai logs <id> --tail N` and the branch is dead
+      # -- which left the runner polling until its 60-minute ceiling.
+      # The runner reads the LOG, not `execute`: `vastai execute` only runs
+      # ls/rm/du, so it can neither launch a script nor read a file. The artifact
+      # payload therefore arrives between markers on stdout.
+      echo "########## ARM A_raw ##########"
+      echo "  A_raw... ROC=0.7679 Brier=0.1523 (21.0s)"
+      echo "########## ARM B_in_domain ##########"
+      echo "  B_in_domain... ROC=0.7701 Brier=0.0501 (18.2s)"
+      echo "########## AGGREGATE ##########"
+      echo "PILOT RESULTS SUMMARY"
+      echo "__ARTIFACTS_B64_BEGIN__"
+      if [ -d /tmp/mockstate ]; then
           (cd /tmp/mockstate && tar czf - . 2>/dev/null) | base64 | tr -d '\n'
-          echo
-          echo "__VAST_B64_END__"
       else
-          echo "########## ARM B_in_domain ##########"
-          echo "--- coil2000 (coil2000.csv) ---"
-          echo "  B_in_domain... ROC=0.7701 Brier=0.0501 (18.2s)"
-          echo "########## AGGREGATE ##########"
-          echo "PILOT RESULTS SUMMARY"
-          echo "BOOTSTRAP FINISHED"
+          printf 'stub' | base64 | tr -d '\n'
       fi
+      echo
+      echo "__ARTIFACTS_B64_END__"
+      echo "BOOTSTRAP FINISHED"
+      ;;
+  "execute "*)
+      # MODEL THE REAL CONSTRAINT. A previous mock accepted any shell command, so it
+      # happily validated a transport that cannot exist -- and the real instance
+      # answered "Failed with error 400: Invalid command given." Only ls/rm/du are
+      # accepted by the real endpoint; anything else must fail here too.
+      case "${3:-}" in
+          ls|ls\ *|rm\ *|du|du\ *) echo "[mock] (ls/rm/du output)" ;;
+          *) echo "Failed with error 400: Invalid command given." ;;
+      esac
       ;;
   *)
       echo "[mock vastai] unhandled: $*" >&2 ;;

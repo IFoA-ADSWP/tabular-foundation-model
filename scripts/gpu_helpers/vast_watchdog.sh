@@ -23,6 +23,16 @@ set -uo pipefail
 command -v vastai >/dev/null 2>&1 || \
     export PATH="$HOME/.local/share/uv/tools/vastai/bin:$PATH"
 
+# DO NOT export VAST_API_KEY here -- measured, and it breaks auth.
+# Supplying the key explicitly (env var OR --api-key) returns
+#   401 "requires you to have logged in using Two Factor Authentication"
+# even when the value is byte-identical to the CLI's own config file (verified by
+# sha256), while letting the CLI read that file succeeds. The 2FA session is bound
+# to the key the CLI loads from its config file, so an explicit key is a different
+# auth context with no session.
+# Consequence: the keychain CANNOT be the single store for the Vast key. That file
+# is the CLI's store; keep it at mode 600.
+
 LABEL="${LABEL:-tabpfn-pilot}"
 MAX_AGE_MIN="${MAX_AGE_MIN:-90}"
 DRY=0
@@ -39,8 +49,14 @@ done
 
 STAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-if ! vastai show user >/dev/null 2>&1; then
-    echo "$STAMP no session/credentials -- skipping"
+# Distinguish "cannot authenticate" from "nothing to do" -- and say so loudly.
+# Previously both paths were quiet, so an inert guard was indistinguishable from a
+# healthy one in the log. A guard you only *believe* is running is worse than none.
+AUTH_OUT="$(vastai show user --raw 2>&1 || true)"
+if printf '%s' "$AUTH_OUT" | grep -qiE '"error"[[:space:]]*:[[:space:]]*true|two.factor|401|Authorization Error'; then
+    echo "$STAMP !! WATCHDOG UNAUTHENTICATED -- NO LEAK PROTECTION IS ACTIVE"
+    echo "$STAMP !!   $(printf '%s' "$AUTH_OUT" | tr '\n' ' ' | cut -c1-140)"
+    echo "$STAMP !!   refresh the session:  bash scripts/gpu_helpers/vast_login.sh"
     exit 0
 fi
 
