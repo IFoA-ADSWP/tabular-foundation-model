@@ -54,7 +54,10 @@ SUPERSEDED: list[str] = [
     "$15.05",  # the very first envelope, before measurement
     "$82.93",  # ditto, at full scale
     "$1.49",   # the first "lean" figure, before the two-experiment breakdown
-    "$35", "$50", "$15", "$1.50", "$83",  # the ORIGINAL envelope, before the model was rebuilt
+    # NB deliberately NOT the bare "$15" / "$1.50" / "$83" / "$35" / "$50": those tokens also occur
+    # inside legitimate, different quantities ("$15-30" is Stage 2's own modelled range). A checker
+    # that cries wolf on a currency collision gets switched off, so only unambiguous figures go here.
+    "$35-50", "$35–50", "$1.50 / ~$15", "$82.93 / ~$83",  # the original envelope, as written
     "$2.82",   # step 4 over four targets, when it is three
     "$4.08",   # transfer at 15 repeats, counted two pooled arms and 10 epochs
     "8-70c",   # step 3 before the same correction
