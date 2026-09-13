@@ -1,7 +1,11 @@
 # Pilot 2 — Design for a Fair Test of Fine-Tuning
 
-> Date: 2026-09-12 | **Status: DESIGN — awaiting team sign-off. No spend is authorised by this
-> document.** Related: #22
+> Date: 2026-09-12, revised 2026-09-13 | **Status: DESIGN — awaiting team sign-off. No spend is
+> authorised by this document.** Related: #22
+>
+> **Revision 2026-09-13** adds the leakage policy (§3.1), the frozen-configuration rule at Gate 1
+> (§5), an explicit pool order and the missing schema-matched arm (§6.2–6.3), a funded cost envelope
+> (§4.5), and four checklist lines (§8).
 > Basis: `HISTORIC_FINETUNING_APPRAISAL.md` (why the historic verdict is unusable),
 > `NEXT_STAGE_PROPOSAL.md` (scale options, audit schema), `FINE_TUNING_METHOD.md` (how the
 > fine-tune works), `SMOKE_TEST_SCOPE.md` (what R1 did and did not exercise).
@@ -74,6 +78,44 @@ every comparison is **paired** on identical test rows.
 power calculation on observed variance — R1's coil2000 test set gave a CI width of 0.118, wider than
 any plausible effect. **No run may be reported as a win without a CI that excludes zero.**
 
+### 3.1 Leakage policy — non-negotiable
+
+**The rule.** No test row may enter **training, validation, early stopping, the inference context, or
+model selection** — for any arm, in any stage, in any form. *Model selection* includes choosing the
+epoch budget, the pool policy, or the feature set by looking at test performance.
+
+This rule is stated in `FINE_TUNING_METHOD.md` §9, `FINE_TUNING_PILOT_RESULTS.md` §0.2 and the
+"zero leakage rule" in `INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md` — all of which describe **R1
+or the historic protocol**. It is restated here because *this* is the document the next experiment is
+held to, and the rule belongs in the document that governs the run rather than in one describing a
+past one.
+
+**Two things are true at once, and both must be reported.** In-domain evaluation is **not** leakage:
+the split is disjoint, the test rows are never seen, and the scaler is fit on train only. And
+in-domain evaluation is **not transfer evidence**: it cannot support a claim that fine-tuning
+generalises. Saying only the first invites an overclaim; saying only the second invites the "reads as
+leakage" reaction that R1's report already had to address. Stage 1 exists to test the *mechanism*;
+only Stage 2 tests the *claim*.
+
+**What is asserted, and what is only stated.** The transfer stage's exclusion is asserted in code and
+recorded (`build_pool`, PR-5: target absent by **name and content hash**, `out_of_pool_asserted:
+true`). The equivalent assertion for the **inference context** does not yet exist — it is true by
+construction today because the split is disjoint, but "true by construction" is this project's
+least-reliable category of guarantee. **PR-10** (in `PILOT_2_PREREQUISITES.md`) adds the mirror assertion: context and
+validation indices disjoint from test indices, asserted and recorded per arm.
+
+**Verified in the runner (2026-09-13).** The split is stratified and seeded
+(`train_test_split(..., stratify=y, random_state=seed)`) and the **validation split is derived from
+the training split** (`y[train_idx]`), not from the whole dataset — so early stopping cannot see test
+rows. `validation_split_ratio` must still be **recorded per arm** (PR-1), together with the effective
+training rows, so the reserve is visible rather than assumed.
+
+**One selection step with no leakage but with a bias risk.** The loader caps each dataset before the
+split, taking the first ~3,500 rows of the file. If any file is ordered — by date, by region, by
+outcome — that is a systematic selection step, and it can make a test split unrepresentative without
+a single row leaking. It must be **recorded** and reported as a limitation; stratifying *at* the cap
+is the cheap fix if it proves to matter.
+
 ---
 
 ## 4. Stage 1 — the positive control (in-domain, fair)
@@ -95,6 +137,12 @@ no harmonisation problem. If it cannot show a gain here, the transfer question i
 - **Budget-ladder-first rule:** run the epoch ladder on the **cheapest dataset** (coil2000, 9,822
   rows) across all seeds and folds before scaling. If Δlog loss is flat from 3 → 30 epochs, the
   budget hypothesis is dead and we stop before paying for the bigger rungs.
+- **Early stopping must be handled explicitly, because it becomes live at 30 epochs.** It is inert at
+  3 epochs but the library default is *on*, so `B_ft30` may not run 30 epochs at all — it runs however
+  many the validation split permitted. That would silently convert the design's central correction
+  ("give the mechanism its default budget") into "give it whatever early stopping allowed". Either
+  **fix the epoch count with early stopping disabled** for the budget comparison, or **record the
+  epochs actually executed per arm** and report the ladder against those. State which, before the run.
 
 ### 4.3 Scale rungs
 
@@ -135,14 +183,44 @@ rows is roughly 10× the 3-epoch arm on the same data.
 | P1b | ~4–6 h | **~$3–4** |
 | P1c | ~15–25 h | **~$9–15** |
 
-Order-of-magnitude only, from a single data point; not a budget. Sourcing, the per-run approval gate
-and the teardown/watchdog discipline in `REPRODUCIBILITY_RUNBOOK.md` §C all still apply.
+Order-of-magnitude only, from a single data point. Sourcing, the per-run approval gate and the
+teardown/watchdog discipline in `REPRODUCIBILITY_RUNBOOK.md` §C all still apply.
+
+### 4.5.1 The funded envelope — this plan does not fit the balance as written
+
+Checked against the account on 2026-09-13: **credit ≈ $9.60.**
+
+| Spend | Estimate |
+|---|---|
+| P1a | ~$1 |
+| P1b | ~$3–4 |
+| P1c | ~$9–15 |
+| Stage 2 at P1a scale | ~$2–4 |
+| Stage 2 at P1c scale | ~$15–30 |
+| **Programme total (P1a→P1c + Stage 2)** | **~$35–50** |
+
+So the full design is **roughly four to five times the remaining credit**, and **P1c alone can
+consume it**. Open decision 4 cannot be answered as posed.
+
+**Recommended envelope, for sign-off:** fund **P1a + P1b (~$5)**, leaving ~$4.6 of headroom, and treat
+**P1c and Stage 2 as requiring an explicit top-up decision** taken in light of P1b's result. This is
+deliberately well short of the design's ambition: it buys the budget ladder at two scales and the
+gate decision, which is where the information actually is, and defers the expensive rungs until a
+positive makes them worth buying.
 
 ---
 
 ## 5. Gate 1
 
 **Proceed to Stage 2 if and only if all four criteria in §4.4 hold.**
+
+**The winning configuration is FROZEN at this gate.** Stage 2 inherits the epoch budget that won in
+Stage 1 and **does not re-tune per target**. This is what makes the transfer claim mean *"a single
+model evaluated on a dataset it was never trained on"*; if the configuration were chosen per target,
+Stage 2 would be N configurations and the claim would collapse back into the R1 situation. Choosing
+the budget on Stage 1's in-domain evidence is legitimate **only** because that is Stage 1's whole
+purpose — this is the one place where selection happens, and it happens once, before any target is
+evaluated.
 
 **If they do not hold, stop and publish the negative.** That outcome is genuinely informative —
 unlike the historic one — because it is the first test of fine-tuning under matched context, a
@@ -172,8 +250,9 @@ fine-tune ONE model on pool(T)   ->   evaluate on T's held-out test split
 |---|---|---|---|
 | `A_raw(T)` | — (in-context only) | T | baseline |
 | `B_in_domain(T)` | T's train split | T | **upper bound** — how much of the gap in-domain adaptation can close |
-| `C_pooled_all(T)` | all other datasets | T | the transfer test (heterogeneous pool) |
-| `D_pooled_homog(T)` | similarity-selected pool | T | pool-composition test |
+| `C_pooled_all(T)` | all other datasets | T | transfer, **heterogeneous** pool — run second (§6.3) |
+| `D_pooled_schema(T)` | **same-schema sub-pool** | T | transfer, **coherent** pool — **the recommended starting point** |
+| `D2_pooled_sim(T)` | similarity-selected pool | T | pool-composition variant (optional, secondary) |
 | `R_random(T)` | **control:** randomly permuted labels, same pool size | T | separates "fine-tuning degrades" from "wrong pool data degrades" |
 | `E_glm(T)`, `F_catboost(T)` | — | T | actuarial floor |
 
@@ -187,17 +266,32 @@ columns** for coil2000 / uslapseagent / eudirectlapse / spanish_motor_lapse, and
 different definitions (`CARAVAN`, `surrender`, `lapse`, `LapseB`) — all binary insurance events, but
 not the same event.
 
-| Option | Approach | Trade-off |
-|---|---|---|
-| **A. Same-schema sub-pools** | pool only datasets that share a usable schema | cleanest, smallest pools — **recommended starting point**, because it removes the harmonisation confound entirely |
-| B. Feature intersection | keep only universally-present features | may discard the most predictive columns |
-| C. Union with missingness | all columns, imputed/flagged | largest pool, heavy imputation, risk of the historic incoherence |
-| D. Minimal common schema | hand-picked harmonised features | interpretable, discards most signal |
+These options are named **H1–H4** deliberately: the previous edition used `A`–`D`, which collided
+with the arm names in §6.2 (`A_raw`, `C_pooled_all`) so the same letter meant two things in one
+document.
 
-**Recommendation: start with A.** If the transfer arm is negative under A, the result is
-interpretable. Under C, a negative could mean "pooling incoherent schemas destroys the model" — the
-ambiguity that made the historic result unusable. The pooling *target* framing (a generic insurance
-prior) must be stated explicitly in any report.
+| Option | Approach | Trade-off | Arm that runs it |
+|---|---|---|---|
+| **H1. Same-schema sub-pools** | pool only datasets that share a usable schema | cleanest, smallest pools — **recommended starting point**, because it removes the harmonisation confound entirely | `D_pooled_schema(T)` |
+| H2. Feature intersection | keep only universally-present features | may discard the most predictive columns | — (not built) |
+| H3. Union with missingness | all columns, imputed/flagged | largest pool, heavy imputation, risk of the historic incoherence | `C_pooled_all(T)` |
+| H4. Minimal common schema | hand-picked harmonised features | interpretable, discards most signal | — (not built) |
+
+**Recommendation: start with H1 (`D_pooled_schema`).** If the transfer arm is negative under a
+coherent pool, the result is interpretable. Under H3 (`C_pooled_all`), a negative could mean "pooling
+incoherent schemas destroys the model" — the ambiguity that made the historic result unusable.
+
+**Pool order is therefore pre-registered, not merely preferred:**
+
+1. **Coherent pool first** (`D_pooled_schema`, H1). This is the interpretable test, and it gates the second.
+2. **Heterogeneous pool second** (`C_pooled_all`, H3), and its result is read **only if** the coherent
+   pool's result was interpretable. A negative under H3 after a *positive* H1 is informative ("the
+   pool's incoherence cost us the gain"); a negative under H3 after a *negative* H1 tells us nothing new.
+
+**Run order does not license tuning.** The budget stays frozen (§5); only the pool policy varies
+between these arms, and it varies by design, not by looking at the target's test rows.
+
+The pooling *target* framing (a generic insurance prior) must be stated explicitly in any report.
 
 ### 6.4 Targets
 
@@ -207,13 +301,31 @@ the historic set makes the re-test legible; the R1 set connects to R1.
 
 ### 6.5 Pre-registered decision rule
 
-Reuse the historic rule's shape (it was well designed):
+**Comparators are named explicitly, and the control is tested first.** A rule that does not name
+its comparators can be satisfied by the wrong arm — which is the defect the rejected R3 gate below
+has. So: **apply every criterion to `R_random` first.** If the control passes a criterion, that
+criterion cannot discriminate the hypothesis and must be replaced before the run.
 
-1. pooled mean Δlog loss (and ΔROC AUC) **positive** for at least one pool policy;
-2. **stable across seeds** — not driven by one target or seed;
-3. calibration not materially degraded;
-4. **and** the transfer arm's gain is reported as a fraction of `B_in_domain`'s gain, so the
-   "how much transfers" question is answered numerically.
+"The mechanism works" for transfer requires **all** of:
+
+1. **`C`/`D` beat `A_raw`** on pooled mean Δlog loss (and ΔROC AUC), and
+2. **`C`/`D` beat `R_random`** — the label-permuted control. Without this, "fine-tuning on *any*
+   data helps" cannot be separated from "the pool's *signal* helps", and the control's own stated
+   reading ("separates fine-tuning degrades from wrong pool data degrades") overstates what a
+   permuted-label pool can show: it controls *fine-tuning on signal-free data*, which is narrower;
+3. the **primary** pool policy is the one that must clear the bar — `D_pooled_schema` (H1, coherent),
+   per the pre-registered order in §6.3. `C_pooled_all` is **confirmatory, not an alternative bite
+   at the cherry**: "positive for at least one policy" across two policies is a multiplicity hazard,
+   and with the order fixed in advance there is no justification for choosing the winner after seeing
+   both;
+4. **stable across seeds and targets** — not driven by one seed or one target. The aggregation rule
+   must be stated (inverse-variance / random-effects summary), because a plain mean over targets of
+   9.8K–53.5K rows lets the largest target dominate;
+5. calibration not materially degraded — **with the ECE/Brier tolerance set numerically in advance**;
+   an unset tolerance is not a pre-registration;
+6. **and** the transfer arm's gain is reported as a **fraction of `B_in_domain`'s gain**, so the
+   "how much transfers" question is answered numerically — and so a small absolute gain cannot be
+   presented as a large one relative to what in-domain adaptation achieved.
 
 **Rejected:** the `R3 gate` in `FINE_TUNING_EXPERIMENT_DESIGN.md` — its second criterion (B > E)
 is satisfied by raw TabPFN, so it cannot discriminate the fine-tuning hypothesis.
@@ -222,7 +334,8 @@ is satisfied by raw TabPFN, so it cannot discriminate the fine-tuning hypothesis
 
 Stage 2 multiplies Stage 1's per-target cost by the number of targets and pool policies. At P1a
 scale, roughly **$2–4**; at P1c scale, **$15–30**. Gated behind Gate 1, so nothing is spent until the
-mechanism is established.
+mechanism is established. Note that at P1c scale Stage 2 **cannot be funded from the current
+balance** — see §4.5.1; the gate bounds the *order* of spending, not its ceiling.
 
 ---
 
@@ -261,6 +374,14 @@ confound.
 - [ ] Dataset hashes, git SHA, package versions, GPU/driver and image digest are recorded.
 - [ ] Fine-tuned weights saved or a reproduction command recorded.
 - [ ] Cost and instance-state history recorded per arm.
+- [ ] **No test row entered training, validation, early stopping, the inference context, or model
+      selection** — for any arm, in any stage (the §3.1 rule).
+- [ ] **Context and validation indices asserted disjoint from test indices, and recorded** (PR-10),
+      with `validation_split_ratio` and effective training rows per arm.
+- [ ] **Epochs actually executed recorded per arm**, and the ladder reported against those — not
+      against the epochs requested (§4.2).
+- [ ] **The loader's pre-split row cap recorded**, and reported as a selection limitation if the
+      source files are ordered (§3.1).
 
 ---
 
@@ -278,12 +399,19 @@ confound.
 
 ## 10. Open decisions for the team
 
+**These are tracked with options, recommendations and blanks to fill in
+`PILOT_2_DECISION_LOG.md`**, which is the document the review works through. Three of them
+(**D1** transfer vs few-shot, **D2** the schema-matching rule, **D3** the target set) change the
+*shape of the code*, not its parameters, so Stage 2 is not built until they are answered.
+
 1. **Sign-off on the two-stage, gated structure** — Stage 1 first, transfer only on a positive.
-2. **Feature harmonisation** (§6.3) — is option A (same-schema sub-pools) acceptable as the
-   starting point? Who owns the schema-matching call?
+2. **Feature harmonisation** (§6.3) — is option **H1** (same-schema sub-pools, run as
+   `D_pooled_schema`) acceptable as the starting point, with H3 (`C_pooled_all`) second and read only
+   if H1 was interpretable? Who owns the schema-matching call?
 3. **Target set for Stage 2** (§6.4) — historic four or R1 four?
-4. **Budget envelope** — which rungs are funded? P1a only (~$1), through P1b (~$4), or to P1c
-   (~$15)?
+4. **Budget envelope** (§4.5.1) — the full design is ~$35–50 against ~$9.60 of credit. Recommended:
+   fund **P1a + P1b (~$5)** and treat P1c and Stage 2 as a separate top-up decision. Confirm, or set
+   a different ceiling.
 5. **Pool policy** — the historic comparison was a coin flip under a confounded design. Re-test
    `similarity_topk` vs `mixed_baseline`, or fix one policy and spend the budget on power?
 6. **Audit schema sign-off** — is the manifest in `NEXT_STAGE_PROPOSAL.md` §4.2 sufficient for the

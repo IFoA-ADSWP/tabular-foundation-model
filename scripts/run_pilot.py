@@ -94,6 +94,17 @@ DATASETS = {
 DATA_DIR = REPO_ROOT / "data" / "raw"
 OUTPUT_DIR = REPO_ROOT / "outputs" / "finetune" / "pilot"
 
+# Where the datasets come from. `main` is a MOVING reference: if a CSV changes on that
+# branch, a re-run silently gets different bytes -- the content fingerprint can only
+# tell you it changed, it cannot recover the original. Pin it for a reproducible run:
+#
+#     export TFM_DATA_REF=<commit-sha>
+#
+# The ref and the resolved URL are recorded per dataset, so a run states exactly where
+# its bytes came from.
+DATA_REPO = os.environ.get("TFM_DATA_REPO", "IFoA-ADSWP/tabular-foundation-model")
+DATA_REF = os.environ.get("TFM_DATA_REF", "main")
+
 # Which arms are fine-tuning arms (subject to the matched-context assertion).
 FT_ARMS = ("B_in_domain", "B_ft3", "B_ft10", "B_ft30", "C_pooled_all", "D_pooled_homog")
 BASELINE_TABPFN_ARM = "A_raw"
@@ -127,10 +138,29 @@ def _git_info():
         except Exception:
             return None
 
+    porcelain = run("status", "--porcelain") or ""
+    tracked_changes = [
+        ln for ln in porcelain.splitlines() if ln[:2].strip() and not ln.startswith("??")
+    ]
+    # A recorded SHA only describes the code that ran if no TRACKED file was changed.
+    # Untracked files are excluded on purpose: the box's own bootstrap writes data and
+    # artefacts into the clone, and counting those would mark every real run dirty.
+    # The directories that actually affect a result are what matter.
+    code_changes = [
+        ln for ln in tracked_changes
+        if ln[3:].split("/")[0] in ("scripts", "src", "tests", "configs")
+    ]
     return {
         "branch": run("rev-parse", "--abbrev-ref", "HEAD"),
         "commit_sha": run("rev-parse", "HEAD"),
-        "dirty": bool(run("status", "--porcelain")),
+        "dirty": bool(tracked_changes),
+        "dirty_note": (
+            "tracked files modified; commit_sha does NOT describe the code that ran"
+            if tracked_changes else None
+        ),
+        "modified_tracked_files": sorted(ln[3:] for ln in tracked_changes)[:20],
+        "modified_code_files": sorted(ln[3:] for ln in code_changes)[:20],
+        "untracked_count": sum(1 for ln in porcelain.splitlines() if ln.startswith("??")),
     }
 
 
@@ -189,6 +219,13 @@ def dataset_fingerprint(name):
         "target_col": target,
         "positive_rate": round(float(y.mean()), 6),
         "n_positive": int(y.sum()),
+        # Provenance of the bytes: a content hash alone tells you a file CHANGED, not
+        # where to get the original back. DATA_REF pins the source; default `main` is a
+        # moving branch and is recorded as such so the gap is visible rather than implied.
+        "source_url": data_source_url(f"{name}.csv"),
+        "source_repo": DATA_REPO,
+        "source_ref": DATA_REF,
+        "source_ref_is_pinned": DATA_REF != "main",
     }
 
 
@@ -210,6 +247,58 @@ def _checkpoints():
     return found
 
 
+def _weights_provenance():
+    """The gated checkpoint this run used: which file, and its hash.
+
+    `checkpoints` (below) records the FILENAME of whatever .ckpt is on disk, which is
+    an assertion that the right weights were used, not proof of which bytes they were.
+    The fetch step (scripts/gpu_helpers/fetch_weights.py) computes the sha256 and drops
+    it here via TFM_WEIGHTS_MANIFEST, so the hash reaches the audit record instead of
+    stopping at the log.
+    """
+    info = {
+        "path": None,
+        "sha256": None,
+        "bytes": None,
+        "cached_before": None,
+        "downloaded": None,
+        "source": None,
+        "manifest_file": os.environ.get("TFM_WEIGHTS_MANIFEST"),
+    }
+    path = os.environ.get("TFM_WEIGHTS_MANIFEST")
+    if path and os.path.exists(path):
+        try:
+            with open(path) as f:
+                w = json.load(f)
+            info.update(
+                path=w.get("target_path"),
+                sha256=w.get("sha256"),
+                bytes=w.get("bytes"),
+                cached_before=w.get("cached"),
+                downloaded=w.get("downloaded"),
+                source=w.get("repo_id"),
+            )
+        except Exception as e:
+            info["error"] = f"{type(e).__name__}: {e}"
+    return info
+
+
+def _container_provenance():
+    """The container this run happened in.
+
+    The image is chosen at run time from the host's CUDA capability, so it is a moving
+    part -- it must be recorded where the audit record lives, not only in the runner's
+    own JSON. The runner interpolates these into the onstart environment.
+    """
+    keys = {
+        "image_ref": "TFM_IMAGE_REF",
+        "run_stamp": "TFM_RUN_STAMP",
+        "machine_id": "TFM_MACHINE_ID",
+        "host_id": "TFM_HOST_ID",
+    }
+    return {k: (os.environ.get(v) or None) for k, v in keys.items()}
+
+
 def _runtime_versions():
     """Record the stack that produced a result.
 
@@ -223,7 +312,18 @@ def _runtime_versions():
         "torch": torch.__version__,
         "numpy": np.__version__,
     }
-    for mod_name, key in (("tabpfn", "tabpfn"), ("sklearn", "scikit-learn")):
+    # These four can change a RESULT, not just a log line:
+    #   tabpfn   -- the fine-tuning API and default checkpoint
+    #   sklearn  -- the split, the scaler, LogisticRegression defaults, the metrics
+    #   pandas   -- loading and one-hot encoding, i.e. the feature matrix itself
+    #   catboost -- arm F. If it is absent the arm silently falls back to
+    #               RandomForestClassifier, so its presence must be recorded, not assumed.
+    for mod_name, key in (
+        ("tabpfn", "tabpfn"),
+        ("sklearn", "scikit-learn"),
+        ("pandas", "pandas"),
+        ("catboost", "catboost"),
+    ):
         try:
             versions[key] = getattr(__import__(mod_name), "__version__", "unknown")
         except Exception:
@@ -234,8 +334,16 @@ def _runtime_versions():
 # ---------------------------------------------------------------------------
 # Data
 # ---------------------------------------------------------------------------
-def download_file(filename, repo="IFoA-ADSWP/tabular-foundation-model"):
-    url = f"https://raw.githubusercontent.com/{repo}/main/data/raw/{filename}"
+def data_source_url(filename, repo=None, ref=None):
+    """Resolved URL for a dataset, so the manifest states where the bytes came from."""
+    return (
+        f"https://raw.githubusercontent.com/{repo or DATA_REPO}/"
+        f"{ref or DATA_REF}/data/raw/{filename}"
+    )
+
+
+def download_file(filename, repo=None, ref=None):
+    url = data_source_url(filename, repo, ref)
     dest = DATA_DIR / filename
     if dest.exists():
         return True
@@ -295,6 +403,71 @@ def load_dataset(name, target_col, max_rows=None):
     return X, y, {"row_cap": max_rows, "row_cap_applied": sampled, "rows_loaded": int(len(df))}
 
 
+def assert_no_test_contamination(train_idx, test_idx, dropped_idx=None, pool_idx=None):
+    """Refuse a split in which test rows could reach fitting (PR-10).
+
+    The mirror of the PR-5 pool assertion. `build_pool` proves the transfer target is
+    absent from its own pool; this proves the test rows are absent from everything the
+    model is fitted on. Both are cheap set operations, and both are RECORDED rather than
+    assumed -- "disjoint by construction" is this project's least reliable category of
+    guarantee. The inference context is precisely where a future change (pooling, a
+    refit on the full dataset) could pull test rows in silently, and nothing else would
+    notice: the metrics would simply improve.
+
+    WHAT THIS CAN AND CANNOT PROVE. It proves the split WE construct is clean -- the
+    indices we hand to each arm. It cannot prove anything about the reserve the library's
+    trainer carves out internally for early stopping, because that happens inside the
+    library on the rows we pass in; the guarantee there is that we pass ONLY training
+    rows, and the fact that must be recorded (not asserted) is the trainer's
+    `validation_split_ratio`, via the effective config in each arm's record.
+
+    Raises on:
+      * a test row in the training indices          -- the ordinary leak
+      * a test row in the dropped remainder         -- defensive; that remainder is rows
+        discarded by the train-size cap, and it must not be test rows either
+      * any index outside `pool_idx`, when supplied -- a split may only use rows it owns
+    """
+    train = np.asarray(train_idx).ravel()
+    test = np.asarray(test_idx).ravel()
+    out = {
+        "train_test_disjoint": True,
+        "dropped_test_disjoint": True,
+        "n_dropped": 0,
+        "context_source": "train_split_only",
+        "checked": "constructed_split_only",
+    }
+
+    overlap = np.intersect1d(train, test, assume_unique=False)
+    if overlap.size:
+        raise ValueError(
+            f"TEST CONTAMINATION: {overlap.size} test row(s) appear in the training "
+            f"indices (first: {overlap[:5].tolist()}). No metric from this split is "
+            f"reportable -- this is the leakage PILOT_2_DESIGN.md 3.1 forbids."
+        )
+
+    if dropped_idx is not None:
+        dropped = np.asarray(dropped_idx).ravel()
+        d_overlap = np.intersect1d(dropped, test, assume_unique=False)
+        if d_overlap.size:
+            raise ValueError(
+                f"TEST CONTAMINATION: {d_overlap.size} test row(s) appear in the dropped "
+                f"remainder (first: {d_overlap[:5].tolist()})."
+            )
+        out["n_dropped"] = int(dropped.size)
+
+    if pool_idx is not None:
+        pool = np.asarray(pool_idx).ravel()
+        for label, arr in (("training", train), ("test", test),
+                           ("dropped", np.asarray(dropped_idx).ravel()
+                            if dropped_idx is not None else np.empty(0, dtype=int))):
+            if arr.size and not np.isin(arr, pool).all():
+                raise ValueError(
+                    f"SPLIT OUT OF BOUNDS: {label} indices contain rows outside the "
+                    f"supplied pool -- a split may only use rows it owns."
+                )
+    return out
+
+
 def make_split(X, y, *, seed, train_size, test_size, fold=None, n_folds=None):
     """Produce a train/test split plus its fingerprint (PR-6).
 
@@ -302,6 +475,8 @@ def make_split(X, y, *, seed, train_size, test_size, fold=None, n_folds=None):
       * fold is None  -> single holdout split, train_size/test_size honoured
       * fold is given -> StratifiedKFold on all rows; train_size/test_size ignored
     """
+    dropped_idx = None
+    pool_idx = np.arange(len(y))
     if fold is not None:
         skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
         folds = list(skf.split(X, y))
@@ -313,7 +488,11 @@ def make_split(X, y, *, seed, train_size, test_size, fold=None, n_folds=None):
             idx_all, test_size=n_test, random_state=seed, stratify=y
         )
         if train_size is not None and len(train_idx) > train_size:
-            train_idx, _ = train_test_split(
+            # The rows not kept as training data are the validation reserve. They are
+            # RETAINED (not discarded) so that PR-10 can assert them disjoint from test
+            # and a subset of train -- an unrecorded reserve is how "the model saw 90%
+            # of the rows" becomes invisible in a like-for-like comparison.
+            train_idx, dropped_idx = train_test_split(
                 train_idx,
                 train_size=train_size,
                 random_state=seed,
@@ -322,6 +501,12 @@ def make_split(X, y, *, seed, train_size, test_size, fold=None, n_folds=None):
 
     train_idx = np.sort(np.asarray(train_idx))
     test_idx = np.sort(np.asarray(test_idx))
+    if dropped_idx is not None:
+        dropped_idx = np.sort(np.asarray(dropped_idx))
+
+    # PR-10: fatal before any arm runs, exactly like the PR-4 context assertion.
+    contamination = assert_no_test_contamination(train_idx, test_idx, dropped_idx, pool_idx)
+
     fp = {
         "policy": "stratified_kfold" if fold is not None else "holdout_then_train_cap",
         "seed": seed,
@@ -334,6 +519,14 @@ def make_split(X, y, *, seed, train_size, test_size, fold=None, n_folds=None):
         "train_index_sha256": _sha256_array(train_idx),
         "test_index_sha256": _sha256_array(test_idx),
         "test_rows_excluded_from_fit": True,
+        # PR-10: recorded, not assumed.
+        # PR-10: the rows dropped by the train-size cap, fingerprinted so the
+        # selection step is visible rather than implied by the row counts.
+        "n_dropped": int(dropped_idx.size) if dropped_idx is not None else 0,
+        "dropped_index_sha256": (
+            _sha256_array(dropped_idx) if dropped_idx is not None else None
+        ),
+        "leakage_assertion": contamination,
     }
     return X[train_idx], X[test_idx], y[train_idx], y[test_idx], train_idx, test_idx, fp
 
@@ -604,6 +797,20 @@ def save_model_artifact(clf, run_dir, arm):
     return out
 
 
+def record_slot(output_dir, dataset, arm, seed, fold):
+    """Where an arm-run record lives. ONE definition, deliberately.
+
+    The overwrite guard and the writer MUST agree on this path. The previous guard checked
+    `if folds is not None` while the writer checks `if fold is None and seed == DEFAULT_SEED`,
+    so for a multi-seed run without folds the guard inspected a flat slot the writer never
+    uses -- a guard that reports clean while the write clobbers something, which is worse
+    than no guard because it is trusted.
+    """
+    if fold is None and seed == DEFAULT_SEED:
+        return Path(output_dir) / dataset / arm
+    return Path(output_dir) / dataset / arm / f"seed{seed}_fold{fold}"
+
+
 def save_results(
     dataset,
     arm,
@@ -624,12 +831,25 @@ def save_results(
     context_note,
     extra=None,
     model_info=None,
+    estimator_class=None,
+    overwrite=False,
 ):
-    """Write one arm-run record. Layout is legacy-compatible for the single-split case."""
-    if fold is None and seed == DEFAULT_SEED:
-        run_dir = output_dir / dataset / arm
-    else:
-        run_dir = output_dir / dataset / arm / f"seed{seed}_fold{fold}"
+    """Write one arm-run record. Layout is legacy-compatible for the single-split case.
+
+    REFUSES to replace an existing record unless `overwrite` is set. The CLI's pre-flight
+    check is a courtesy that lists every clash up front; THIS is the enforcement, because
+    the pre-flight only covers the CLI. An in-process caller -- a notebook, a test, an
+    import -- reaches this function directly, and a 200/100 toy run reached it and replaced
+    a committed record without anything complaining.
+    """
+    run_dir = record_slot(output_dir, dataset, arm, seed, fold)
+    existing = run_dir / "meta.json"
+    if existing.exists() and not overwrite:
+        raise FileExistsError(
+            f"REFUSING TO OVERWRITE: {existing} already exists. A record at this slot was "
+            f"produced by an earlier run -- an ad-hoc run must not replace it. Re-run with "
+            f"--overwrite to replace it deliberately, or --outdir to write elsewhere."
+        )
     run_dir.mkdir(parents=True, exist_ok=True)
 
     np.save(run_dir / "predictions.npy", y_prob)
@@ -654,6 +874,13 @@ def save_results(
         "status": "success",
         "versions": _runtime_versions(),
         "checkpoints": _checkpoints(),
+        # PR-1 provenance: WHICH weights (hash, not just filename) and WHICH container
+        # (image, machine) -- both are moving parts a re-run has to be able to pin.
+        "weights": _weights_provenance(),
+        "container": _container_provenance(),
+        # The estimator that ACTUALLY ran. Arm F silently falls back to a RandomForest
+        # when catboost is unavailable, so the label alone is not evidence.
+        "estimator_class": estimator_class,
         # PR-4: effective inference context, per arm
         "inference_context": {"rows": context_rows, "mechanism": context_note},
         # PR-6
@@ -697,6 +924,7 @@ def run_single_dataset(
     *,
     config=None,
     seeds=None,
+    overwrite=False,
     folds=None,
     train_size=TRAIN_SIZE,
     test_size=TEST_SIZE,
@@ -790,6 +1018,16 @@ def run_single_dataset(
                         else {"model_saved": False, "model_save_note": "not requested (--save-models)"}
                     )
 
+                    # What ran, not what was requested. Arm F falls back to a
+                    # RandomForest when catboost is missing, and that substitution was
+                    # previously invisible -- the row still said "F_catboost".
+                    est_cls = f"{type(clf).__module__}.{type(clf).__name__}" if clf is not None else None
+                    if arm_name == "F_catboost" and clf is not None and "CatBoost" not in type(clf).__name__:
+                        print(
+                            f"\n    !! SUBSTITUTION: arm {arm_name} ran {est_cls}, NOT CatBoost. "
+                            f"The metrics below are a RandomForest's; do not report them as CatBoost."
+                        )
+
                     meta = save_results(
                         ds_name,
                         arm_name,
@@ -808,6 +1046,8 @@ def run_single_dataset(
                         context_rows=ctx_rows,
                         context_note=ctx_note,
                         model_info=model_info,
+                        estimator_class=est_cls,
+                        overwrite=overwrite,
                     )
                     meta["_split_index_hash"] = split_fp["train_index_sha256"][:12]
                     results.append(meta)
@@ -818,8 +1058,90 @@ def run_single_dataset(
                 except Exception as e:
                     elapsed = time.time() - start
                     print(f"ERROR: {type(e).__name__}: {e} ({elapsed:.1f}s)")
+                    # Leave evidence. An arm that dies must not look like an arm that
+                    # was never attempted -- that ambiguity is what cost time on R1.
+                    fr = save_failure_record(
+                        OUTPUT_DIR, ds_name, arm_name, seed, fold, config, e, elapsed
+                    )
+                    print(f"       recorded failure -> {fr}")
 
     return results
+
+
+def save_failure_record(output_dir, dataset, arm, seed, fold, config, error, elapsed=None):
+    """Record a FAILED arm as a record, not as an absence.
+
+    When an arm raises, the success path simply never runs: no predictions.npy, no
+    meta.json, nothing. Downstream that is indistinguishable from an arm that was never
+    attempted -- and the R1 record's missing per-arm predictions were exactly that
+    ambiguity, which took a separate investigation to resolve. This writes the failure
+    into the same <dataset>/<arm>/[seed.._fold..] slot as a success, under a filename
+    that cannot collide with it, so the gap is legible instead of silent.
+    """
+    run_dir = output_dir / dataset / arm
+    if seed is not None and fold is not None:
+        run_dir = run_dir / f"seed{seed}_fold{fold}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    rec = {
+        "schema_version": SCHEMA_VERSION,
+        "status": "failed",
+        "dataset": dataset,
+        "arm": arm,
+        "seed": seed,
+        "fold": fold,
+        "error": f"{type(error).__name__}: {error}",
+        "error_type": type(error).__name__,
+        "elapsed_seconds": round(elapsed, 3) if elapsed is not None else None,
+        "failed_at": datetime.now(timezone.utc).isoformat(),
+        "effective_config": dict(config),
+        "container": _container_provenance(),
+        "versions": _runtime_versions(),
+    }
+    path = run_dir / "meta.FAILED.json"
+    path.write_text(json.dumps(rec, indent=2, default=str))
+    return path
+
+
+def report_incomplete(output_dir=None):
+    """Surface runs that did not finish, and arms that failed.
+
+    Two distinct states, both previously invisible:
+      * a manifest still `status: running`  -> the process died mid-run (OOM, kill)
+      * a `meta.FAILED.json` in an arm slot -> that arm raised an exception
+
+    Neither is an error in itself. The point is that they are STATED rather than
+    inferred from an absent file, which is the only way a reader can tell "this did not
+    work" apart from "this was never tried".
+    """
+    out = Path(output_dir) if output_dir else OUTPUT_DIR
+    incomplete, failed = [], []
+    for mp in sorted(out.glob("manifest_*.json")):
+        try:
+            d = json.loads(mp.read_text())
+        except Exception:
+            incomplete.append((mp.name, "unparseable"))
+            continue
+        if d.get("status") != "success":
+            incomplete.append((d.get("run_id", mp.stem), d.get("status")))
+    for fp in sorted(out.rglob("meta.FAILED.json")):
+        try:
+            d = json.loads(fp.read_text())
+            failed.append((d.get("dataset"), d.get("arm"), d.get("seed"), d.get("error")))
+        except Exception:
+            failed.append((str(fp), None, None, "unparseable"))
+
+    print()
+    if incomplete:
+        print("INCOMPLETE RUNS (manifest not status=success) -- exclude from results:")
+        for rid, st in incomplete:
+            print(f"  {rid}: status={st}")
+    if failed:
+        print("FAILED ARMS (recorded, not silent):")
+        for ds, arm, seed, err in failed:
+            print(f"  {ds}/{arm} seed={seed}: {err}")
+    if not incomplete and not failed:
+        print("Completeness check: no incomplete runs, no failed arms.")
+    return {"incomplete_runs": incomplete, "failed_arms": failed}
 
 
 def aggregate_results(output_dir=None):
@@ -832,6 +1154,9 @@ def aggregate_results(output_dir=None):
     print("\n" + "=" * 70)
     print("PILOT RESULTS SUMMARY")
     print("=" * 70)
+
+    # State what is MISSING before summarising what is present.
+    report_incomplete(output_dir)
 
     all_results = []
     for meta_path in sorted(output_dir.glob("**/meta.json")):
@@ -864,6 +1189,18 @@ def aggregate_results(output_dir=None):
 def main():
     parser = argparse.ArgumentParser(description="Fine-tuning pilot (Pilot 2 schema v2)")
     parser.add_argument("--dataset", type=str, help="Run one dataset")
+    parser.add_argument(
+        "--outdir",
+        type=str,
+        default=None,
+        help="Where records are written (default: outputs/finetune/pilot). Use this for "
+        "ad-hoc or dry runs so they cannot touch the committed experiment records.",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Permit writing over existing records. Without it a run refuses to clobber.",
+    )
     parser.add_argument(
         "--arms",
         type=str,
@@ -922,6 +1259,59 @@ def main():
     config["learning_rate"] = args.learning_rate
     config["n_estimators"] = args.n_estimators
 
+    # ---------------- Reproducibility gates, before any work runs ----------------
+    # 1. Route records elsewhere when asked, so an ad-hoc run cannot land in the tree
+    #    that holds the committed experiment records. OUTPUT_DIR is read by the arm
+    #    runner, the manifest writer and the aggregator, so it is set once, here.
+    global OUTPUT_DIR
+    if args.outdir:
+        OUTPUT_DIR = Path(args.outdir).expanduser().resolve()
+
+    # 2. Never silently clobber an existing record. An ad-hoc run written with the
+    #    default path overwrote the committed R1 record for coil2000/E_glm and deleted
+    #    the aggregate -- damage invisible until somebody opened the file. Refusing is
+    #    the only failure mode that cannot lose data quietly.
+    run_datasets = [args.dataset] if args.dataset else DATASETS
+    run_arms = arms or list(ARMS)
+    clashes = []
+    for _ds in run_datasets:
+        for _arm in run_arms:
+            for _seed in seeds:
+                # Same helper as the writer -- never a second copy of this rule.
+                for _fold in (range(args.folds) if args.folds else [None]):
+                    _slot = record_slot(OUTPUT_DIR, _ds, _arm, _seed, _fold)
+                    if (_slot / "meta.json").exists():
+                        _rel = _slot.relative_to(OUTPUT_DIR)
+                        if _rel not in clashes:
+                            clashes.append(_rel)
+    if clashes and not args.overwrite:
+        print(f"\nREFUSING TO OVERWRITE: {len(clashes)} existing record(s) would be replaced.")
+        for _c in clashes[:10]:
+            print(f"  {_c}/meta.json")
+        if len(clashes) > 10:
+            print(f"  ... and {len(clashes) - 10} more")
+        print("  Re-run with --overwrite to replace them, or --outdir to write elsewhere.")
+        raise SystemExit(2)
+
+    # 3. A recorded SHA is only meaningful if no tracked file was modified. Untracked
+    #    files are ignored (the box's own bootstrap writes data and artefacts into the
+    #    clone, which would mark every real run dirty). On the box this is fatal
+    #    (TFM_REQUIRE_CLEAN_TREE=1, set by the bootstrap): a real run must not record a
+    #    SHA that does not describe its code. Locally it warns, because editing scripts
+    #    is the normal state of a working tree.
+    _git_now = _git_info()
+    if _git_now.get("dirty"):
+        print("\n!! WARNING: tracked files are modified, so commit_sha does NOT describe")
+        print("!! the code about to run. The manifest records exactly which files differ.")
+        for _f in (_git_now.get("modified_tracked_files") or [])[:5]:
+            print(f"!!   {_f}")
+        if os.environ.get("TFM_REQUIRE_CLEAN_TREE") == "1" and _git_now.get("modified_code_files"):
+            print("\nFATAL: TFM_REQUIRE_CLEAN_TREE=1 and code under scripts/, src/ or tests/")
+            print("is modified. A run whose provenance matters must have a clean tree.")
+            for _f in (_git_now.get("modified_code_files") or [])[:5]:
+                print(f"  {_f}")
+            raise SystemExit(3)
+
     started = datetime.now(timezone.utc)
     run_id = started.strftime("%Y%m%dT%H%M%SZ")
 
@@ -969,6 +1359,15 @@ def main():
         "host": _host_info(),
         "env": _runtime_versions(),
         "checkpoints": _checkpoints(),
+        # Reproducibility inputs that were previously implicit or absent:
+        "weights": _weights_provenance(),
+        "container": _container_provenance(),
+        "data_source": {
+            "repo": DATA_REPO,
+            "ref": DATA_REF,
+            "ref_is_pinned_commit": DATA_REF != "main",
+            "note": "ref 'main' is a MOVING branch; export TFM_DATA_REF=<sha> to pin",
+        },
         "config": config,
         "epochs": config["epochs"],
         "legacy_config_keys_ignored": list(LEGACY_UNUSED_KEYS),
@@ -982,7 +1381,19 @@ def main():
         "dataset_fingerprints": fingerprints,
         "pool": pool_meta,
         "save_models": bool(args.save_models),
+        # A dry run (mock vastai) must be distinguishable from a real one at the record
+        # level, not only by whether someone remembers it was a mock.
+        "dry_run": os.environ.get("TFM_DRY_RUN") == "1",
     }
+
+    # Write the manifest BEFORE the first arm runs, with status "running". This is the
+    # incomplete-run marker. R1's kill was an OOM, which takes the interpreter down
+    # without running `finally`, so a manifest written only at the end never appeared at
+    # all -- leaving an abandoned run indistinguishable from one that never started.
+    # A manifest still saying "running", with no finished_at, is now a positive signal
+    # that a run died. Every exit path rewrites it (success, failure, exception).
+    manifest["pid"] = os.getpid()
+    write_run_manifest(manifest, OUTPUT_DIR)
 
     try:
         if args.dataset:
@@ -991,6 +1402,7 @@ def main():
                 arms,
                 config=config,
                 seeds=seeds,
+                overwrite=args.overwrite,
                 folds=args.folds,
                 train_size=train_size,
                 test_size=test_size,
@@ -1004,6 +1416,7 @@ def main():
                     arms,
                     config=config,
                     seeds=seeds,
+                    overwrite=args.overwrite,
                     folds=args.folds,
                     train_size=train_size,
                     test_size=test_size,

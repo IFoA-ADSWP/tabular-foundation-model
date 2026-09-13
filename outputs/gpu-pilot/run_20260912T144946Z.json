@@ -1,0 +1,21 @@
+{
+  "run_id": "20260912T144946Z",
+  "instance_id": "50757464",
+  "gpu_name": "RTX_6000Ada",
+  "dph_total": 0.6555555555555556,
+  "gpu_ram_gb": 49.1,
+  "cpu_ram_gb": 515.0,
+  "reliability": "0.9957",
+  "cuda_max_good": "12.7",
+  "image": "pytorch/pytorch:2.6.0-cuda12.6-cudnn9-runtime",
+  "transport": "execute",
+  "arms": "A_raw,B_in_domain",
+  "disk_requested_gb": "60",
+  "t_create": "1789224400",
+  "t_running": "1789224548",
+  "t_end": "1789224585",
+  "wall_seconds": 185,
+  "wall_minutes": 3.08,
+  "est_cost_usd": 0.0337,
+  "bootstrap_rc": "0"
+}
