@@ -87,6 +87,38 @@ print('torch', torch.__version__, '| cuda', torch.version.cuda,
     exit 2
 fi
 
+# ---- 3a. Get the gated weights, ONCE, explicitly (PR-9) ----
+# The licence check lives inside TabPFN's weight-download path and fires only on a
+# CACHE MISS: when the .ckpt is already on disk the library returns early and never
+# calls ensure_license_accepted. So fetching the weights here, as one explicit step,
+# means (a) the token is used exactly once per instance rather than implicitly inside
+# the first arm's fit(), (b) a failure is loud and early instead of reading like a
+# model error, and (c) the resolved checkpoint is hashed for the run manifest -- the
+# weights ID the runbook requires, recorded rather than inferred.
+#
+# This step is an OPTIMISATION, not the gate. The preflight below stays authoritative:
+# if this fetch fails we still run the preflight, because the library's own path may
+# succeed where ours did not (different auth resolution). Only a positive "cached"
+# result changes control flow, by skipping the preflight entirely.
+echo "--- fetching gated TabPFN weights (PR-9) ---"
+WEIGHTS_OUT="$(python3 scripts/gpu_helpers/fetch_weights.py 2>/dev/null)"
+WEIGHTS_RC=$?
+WEIGHTS_JSON="$(printf '%s\n' "$WEIGHTS_OUT" | awk '/^__WEIGHTS_JSON__$/{f=1;next} f')"
+WEIGHTS_CACHED="false"
+case "$WEIGHTS_JSON" in
+    *'"cached": true'*) WEIGHTS_CACHED="true" ;;
+esac
+if [ -n "$WEIGHTS_JSON" ]; then
+    printf '%s\n' "$WEIGHTS_JSON" | sed 's/^/    /'
+else
+    echo "    WARNING: fetch_weights.py produced no parseable JSON (rc=$WEIGHTS_RC)" >&2
+fi
+if [ "$WEIGHTS_CACHED" = "true" ]; then
+    echo "    weights already cached -- the licence gate will NOT fire for this run"
+else
+    echo "    weights not cached (rc=$WEIGHTS_RC) -- falling through to the preflight"
+fi
+
 # ---- 3b. Prove the TabPFN licence BEFORE running any arm ----
 # A token being PRESENT is not the same as a token WORKING. With an un-accepted
 # licence every arm dies in about a second, with a message that reads like a model
@@ -97,6 +129,10 @@ fi
 #
 # NOTE: `python3 -c` and not a heredoc. The header still documents piping this
 # script to `bash -s`, and a heredoc would swallow the rest of the script from stdin.
+if [ "$WEIGHTS_CACHED" = "true" ]; then
+    echo "########## PREFLIGHT SKIPPED (weights already cached) ##########"
+    echo "    the licence gate cannot fire: TabPFN returns before ensure_license_accepted"
+else
 echo "--- TabPFN auth preflight (forces the gated weight download) ---"
 # On failure this prints the DECISION INPUTS, not just the exception. The generic
 # licence error is raised from a fall-through that has three distinct causes --
@@ -210,6 +246,7 @@ if [ "$PREFLIGHT_RC" -ne 0 ]; then
     exit 3
 fi
 echo "########## PREFLIGHT OK ##########"
+fi
 
 # ---- 4. Run each arm in its own process ----
 for arm in ${ARMS//,/ }; do
@@ -233,28 +270,24 @@ echo "########## ARTIFACTS ##########"
 ls -lR outputs/finetune/pilot 2>/dev/null | head -40
 
 # ---- 6. Emit results through the LOG STREAM ----
-# This is the only return channel that always works:
+# The only return channel that always works:
 #   * `vastai execute` is NOT a shell -- it runs only ls/rm/du, so it can neither
 #     run a script nor read a file (a 400 "Invalid command given" otherwise).
-#   * SSH needs a registered key, and a TEAM-context account refuses to create one.
+#   * SSH needs a registered key, and a TEAM-context account refuses to create one
 #   * `vastai copy` wants --identity, i.e. a key again.
-# So the container log is it. Keep the payload to the small essentials (metrics
-# plus each run's meta.json) -- tens of KB, not the full 252 KB output tree.
-cd outputs/finetune/pilot 2>/dev/null || { echo "__ARTIFACTS_B64_BEGIN__"; echo "__ARTIFACTS_B64_END__"; exit 0; }
-PAYLOAD="pilot_metrics.parquet"
-for f in */meta.json; do [ -f "$f" ] && PAYLOAD="$PAYLOAD $f"; done
-# Predictions are useful but sizeable; include only if modest.
-if [ -f pilot_predictions.parquet ] && [ "$(wc -c < pilot_predictions.parquet)" -lt 300000 ]; then
-    PAYLOAD="$PAYLOAD pilot_predictions.parquet"
-fi
-# NOTE: the log caps each LINE at 500 characters (measured: our payload line came
-# back exactly 500 chars, and the next-longest line in the whole log was 363). A
-# single base64 line therefore truncates silently -- the payload decoded to a
-# 375-byte gzip that tar rejected as "truncated gzip input", while every log
-# message said the transfer had happened. So the payload is folded into lines well
-# under the cap, each tagged, and reassembled on the client.
+# So the container log is it. The payload now includes EVERY ARM'S PREDICTIONS
+# (PR-2): R1 returned none, so its headline numbers could be read but never
+# recomputed or paired-tested. Predictions are the evidence; metrics are a claim.
+#
+# Emission lives in its own script so the whole transport can be exercised locally,
+# at zero spend, against the verifier that consumes it (verify_artifacts.py):
+#
+#     bash scripts/gpu_helpers/emit_artifacts.sh <dir> | verify_artifacts.py --raw - --dest <dir>
+#
+# The payload declares its own size and checksum, so a short read -- a too-small
+# --tail window, or a run that died mid-emit -- is reported as such instead of
+# surfacing later as a cryptic "truncated gzip input".
 echo
-echo "__ARTIFACTS_BEGIN__"
-tar czf - $PAYLOAD 2>/dev/null | base64 -w0 2>/dev/null | fold -w 440 | sed 's/^/__ART__/'
-echo "__ARTIFACTS_END__"
+echo "########## ARTIFACTS ##########"
+bash scripts/gpu_helpers/emit_artifacts.sh outputs/finetune/pilot
 finish

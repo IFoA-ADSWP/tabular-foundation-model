@@ -30,13 +30,22 @@ fi
 
 mkdir -p /tmp/mockstate
 
+# Paths are overridable so a test can isolate itself from the real /tmp fixtures.
+MOCK_OFFERS_FILE="${MOCK_OFFERS:-/tmp/mock_offers.json}"
+MOCK_STATE_DIR="${MOCK_STATE_DIR:-/tmp/mockstate}"
+
 case "${1:-} ${2:-}" in
   "show user")        echo '{"credit": 10.0, "balance": 0, "total_spend": 0.0}' ;;
   "show instances")   echo '[]' ;;
   "show ssh-keys")    echo '[]' ;;
-  "search offers")    cat /tmp/mock_offers.json 2>/dev/null || echo '[]' ;;
+  "search offers")    cat "$MOCK_OFFERS_FILE" 2>/dev/null || echo '[]' ;;
   "create ssh-key")   echo "Failed with error 400: Team SSH keys are not supported." ;;
-  "create instance")  echo '{"success": true, "new_contract": 12345678}' ;;
+  "create instance")
+      # Record the create so a test can assert what was requested, not just that
+      # something happened.
+      echo '{"success": true, "new_contract": 12345678}'
+      printf '%s\n' "${MOCK_INSTANCE_ID:-12345678}" >> "$MOCK_STATE_DIR/created.txt"
+      ;;
   "show instance")
       # MOCK_SEQUENCE: comma-separated statuses consumed one per call, so a test
       # can reproduce the real provisioning order (unknown -> loading -> running).
@@ -76,28 +85,44 @@ case "${1:-} ${2:-}" in
 JSON
       fi
       ;;
-  "destroy instance") echo "destroying instance $3." ;;
+  "destroy instance")
+      echo "destroying instance $3."
+      # Record the teardown. The acceptance test for PR-8 is that the destroy FIRED
+      # -- a mock that only prints cannot prove the trap ran.
+      printf '%s\n' "$3" >> "$MOCK_STATE_DIR/destroyed.txt"
+      ;;
   "logs "*)
       # NOTE the trailing space: the dispatch is `case "$1 $2"`, so a bare
       # `"logs")` never matches `vastai logs <id> --tail N` and the branch is dead
       # -- which left the runner polling until its 60-minute ceiling.
       # The runner reads the LOG, not `execute`: `vastai execute` only runs
-      # ls/rm/du, so it can neither launch a script nor read a file. The artifact
-      # payload therefore arrives between markers on stdout.
+      # ls/rm/du, so it can neither launch a script nor read a file.
+      echo "########## GPU check ##########"
+      echo "  torch 2.7.0+cu128 | NVIDIA RTX A6000"
+      echo "########## PREFLIGHT OK ##########"
       echo "########## ARM A_raw ##########"
-      echo "  A_raw... ROC=0.7679 Brier=0.1523 (21.0s)"
+      echo "    A_raw... logloss=0.2080 ROC=0.7679 ECE=0.0310 (21.0s)"
       echo "########## ARM B_in_domain ##########"
-      echo "  B_in_domain... ROC=0.7701 Brier=0.0501 (18.2s)"
+      echo "    B_in_domain... logloss=0.2050 ROC=0.7701 ECE=0.0288 (18.2s)"
       echo "########## AGGREGATE ##########"
       echo "PILOT RESULTS SUMMARY"
-      echo "__ARTIFACTS_B64_BEGIN__"
-      if [ -d /tmp/mockstate ]; then
-          (cd /tmp/mockstate && tar czf - . 2>/dev/null) | base64 | tr -d '\n'
+      echo "########## ARTIFACTS ##########"
+      # DELEGATE TO THE REAL EMITTER. This branch previously emitted its own markers
+      # (__ARTIFACTS_B64_BEGIN__/END__), which the verifier does not look for -- so
+      # the mock happily validated a wire format that no longer existed. Calling the
+      # real script means the mock cannot drift from what the box actually does.
+      # A mock that invents its own format is how a transport that cannot exist got
+      # validated once already.
+      EMITTER="${MOCK_EMITTER:-scripts/gpu_helpers/emit_artifacts.sh}"
+      TREE="${MOCK_OUTPUT_TREE:-$MOCK_STATE_DIR/finetune/pilot}"
+      if [ -f "$EMITTER" ]; then
+          bash "$EMITTER" "$TREE"
       else
-          printf 'stub' | base64 | tr -d '\n'
+          echo "[mock] WARNING: emitter not found at '$EMITTER' -- emitting an empty payload" >&2
+          echo "__ARTIFACTS_INFO__ bytes=0 sha256=- lines=0 files=0"
+          echo "__ARTIFACTS_BEGIN__"
+          echo "__ARTIFACTS_END__"
       fi
-      echo
-      echo "__ARTIFACTS_B64_END__"
       echo "BOOTSTRAP FINISHED"
       ;;
   "execute "*)
