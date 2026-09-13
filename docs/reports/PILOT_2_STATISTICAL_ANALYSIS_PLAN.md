@@ -172,9 +172,42 @@ Stated so a reviewer can see the remaining gaps rather than assume the plan is c
 1. **The numeric ECE/Brier calibration tolerance** (design §6.5 criterion 5) — required in advance, and
    currently unset. **This must be a number before sign-off, or criterion 5 is not pre-registered.**
 2. **The primary target for the transfer step** (D4) — named before the run, not after.
-3. **The minimum detectable effect** the repeats are meant to resolve — worth stating so that "we were
-   underpowered" cannot be discovered late. The screening structure (3 seeds × 1 split) is sized to
-   detect an effect of the size the ladder suggests, not the 0.001–0.010 band R1 observed.
+3. **The minimum detectable effect** — computed rather than deferred: see §12.1.
+
+### 12.1 The minimum detectable effect, computed
+
+Using R1's own **paired** 95% intervals on 1,000 test rows, each dataset resolves:
+
+| Dataset | Test rows | Positives | Can resolve |
+| --- | --- | --- | --- |
+| coil2000 | 1,000 | 57 | **>= 0.061** ROC |
+| eudirectlapse | 1,000 | 132 | >= 0.026 |
+| spanish_motor_lapse | 1,000 | 354 | >= 0.030 |
+| uslapseagent | 1,000 | 369 | >= 0.009 |
+| **Pooled** (inverse-variance) | | | **~>= 0.008** |
+
+R1's observed in-domain deltas were **0.0008-0.0095**. So **three of the four datasets cannot resolve
+an effect of that size at 1,000 test rows**, and this design is a test for **large** effects
+(roughly >= 0.02 per dataset), not for the R1 band. Stated here so that "we were underpowered" cannot
+be discovered after a null.
+
+**The lever is not repeats.** Repeats reduce **seed and split** variance; they do not touch
+**row-sampling** variance, which is what sets this floor. Only more test rows (or more positives) move
+it. The 15x repeat structure therefore buys **stability, not sensitivity**, and should not be expected
+to convert a 0.005 effect into a detectable one.
+
+Two worked consequences:
+
+- To resolve **0.02** (the band this design can address): 533 positives on coil2000, 67 on
+  uslapseagent, 215 on eudirectlapse, 778 on spanish_motor_lapse - about 8,882 test rows for
+  coil2000, against 9,822 in the whole dataset.
+- To resolve **0.01** on coil2000 would need ~2,100 positives, about **35,500 test rows** where 9,822
+  exist. **Not attainable** - a reason to state the limitation, not to fund repeats against it.
+
+**What this means for the design's claims.** A positive result at these settings is evidence of a
+large effect; a null is *not* evidence that fine-tuning is worthless at the 0.001-0.010 scale. Every
+null is therefore reported **with its minimum detectable effect beside it**, so a reader can see what
+the experiment could and could not have seen.
 
 ## 13. Sign-off
 
