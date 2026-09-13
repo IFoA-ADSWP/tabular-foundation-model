@@ -1,0 +1,187 @@
+# Pilot 2 — Statistical Analysis Plan
+
+> **Status: DRAFT for sign-off.** This plan fixes the analysis **before** any data exists, so that the
+> result cannot be chosen after seeing it. Any departure is recorded as a dated deviation (§10).
+> Related: `PILOT_2_DESIGN.md` (§5, §6.5), `PILOT_2_DECISION_LOG.md` (D4, D8), `PILOT_2_EXECUTION_PLAN.md`.
+
+## 1. Purpose and scope
+
+The design says what will be *run*. This plan says what will be *computed* from it, how the numbers
+will be combined, what counts as a positive result, and how the result will be reported.
+
+It exists for one reason: the design tests many things in sequence (an epoch ladder, two experiments,
+two pool policies, a control, several metrics). **Without a fixed analysis, a programme with that many
+outputs will find something positive in it**, and the finding will be an artefact of which comparison
+was reported.
+
+Scope: the five gated steps of `PILOT_2_EXECUTION_PLAN.md` and the guarded interaction off-ramp. It does
+not re-open anything the design has settled.
+
+## 2. Estimands — what is actually being estimated
+
+**Sign convention is stated once and used everywhere.** For loss-type metrics, Δ is *arm − `A_raw`*, so
+**negative means the fine-tuned arm wins**. For discrimination and calibration metrics (ROC AUC, PR AUC,
+Brier), positive means improvement. Every reported number states which convention it uses.
+
+| Level | Estimand |
+| --- | --- |
+| **Primary** | The **paired** difference in log loss between the fine-tuned arm and `A_raw`, on the **same test rows**, for one dataset at one budget and one split |
+| **Co-primary** | The same paired difference in ROC AUC |
+| **Secondary (transfer)** | The paired difference for the pooled arms against `A_raw(T)` **and** against `R_random(T)`; and the transfer gain expressed as a **fraction of `B_in_domain`'s gain** |
+| **Tertiary (ladder)** | Marginal differences between adjacent epoch rungs (30 vs 10 vs 3) — exploratory, not a decision |
+| **Interaction (off-ramp only)** | The difference-of-differences between two factors, with everything else held fixed |
+
+## 3. Metrics
+
+- **Primary:** log loss — the metric the design's Gate 1 criterion is written in terms of.
+- **Co-primary:** ROC AUC.
+- **Also reported, no decision role:** PR AUC (average precision), Brier, and calibration (ECE).
+- **Calibration tolerance must be numeric.** Design §6.5 criterion 5 requires the ECE/Brier tolerance to
+  be set **in advance** — *an unset tolerance is not a pre-registration*. This is currently **TBD** and
+  is flagged in §12 as a required number before sign-off.
+
+All metrics are computed on the held-out test rows only. The pipeline asserts that no test row entered
+training, validation, early stopping, the inference context or model selection (design §3.1).
+
+## 4. Unit of analysis, pairing, and how intervals are built
+
+- **Unit of analysis:** one test row. Comparisons are **paired on identical test rows**, which is why
+  arms are always evaluated on the same split.
+- **Intervals:** paired bootstrap (10,000 resamples, percentile interval) for log loss, Brier and PR AUC;
+  a paired bootstrap or DeLong interval for ROC AUC. The bootstrap resamples **rows**, not repeat-level
+  means, so a split's uncertainty is not overstated by pretending its rows are independent across seeds.
+- **A caution that governs every reading of this plan.** R1's *unpaired* interval widths on ROC
+  (0.031–0.118) are **not** the yardstick for a paired comparison, and must not be quoted as though they
+  were. The relevant noise floor is the **paired interval computed for that comparison**. R1's unpaired
+  widths appear in the cost documents only as context for why one split cannot resolve small effects.
+- **Repeat structure is reported separately from row-level uncertainty.** The spread across seeds is
+  optimisation noise; across folds it is data noise; across rows it is sampling noise. These are three
+  different quantities and are never collapsed into a single "error bar".
+
+## 5. Aggregation and multiplicity (decision D4)
+
+**Per dataset.** The estimate is the mean Δ over repeats, with a paired interval, reported per dataset
+rather than only pooled — a pooled mean can hide a dataset where the sign reverses.
+
+**Across datasets and targets — the primary statistic is an inverse-variance (random-effects) summary,
+not a plain mean.** Targets span 9.8K–53.5K rows, so a plain mean over targets lets the largest target
+dominate. Each target contributes its estimate weighted by its precision, with between-target
+heterogeneity reported (the I²-style spread) rather than assumed away.
+
+**One pre-specified primary target** for the transfer step, fixed before the run (a D4 decision). The
+others are secondary and are reported as such.
+
+**The primary pool policy is `D_pooled_schema`** (design §6.3, the coherent pool). `C_pooled_all` is
+**confirmatory only** — "positive for at least one policy" across two policies is a multiplicity hazard,
+and with the order fixed in advance there is no justification for choosing the winner after seeing both.
+
+**Multiplicity.**
+
+| Family | Comparisons | Handling |
+| --- | --- | --- |
+| Primary comparison, per step | **one** | no correction needed — this is the point of the isolation design |
+| Per-dataset claims within a step | 4 | **Holm** correction across the family of four |
+| Transfer per-target claims | 4 | Holm, reported as secondary to the primary target |
+| Exploratory (epoch ladder, pool policies, calibration metrics, per-seed spread) | several | labelled **exploratory**, no decision role, no correction claimed |
+
+**What counts as a positive claim — all three must hold:**
+
+1. the primary comparison's **interval excludes zero**;
+2. the direction matches the **pre-registered** direction for that metric's sign convention;
+3. for transfer, the arm also **beats `R_random`** — without which "the pool's signal helps" cannot be
+   separated from "fine-tuning on signal-free data helps".
+
+## 6. Precision, escalation, and the rule for "inconclusive"
+
+**Screening is separated from estimation.** Steps 0–4 are screening: *does an effect exist, and is it
+bigger than the noise?* Step 5 is estimation: *how large is it, with what interval?* The two are never
+mixed in a single report.
+
+**Escalation rule, pre-registered.** If the primary interval **excludes zero** but is wider than the
+decision threshold, or if it **includes zero** while the point estimate favours the arm, then extend the
+repeat structure **once**, from 3 seeds × 1 split to 3 seeds × 5 folds, and no further. The escalation is
+a pre-set maximum, not a judgement call made when the result is disappointing.
+
+**If it is still inconclusive, the result is reported as inconclusive.** Not "trending", not "marginally
+significant", not "underpowered but encouraging". The programme stops and reports the interval.
+
+**The decision threshold is zero** — the rule is whether the interval excludes it — **and the measured
+noise floor for that comparison is always reported alongside**, so a reader can see how much of the
+interval is sampling noise.
+
+**Interactions** carry four times the variance of a main effect in a 2×2 with equal cells, so an
+interaction claim requires the pre-set maximum repeats **and** the four entry criteria in
+`PILOT_2_DESIGN_ALTERNATIVE.md`. An interaction is never reported as a headline.
+
+## 7. Decision rules — linkage, not restatement
+
+This plan does **not** restate the decision rules, so it cannot drift from them. The rules are:
+
+- **Gate 1** (design §4.4/§5), with the winning configuration **frozen** there — Stage 2 inherits the
+  budget and does not re-tune per target. This is a statistical requirement, not a convenience: choosing
+  the budget per target would make the result N configurations rather than one model tested once.
+- **The transfer rule** (design §6.5), including the requirement that the control `R_random` is tested
+  **first** — any criterion the control passes is not discriminating and must be replaced before the run.
+- **The pre-registered outcome mapping** (decision log §3), followed exactly as written.
+
+This plan specifies only **how the inputs to those rules are computed**.
+
+## 8. Missing, failed and incomplete runs
+
+Three states are explicit, and none of them is inferred from an absence: **incomplete** (a
+`status: "running"` manifest that survived a kill), **failed arm** (`meta.FAILED.json` with error type
+and effective config), and **dry run** (`dry_run: true`).
+
+- **No imputation.** A failed arm is reported as failed, with its error type. It is not silently
+  dropped, and it is not quietly replaced by a re-run under a different seed.
+- A comparison is reported on the arms actually present, **with the missing arm named** — and the
+  denominator states the runs attempted, not only those that produced output.
+- **"No record" is never reported as "no effect."** The first pilot's arm B existed only inside an
+  aggregate file for several days; that ambiguity is what this section exists to prevent.
+
+## 9. Reporting format
+
+Every reported comparison states: the estimand, the **sign convention**, the point estimate, the
+interval, the number of test rows, the number of repeats, **the noise floor for that comparison**, the
+run ids the numbers came from, and whether the step was gated and on what result.
+
+**A negative is reported with the same detail as a positive.** The negative outcomes are deliverables
+(they are the stopping points in `PILOT_2_DECISION_GRAPH.md`), so they are reported as findings, not as
+failures to find something.
+
+The transfer result is additionally reported **as a fraction of `B_in_domain`'s gain**, so a small
+absolute gain cannot be presented as a large one.
+
+## 10. Deviations
+
+Any departure from this plan is recorded as a **dated deviation** stating what changed, why, and the
+result computed **both ways** where that is possible. Deviations are listed in the report itself; they
+are never resolved silently. A deviation agreed after seeing the result is stated as such.
+
+## 11. Reproducibility linkage
+
+Seeds, splits, data ref, container image and package versions are recorded per run by the pipeline's
+fingerprint, and the analysis reads the **per-arm predictions** together with their hashes rather than
+re-deriving them. Reproducibility is defined as **same code, data, config and seeds — not bit-identical
+output**; GPU nondeterminism is explicitly out of scope by decision, and no tolerance is pinned to it.
+
+## 12. What this plan does not yet settle
+
+Stated so a reviewer can see the remaining gaps rather than assume the plan is complete:
+
+1. **The numeric ECE/Brier calibration tolerance** (design §6.5 criterion 5) — required in advance, and
+   currently unset. **This must be a number before sign-off, or criterion 5 is not pre-registered.**
+2. **The primary target for the transfer step** (D4) — named before the run, not after.
+3. **The minimum detectable effect** the repeats are meant to resolve — worth stating so that "we were
+   underpowered" cannot be discovered late. The screening structure (3 seeds × 1 split) is sized to
+   detect an effect of the size the ladder suggests, not the 0.001–0.010 band R1 observed.
+
+## 13. Sign-off
+
+| Role | Name | Date |
+| --- | --- | --- |
+| Statistical review | ______ | ______ |
+| Technical review | ______ | ______ |
+| Owner (@scotthawes) | ______ | ______ |
+
+**Once signed, this plan is fixed.** Changes are deviations under §10.
