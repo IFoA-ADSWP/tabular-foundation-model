@@ -40,8 +40,14 @@ Brier), positive means improvement. Every reported number states which conventio
   be set **in advance** — *an unset tolerance is not a pre-registration*. This is currently **TBD** and
   is flagged in §12 as a required number before sign-off.
 
-All metrics are computed on the held-out test rows only. The pipeline asserts that no test row entered
-training, validation, early stopping, the inference context or model selection (design §3.1).
+All metrics are computed on the held-out test rows only. What the pipeline **asserts** is that no test row
+is in the training indices, the dropped remainder, the pool, or the inference **context** we construct
+(design section 3.1) — each is a set operation on indices we own.
+
+What it **cannot** assert is the same guarantee inside the library: the shipped trainer carves its own
+validation split out of the rows we hand it, for early stopping. The guarantee there is that we pass it
+training rows only, and the trainer's `validation_split_ratio` is **recorded per arm rather than
+asserted**, so a reader can check it rather than take it on trust.
 
 ## 4. Unit of analysis, pairing, and how intervals are built
 
@@ -161,9 +167,11 @@ are never resolved silently. A deviation agreed after seeing the result is state
 ## 11. Reproducibility linkage
 
 Seeds, splits, data ref, container image and package versions are recorded per run by the pipeline's
-fingerprint, and the analysis reads the **per-arm predictions** together with their hashes rather than
-re-deriving them. Reproducibility is defined as **same code, data, config and seeds — not bit-identical
-output**; GPU nondeterminism is explicitly out of scope by decision, and no tolerance is pinned to it.
+fingerprint, and the analysis reads the **per-arm predictions** rather than re-deriving them. **Their
+hashes are recorded but the analysis does not yet verify them** — stated as the gap it is, rather than
+implied by the word "hashes". Reproducibility is defined as **same code, data, config and seeds — not
+bit-identical output**; GPU nondeterminism is explicitly out of scope by decision, and no tolerance is
+pinned to it.
 
 ## 12. What this plan does not yet settle
 
