@@ -795,10 +795,30 @@ programme, because a null in stage one stops the spend instead of funding a wide
 
 ### The cheapest next experiment this implies
 
-One dataset, one factor: **lift the row cap** (2,000 -> the model's useful range), compare **PEFT or
-meta-learning against zero-shot** with calibration and ranking reported separately, on a **temporal split**,
-with three seeds sized from our measured 0.0003 noise floor. Falsifiable, attributable, cents-scale — and it
-tests the three things the literature says actually matter.
+Narrowed after checking what is genuinely a config change and what is not.
+
+**The row cap, and only that.** `TRAIN_SIZE` is 2,000 and `TEST_SIZE` 1,000 — constants we chose, against a
+dataset of 29,317 rows and a model documented to accept 50,000 samples. Raising them to 10,000 and 2,500 is a
+one-line change, needs no new code, and lifts test positives from 369 to roughly 950, tightening the measured
+resolution about fourfold. Both outcomes are decisive: a gain at scale means the probe's verdict was a
+small-data artefact; no gain means the negative survives a fivefold increase in data.
+
+**Not free, and therefore not bundled in:**
+
+- *PEFT or meta-learning* needs a library integration. TabTune supplies the procedures; wiring it in is code.
+- *A temporal split is not available on uslapseagent as shipped.* The fields are `duration`, `DJIA` and policy
+  attributes — DJIA carries temporal signal, but there is no explicit date column to split on. That test needs
+  a dataset with a time index, or a proxy split that would have to be argued for on its own terms.
+- *Repeats* are cheap (`--seeds` is supported) but multiply the run cost, so they belong alongside the scale
+  test rather than instead of it.
+
+Sequence: the row cap first (one config line, cents), repeats with it if the wall time allows, then the
+adaptation family, then the split question once a dataset with a time index is chosen.
+
+**Before spending, two free checks.** Confirm the wall time scales acceptably: the arm times at 2,000 rows are
+in the run records, so the 5x projection is arithmetic, not a guess — the fine-tuning arms are the cost and
+they scale with rows. And confirm the launcher's phase ceilings accommodate that projection; the pull phase
+has a known ceiling, the run phase's bound is not surfaced.
 
 ### What to stop doing
 
