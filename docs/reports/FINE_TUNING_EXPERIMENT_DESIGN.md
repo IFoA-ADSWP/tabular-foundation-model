@@ -839,6 +839,22 @@ confirmed from the loader itself:
 | `spanish_motor_lapse` | `LapseB` | 53,502 | 354 | ~18,961 |
 | `eudirectlapse` | `lapse` | 23,060 | 128 | ~2,954 |
 
+**Verified by column inspection, not by the datasets' names (13 Sep).** The claim above was first made from
+names and parentage; it has since been checked against every file in `data/raw`. Exactly three datasets carry
+a lapse or surrender outcome -- `surrender`, `lapse`, `LapseB` -- and every other dataset's target is a claim
+variable: `ClaimOcc`, `ClaimNb`, `ClaimIndicator`, `NbClaim`, `claim`/`nclaims`/`amount`, injury counts, or a
+driving-behaviour score. Two apparent matches were false positives from a name pattern: `bemtl16`'s
+`policy_year` and `policy_holder_age` are policy attributes, and `fretelematic`'s `Policy_ID` is an
+identifier. So no fourth lapse dataset is hiding in the pool.
+
+**But one thing is worth knowing before the design is fixed.** `spanish_motor_freq` and
+`spanish_motor_severity` carry the same 53,502 rows as `spanish_motor_lapse`, with portfolio-level features
+(`Seniority`, `Policies_in_force`, `Max_policies`, `Premium`, `Type_risk`) shared across all three. That is
+one portfolio with three tasks, not three datasets -- and it is the vendor's "multiple related tables" case,
+where fine-tuning a single model across a family is named as a reason to fine-tune. It also means any run on
+the Spanish data needs a leakage check between policy-level features and a policy-level target, which is a
+data-level hazard our split and context assertions do not cover.
+
 **What this removes from the work list.** Target identification for the unregistered datasets, and the
 inventory exercise behind it — neither is needed to answer a lapse question. The eleven non-lapse datasets
 stay unregistered until a question needs them.
