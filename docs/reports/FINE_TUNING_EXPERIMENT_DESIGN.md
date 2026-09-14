@@ -698,3 +698,111 @@ power calculation on the observed test-set variance, and require it on a majorit
 ---
 
 _Next step: Build the runner script or run the pilot on T4._
+
+## Design principles after the probe and the literature
+
+Sources: `TABPFN_FINETUNING_LITERATURE.md`. Our own measurements: `PROBE_RESULTS.md`, the run records.
+
+**The objective function.** Not "does fine-tuning work" but **the probability that a result changes a
+decision, per unit of spend**. Everything below follows from that: resolution before effect, one factor at a
+time, the metric the deployment cares about, and an artifact someone else can check.
+
+### 1. Optimise for headroom, and screen for it before spending
+
+Fine-tuning is documented as less likely to help when the baseline is already within a few percent of the
+target. Our baseline was 0.9363 ROC AUC and the arms moved within 0.25 points — the condition we met.
+
+**Check it cheaply:** score the raw model *and* a strong tree baseline on the candidate dataset before any
+fine-tuning. If the raw model is already at or above the tree, there is little for adaptation to recover.
+
+### 2. Optimise for the minimal intervention that helps
+
+Adaptation is a family, not a switch: zero-shot, meta-learning, parameter-efficient (PEFT), full supervised.
+Two studies report full supervised fine-tuning often reducing accuracy *or* calibration, while PEFT and
+meta-learning give moderate gains under specific conditions — and cost less compute.
+
+**Check it cheaply:** run the cheapest family first. A gain from PEFT is a stronger, more useful result than
+the same gain from full fine-tuning, because it is affordable in production.
+
+### 3. Optimise for the metric the deployment uses
+
+If the model's value is sitting behind a decision on a fixed schema, the deployment consumes *probabilities*,
+not rankings. Our probe found ROC AUC flat while PR AUC, Brier and log loss improved in order — recorded as
+unexplained, and contested by a second source.
+
+**Check it cheaply:** pre-register the primary metric and, for calibration, a numeric tolerance, before the
+run. An unset tolerance is not a pre-registration. Report ranking and calibration separately, never as one
+score.
+
+### 4. Optimise for resolution before effect
+
+A difference smaller than the noise is not a finding. Measured here: paired CI half-widths of 0.0022-0.0043 on
+1,000 test rows, and `A_raw` reproducing to **0.0003** across two runs on the same split.
+
+**Check it cheaply:** state the smallest effect of interest, then confirm the design can resolve it. Test
+positives, not row count, set the resolution: 369 positives resolved about 0.009; 57 resolved only 0.061.
+
+### 5. Optimise for the model's real limits, not inherited defaults
+
+The model supports up to 50,000 samples and 2,000 features — 5x and 4x the previous generation. Our probe
+capped at **2,000 rows because a loader default said so**, and then reported a scale-conditional verdict. The
+constraint was ours.
+
+**Check it cheaply:** before writing "at this scale", confirm the cap is the model's rather than the
+pipeline's. Row count should be an independent variable you choose, not a constant you inherit.
+
+### 6. Optimise for protocol fidelity to the deployment
+
+The vendor requires temporal splits on time-dependent data. We used a stratified random split on lapse data —
+easier than the domain, which is why it cannot explain our negative but does limit it.
+
+**Check it cheaply:** describe how the model will be used, then make the split mirror that. A random split on
+a temporal problem answers a question nobody asked.
+
+### 7. Optimise for one factor at a time
+
+The factors the literature names are **imbalance, size and dimensionality**; the factor the configuration
+exposes is **batch size** (reported to help); the axis we already varied is epochs. Varying several at once
+makes a null unattributable — which is exactly what happened to our first design.
+
+**Check it cheaply:** write the single sentence "if this returns null, we will know X" before provisioning.
+
+### 8. Optimise for attributable artifacts
+
+Our first three runs produced results nobody could check: no log after the destroy, `rc=0` that meant nothing,
+artifacts with no run id in their path, and a pull that could not tell fresh output from committed files.
+
+**Check it cheaply:** every arm records its own dataset, split, config, seed and prediction hash; the log is
+saved before the box is destroyed; the run record names the commit that ran. If a stranger cannot recompute
+the headline number, the spend is not yet knowledge.
+
+### 9. Optimise for the generation actually in use
+
+Both fine-tuning studies we rely on are v2-based; our probes ran the v3 checkpoint. Guidance transfers across
+generations as an assumption, not a fact.
+
+**Check it cheaply:** read the current documentation for the checkpoint in use before applying a paper's
+recommendation, and say in the write-up which generation the evidence came from.
+
+### 10. Optimise for cost per unit of information
+
+Measured: four arms x one dataset x 2,000 rows = **$0.0122** warm; a cold start costs about $0.05 more; the
+seven runs of 13 Sep totalled **$0.0933**, of which the answer was $0.0122.
+
+**Check it cheaply:** screen before scaling — baseline and headroom, config sanity, one factor, cheapest
+adaptation family — and only then spend on the question. Incremental scaling with monitoring beats a bundled
+programme, because a null in stage one stops the spend instead of funding a wider version of it.
+
+### The cheapest next experiment this implies
+
+One dataset, one factor: **lift the row cap** (2,000 -> the model's useful range), compare **PEFT or
+meta-learning against zero-shot** with calibration and ranking reported separately, on a **temporal split**,
+with three seeds sized from our measured 0.0003 noise floor. Falsifiable, attributable, cents-scale — and it
+tests the three things the literature says actually matter.
+
+### What to stop doing
+
+- Re-running the same full-SFT ladder at 2,000 rows. Two sources and our own measurement say it can hurt.
+- Treating a flat ROC AUC as the whole result when calibration moved in order — report both, or neither.
+- Quoting cross-generation guidance as if it were verified on the model in use.
+- Adding rows, seeds and epochs together "to be safe". That is how the first design became unattributable.
