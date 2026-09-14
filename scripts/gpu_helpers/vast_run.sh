@@ -718,11 +718,16 @@ T_END="$(date -u +%s)"
 
 # ---- pull artifacts ----
 echo "=== pulling artifacts ==="
-mkdir -p "$OUTDIR"
+# Artifacts land under the RUN ID, not directly under the output root. Without this, a second run on the
+# same dataset overwrites the first run's predictions and meta files, and a commit then silently
+# supersedes the previous experiment in the tree -- leaving it only in git history, where nobody looks.
+# Records stay at $OUTDIR (one record per run, keyed by run id); only artifacts move under runs/<id>/.
+RUN_OUTDIR="$OUTDIR/runs/$RUN_STAMP"
+mkdir -p "$RUN_OUTDIR"
 if [ "$TRANSPORT" = "ssh" ]; then
     scp -P "$PORT" -o StrictHostKeyChecking=accept-new -r \
         "root@$HOST:/workspace/tfm/outputs/finetune/pilot/*" \
-        "$OUTDIR/" || \
+        "$RUN_OUTDIR/" || \
         echo "WARNING: scp failed -- re-run with --keep" >&2
 else
     # The bootstrap printed its payload between markers on stdout, so the container
@@ -731,7 +736,7 @@ else
     cp /tmp/vast_run_out.txt /tmp/vast_artifacts.raw 2>/dev/null || : > /tmp/vast_artifacts.raw
     python3 "$REPO_DIR/scripts/gpu_helpers/verify_artifacts.py" \
         --raw /tmp/vast_artifacts.raw \
-        --dest "$OUTDIR"
+        --dest "$RUN_OUTDIR"
     ART_RC=$?
     case "$ART_RC" in
         0) : ;;
