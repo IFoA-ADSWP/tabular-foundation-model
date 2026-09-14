@@ -826,3 +826,43 @@ has a known ceiling, the run phase's bound is not surfaced.
 - Treating a flat ROC AUC as the whole result when calibration moved in order — report both, or neither.
 - Quoting cross-generation guidance as if it were verified on the model in use.
 - Adding rows, seeds and epochs together "to be safe". That is how the first design became unattributable.
+
+## Scope decision: lapse classification (13 Sep)
+
+The domain of current interest is **policy lapse / surrender classification**. That collapses most of the
+dataset-selection work, because the three lapse datasets in the pool are all registered and their targets are
+confirmed from the loader itself:
+
+| dataset | target | rows | positives at the 1,000-row cap | positives at full size |
+| --- | --- | --- | --- | --- |
+| `uslapseagent` | `surrender` | 29,317 | 369 | ~11,098 |
+| `spanish_motor_lapse` | `LapseB` | 53,502 | 354 | ~18,961 |
+| `eudirectlapse` | `lapse` | 23,060 | 128 | ~2,954 |
+
+**What this removes from the work list.** Target identification for the unregistered datasets, and the
+inventory exercise behind it — neither is needed to answer a lapse question. The eleven non-lapse datasets
+stay unregistered until a question needs them.
+
+**What it excludes, and this is a real limit.** None of the three carries a usable time index: `uslapseagent`
+has `duration` (policy age), `eudirectlapse` has a premium-frequency field, and `spanish_motor_lapse` has
+claim counts per year. So **the temporal-split test is out of scope for lapse** with the data we hold. It is
+not a shoddy split; it is a different question that needs a dataset with an actual date. The domain is still
+temporal in character — lapse is cohort-driven — which is why the vendor's temporal caution remains relevant
+even though we cannot test the split.
+
+**The design it implies, and it is cheaper than the previous plan.** All three lapse datasets, at lifted row
+caps, with the adaptation family varied rather than epochs. At full size the positive counts are 11,098 /
+18,961 / 2,954 — between thirty and fifty times the resolution our probe had, which removes the "we could not
+have seen it" objection entirely.
+
+Stage it: one lapse dataset first at the lifted cap (the cheapest arm set that answers "does the probe's
+negative replicate in-domain at scale?"), then the other two if it holds, then the adaptation family.
+
+**Metrics, pre-registered before any run.** Lapse is priced, so the deployment consumes probabilities:
+Brier and ECE belong alongside ROC AUC, with a numeric calibration tolerance stated in advance. A flat
+ranking result with a moving Brier is the outcome our probe already produced once, and it would be
+indefensible to observe it twice without having said in advance which of the two we were deciding on.
+
+**Free screen first.** Raw TabPFN against a CatBoost reference on each of the three, on CPU. If raw already
+leads by a wide margin on all three — as it does on `uslapseagent` (0.9363 against 0.9271 GLM and 0.9297
+CatBoost) — then the headroom question is settled for the lapse scope before any GPU is rented.
