@@ -178,3 +178,70 @@ foundation models.
    epochs.
 4. **If calibration is the question, pre-register it explicitly** with repeats: two sources now disagree with
    our calibration observation, which makes it more important to test properly rather than less.
+
+## Second sweep: the vendor's own report, the tooling, and a lineage problem
+
+### Read at source — `verified`
+
+**TabPFN-2.5 — arXiv 2511.08667** (the vendor's own technical report; v2, Feb 2026). Three things matter
+here:
+
+- The report states that **fine-tuned on real data, the model shows stronger performance** — fine-tuning is
+  part of the vendor's headline claim for this generation, which sits awkwardly beside the two studies
+  reporting that full supervised fine-tuning can hurt.
+- **Supported scale: up to 50,000 samples and 2,000 features — a 5x and 4x increase over TabPFNv2**, with
+  exploratory runs far beyond that on an 80GB H100 using FP16 and FlashAttention-3. **Our probe capped
+  training at 2,000 rows. That cap was the loader's default, not a model limit.** In other words, the binding
+  constraint on our verdict was one we imposed ourselves.
+- Their benchmark is **TabArena-lite** — so TabArena is the vendor's own evaluation surface, and the right
+  place to choose an I.I.D. control dataset.
+
+**TabTune — arXiv 2511.02802** (v3, Dec 2025). A unified library covering seven tabular foundation models
+through one interface, with standardised preprocessing, **consistent fine-tuning procedures**, and
+**standardised evaluation for deployment-oriented metrics including calibration and fairness**. This is the
+practical route to testing adaptation families without re-implementing them — and its authors are the same
+group as the January 2026 fine-tuning study, so its procedures are the ones that study evaluated.
+
+### The lineage problem — this is the caveat that matters most
+
+**Both fine-tuning studies we rely on are TabPFNv2-based. Our probes ran the v3 checkpoint** (the run's
+licence is `tabpfn-3-license-v1.0`, from the `tabpfn_3` repository, via the installed `tabpfn` package).
+So every condition in this document was established on an earlier generation than the one we measured.
+That does not discard them — the vendor's current documentation is consistent with them, including the
+`epochs=30`, `learning_rate=1e-5` defaults — but it means **cross-generation transfer is an assumption, not a
+fact**, and it cuts both ways: our negative may not reproduce on v2 conditions, and v2 guidance may not bind
+v3.
+
+### Located, `unverified`
+
+- **Lapse-prediction domain literature does exist** — a life-insurance lapse prediction study and a mortgage
+  life lapse study in the insurance-modelling literature, plus an actuarial trade article on AI lapse
+  prediction. Not read (paywalled), so their validation practice is unverified, but the earlier conclusion
+  that "no such literature exists" was wrong: our search phrasing was.
+- **Zero-shot meta-learning for tabular prediction** (PMLR v267, Wu et al.) — meta-learning as an adaptation
+  route, distinct from both PEFT and full fine-tuning.
+
+### Searched and not found — record the absence so nobody repeats the search
+
+- **How much data fine-tuning needs** (any scaling relationship between rows and gain) — nothing found.
+- **Imbalance and calibration specifics for TFM fine-tuning** — nothing found beyond the 2026 study's
+  statement that imbalance is a factor.
+- **Benchmark variance under repeated seeds** — nothing found. But this one is answerable from our own
+  records rather than from the literature: `A_raw` scored 0.9360 in the first pilot and 0.9363 in the probe,
+  on the same dataset and split. A 0.0003 spread across two runs is a measured starting point for how many
+  repeats a comparison needs.
+
+### What this changes about the next design
+
+1. **Lift the row cap before concluding anything about scale.** The model supports 50,000 samples; we used
+   2,000 because a loader default said so. The same probe shape, more rows, no new machinery — the cheapest
+   substantive experiment available.
+2. **Test adaptation families with TabTune** rather than writing them: zero-shot against meta-learning
+   against parameter-efficient against full supervised, with its standardised calibration metrics. That
+   directly addresses our contested calibration observation at low cost.
+3. **Use TabArena-lite for the I.I.D. control** — the vendor's own benchmark, so the comparison is on the
+   surface the field uses.
+4. **Estimate variance from our own runs** instead of waiting for a paper: two runs of the same arm on the
+   same split already bound the noise.
+5. **Verify any v2-derived guidance against the v3 checkpoint** before it drives a design, and say so in the
+   write-up when it can't be verified.
