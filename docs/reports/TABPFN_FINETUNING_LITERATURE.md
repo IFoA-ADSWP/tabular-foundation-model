@@ -121,3 +121,60 @@ it belongs beside the verdict as a limitation -- it is a stronger explanation of
 "domain boundary" framing alone, and it is fixable.
 
 **Their defaults.** The documented example is `epochs=30`, `learning_rate=1e-5` -- the configuration we used.
+
+## Newer and adjacent sources (searched 13 Sep)
+
+Found by searching beyond the paper we started from. Status is per the rules at the top of this file.
+
+### Read at source
+
+**Exploring Fine-Tuning for Tabular Foundation Models** — arXiv **2601.09654** (Tanna, Seth, Bouadi,
+Sankarapu; Jan 2026). `verified`. The most consequential find after our probe. Its findings:
+
+- zero-shot TFMs already perform strongly, and the benefits of fine-tuning are **highly model- and
+  data-dependent**;
+- **full supervised fine-tuning often reduces accuracy *or* calibration quality**, while meta-learning and
+  parameter-efficient fine-tuning (PEFT) give moderate gains under specific conditions;
+- it analyses how **imbalance, size and dimensionality** affect outcomes, and covers calibration and
+  fairness, across TALENT, OpenML-CC18 and TabZilla.
+
+Two things follow. It **corroborates our accuracy result independently** — a second study reporting that
+full SFT can hurt — and it **puts our calibration observation in tension with a second source**, since it
+reports SFT degrading calibration where we saw it improving. It also names the three dataset factors worth
+varying deliberately in the next design.
+
+**Fine-tuned In-Context Learning Transformers are Excellent Tabular Data Classifiers** — arXiv
+**2405.13396** (den Breejen, Bae, Cha, Yun; v2 Jan 2025). `verified`. A *positive* result on the earlier
+generation: fine-tuning TabPFN gave a significant boost, and enabled complex decision boundaries. This is one
+of the prior works the 2026 study calls inconsistent — which is the point: **fine-tuning's value changed with
+the model generation**, so our negative is generation-specific rather than a general property of tabular
+foundation models.
+
+### Located, not yet read — `unverified`
+
+| Source | Why it may matter here |
+| --- | --- |
+| **TabArena** — a living benchmark for tabular ML (NeurIPS 2025) | A maintained benchmark is the right place to choose the I.I.D. control dataset for the method-versus-domain test |
+| **TabPFN Unleashed** — arXiv 2502.02527 | Scaling TabPFN; bears on whether our 2,000-row cap is the binding constraint |
+| **Fine-Tuning or In-Context Learning? Understanding Their Trade-offs** — ACM 10.1145/3779211.3793170 | The decision question itself: when adaptation through gradients beats adaptation through context |
+| **TabDPT** (arXiv 2410.18164, NeurIPS 2025), **LimiX** (2509.03505), **TabICLv2** (2602.11139) | Sibling models: whether our result is a TabPFN result or a tabular-foundation-model result |
+| **Pocket Foundation Models** — distilling TFMs into CPU-ready GBDTs | Relevant to the deployment and CPU constraints rather than to training |
+
+### Searched and not found
+
+- **No literature located on insurance lapse prediction with temporal validation.** Our domain's own
+  methodology — what a correct temporal split looks like for cohort lapse data — has no paper behind it in
+  this search, so any choice we make there needs to be justified from first principles and recorded.
+- **Nothing beyond Drift-Resilient TabPFN on distribution shift for TabPFN.** The shift literature is thin;
+  the vendor's split guidance is currently the most actionable statement available.
+
+### What this does to the plan
+
+1. **Do not re-run the same full-SFT ladder.** Two sources now report that full SFT can hurt, and we have
+   already measured it at this scale. Repeat first, not repeat the ladder.
+2. **PEFT or meta-learning is the untested adaptation family**, reported as giving moderate gains under
+   specific conditions — and it costs less compute than full SFT. That is the resource-efficient direction.
+3. **Vary the three named factors deliberately** — imbalance, size, dimensionality — instead of varying
+   epochs.
+4. **If calibration is the question, pre-register it explicitly** with repeats: two sources now disagree with
+   our calibration observation, which makes it more important to test properly rather than less.
