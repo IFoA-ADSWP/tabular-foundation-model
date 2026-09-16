@@ -139,6 +139,10 @@ outputs/archive/
 *.npy
 *.npz
 *.tabpfn_fit
+# --save-predictions persisted arrays are the deliverable, not a cache (#122); exempt
+# them from the blanket *.npz rule above (decision: option 1, commit directly — #150).
+# Filenames carry <dataset>__seed<seed>__<model_path>, so version generations coexist (#186).
+!scripts/eval/insurance_benchmark_v1/predictions/*.npz
 
 # OS / editor junk
 **/.DS_Store

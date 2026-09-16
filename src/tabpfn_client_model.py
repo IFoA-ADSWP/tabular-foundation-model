@@ -13,6 +13,8 @@ import numpy as np
 import pandas as pd
 from autogluon.core.models import AbstractModel
 
+from src.model_version import resolve_model_path as _model_path
+
 if TYPE_CHECKING:
     from tabarena.utils.config_utils import ConfigGenerator
 
@@ -31,10 +33,10 @@ class TabPFNClientModel(AbstractModel):
         Xp = self.preprocess(X, y=y, is_train=True)
         if self.problem_type == "regression":
             from tabpfn_client import TabPFNRegressor
-            self.model = TabPFNRegressor(model_path="v3_default", random_state=0)
+            self.model = TabPFNRegressor(model_path=_model_path(), random_state=0)
         else:
             from tabpfn_client import TabPFNClassifier
-            self.model = TabPFNClassifier(model_path="v3_default", random_state=0)
+            self.model = TabPFNClassifier(model_path=_model_path(), random_state=0)
         self.model.fit(Xp, y)
 
     def _preprocess(self, X, is_train=False, **kwargs):
