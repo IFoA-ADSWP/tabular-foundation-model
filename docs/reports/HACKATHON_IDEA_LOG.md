@@ -52,7 +52,11 @@ the 19-day window.
 | 7 | Mortality / annuity: a lifetable as a survival prediction task | Formalize a new problem | default · predictive distribution | Med — adjacent to reserving, same shape of reframing | Med | High | Same skeleton as 1 with a smaller payoff; park |
 | 8 | The roadmap's untreated sets — telematics, catastrophe, large loss | Take on a hard problem | default · predictive distribution | Med | Med | Med — licence and size risk on several of these | Park; useful for the paper later |
 
-## 3. The lead: *Reserving as prediction — a TabPFN-3.5 actuarial workbench*
+## 3. The lead, settled: *the reserve as a distribution* — TabPFN-3.5 on loss triangles
+
+> **Settled 2026-09-17, subject to your sign-off.** The idea survived the two checks that could have killed
+> it — whether our own reserving verdict contradicts it, and whether the model and the data are actually
+> available. Both are answered below with evidence rather than assurance.
 
 **The reframing is the idea.** Loss reserving is the actuarial task that is least like machine learning: an
 actuary arranges past claims into a triangle of accident periods by development periods, picks development
@@ -87,19 +91,76 @@ and a straight answer on where the actuarial standard still wins.* The rubric as
 demonstration of the model's capabilities, not a victory lap; on this repo's own evidence, half the value
 of the story is in the comparison.
 
-**Data:** public triangles — the CASdatasets collection and the ones shipped with the ChainLadder R
-package (`fre4LoBtriangles`, `sgtriangles`, `usautotriangles`, `GenIns` and friends). Licence status is an
-open question below; the working party's Spanish portfolio is not needed.
+### Why this does not contradict our own reserving verdict
+
+`RESERVING_WITH_FOUNDATIONAL_MODELS.md` concludes "do not deploy for severity" — but that verdict is about a
+**different statistical object**: flat, claim-level regression on 163K–678K zero-inflated rows. A triangle is
+not that. A 10×10 triangle has ~55 observed cells; even a 20×20 has ~210. That is squarely inside the regime
+our own decision rule says TabPFN wins (≤ ~5K rows; 8/9 size-sweep cells), and the zero-inflation trap does
+not arise on cumulative cells. So the honest framing is not a reversal, it is a **scope correction**: we are
+the people who said do not use it for this — the triangle was never the object we tested. Testing it *is* the
+entry.
+
+### Feasibility, checked rather than assumed (2026-09-17)
+
+| Question | Answer | Evidence |
+|---|---|---|
+| Does "built with TabPFN-3.5" mean pip or API only? | `pip install tabpfn` → **9.0.0, uploaded 2026-09-15**, the day 3.5 shipped. The 3.5 family is Base, Plus, Thinking, Fast (alpha) | PyPI release metadata; `docs.priorlabs.ai/models.md` |
+| Does the model give a *distribution* cheaply? | `TabPFNRegressor.predict(X, output_type="full")` returns the full predictive distribution **in a single forward pass, at no extra inference cost** — quantiles, skew and multimodality exposed | `docs.priorlabs.ai/capabilities/predictive-distribution.md` |
+| Is there a credible baseline tool? | `chainladder` — the CAS Actuaries' own Python package (MPL-2.0): ChainLadder, MackChainLadder, BootstrapODPSample | `github.com/casact/chainladder-python` |
+| Is there public triangle data, in volume? | Yes: `cl.load_sample()` bundles the **CAS Loss Reserve Database** (`clrd` — Meyers/Shi, NAIC Schedule P, ~200+ insurers × 6 lines) plus the classics (`abc`, `genins`, `mcl`, `ukmotor`, `m3ir5`) | chainladder sample-data docs; CAS research resources |
+| Which data licence applies? | The CAS LRD is published for reserving studies; the entry **downloads rather than vendors** it, with a URL and a hash — which also satisfies clause 3.2 | T&C 3.2 |
+
+### The claim the entry makes
+
+*An actuarial reserve with a full predictive distribution, computed in a single forward pass, on a triangle of
+any shape — against a standard that obtains the same distribution from a thousand simulated refits.*
+
+That is the sentence the 50% is looking for: a capability statement about 3.5, not a domain essay. The second
+half of the entry is the measurement — a fleet backtest over the CAS database with interval coverage and
+wall-clock timings — so the claim arrives with numbers and an honest read on where Chain Ladder still wins.
+
+**Prior art, stated so the creativity claim is not overstated:** machine learning for *individual* claims
+reserving is an active literature (Richman & Wüthrich, arXiv 2602.15385; transformer/LSTM individual reserving
+at JSM 2026). What is not done — and what this entry does — is a **tabular foundation model, zero-shot, on the
+development-cell formulation, with a predictive distribution, benchmarked against Chain Ladder / Mack / ODP
+across a public triangle database**.
+
+**Data:** public triangles via `chainladder`'s loader — the CAS LRD for the fleet backtest, and `abc`,
+`genins`, `mcl`, `ukmotor` for the readable worked examples. Downloaded at run time with a URL and a hash.
+Nothing from the working party's own portfolios is needed, which keeps the rights certification in clause 3.3
+simple.
 
 ### Scope ladder — MVP first, each rung shippable
 
 | Rung | Contents | Effort |
 |---|---|---|
-| **MVP** | One triangle; the reframing written down; Chain Ladder vs 3.5 default; predictive distribution for the reserve; one notebook; README that runs | ~1 day |
-| **v1** | 3–5 triangles and a backtest (hold out development periods, score reserve error); Thinking mode on the weak cells; coverage check; the elo/time view | +1 day |
-| **Stretch** | The relational upstream via RPI; a small workbench CLI that reserves a folder of triangles; synthetic triangles from 3.5 for stress-testing | +1 day |
+| **MVP** | One triangle (`abc`), the reframing written down, Chain Ladder vs 3.5 default, and the **reserve distribution** from `output_type="full"`; one notebook; a README that runs | ~1 day |
+| **v1** | The **fleet backtest** over the CAS LRD: reserve error against Chain Ladder, **interval coverage**, wall-clock against the ODP bootstrap; a Thinking-mode arm on the late and thin cells; a Fast arm for the fleet | +1 day |
+| **Stretch** | A CLI that reserves a folder of triangles; the relational upstream via RPI (claims database → anchor-dated features); a written "what it unlocks" page for reserving actuaries | +1 day |
 
-Submit at MVP if the clock runs short; the deadline does not move.
+Submit at MVP if the clock runs short; the deadline does not move, and updates are allowed until close.
+
+### The repository — separate, public, Apache-2.0
+
+Q2 is answered: **a new repository, not this one** (confirmed by you, 2026-09-17). Proposed shape:
+
+```
+tabpfn-reserving/                 Apache-2.0, public
+├── README.md                     what it is, quickstart, results table, acknowledgements
+├── LICENSE                       Apache-2.0
+├── pyproject.toml                tabpfn>=9.0.0, chainladder, pandas, matplotlib
+├── src/tabpfn_reserving/         triangle → cells, anchor-time split, the TabPFN arm,
+│                                 the reserve distribution, the backtest
+├── notebooks/quickstart.ipynb    Colab-runnable: one triangle end to end, distribution plotted
+├── scripts/fetch_data.py         downloads the public triangles, records URLs and hashes
+├── results/                      the backtest outputs the README quotes
+└── docs/what_it_unlocks.md       the reserving-actuary page, including where Chain Ladder still wins
+```
+
+Three things in that layout answer the rubric directly: the **capability tour is the README's spine** (the
+50%), the **reframing plus the prior-art note** is the originality claim (the 30%), and **one command
+reproduces the table** (the 20%). The name and the owner are the two parts I cannot choose for you.
 
 ## 4. Fallback and second entry
 
@@ -121,7 +182,7 @@ every 3.5 claim in the lead. If only one entry gets finished, it should be the l
 | # | Question | Why it matters | Proposed answer |
 |---|---|---|---|
 | Q1 | **Who enters, and in whose name?** | The T&Cs are individual: one account, prizes shipped to one address. A working party cannot enter as such | One named individual enters; the working party is acknowledged in the README. Needs the nominee's agreement |
-| Q2 | **Which repository is submitted?** | The entry must be a public repo under **Apache-2.0**. This repo is MIT, org-owned, and full of working-party material | **A new, small, public Apache-2.0 repo** for the entry, citing this repo's methods and linking back. Reusing MIT code inside an Apache-2.0 work is compatible with attribution, but the entry should be self-contained so it reproduces on its own |
+| Q2 | **Which repository is submitted?** | The entry must be a public repo under **Apache-2.0**. This repo is MIT, org-owned, and full of working-party material | **Answered — a separate repo (your call, 2026-09-17).** It carries its own Apache-2.0 licence and cites this repo's methods rather than vendoring them. Still to pick: the **name** and the **owner** (your personal account, or an org) |
 | Q3 | **Which triangles, and are they publicly URL-able?** | Clause 3.2 requires the data included or public; clause 3.3 puts the rights certification on us | Start with triangles shipped by the ChainLadder R package / CASdatasets; confirm each licence before publishing, and include a download script plus a hash |
 | Q4 | **The Hackathon page URL** | The T&Cs say extra API credits are granted on joining; the page as supplied had no link | **Answered: `https://platform.priorlabs.ai/hackathon-3.5`.** Retrieved 2026-09-17: the public copy confirms the six tracks and the four prize tiers, and joining is gated behind a Prior Labs sign-in — "Sign in or create a free Prior Labs account to accept the hackathon terms and submit your entries." No account exists in this environment and credentials are not entered on your behalf, so **the join, and the credits it releases, is a step for you** |
 | Q5 | **Do we submit one entry or two?** | Allowed either way; two entries double the surface but halve the depth | One (the lead) until it is safe, then decide on the second |
@@ -136,4 +197,6 @@ every 3.5 claim in the lead. If only one entry gets finished, it should be the l
 | 2026-09-17 | Lead candidate chosen for review: reserving as a prediction problem, with the capability tour above | **For review — not yet agreed** |
 | 2026-09-17 | Hackathon page located and read: `platform.priorlabs.ai/hackathon-3.5`. Public copy confirms the six tracks and the four prize tiers; joining is a signed-in action, so the extra credits are not released yet and the join is on you | Recorded |
 | 2026-09-17 | Fallback / second entry: the 3.5 version-drift harness re-test, public and reproducible | For review |
+| 2026-09-17 | **Lead settled: "the reserve as a distribution" — TabPFN-3.5 on loss triangles.** It survived the two checks that could have killed it: our own severity verdict concerns a different object (flat, zero-inflated, 163K–678K rows), and `tabpfn` 9.0.0 (3.5), a public triangle database and a CAS-maintained baseline are all available | **For sign-off** |
+| 2026-09-17 | **Separate repository confirmed** (your call). Name and owner still to pick; the shape is in §3 | Recorded |
 | 2026-09-17 | No spend, no runs, no repository created yet | — |
