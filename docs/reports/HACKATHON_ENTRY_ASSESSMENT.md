@@ -78,10 +78,22 @@ Tracks hit: **Showcase a harness**, **Formalize a new problem**, **Take on a har
 your own repo, README with setup, a runnable demo, a results table, and one page of "what it unlocks" for
 actuaries.
 
-**First thing to verify, before committing:** whether TabPFN-3.5 is wired into the harness yet. The
-harness docs currently describe TabPFN-3 / 3-Plus; the hackathon track name invites 3.5 through it. That
-is a five-minute check and it decides whether the entry is "run 3.5 through TabPFN-Rel" or "extend the
-harness to 3.5, then run it" — the second being *more* on-theme for a harness track, not less.
+**Checked, not assumed — the harness runs whatever version the client package provides.** TabPFN-Rel's
+own README states that "backend authentication and model access follow TabPFN or tabpfn-client's own setup
+instructions"; the harness pins no model itself. So the entry needs no extension work: install the current
+packages and TabPFN-3.5 is what runs. Two practical constraints from the same source — Python 3.11–3.12,
+and two backends, `tabpfn-rel-local` (GPU recommended) or `tabpfn-rel-client` (hosted, consumes API quota,
+and the one this machine can actually run). The entry point is RPI, in four lines:
+
+```python
+from tabpfn_rel import PredictiveQuery, PredictiveQuerySpec
+spec = PredictiveQuerySpec.from_yaml("task.yaml", data_dir="data")
+query = PredictiveQuery(spec).fit("tabpfn-rel-client", n_trials=0)
+predictions = query.predict()
+```
+
+`n_trials=0` fits the default configuration once — the right budget for a first result; a positive budget
+switches on the shared temporal tuning protocol, which is the part that wants a clock.
 
 ## 4. Plan — staged, each step useful on its own
 
@@ -138,11 +150,17 @@ reason the earlier verdict read "cannot enter".
   open-source package; SAP AI Core availability. API/MCP at **50% off standard 3.5 rates 15–29 Sept 2026**.
   <https://priorlabs.ai/technical-reports/tabpfn-3-5>
 - **RelArena-α, TabPFN-Rel and RPI**, released alongside: a relational benchmarking framework over
-  RelBench; a harness that flattens a database by deep feature synthesis along foreign keys and predicts
-  in-context; and an interface for defining a prediction problem on your own database by YAML. Relational
-  predictions are anchor-dated — features from rows at or before *t*, label from after *t*, splits as time
-  cuts. `pip install relarena`; the API-backed variant needs a token from `ux.priorlabs.ai`.
-  <https://docs.priorlabs.ai/capabilities/relational> · <https://priorlabs.ai/blog-posts/introducing-relarena>
+  RelBench v1 (TabArena-style shared evaluation, bootstrapped Elo and ranks); a harness that flattens a
+  database by deep feature synthesis along foreign keys — with optional calendar, history and text
+  features — and predicts in-context; and an interface for defining a prediction problem on your own
+  database by YAML. Relational predictions are anchor-dated: features from rows at or before *t*, label
+  from after *t*, splits as time cuts. Packages: `relarena-core`, `relarena`, `tabpfn-rel`; models register
+  as `tabpfn-rel-local` (GPU recommended) and `tabpfn-rel-client` (hosted API, quota-metered). Requires
+  Python 3.11–3.12. **The harness pins no model version** — "model access follows TabPFN or
+  tabpfn-client's own setup instructions" — so the installed client decides the version, which is what
+  makes "run 3.5 through it" a configuration rather than a port.
+  <https://docs.priorlabs.ai/capabilities/relational> · <https://github.com/PriorLabs/relarena> ·
+  <https://priorlabs.ai/blog-posts/introducing-relarena>
 - Prior Labs is an independent lab inside SAP (acquisition closed 17 Jul 2026).
   <https://priorlabs.ai/blog-posts/priorlabs-sap>
 
