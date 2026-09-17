@@ -49,6 +49,12 @@ zero-leakage rule this design keeps.
 "what we cannot claim yet" section still holds. Both are v2-era and say so in their banners: **their protocol
 transfers, their numbers do not.**
 
+### The decision this design requests
+
+Fund replication of F1 at **two further seeds** on `uslapseagent` -- about **$0.037 per run**, measured -- and,
+only if it holds, the same ladder on `spanish_motor_lapse`. Staged: the second dataset is not released by a
+positive on the first, and flat-or-worse rungs on a second seed stop the line rather than extend it. Nothing
+here is approved or funded; this is the request, not the commitment.
 ### Decision rules
 
 - **Continue** if a rung beats in-run `A_raw` with an interval excluding zero, and repeats on a second seed.

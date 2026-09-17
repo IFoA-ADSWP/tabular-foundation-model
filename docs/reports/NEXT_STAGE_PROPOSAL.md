@@ -5,6 +5,10 @@
 > which deliberately differs from it.
 
 
+> Date: 2026-09-12 | **Status: SUPERSEDED 2026-09-17.** The transfer stage it proposes was folded into the
+> Pilot 2 design set and this page is kept for the record. Its premise -- a pooled-negative transfer result on
+> v2 -- also predates the in-domain probe, which is now positive at 10,000 rows. Nothing here is approved,
+> funded or scheduled; no GPU spend is authorised by this document.
 > Date: 2026-09-12 | **Status: PROPOSAL — awaiting team confirmation. Nothing here is approved,
 > funded or scheduled; no GPU spend is authorised by this document.**
 > Related: #22, `FINE_TUNING_EXPERIMENT_DESIGN.md`, `CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md`,

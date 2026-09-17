@@ -1,4 +1,9 @@
 # Pilot 2 — one-page briefing
+> **Update, 17 Sep — the probe has run twice and the answer changed.** At 2,000 training rows fine-tuning did
+> not beat raw (outcome 3 of 3). At 10,000 rows every rung beat raw, paired intervals excluding zero, monotone in
+> epochs. The design below is still accurate; the numbers it was written against are not. See `FINDINGS.md` and
+> the front section of `FINE_TUNING_EXPERIMENT_DESIGN.md`. **The ask below stands, and now rests on a positive
+> rather than a negative.**
 
 **The question.** Does fine-tuning TabPFN beat the model straight out of the box, on our insurance data?
 
