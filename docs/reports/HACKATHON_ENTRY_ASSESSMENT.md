@@ -29,6 +29,7 @@ hackathon requires **TabPFN-3.5**.
 | Judging weights | Showcase of TabPFN-3.5 **50%** · Creativity and originality **30%** · Technical quality and reproducibility **20%** |
 | Prizes | 1st NVIDIA DGX Spark · 2nd NVIDIA Jetson AGX Orin 64GB · 3rd RTX 4090 · honourable mentions are recognition only |
 | Credits | API free with a limited default allowance; **extra credits granted on joining** the Hackathon and submitting a request |
+| Page | <https://platform.priorlabs.ai/hackathon-3.5> — submission and the terms acceptance are behind a Prior Labs sign-in |
 
 Confirmed against the hackathon terms (clauses 2–4, 6), supplied 2026-09-17.
 
@@ -133,8 +134,10 @@ earlier GPU probe cost **$0.0122** measured, and that was a fine-tuning run, not
 
 ## 6. What is needed from the team
 
-1. **The Hackathon page URL.** The terms grant extra API credits on joining, and the page as supplied
-   carries no link. Joining early is free and the window is short.
+1. **Joining.** The page is known — <https://platform.priorlabs.ai/hackathon-3.5> — but joining requires
+   signing in to a Prior Labs account to accept the terms, and the extra credits are released from there.
+   No account exists in this environment and credentials are not entered on your behalf, so this step is
+   yours.
 2. **Who enters, and in whose name.** The terms are individual — one account, prizes shipped to a single
    address (clauses 2.2, 6.2) — so the working party cannot enter as such, and one person must be nominated.
 3. **Which repository is submitted.** The entry must be a **public repo under Apache-2.0**; this repo is
