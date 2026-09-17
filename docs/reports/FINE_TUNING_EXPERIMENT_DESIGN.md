@@ -1,8 +1,64 @@
 # Experiment Design: Insurance-Specialized TabPFN Fine-Tuning (v6)
 
-> **Historical document.** Superseded by `PILOT_2_DESIGN.md` and `PILOT_2_DECISION_GRAPH.md`
-> (2026-09-13). Kept for the record -- **do not reconcile it against the current design**,
-> which deliberately differs from it.
+---
+
+## The design being proposed (read this first — everything below is reference)
+
+**Status.** This document is v6, written before the probe. The sections below are the original plan and are
+kept as reference. **This section is what is proposed now, and where the two disagree, this one wins.**
+
+### The question
+
+Does fine-tuning beat raw TabPFN for **lapse classification**, and under what conditions? Whether it helps at
+all was settled for one configuration; what remains is the conditions under which it does.
+
+### What we already know, measured in this repository
+
+- At **2,000 training rows**, full SFT did not beat raw: all three rungs at or below baseline, the
+  pre-registered outcome 3 of 3.
+- At **10,000 training rows**, all three rungs beat raw, intervals excluding zero, monotone in epochs:
+  **+0.0022 / +0.0026 / +0.0034** ROC AUC, with Brier improving in step. One seed, one split.
+- So the earlier negative was a **small-data artefact**, and the row cap was ours: the model is documented
+  for 50,000 samples, and the loader defaulted to 2,000.
+- Raw TabPFN already leads the competing baselines on `uslapseagent` (0.9363 against 0.9271 GLM, 0.9297
+  CatBoost), so any gain is a **within-model** improvement, not the closing of a gap to another method.
+
+### The design
+
+| | |
+| --- | --- |
+| scope | lapse only: `uslapseagent`, `spanish_motor_lapse`, `eudirectlapse` |
+| rows | lifted from the 2,000 default to 10,000+; `A_raw` re-measured in every run |
+| arms | `A_raw` always in-run, versus full SFT, plus one parameter-efficient or meta-learning arm |
+| staging | one dataset first; the others only if the first holds |
+| seeds | 2-3, sized against the measured 0.0003 run-to-run spread |
+| primary metric | ROC AUC; Brier and ECE reported separately, never folded in |
+| pre-registered | a numeric calibration tolerance, stated before the run |
+| analysis | paired bootstrap intervals, inverse-variance summary, Holm across the dataset family |
+| cost | measured, not modelled: about **$0.037** for a four-arm run at 10,000 rows |
+
+### Decision rules
+
+- **Continue** if a rung beats in-run `A_raw` with an interval excluding zero, and repeats on a second seed.
+- **Stop the line** if the rungs are flat or worse across two seeds on two datasets.
+- **Escalate to the other lapse datasets** only after a positive result replicates on one.
+
+### Limitations, stated alongside the design rather than discovered afterwards
+
+1. **No temporal split is available** in any lapse dataset: none carries a usable time index. Every result is
+   therefore conditional on a random split. A real limit, not an oversight.
+2. **One seed so far.** The paired intervals are within-run and say nothing about seed variation.
+3. **The row cap is ours.** 10,000 was chosen; the model documents 50,000.
+4. **The literature is a generation behind.** The fine-tuning studies are TabPFNv2-based; we run the v3
+   checkpoint, so their guidance transfers as an assumption.
+5. **Spanish-data leakage risk.** Portfolio-level features against a policy-level target, which our split and
+   context assertions do not cover.
+
+### What is not being proposed
+
+The 15-dataset sweep, the factorial N x train-ratio extension, the pooling arms, the transfer stage, and the
+temporal-split test. Each is either out of scope for lapse, or contingent on a positive result that does not
+yet exist. The reasons are in the sections below and in `TABPFN_FINETUNING_LITERATURE.md`.
 
 
 > Date: 2026-09-11 | Status: **R1 complete — smoke test only; R2, R3 and Q4/Q5 not run** | Related: #22, #129, #156, #159
@@ -13,10 +69,6 @@
 >   (notably **arms C/D, so the transfer question in the Research Question below is still
 >   untested**). Also records where R1 deviated from this design.
 > - **`FINE_TUNING_PILOT_RESULTS.md`** — the R1 numbers (§5c) and their statistical limits (§5d).
-> - **`NEXT_STAGE_PROPOSAL.md`** — the proposed next stage (LODO transfer, audit schema, gates).
->   Note it leads with the fact that the transfer experiment was already run and came out
->   pooled-negative on v2 (`CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md`), so the next stage is a
->   **re-test on v3**, not a first look. Nothing in it is approved or funded.
 >
 > The `R3 Gate` in this document is the pre-specified decision rule for advancing rungs. R1
 > evidence (arm B ≈ arm A, both inside the noise floor) points to its "otherwise stop" branch,
@@ -29,6 +81,15 @@
 
 ---
 
+> **Historical document.** Superseded by `PILOT_2_DESIGN.md` and `PILOT_2_DECISION_GRAPH.md`
+> (2026-09-13). Kept for the record -- **do not reconcile it against the current design**, which
+> deliberately differs from it.
+>
+> **Amended 14 Sep.** This file is no longer only history. The front section above is the design
+> being proposed for the lapse extension and it takes precedence; the banner applies to the v6
+> material that follows, not to the front section. Both statements are true of different halves of
+> this document, which is why they sit together rather than one replacing the other.
+
 ## Research Question
 
 Does fine-tuning TabPFN on insurance data improve performance on **unseen insurance tasks** versus raw TabPFN and actuarial baselines (GLM)?
@@ -36,6 +97,10 @@ Does fine-tuning TabPFN on insurance data improve performance on **unseen insura
 ---
 
 ## Available Datasets (15 total, successor repo)
+
+> **Superseded for the current design.** The scope is lapse classification only, three datasets, as stated
+> in the front section. The other twelve are not out of reach; they are simply not needed to answer a lapse
+> question, and listing them here as if they were in play is what made this section misleading.
 
 ### Classification targets (binary)
 
@@ -65,6 +130,9 @@ Does fine-tuning TabPFN on insurance data improve performance on **unseen insura
 ---
 
 ## Pilot Dataset Selection (4 datasets)
+
+> **Superseded.** Four datasets was the pre-probe selection. The current design uses the three lapse
+> datasets, staged, and `A_raw` is re-measured in every run rather than compared across runs.
 
 For the initial pilot, select 4 classification datasets that cover:
 
@@ -325,6 +393,10 @@ Otherwise stop at R2 and report findings.
 
 ## Budget
 
+> **Superseded by measurement.** Figures in this section were modelled from a first-pilot rate of
+> $0.544-0.657/hr. Measured since: **$0.0122** for a four-arm run at 2,000 rows, **$0.0368** at 10,000 rows.
+> Read `PILOT_2_COST_AND_CONTROLS.md` for the current anchor; treat what follows as history.
+
 | Item | Cost |
 |---|---|
 | R1 (pilot, 4 datasets × 4 arms, 1 config) | $0 (T4, ~1 hour) |
@@ -335,6 +407,10 @@ Otherwise stop at R2 and report findings.
 ---
 
 ## Hardware Requirements
+
+> **Partly superseded.** The tiers below predate the measured runs. Both used Vast.ai: an RTX PRO 4000 at
+> $0.2893/hr and an RTX 4090 at $0.3367/hr. Colab's T4 path was never available to us (503s and an L4
+> entitlement block), so that tier is aspirational rather than tested.
 
 ### Free Tier: Google Colab T4
 
@@ -707,3 +783,187 @@ power calculation on the observed test-set variance, and require it on a majorit
 ---
 
 _Next step: Build the runner script or run the pilot on T4._
+
+## Design principles after the probe and the literature
+
+Sources: `TABPFN_FINETUNING_LITERATURE.md`. Our own measurements: `PROBE_RESULTS.md`, the run records.
+
+**The objective function.** Not "does fine-tuning work" but **the probability that a result changes a
+decision, per unit of spend**. Everything below follows from that: resolution before effect, one factor at a
+time, the metric the deployment cares about, and an artifact someone else can check.
+
+### 1. Optimise for headroom, and screen for it before spending
+
+Fine-tuning is documented as less likely to help when the baseline is already within a few percent of the
+target. Our baseline was 0.9363 ROC AUC and the arms moved within 0.25 points — the condition we met.
+
+**Check it cheaply:** score the raw model *and* a strong tree baseline on the candidate dataset before any
+fine-tuning. If the raw model is already at or above the tree, there is little for adaptation to recover.
+
+### 2. Optimise for the minimal intervention that helps
+
+Adaptation is a family, not a switch: zero-shot, meta-learning, parameter-efficient (PEFT), full supervised.
+Two studies report full supervised fine-tuning often reducing accuracy *or* calibration, while PEFT and
+meta-learning give moderate gains under specific conditions — and cost less compute.
+
+**Check it cheaply:** run the cheapest family first. A gain from PEFT is a stronger, more useful result than
+the same gain from full fine-tuning, because it is affordable in production.
+
+### 3. Optimise for the metric the deployment uses
+
+If the model's value is sitting behind a decision on a fixed schema, the deployment consumes *probabilities*,
+not rankings. Our probe found ROC AUC flat while PR AUC, Brier and log loss improved in order — recorded as
+unexplained, and contested by a second source.
+
+**Check it cheaply:** pre-register the primary metric and, for calibration, a numeric tolerance, before the
+run. An unset tolerance is not a pre-registration. Report ranking and calibration separately, never as one
+score.
+
+### 4. Optimise for resolution before effect
+
+A difference smaller than the noise is not a finding. Measured here: paired CI half-widths of 0.0022-0.0043 on
+1,000 test rows, and `A_raw` reproducing to **0.0003** across two runs on the same split.
+
+**Check it cheaply:** state the smallest effect of interest, then confirm the design can resolve it. Test
+positives, not row count, set the resolution: 369 positives resolved about 0.009; 57 resolved only 0.061.
+
+### 5. Optimise for the model's real limits, not inherited defaults
+
+The model supports up to 50,000 samples and 2,000 features — 5x and 4x the previous generation. Our probe
+capped at **2,000 rows because a loader default said so**, and then reported a scale-conditional verdict. The
+constraint was ours.
+
+**Check it cheaply:** before writing "at this scale", confirm the cap is the model's rather than the
+pipeline's. Row count should be an independent variable you choose, not a constant you inherit.
+
+### 6. Optimise for protocol fidelity to the deployment
+
+The vendor requires temporal splits on time-dependent data. We used a stratified random split on lapse data —
+easier than the domain, which is why it cannot explain our negative but does limit it.
+
+**Check it cheaply:** describe how the model will be used, then make the split mirror that. A random split on
+a temporal problem answers a question nobody asked.
+
+### 7. Optimise for one factor at a time
+
+The factors the literature names are **imbalance, size and dimensionality**; the factor the configuration
+exposes is **batch size** (reported to help); the axis we already varied is epochs. Varying several at once
+makes a null unattributable — which is exactly what happened to our first design.
+
+**Check it cheaply:** write the single sentence "if this returns null, we will know X" before provisioning.
+
+### 8. Optimise for attributable artifacts
+
+Our first three runs produced results nobody could check: no log after the destroy, `rc=0` that meant nothing,
+artifacts with no run id in their path, and a pull that could not tell fresh output from committed files.
+
+**Check it cheaply:** every arm records its own dataset, split, config, seed and prediction hash; the log is
+saved before the box is destroyed; the run record names the commit that ran. If a stranger cannot recompute
+the headline number, the spend is not yet knowledge.
+
+### 9. Optimise for the generation actually in use
+
+Both fine-tuning studies we rely on are v2-based; our probes ran the v3 checkpoint. Guidance transfers across
+generations as an assumption, not a fact.
+
+**Check it cheaply:** read the current documentation for the checkpoint in use before applying a paper's
+recommendation, and say in the write-up which generation the evidence came from.
+
+### 10. Optimise for cost per unit of information
+
+Measured: four arms x one dataset x 2,000 rows = **$0.0122** warm; a cold start costs about $0.05 more; the
+seven runs of 13 Sep totalled **$0.0933**, of which the answer was $0.0122.
+
+**Check it cheaply:** screen before scaling — baseline and headroom, config sanity, one factor, cheapest
+adaptation family — and only then spend on the question. Incremental scaling with monitoring beats a bundled
+programme, because a null in stage one stops the spend instead of funding a wider version of it.
+
+### The cheapest next experiment this implies
+
+Narrowed after checking what is genuinely a config change and what is not.
+
+**The row cap, and only that.** `TRAIN_SIZE` is 2,000 and `TEST_SIZE` 1,000 — constants we chose, against a
+dataset of 29,317 rows and a model documented to accept 50,000 samples. Raising them to 10,000 and 2,500 is a
+one-line change, needs no new code, and lifts test positives from 369 to roughly 950, tightening the measured
+resolution about fourfold. Both outcomes are decisive: a gain at scale means the probe's verdict was a
+small-data artefact; no gain means the negative survives a fivefold increase in data.
+
+**Not free, and therefore not bundled in:**
+
+- *PEFT or meta-learning* needs a library integration. TabTune supplies the procedures; wiring it in is code.
+- *A temporal split is not available on uslapseagent as shipped.* The fields are `duration`, `DJIA` and policy
+  attributes — DJIA carries temporal signal, but there is no explicit date column to split on. That test needs
+  a dataset with a time index, or a proxy split that would have to be argued for on its own terms.
+- *Repeats* are cheap (`--seeds` is supported) but multiply the run cost, so they belong alongside the scale
+  test rather than instead of it.
+
+Sequence: the row cap first (one config line, cents), repeats with it if the wall time allows, then the
+adaptation family, then the split question once a dataset with a time index is chosen.
+
+**Before spending, two free checks.** Confirm the wall time scales acceptably: the arm times at 2,000 rows are
+in the run records, so the 5x projection is arithmetic, not a guess — the fine-tuning arms are the cost and
+they scale with rows. And confirm the launcher's phase ceilings accommodate that projection; the pull phase
+has a known ceiling, the run phase's bound is not surfaced.
+
+### What to stop doing
+
+- Re-running the same full-SFT ladder at 2,000 rows. Two sources and our own measurement say it can hurt.
+- Treating a flat ROC AUC as the whole result when calibration moved in order — report both, or neither.
+- Quoting cross-generation guidance as if it were verified on the model in use.
+- Adding rows, seeds and epochs together "to be safe". That is how the first design became unattributable.
+
+## Scope decision: lapse classification (13 Sep)
+
+The domain of current interest is **policy lapse / surrender classification**. That collapses most of the
+dataset-selection work, because the three lapse datasets in the pool are all registered and their targets are
+confirmed from the loader itself:
+
+| dataset | target | rows | positives at the 1,000-row cap | positives at full size |
+| --- | --- | --- | --- | --- |
+| `uslapseagent` | `surrender` | 29,317 | 369 | ~11,098 |
+| `spanish_motor_lapse` | `LapseB` | 53,502 | 354 | ~18,961 |
+| `eudirectlapse` | `lapse` | 23,060 | 128 | ~2,954 |
+
+**Verified by column inspection, not by the datasets' names (13 Sep).** The claim above was first made from
+names and parentage; it has since been checked against every file in `data/raw`. Exactly three datasets carry
+a lapse or surrender outcome -- `surrender`, `lapse`, `LapseB` -- and every other dataset's target is a claim
+variable: `ClaimOcc`, `ClaimNb`, `ClaimIndicator`, `NbClaim`, `claim`/`nclaims`/`amount`, injury counts, or a
+driving-behaviour score. Two apparent matches were false positives from a name pattern: `bemtl16`'s
+`policy_year` and `policy_holder_age` are policy attributes, and `fretelematic`'s `Policy_ID` is an
+identifier. So no fourth lapse dataset is hiding in the pool.
+
+**But one thing is worth knowing before the design is fixed.** `spanish_motor_freq` and
+`spanish_motor_severity` carry the same 53,502 rows as `spanish_motor_lapse`, with portfolio-level features
+(`Seniority`, `Policies_in_force`, `Max_policies`, `Premium`, `Type_risk`) shared across all three. That is
+one portfolio with three tasks, not three datasets -- and it is the vendor's "multiple related tables" case,
+where fine-tuning a single model across a family is named as a reason to fine-tune. It also means any run on
+the Spanish data needs a leakage check between policy-level features and a policy-level target, which is a
+data-level hazard our split and context assertions do not cover.
+
+**What this removes from the work list.** Target identification for the unregistered datasets, and the
+inventory exercise behind it — neither is needed to answer a lapse question. The eleven non-lapse datasets
+stay unregistered until a question needs them.
+
+**What it excludes, and this is a real limit.** None of the three carries a usable time index: `uslapseagent`
+has `duration` (policy age), `eudirectlapse` has a premium-frequency field, and `spanish_motor_lapse` has
+claim counts per year. So **the temporal-split test is out of scope for lapse** with the data we hold. It is
+not a shoddy split; it is a different question that needs a dataset with an actual date. The domain is still
+temporal in character — lapse is cohort-driven — which is why the vendor's temporal caution remains relevant
+even though we cannot test the split.
+
+**The design it implies, and it is cheaper than the previous plan.** All three lapse datasets, at lifted row
+caps, with the adaptation family varied rather than epochs. At full size the positive counts are 11,098 /
+18,961 / 2,954 — between thirty and fifty times the resolution our probe had, which removes the "we could not
+have seen it" objection entirely.
+
+Stage it: one lapse dataset first at the lifted cap (the cheapest arm set that answers "does the probe's
+negative replicate in-domain at scale?"), then the other two if it holds, then the adaptation family.
+
+**Metrics, pre-registered before any run.** Lapse is priced, so the deployment consumes probabilities:
+Brier and ECE belong alongside ROC AUC, with a numeric calibration tolerance stated in advance. A flat
+ranking result with a moving Brier is the outcome our probe already produced once, and it would be
+indefensible to observe it twice without having said in advance which of the two we were deciding on.
+
+**Free screen first.** Raw TabPFN against a CatBoost reference on each of the three, on CPU. If raw already
+leads by a wide margin on all three — as it does on `uslapseagent` (0.9363 against 0.9271 GLM and 0.9297
+CatBoost) — then the headroom question is settled for the lapse scope before any GPU is rented.
