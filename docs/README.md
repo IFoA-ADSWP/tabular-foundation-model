@@ -114,7 +114,7 @@ The report-level index is `reports/REPORT_REGISTRY.md` and is deliberately not r
 |---|---|
 | `analyses/merge_plan_tabarena.md` | TabArena branch staged merge plan — MERGED 2026-08-04, coordination record |
 | `sessions/2026-07-28-tabarena-benchmark-setup.md` | Session log: TabArena setup first step |
-| `status/STATUS_REPORT_FINAL.md` | SUPERSEDED — kept for history, do not cite | — **superseded**
+| `status/STATUS_REPORT_FINAL.md` | SUPERSEDED — kept for history, do not cite |
 | `status/SECURITY_INCIDENT_RESOLVED.md` | 2024 HF token exposure — resolved/remediated |
 | `REPLICATION_SETUP_GUIDE.md` | (listed above) paper replication setup |
 
