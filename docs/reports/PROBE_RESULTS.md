@@ -1,3 +1,8 @@
+> **Superseded 17 Sep.** This recorded the probe at 2,000 training rows, where fine-tuning did not beat
+> raw. At 10,000 rows every rung beat raw, intervals excluding zero, monotone in epochs. The measurement
+> below stands as the 2,000-row result; it is not the current answer. See the front section of
+> `FINE_TUNING_EXPERIMENT_DESIGN.md`.
+
 # The probe's result, and which pre-registered outcome it lands in
 
 **Pre-registration:** `PROBE_PLAN.md` (merged, #173). **Run:** `20260913T225032Z`, pinned to
