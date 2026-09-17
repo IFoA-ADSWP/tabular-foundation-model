@@ -1749,7 +1749,8 @@ run here** in one environment on one day. `eudirectlapse` went through the front
   predictions are bit-identical (max difference 0). The model is the only variable, so
   §16.4's `scikit-learn` confound does not apply.
 - The test folds are also **identical to the published lapse benchmark's**: that harness
-  uses the same `StratifiedKFold` call on the same row order.
+  uses the same `StratifiedKFold` call on the same row order. The **training data is not**
+  identical — that harness held out part of each training fold for validation (§17.4).
 
 Per-fold predictions for all nine methods are saved for both runs
 (`predictions/eudirectlapse__seed42__{v3_default,v3.5_default}.npz`). This is the
@@ -1778,7 +1779,7 @@ levels) as ordinal. That handicaps it. A fair linear baseline — one-hot catego
 standardised numerics, `LogisticRegression`, fitted on the identical folds — was therefore
 added for the comparison:
 
-| AUC, identical folds | Frontier harness | Published (TabArena harness) |
+| AUC, identical test folds | Frontier harness | Published (TabArena harness) |
 | --- | --- | --- |
 | TabPFN v3.5 | **0.6367** | — |
 | TabPFN v3 | **0.6331** | 0.6101 |
@@ -1804,14 +1805,15 @@ log-loss margin looks about twice as large (−0.0045) — the harness default o
 ### 17.4 Why the published number differs — unresolved
 
 The gap sits on TabPFN's side: v3 scores **0.023 AUC lower** in the TabArena harness on
-the same folds. Two things are ruled out:
+the same test folds. Two things are ruled out:
 
-- **Fold construction** — the folds are identical (§17.1).
+- **Test-fold construction** — the test folds are identical (§17.1). The training data
+  is not, which makes it a candidate in its own right (3, below).
 - **One-hot vs integer encoding for TabPFN** — both harnesses feed TabPFN float32 arrays
   (`src/tabpfn_client_model.py` `_preprocess` → `to_numpy(dtype=np.float32)`), not one-hot
   columns.
 
-Two candidates remain, and neither is verified:
+Three candidates remain, and none is verified:
 
 1. **Harness preprocessing.** The TabArena wrapper passes data through AutoGluon's
    `super()._preprocess` before the float32 conversion. That step can re-encode, reorder or
@@ -1820,6 +1822,10 @@ Two candidates remain, and neither is verified:
    resolves each `<version>_default` alias to *its current default checkpoint*. The
    `v3_default` run here (client 0.6.0, 2026-09-17) is therefore not guaranteed to be the
    checkpoint the August run used (client 0.3.3).
+3. **Fewer training rows.** The lapse benchmark ran with `holdout_experiments=True`, which
+   sets aside part of each training fold as a validation set — its results file carries
+   populated validation scores (`metric_error_val`). TabPFN therefore trained on fewer rows
+   there than on the full training fold used here.
 
 **Discriminating test (not run):** re-run `v3_default` today on a dataset whose August
 per-fold TabPFN values are committed — for example `coil2000` at full size in
@@ -1863,7 +1869,7 @@ the digit.
 ### 17.8 Bottom line
 
 > The `eudirectlapse` "genuine classification loss" (§14.10) **does not reproduce** on the
-> frontier harness, even for v3, on the identical folds. Against a fair one-hot logistic
+> frontier harness, even for v3, on the identical test folds. Against a fair one-hot logistic
 > regression, v3 wins on ranking (AUC +0.006, PR-AUC, lift) and ties on calibration;
 > v3.5 wins on all five metrics. Paired on the same folds, v3.5 improves on v3
 > significantly for log loss, Brier and PR-AUC. The published loss reflects TabPFN scoring
