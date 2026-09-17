@@ -1558,7 +1558,8 @@ the real run, not the §82 dry run (which was never executed and is superseded).
 Scope is deliberately partial: the four regression/count datasets where `v3_default` sits
 **off the parsimony frontier**, i.e. the evidence base for the "prefer GBDT/GLM for pricing
 at scale" verdict (§8, §14.9). The classification tiers (`ausprivauto0405`, `bemtl97`,
-`norauto`, `bemtl16`) and the `eudirectlapse` lapse loss are **not** covered here.
+`norauto`, `bemtl16`) and the `eudirectlapse` lapse loss are **not** covered here
+(`eudirectlapse`: see §17).
 
 ### 16.1 Versions and provenance (§15.3 step 1)
 
@@ -1723,8 +1724,163 @@ while actually costing ~50–95k per fold — treat quotes on small datasets as 
 > `scikit-learn` drift in §16.4 means the `ols` rows here are not comparable to v3.
 
 Still open under #186: the classification tiers (`ausprivauto0405`, `bemtl97`, `norauto`
-calibration; `bemtl16` top-decile lift), the `eudirectlapse` loss, and the sweep refresh
-that §15.2 requires before any `bemtl97` frontier claim.
+calibration; `bemtl16` top-decile lift) and the sweep refresh that §15.2 requires before
+any `bemtl97` frontier claim. The `eudirectlapse` loss is covered in §17.
+
+## 17. Addendum — `eudirectlapse` re-test: the v3 loss does not reproduce (issue #186, 2026-09-17)
+
+Tier 2 of #186. The target was the one classification dataset disclosed as a genuine
+TabPFN loss in §14.10 (published, TabArena lapse harness, Aug 2026): **TabPFN v3 AUC
+0.6101 ± 0.0049**, last of three, behind GBM 0.6138 and LR **0.6260 ± 0.0037**. The
+regime analysis attributed it to additive lapse structure the model does not capture.
+
+### 17.1 Design — same-day, same-harness, model-only
+
+Unlike §16, which diffed against committed August numbers, **both model versions were
+run here** in one environment on one day. `eudirectlapse` went through the frontier harness
+(`run_frontier_benchmark.py --data data/raw/eudirectlapse.csv --target lapse
+--save-predictions`), once with `TABPFN_MODEL_PATH=v3_default` and once with
+`v3.5_default`, rather than rebuilding the autogluon/tabarena lapse harness.
+
+- 23,060 rows, 18 features (9 categorical), 12.8% positive
+- `StratifiedKFold(5, shuffle=True, random_state=42)`, `tabpfn-client` 0.6.0,
+  `scikit-learn` 1.9.0
+- Checked: the test folds are identical across the two runs, and all eight baselines'
+  predictions are bit-identical (max difference 0). The model is the only variable, so
+  §16.4's `scikit-learn` confound does not apply.
+- The test folds are also **identical to the published lapse benchmark's**: that harness
+  uses the same `StratifiedKFold` call on the same row order. The **training data is not**
+  identical — that harness held out part of each training fold for validation (§17.4).
+
+Per-fold predictions for all nine methods are saved for both runs
+(`predictions/eudirectlapse__seed42__{v3_default,v3.5_default}.npz`). This is the
+project's **first genuine paired version-vs-version test**.
+
+### 17.2 v3 vs v3.5 — a small, consistent improvement
+
+| Metric | v3 | v3.5 | Δ | Paired p | v3.5 better on |
+| --- | --- | --- | --- | --- | --- |
+| Log loss | 0.3726 ± 0.0012 | **0.3694 ± 0.0010** | −0.0032 | **0.002** | 5/5 folds |
+| Brier | 0.1092 ± 0.0002 | **0.1085 ± 0.0002** | −0.0007 | **0.002** | 5/5 |
+| PR-AUC | 0.2031 ± 0.0042 | **0.2080 ± 0.0046** | +0.0049 | **0.014** | 5/5 |
+| AUC | 0.6331 ± 0.0051 | **0.6367 ± 0.0048** | +0.0036 | 0.054 | 4/5 |
+| Lift@10% | 1.914 ± 0.033 | **1.954 ± 0.061** | +0.041 | 0.43 | 4/5 |
+
+v3.5 is significantly better on log loss, Brier and PR-AUC, borderline on AUC, and not
+distinguishable on lift. TabPFN is on the parsimony frontier under both versions; no flag
+changed.
+
+### 17.3 The published loss does not reproduce — even for v3
+
+On this harness, **TabPFN v3 ranks #2 of 10 methods on every metric**, behind only v3.5.
+The comparison needs care, because the harness's default `lr` receives categoricals as
+integer codes (`cat.codes`), which treats nominal levels such as `vehicl_region` (14
+levels) as ordinal. That handicaps it. A fair linear baseline — one-hot categoricals plus
+standardised numerics, `LogisticRegression`, fitted on the identical folds — was therefore
+added for the comparison:
+
+| AUC, identical test folds | Frontier harness | Published (TabArena harness) |
+| --- | --- | --- |
+| TabPFN v3.5 | **0.6367** | — |
+| TabPFN v3 | **0.6331** | 0.6101 |
+| LR, one-hot | **0.6271** | 0.6260 |
+| LR, integer codes (harness default) | 0.6132 | — |
+
+One-hot LR reproduces the published LR (0.6271 vs 0.6260). TabPFN v3 does **not** (0.6331
+vs 0.6101). Against the fair one-hot LR:
+
+| Metric | v3 vs one-hot LR | v3.5 vs one-hot LR |
+| --- | --- | --- |
+| AUC | +0.0060, p=0.047, 5/5 | +0.0096, p=0.005, 5/5 |
+| PR-AUC | +0.0094, p=0.007, 5/5 | +0.0143, p=0.008, 5/5 |
+| Lift@10% | +0.169, p=0.001, 5/5 | +0.210, p=0.012, 5/5 |
+| Log loss | +0.0007, p=0.19, 1/5 — **tie** | −0.0024, p<0.001, 5/5 |
+| Brier | −0.0000, p=0.86, 3/5 — **tie** | −0.0007, p=0.001, 5/5 |
+
+So on identical folds, **v3 beats a fair linear model on ranking and ties it on
+calibration; v3.5 beats it on all five metrics.** The version change turned a calibration
+tie into a paired-significant win. Measured against the integer-coded default `lr`, v3.5's
+log-loss margin looks about twice as large (−0.0045) — the harness default overstates it.
+
+### 17.4 Why the published number differs — unresolved
+
+The gap sits on TabPFN's side: v3 scores **0.023 AUC lower** in the TabArena harness on
+the same test folds. Two things are ruled out:
+
+- **Test-fold construction** — the test folds are identical (§17.1). The training data
+  is not, which makes it a candidate in its own right (3, below).
+- **One-hot vs integer encoding for TabPFN** — both harnesses feed TabPFN float32 arrays
+  (`src/tabpfn_client_model.py` `_preprocess` → `to_numpy(dtype=np.float32)`), not one-hot
+  columns.
+
+Three candidates remain, and none is verified:
+
+1. **Harness preprocessing.** The TabArena wrapper passes data through AutoGluon's
+   `super()._preprocess` before the float32 conversion. That step can re-encode, reorder or
+   drop categorical levels, so the integers TabPFN receives may differ from `cat.codes`.
+2. **Server-side drift of the `v3_default` alias.** Client 0.6.0 documents that the server
+   resolves each `<version>_default` alias to *its current default checkpoint*. The
+   `v3_default` run here (client 0.6.0, 2026-09-17) is therefore not guaranteed to be the
+   checkpoint the August run used (client 0.3.3).
+3. **Fewer training rows.** The lapse benchmark ran with `holdout_experiments=True`, which
+   sets aside part of each training fold as a validation set — its results file carries
+   populated validation scores (`metric_error_val`). TabPFN therefore trained on fewer rows
+   there than on the full training fold used here.
+
+**Discriminating test (not run):** re-run `v3_default` today on a dataset whose August
+per-fold TabPFN values are committed — for example `coil2000` at full size in
+`home_turf_sweep_results.csv` — and compare fold by fold. A match rules out alias drift and
+leaves preprocessing. A mismatch confirms drift.
+
+That outcome also bears on §16: its deltas compare **August** `v3_default` against
+**September** `v3.5_default`, so any alias drift would be folded into what §16 attributes to
+the version change. The same-day paired design here is immune to it.
+
+### 17.5 Caveats
+
+- **Weak default linear baselines, benchmark-wide.** The frontier harness gives `lr` and
+  `logisticglm` integer-coded categoricals on every dataset, not only this one. §14.13's
+  feature-engineered `glm_eng` partly addresses this for the six canonical classification
+  datasets, but untuned linear rows on categorical-heavy data understate the linear floor.
+- **Degenerate GLM rows.** `tweedieglm` and `poissonglm` score AUC exactly 0.5000 here —
+  constant predictions on the binary target — so they are not meaningful baselines on
+  this dataset.
+- **`rf` log loss is clip-dependent.** The random forest emits exact 0/1 probabilities (43
+  of them, 3 hard misses), so its log loss depends on the clipping epsilon: 0.3905 in
+  float64 vs 0.3878 from float32 storage. Rank-based metrics are unaffected.
+- **Single seed (42).**
+
+### 17.6 Harness defect found (fixed here)
+
+The first attempt at both runs completed every TabPFN fold, then aborted at the in-run
+read-back check with `read-back mismatch for rf: recomputed=0.387838 vs recorded=0.390453`.
+The check re-scored float32-stored predictions, while the run had scored in float64, and
+`log_loss` clips at the dtype's machine epsilon — so the three hard misses cost ~16 nats
+instead of ~36. It had never fired before because §16 was regression-only, where RMSE and
+Poisson deviance do not clip on dtype epsilon. `verify_predictions_readback` now scores in
+float64. Both runs were repeated after the fix, and the TabPFN fold values reproduced to
+the digit.
+
+### 17.7 Cost
+
+200,000 credits for four runs — the two aborted attempts plus the two repeats — which is
+10,000 per fold, the API's per-call minimum.
+
+### 17.8 Bottom line
+
+> The `eudirectlapse` "genuine classification loss" (§14.10) **does not reproduce** on the
+> frontier harness, even for v3, on the identical test folds. Against a fair one-hot logistic
+> regression, v3 wins on ranking (AUC +0.006, PR-AUC, lift) and ties on calibration;
+> v3.5 wins on all five metrics. Paired on the same folds, v3.5 improves on v3
+> significantly for log loss, Brier and PR-AUC. The published loss reflects TabPFN scoring
+> 0.023 AUC lower inside the TabArena harness, for a reason not yet isolated (§17.4). It
+> should **no longer be cited as a property of the model** — in particular, not as
+> evidence that TabPFN fails to capture additive structure.
+
+Docs that still cite the published loss and are **not** edited here: §14.10 (the source
+table, kept as the historical v3 record), `docs/reports/PRE_FINETUNING_INVESTIGATIONS.md`
+("EU Lapse is the disclosed exception"), and `docs/reports/FINE_TUNING_PILOT_RESULTS.md`
+§4 finding 2. Read them through this section.
 
 ## 9. Source Workbooks
 

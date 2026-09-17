@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "dataset": "eudirectlapse",
+  "data_file": "/Users/mako/Desktop/ADSWP/tabular-foundation-model-retest-35/data/raw/eudirectlapse.csv",
+  "target": "lapse",
+  "drop": [],
+  "problem_type": "classification",
+  "primary_metric": "log_loss",
+  "stored_scale_note": "target stored/used as returned by load_Xy (no additional transform on capture)",
+  "clip_convention": "poisson_deviance: y_pred clipped >= 1e-12 at scoring time (metric_fn); tweedieglm/poissonglm classification-mode mu clipped to [1e-6, 1-1e-6] at scoring time (run_dataset fold loop); stored arrays are raw, pre-clip",
+  "n_folds": 5,
+  "seed": 42,
+  "split": "StratifiedKFold(5, shuffle=True, random_state=42)",
+  "methods": [
+    "cat",
+    "lgbm",
+    "xgb",
+    "lr",
+    "logisticglm",
+    "tweedieglm",
+    "poissonglm",
+    "rf",
+    "tabpfn"
+  ],
+  "model_version": "v3_default",
+  "tabpfn_client_version": "0.6.0",
+  "script_git_sha": "4a6897fd12ef4d3734154d578343fc248babedbb",
+  "created_at": "2026-09-17T07:49:07Z"
+}
