@@ -55,7 +55,8 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup and contribution gui
 │       ├── 05_regression_finetuning.ipynb
 │       ├── 06_synthetic_data_exploration.ipynb
 │       ├── 07_multi_dataset_benchmark.ipynb
-│       └── 08_multi_dataset_regression_benchmark.ipynb
+│       ├── 08_multi_dataset_regression_benchmark.ipynb
+│       └── 09_zero_inflation_dispersion.ipynb
 │
 ├── outputs/
 │   ├── current/                    # Latest figures + tables
@@ -97,6 +98,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup and contribution gui
 | `baseline_experiments/06` | Synthetic data exploration |
 | `baseline_experiments/07` | Multi-dataset benchmark (classification) |
 | `baseline_experiments/08` | Multi-dataset benchmark (regression) |
+| `baseline_experiments/09` | Zero-inflated count data: TabPFN vs Poisson/ZIP/ZINB GLMs across dispersion levels |
 
 ## Key Findings
 

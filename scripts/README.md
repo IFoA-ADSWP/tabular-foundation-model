@@ -15,6 +15,16 @@ One-off experiment scripts, infrastructure, and debug tools. Ordered by purpose.
 | `eval/insurance_benchmark_v1/run_frontier_benchmark.py` | Pareto frontier benchmark (power vs parsimony, D1–D5) — log loss / RMSE / Poisson deviance vs n_params, `--regression` mode, 11 datasets; generic CSV mode `--data <csv> --target <col> [--drop a,b]` (issue #46) |
 | `eval/insurance_benchmark_v1/rescore_focused_imbalance_logloss.py` | Re-score cached pilot probas on log loss / Brier (post-run only — needs `scripts/experiments/` caches) |
 
+## Zero-inflation study (issue #159)
+
+Run from the repo root (the API key is read from the root `.env`). Report: `docs/reports/ZERO_INFLATION_TABPFN.md`.
+
+| Script | Purpose |
+|--------|---------|
+| `eval/zero_inflation/run_sweep.py` | Sweep π₀ × 10 seeds for one NB2 dispersion `--alpha`: Poisson/ZIP/ZINB GLMs vs TabPFN (raw and log1p) on mean-matched zero-inflated counts; resumable, writes `results/alpha_<alpha>/results.csv` (uses API credits) |
+| `eval/zero_inflation/analyze.py` | Per-α diagnostic plots into `results/alpha_<alpha>/` (`--alpha`) |
+| `eval/zero_inflation/make_report_charts.py` | The report's four charts → `outputs/current/figures/zero_inflation_*.png` |
+
 ## Infrastructure
 
 | Script | Purpose |
