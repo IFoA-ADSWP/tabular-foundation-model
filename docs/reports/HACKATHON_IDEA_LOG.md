@@ -144,7 +144,9 @@ Submit at MVP if the clock runs short; the deadline does not move, and updates a
 
 ### The repository — separate, public, Apache-2.0
 
-Q2 is answered: **a new repository, not this one** (confirmed by you, 2026-09-17). Proposed shape:
+**Created: `IFoA-ADSWP/tabpfn-reserving`** — public, Apache-2.0, in the same org as this repository
+(2026-09-17). It carries `README.md`, `docs/method.md`, `docs/brief.md` and `requirements.txt`; the code
+lands with the spike. The intended shape:
 
 ```
 tabpfn-reserving/                 Apache-2.0, public
@@ -200,4 +202,4 @@ every 3.5 claim in the lead. If only one entry gets finished, it should be the l
 | 2026-09-17 | Fallback / second entry: the 3.5 version-drift harness re-test, public and reproducible | For review |
 | 2026-09-17 | **Lead settled: "the reserve as a distribution" — TabPFN-3.5 on loss triangles.** It survived the two checks that could have killed it: our own severity verdict concerns a different object (flat, zero-inflated, 163K–678K rows), and `tabpfn` 9.0.0 (3.5), a public triangle database and a CAS-maintained baseline are all available | **For sign-off** |
 | 2026-09-17 | **Separate repository confirmed** (your call) and then created: `IFoA-ADSWP/tabpfn-reserving` — public, Apache-2.0, initial commit `4dc9e72` (README, `docs/method.md`, `requirements.txt`). The entry repo now exists and satisfies clause 3.5; the code lands with the spike | Done |
-| 2026-09-17 | No spend and no runs yet; the entry repository exists but carries no code | — |
+| 2026-09-17 | **Project brief initiated** in the entry repo — `docs/brief.md`, commit `7f8d41d`: objective, rubric mapping, the event as constraints, scope with an explicit out-list, deliverables with done-when, a dated plan built back from 6 Oct, pre-registered success criteria, roles and risks. The plan submits on **2 Oct**, four days early, because the latest version counts | Done |
