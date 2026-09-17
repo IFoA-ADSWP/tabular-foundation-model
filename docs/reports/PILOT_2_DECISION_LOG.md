@@ -216,6 +216,11 @@ full*, with a reason beside every value.
 - [ ] `PILOT_2_PREREQUISITES.md` counts re-checked after the build (PR-1, PR-3, PR-9 still await
       one real box; see the Gate Amendment there)
 
+> **Superseded 17 Sep.** This recorded the probe at 2,000 training rows, where fine-tuning did not beat
+> raw. At 10,000 rows every rung beat raw, intervals excluding zero, monotone in epochs. The measurement
+> below stands as the 2,000-row result; it is not the current answer. See the front section of
+> `FINE_TUNING_EXPERIMENT_DESIGN.md`.
+
 ## P13 — the probe's outcome, and what it stands down
 
 **Settled by measurement:** the in-domain fine-tuning hypothesis is dead at 2,000 training rows. The epoch
