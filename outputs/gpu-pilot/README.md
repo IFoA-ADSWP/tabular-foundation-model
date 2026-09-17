@@ -59,3 +59,21 @@ The per-arm results (`meta.json`, `predictions.npy`) live under `outputs/finetun
 that this directory and that one are both **tracked**, so an ad-hoc run writing there can overwrite
 committed records — which is why `run_pilot.py` now refuses to overwrite an existing record unless
 `--overwrite` is given, and supports `--outdir` to write elsewhere entirely.
+
+## Unrecorded artifacts, and why they are not evidence
+
+`git status` on `main` listed ten untracked files in this directory. For a directory whose whole job is to
+make runs checkable, an untracked file is a statement nobody wrote down: it says something happened without
+saying what. They are committed and named here instead.
+
+| path | what it is | why it is not evidence |
+| --- | --- | --- |
+| `run_20260914T005226Z.json` + `logs/20260914T005226Z.log` | a run that stopped before any arm ran | the log is 59 bytes: no arm produced output. The run has a ledger row; only its residue was unrecorded. |
+| `run_20260914T010130Z.json` + `logs/20260914T010130Z.log` | same | same |
+| `manifest_20260914T0107{32,39,55}Z.json`, `manifest_20260914T010823Z.json` | the aggregate step's manifests, written five minutes after the successful run | the aggregate refused to overwrite its outputs (`REFUSING TO OVERWRITE: 4 existing record(s)`) and completed no record |
+| `pilot_metrics.parquet`, `pilot_predictions.parquet` | an earlier aggregation, left in the path the aggregate writes to | stale, and the reason the aggregate refuses: it sees them as existing records. The per-run predictions under `runs/` supersede them. |
+
+**The rule, stated once.** A run's evidence lives here if and only if `runs/<run_id>/` exists for it. On that
+test, exactly one run in this directory is evidence: `runs/20260914T010247Z/`, the 10,000-row run that flipped
+the verdict. Everything above belongs to runs that failed before producing arms, or to the aggregate step's
+refusal. Recording them keeps the absence from doing the work of a statement.
