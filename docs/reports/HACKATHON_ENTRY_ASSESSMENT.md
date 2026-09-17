@@ -5,6 +5,8 @@
 > been made and no existing numbers change. **Correction recorded:** the first version concluded the repo
 > "cannot enter a hackathon". That was true of the two clock-bound events it was written against and is
 > **false for this one** — see §2.
+>
+> Ideas, scores, the lead candidate and the open decision list are in **`HACKATHON_IDEA_LOG.md`**.
 
 **The short answer:** yes, and this repo is unusually well-placed. The hackathon is an open project
 submission judged by a Prior Labs panel on creativity as much as performance, and two of its six tracks —
@@ -20,8 +22,15 @@ hackathon requires **TabPFN-3.5**.
 | Shape | Open-ended. "Creativity counts as much as performance showcases" |
 | Judging | A Prior Labs judging panel picks the top 3 and honourable mentions |
 | Tracks | Build an agent · Build an extension or app (extension, MCP server, visual app, from your own repo, with clear setup instructions) · Take on a hard problem (health, climate, or one you care about; or a Kaggle challenge) · **Formalize a new problem** (take a domain dataset nobody treats as tabular and turn it into a proper prediction task) · **Showcase a harness** (run TabPFN-3.5 through an existing harness like TabPFN-Rel and show what it unlocks) · Your idea |
-| Hard requirement | Built with **TabPFN-3.5** |
-| Not stated on the page | deadline, submission mechanism, prize, whether entries are solo or team |
+| Hard requirement | Built with **TabPFN-3.5**; other models and tools allowed if 3.5 is core |
+| Window | Submissions **15 Sept 2026 00:00 CEST → 6 Oct 2026 23:59 CEST** — **19 days** from 17 Sept |
+| Entry | A link to a **public** repository **released under Apache License 2.0**, plus a description a third-party developer can follow; **multiple entries allowed**, each judged separately, latest version counts |
+| Reproducibility | Code and instructions to run it, with the input data included **or available at a public URL** |
+| Judging weights | Showcase of TabPFN-3.5 **50%** · Creativity and originality **30%** · Technical quality and reproducibility **20%** |
+| Prizes | 1st NVIDIA DGX Spark · 2nd NVIDIA Jetson AGX Orin 64GB · 3rd RTX 4090 · honourable mentions are recognition only |
+| Credits | API free with a limited default allowance; **extra credits granted on joining** the Hackathon and submitting a request |
+
+Confirmed against the hackathon terms (clauses 2–4, 6), supplied 2026-09-17.
 
 ## 2. Verdict: yes — and the reason is the format
 
@@ -118,16 +127,20 @@ earlier GPU probe cost **$0.0122** measured, and that was a fine-tuning run, not
   and risks neither being finished. Keep it out.
 - **Model-version churn.** 3.5 is two days old and Fast is in alpha. Pin the version and record the weights
   ID, as this repo's own rule requires.
-- **Deadline unknown.** The page as supplied carries no dates and the page is not publicly indexed, so the
-  schedule cannot be set from here.
+- **The clock, not the work.** 19 days to 6 Oct against a plan of ~2–3 focused days. The risk is the
+  calendar, so: submit at MVP and improve afterwards — updates are allowed until close and the latest
+  version counts.
 
 ## 6. What is needed from the team
 
-1. **The deadline and the submission link** — the page as supplied has neither, and the plan's shape
-   depends on how much time there is.
-2. **Who enters.** This hackathon does not state a solo rule or a team limit; one named owner is needed
-   either way.
-3. **Sign-off on Stage 0's API spend** (cents, discounted until 29 Sept).
+1. **The Hackathon page URL.** The terms grant extra API credits on joining, and the page as supplied
+   carries no link. Joining early is free and the window is short.
+2. **Who enters, and in whose name.** The terms are individual — one account, prizes shipped to a single
+   address (clauses 2.2, 6.2) — so the working party cannot enter as such, and one person must be nominated.
+3. **Which repository is submitted.** The entry must be a **public repo under Apache-2.0**; this repo is
+   MIT, org-owned, and full of working-party material. A new, small, Apache-2.0 repo that cites this one is
+   the clean route, and it needs the working party's decision.
+4. **Sign-off on Stage 0's API spend** (cents, discounted until 29 Sept).
 
 ---
 
