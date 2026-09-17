@@ -4,7 +4,8 @@ Plan for a 20-minute talk on the TabPFN insurance benchmark work. One core deck,
 per-venue trims. Deadlines: both conferences due 2026-09-10 (check CFP dates —
 abstract deadlines usually precede; set them on issues #108/#111).
 
-Status: PLAN — not yet executed. Tracked in issues #108–#113 (venue-specific
+Status: PLAN — **deadline passed, delivery unverified.** Both CFPs closed 2026-09-10 and nothing here
+has been checked since 2026-08-21. Reconcile against #108/#111 before using it.
 abstract/poster/presentation), #105 (deliverables parent), #78 (Spanish deck).
 
 ## What is ready now (no new analysis needed)
@@ -19,6 +20,9 @@ abstract/poster/presentation), #105 (deliverables parent), #78 (Spanish deck).
 **Needs producing before 09-10:** venue abstracts (#108/#111), one reframe
 contrast chart (currently a table only — §14.14.2), slide build.
 
+**New since this plan was written.** The fine-tuning question is listed below as a failure (caveat 9).
+It is now a positive result at scale, measured in this repository, and worth a slide of its own.
+
 ## Narrative arc (13 slides)
 
 1. **Title** — Foundation models for actuarial tabular data: where TabPFN wins, loses, and why
@@ -29,7 +33,7 @@ contrast chart (currently a table only — §14.14.2), slide build.
 6. **Result 3: the reframe inversion (money slide)** — same rows, count → classification target: rank #1 on all 5 metrics, paired-significant, two seeds (§14.14). Chart to build.
 7. **Regime synthesis** — thin-signal/ranking → TabPFN; GLM-captured/parsimony → classical; count axis → trees (regime_characterization.md)
 8. **Actuarial takeaway** — TabPFN for claim-propensity triage and lapse; GLM/GBDT for pricing. Transparency + parsimony govern deployment.
-9. **Caveats (own them)** — reframe n=1 (freMTPL2freq pending, gap B1); PR-AUC within noise; GLMs collapse on binary reframe; client version pin 0.3.3; fine-tuning degrades (§5)
+9. **Caveats (own them)** — reframe n=1 (freMTPL2freq pending, gap B1); PR-AUC within noise; GLMs collapse on binary reframe; client version pin 0.3.3; fine-tuning — **do not repeat the older “degrades” line**: that negative was our own 2,000-row cap, and at 10,000 rows every rung beat raw with intervals excluding zero (`reports/PROBE_RESULTS.md`)
 10. **Next steps** — freMTPL2freq reframe (B1), fairness addendum (#107), use-case doc (#25)
 11–13. **Appendix** — full digest table, protocol detail, files/links
 
