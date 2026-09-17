@@ -245,3 +245,20 @@ v3.
    same split already bound the noise.
 5. **Verify any v2-derived guidance against the v3 checkpoint** before it drives a design, and say so in the
    write-up when it can't be verified.
+
+## In this repository (v2-era, and it says so)
+
+Five documents already covered this ground before the current line of work began. They are cited here rather
+than rediscovered, with the caveat they carry themselves: v2-era, weights ID unrecorded.
+
+| document | what it is | how to use it |
+| --- | --- | --- |
+| `INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md` | the same test, proposed April 2026: H1 probability quality, H2 ranking, zero-leakage rule, arms, tuning policy, initial budget | **the protocol transfers**; its numbers do not |
+| `INSURANCE_SPECIFIC_FINETUNING_EVIDENCE.md` | evidence review of insurance-specific fine-tuning; short answer, then what cannot be claimed yet | cite for the framing, not the figures |
+| `TABPFN_FINE_TUNING_LIMIT_STUDY.md` | empirical study of which row/context/step settings are workable on Apple Silicon | feasibility, not efficacy |
+| `tabpfn_finetune_limit_test_plan.md` | the plan behind that study (CPU row scaling, M1 spot checks) | feasibility, not efficacy |
+| `tabpfn_small_finetune_methodology.md` | small, low-risk fine-tuning readiness method and defaults | feasibility, not efficacy |
+
+The three feasibility documents are the origin of the standing rule not to chase fine-tuning on CPU. **None of
+the five reports whether fine-tuning improves predictions on lapse data** -- that question was open in April
+and is the one this line of work answers, first negatively at 2,000 rows and then positively at 10,000.
