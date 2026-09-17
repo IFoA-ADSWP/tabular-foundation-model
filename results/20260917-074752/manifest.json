@@ -1,0 +1,16 @@
+{
+  "run_id": "20260917-074752",
+  "utc": "2026-09-17T07:47:52Z",
+  "git_sha": "4a6897fd12ef4d3734154d578343fc248babedbb",
+  "seed": 42,
+  "pr_auc_mode": false,
+  "argv": [
+    "scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py",
+    "--data",
+    "data/raw/eudirectlapse.csv",
+    "--target",
+    "lapse",
+    "--save-predictions"
+  ],
+  "note": null
+}

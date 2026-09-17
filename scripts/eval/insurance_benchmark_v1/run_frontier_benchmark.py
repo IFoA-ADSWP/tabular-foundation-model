@@ -819,7 +819,10 @@ def verify_predictions_readback(npz_path: Path, methods: list[str], metric, rows
         fold_vals = []
         for k in range(n_folds):
             y_true = data[f"y_true__fold{k}"]
-            y_pred = data[f"{m}__fold{k}"]
+            # Score in float64, as the in-run metric did: log_loss clips at the dtype's
+            # machine eps, so a hard 0/1 miss (RF pure leaves) costs ~16 nats from float32
+            # storage vs ~36 in-run — a 2.6e-3 mean shift on eudirectlapse from 3 misses.
+            y_pred = data[f"{m}__fold{k}"].astype(np.float64)
             if problem_type == "classification":
                 fold_vals.append(metric(y_true, _reconstruct_pp(m, y_pred)))
             else:
