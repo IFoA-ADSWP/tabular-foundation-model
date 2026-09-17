@@ -3,7 +3,8 @@
 > **Status:** living document, opened 2026-09-17. This is the working page: ideas, scores, the lead
 > candidate and what still needs deciding. Event facts and the event-level assessment live in
 > `HACKATHON_ENTRY_ASSESSMENT.md`; nothing here is a commitment until it appears in the decision log at
-> the foot of the page.
+> the foot of the page. **What the entry actually shows — beat by beat, with the claims and what would
+> falsify them — is in `HACKATHON_WHAT_WE_SHOW.md`.**
 
 ## 1. The brief, as constraints
 
