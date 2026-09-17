@@ -32,10 +32,22 @@ all was settled for one configuration; what remains is the conditions under whic
 | arms | `A_raw` always in-run, versus full SFT, plus one parameter-efficient or meta-learning arm |
 | staging | one dataset first; the others only if the first holds |
 | seeds | 2-3, sized against the measured 0.0003 run-to-run spread |
-| primary metric | ROC AUC; Brier and ECE reported separately, never folded in |
+| primary metric | probability quality (Brier, log loss, ECE) for lapse; ROC AUC reported alongside, never folded in |
 | pre-registered | a numeric calibration tolerance, stated before the run |
 | analysis | paired bootstrap intervals, inverse-variance summary, Holm across the dataset family |
 | cost | measured, not modelled: about **$0.037** for a four-arm run at 10,000 rows |
+
+### Relationship to the repository's own April protocol
+
+`INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md` (2026-04-02) proposed **the same test** in the v2 era, with
+H1 = probability quality (Brier, log loss, ECE) and H2 = ranking (ROC AUC, PR AUC) -- the ordering the table
+above now adopts. That is not a coincidence to be tidied away: lapse is priced, so the probability is the
+deployment quantity, and ranking only matters if the probabilities are usable. The protocol also carries the
+zero-leakage rule this design keeps.
+
+`INSURANCE_SPECIFIC_FINETUNING_EVIDENCE.md` (2026-03-29) is the evidence review for the same question; its
+"what we cannot claim yet" section still holds. Both are v2-era and say so in their banners: **their protocol
+transfers, their numbers do not.**
 
 ### Decision rules
 
