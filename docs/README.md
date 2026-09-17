@@ -1,6 +1,6 @@
 # Docs Index — what to read, in what order
 
-45 docs (this index included). Start from your role, not the file list. Every finding is version-pinned — see [MODEL_VERSIONS.md](MODEL_VERSIONS.md) before citing a number.
+Start from your role, not the file list. Deliberately no document count here: this index held a stale one for as long as the work outgrew it, and a number nobody checks is a claim waiting to be false. Every finding is version-pinned — see [MODEL_VERSIONS.md](MODEL_VERSIONS.md) before citing a number.
 
 ## Start here — the current line of work (fine-tuning on lapse data)
 
