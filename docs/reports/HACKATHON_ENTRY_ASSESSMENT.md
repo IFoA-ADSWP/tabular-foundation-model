@@ -140,9 +140,9 @@ earlier GPU probe cost **$0.0122** measured, and that was a fine-tuning run, not
    yours.
 2. **Who enters, and in whose name.** The terms are individual — one account, prizes shipped to a single
    address (clauses 2.2, 6.2) — so the working party cannot enter as such, and one person must be nominated.
-3. **Which repository is submitted.** The entry must be a **public repo under Apache-2.0**; this repo is
-   MIT, org-owned, and full of working-party material. A new, small, Apache-2.0 repo that cites this one is
-   the clean route, and it needs the working party's decision.
+3. **Which repository is submitted.** **Answered and done:** `IFoA-ADSWP/tabpfn-reserving` — created
+   2026-09-17 in this repo's own org, public, Apache-2.0, so clause 3.5 is satisfied. It cites this repo's
+   methods (and acknowledges the working party) rather than vendoring them.
 4. **Sign-off on Stage 0's API spend** (cents, discounted until 29 Sept).
 
 ---
