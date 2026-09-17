@@ -1,0 +1,14 @@
+{
+  "run_id": "20260916-102642",
+  "utc": "2026-09-16T10:26:42Z",
+  "git_sha": "0fc1158ee3d97274e853f3a878cda7909a70e3b7",
+  "seed": 42,
+  "pr_auc_mode": false,
+  "argv": [
+    "scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py",
+    "--regression",
+    "--save-predictions",
+    "spanish_motor_severity"
+  ],
+  "note": null
+}

@@ -79,14 +79,16 @@ Usage:
     python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --seed 7 ausprivauto0405 # split-seed stability (default 42; seed != 42 writes
                                                                                                  #   frontier_results_<ds>_seed<N>.csv/.png so the canonical seed-42 files are not clobbered)
     python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --save-predictions coil2000 # persist per-fold (y_true, y_pred, test_idx) for every
-                                                                                                 #   method to predictions/<dataset>__seed<seed>.npz + .manifest.json (#122);
+                                                                                                 #   method to predictions/<dataset>__seed<seed>__<model_path>.npz + .manifest.json (#122, #186);
                                                                                                  #   forces fresh fits (like --pr-auc), read-back verified in-run
 
 Outputs (same dir as this script), per dataset:
     frontier_results_<dataset>.csv   method | mean <metric> | SE | n_params | on-frontier
     frontier_plot_<dataset>.png      x = log10(n_params), y = mean <metric>, +/- SE bars,
                                      frontier red / dominated grey
-    predictions/<dataset>__seed<seed>.npz + .manifest.json   (--save-predictions only, #122)
+    predictions/<dataset>__seed<seed>__<model_path>.npz + .manifest.json
+                                     (--save-predictions only, #122; the model_path suffix
+                                      keeps version generations side by side, #186)
 
 Self-check: per-dataset assert-based sanity checks (5 fold rows per reused method —
 skipped when the sweep has no rows for that dataset — no NaNs, unique methods, >=1
@@ -109,6 +111,7 @@ REPO = HERE.parent.parent.parent
 import sys as _sys
 _sys.path.insert(0, str(REPO))  # repo root
 from src.api_key import load_api_key as _load_api_key  # noqa: E402
+from src.model_version import resolve_model_path as _model_path  # noqa: E402
 DATA_RAW = REPO / "data" / "raw"
 
 # D5 Option A: the home-turf sweep datasets plus norauto. Load configs identical to
@@ -575,20 +578,22 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
         scores = []
         t1 = time.time()
         for fold, (tr, te) in enumerate(folds):
-            model = TabPFNClassifier(model_path="v3_default", random_state=0)  # default n_estimators=None
             # Hosted API is flaky (RemoteProtocolError/ConnectionError/httpx timeouts
-            # seen in the sweep log): up to 3 attempts, backoff 10s/60s/300s.
+            # seen in the sweep log): up to 3 attempts, backoff 10s/60s/300s. predict
+            # is inside the retry because the server can fail there too, and a bare
+            # predict error otherwise discards every completed fold for the dataset.
             for attempt in range(1, 4):
                 try:
+                    model = TabPFNClassifier(model_path=_model_path(), random_state=0)  # default n_estimators=None
                     model.fit(X[tr], y[tr])
+                    pp = model.predict_proba(X[te])
                     break
                 except Exception as e:
                     wait = [10, 60, 300][attempt - 1]
-                    say(f"  tabpfn f{fold} fit attempt {attempt}/3 failed: {e!r}; retrying in {wait}s")
+                    say(f"  tabpfn f{fold} attempt {attempt}/3 failed: {e!r}; retrying in {wait}s")
                     time.sleep(wait)
                     if attempt == 3:
                         raise
-            pp = model.predict_proba(X[te])
             if pp.ndim == 1 or pp.shape[1] == 1:  # single-class fallback (sweep pattern)
                 pp = np.column_stack([1 - pp, pp]) if pp.ndim == 1 else np.column_stack([1 - pp[:, 0], pp[:, 0]])
             s = fold_scores(metric, y[te], pp)
@@ -716,14 +721,19 @@ def sanity_check(sweep_full: pd.DataFrame, folds: list[tuple[np.ndarray, np.ndar
 # ---------------------------------------------------------------------------
 def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: list[str],
                            n_folds: int, problem_type: str, metric_name: str, seed: int) -> Path:
-    """Write predictions/<dataset>__seed<seed>.npz + sibling .manifest.json (schema v1,
-    docs/analyses/prediction_capture_rescore_spec.md §4). Asserts every fold/method array
-    is present, length-matched to its test split, and finite before writing anything."""
+    """Write predictions/<dataset>__seed<seed>__<model_path>.npz + sibling .manifest.json
+    (schema v1, docs/analyses/prediction_capture_rescore_spec.md §4). Asserts every
+    fold/method array is present, length-matched to its test split, and finite before
+    writing anything.
+
+    The model_path suffix keeps generations side by side: without it a version re-test
+    (§15/§16) silently overwrites the baseline it is being diffed against, since dataset
+    and seed are unchanged across versions."""
     import json
     import subprocess
 
     PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
-    stem = f"{ds['name']}__seed{seed}"
+    stem = f"{ds['name']}__seed{seed}__{_model_path()}"
     npz_path = PREDICTIONS_DIR / f"{stem}.npz"
     manifest_path = PREDICTIONS_DIR / f"{stem}.manifest.json"
 
@@ -772,7 +782,7 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
         "seed": seed,
         "split": split_desc,
         "methods": methods,
-        "model_version": "v3_default",
+        "model_version": _model_path(),
         "tabpfn_client_version": tabpfn_client_version,
         "script_git_sha": git_sha,
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -885,20 +895,22 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFra
     fold_vals = []
     t1 = time.time()
     for fold, (tr, te) in enumerate(folds):
-        model = TabPFNRegressor(model_path="v3_default", random_state=0)  # default n_estimators=None
         # Hosted API is flaky (RemoteProtocolError/ConnectionError/httpx timeouts seen
         # in the sweep log): up to 3 attempts, backoff 10s/60s/300s — same as classifier.
+        # predict is inside the retry because the server can fail there too, and a bare
+        # predict error otherwise discards every completed fold for the dataset.
         for attempt in range(1, 4):
             try:
+                model = TabPFNRegressor(model_path=_model_path(), random_state=0)  # default n_estimators=None
                 model.fit(X[tr], y[tr])
+                y_pred = model.predict(X[te])
                 break
             except Exception as e:
                 wait = [10, 60, 300][attempt - 1]
-                say(f"  tabpfn f{fold} fit attempt {attempt}/3 failed: {e!r}; retrying in {wait}s")
+                say(f"  tabpfn f{fold} attempt {attempt}/3 failed: {e!r}; retrying in {wait}s")
                 time.sleep(wait)
                 if attempt == 3:
                     raise
-        y_pred = model.predict(X[te])
         fold_vals.append(metric(y[te], y_pred))
         record_fold("tabpfn", fold, y[te], y_pred, te)
         say(f"  tabpfn f{fold} {ds['metric']}={fold_vals[-1]:.4f} ({time.time() - t1:.0f}s)")

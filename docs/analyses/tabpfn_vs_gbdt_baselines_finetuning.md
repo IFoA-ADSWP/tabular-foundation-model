@@ -1549,6 +1549,183 @@ importlib version check in the existing eval scripts, flagging when it moves off
 pinned version so a human triggers §15.3. Not built; documented for when the harness
 gets CI.
 
+## 16. Addendum — TabPFN 3.5 version-drift re-test, regression/count tier (issue #186, 2026-09-16)
+
+First live execution of the §15 policy. §15.1's second trigger fired — a Prior Labs
+model-version announcement introducing a `model_path` beyond `v3_default` — so this is
+the real run, not the §82 dry run (which was never executed and is superseded).
+
+Scope is deliberately partial: the four regression/count datasets where `v3_default` sits
+**off the parsimony frontier**, i.e. the evidence base for the "prefer GBDT/GLM for pricing
+at scale" verdict (§8, §14.9). The classification tiers (`ausprivauto0405`, `bemtl97`,
+`norauto`, `bemtl16`) and the `eudirectlapse` lapse loss are **not** covered here.
+
+### 16.1 Versions and provenance (§15.3 step 1)
+
+| Field | Baseline (§14.x) | This re-test |
+| --- | --- | --- |
+| Model | `v3_default` | **`v3.5_default`** |
+| `tabpfn-client` | 0.3.3 | **0.6.0** |
+| Server default model | v3 | **v3.5** — an unpinned call now silently selects 3.5 |
+| Row / cell / class caps | 1M / 200M / 160 | unchanged |
+| Max columns | 2,000 | **20,000** (10×) |
+| Folds / seed / split | `KFold(5, shuffle=True, random_state=42)` | identical — unchanged |
+| Script git SHA | — | `0fc1158` (recorded per-dataset in `predictions/*.manifest.json`) |
+
+Model identifiers are `ModelVersion` enum values in the client: `v3.5` and `v3.5-fast`
+exist, and the `_default` suffix forms the `model_path` alias the server resolves to a
+checkpoint. `estimate_cost`, by contrast, takes the bare enum value (`v3.5`) — the two
+APIs are not interchangeable. Only `v3.5_default` was run; `v3.5-fast_default` (alpha,
+latency-optimised, accuracy trade-off undisclosed) was not.
+
+Selection is no longer hardcoded: `src/model_version.py` resolves `model_path` from
+`TABPFN_MODEL_PATH` (env, then `.env`), defaulting to `v3_default` so an unconfigured
+run still reproduces the baseline.
+
+### 16.2 Results — all four datasets improved
+
+Mean ± SE over 5 folds, lower is better. `Δ/SE` uses the baseline SE, since no per-fold
+baseline values exist (see §16.5). Paired column is a per-fold paired t-test against the
+best rival within this run.
+
+| Dataset | Rows | Metric | v3_default | v3.5_default | Δ | Δ/SE | Frontier | Paired vs `lgbm` |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `freMTPL2freq` | 678,013 | Poisson dev. | 0.3877 ± 0.0020 | **0.3013 ± 0.0017** | −22.3% | 43.0 | no | p=0.0004, 0/5 — worse |
+| `spanish_motor_freq` | 53,502 | Poisson dev. | 0.9876 ± 0.0162 | **0.9031 ± 0.0085** | −8.6% | 5.2 | **no → yes** | **p=0.47 — not distinguishable** |
+| `bemtl97_amount` | 163,212 | RMSE | 0.7282 ± 0.0106 | **0.7012 ± 0.0062** | −3.7% | 2.6 | no | p<0.0001, 0/5 — worse |
+| `spanish_motor_severity` | 53,502 | RMSE | 1.8862 ± 0.0116 | **1.8607 ± 0.0113** | −1.4% | 2.2 | no | p=0.0004, 0/5 — worse |
+
+Per-fold TabPFN values (`v3.5_default`):
+
+- `freMTPL2freq` — 0.3012, 0.2968, 0.2983, 0.3038, 0.3063
+- `spanish_motor_freq` — 0.8952, 0.8867, 0.9112, 0.9326, 0.8898
+- `bemtl97_amount` — 0.7118, 0.6954, 0.6801, 0.7147, 0.7041
+- `spanish_motor_severity` — 1.8714, 1.8386, 1.8742, 1.8892, 1.8300
+
+### 16.3 The one verdict change — `spanish_motor_freq`
+
+Exactly one `on_frontier` flag moved across all four datasets, and it is TabPFN's own.
+The frontier rule (`pareto_frontier`, SE-aware domination: B dominates A iff B has fewer
+parameters **and** `mean_B + SE_B < mean_A − SE_A`) resolves as:
+
+- **Before** — lgbm 0.8916 + 0.0124 = 0.9040 < 0.9876 − 0.0162 = 0.9714 → dominated.
+- **Now** — 0.9040 < 0.9031 − 0.0085 = 0.8946 is **false** → not dominated.
+
+The flip is driven by both a better mean and a halved SE (0.0162 → 0.0085), against
+`lgbm` numbers that reproduced bit-exactly. The paired test agrees: p=0.47 over 5 folds.
+
+This falsifies a specific §14.9 claim. That section cites this dataset as evidence that
+frequency signal at scale is *"tree-extractable only"* — LGBM 0.8916 vs TabPFN 0.9876,
+with the Poisson GLM at the 1.0123 null floor. At 0.9031 vs 0.8916, not statistically
+separable, that reading no longer holds **for `spanish_motor_freq` on `v3.5_default`**.
+
+Consequently the headline count in §8 and `TABPFN_BENCHMARK_SUMMARY.md` — *"off the
+parsimony frontier 5 of 12"* — becomes **4 of 12**.
+
+`freMTPL2freq` is the largest single improvement (−22.3%, closing ~90% of the gap to
+LightGBM: +0.0966 → +0.0101) but is **not** a verdict change: the paired test still
+returns p=0.0004 with 0/5 folds won. Better, not competitive. `bemtl97_amount` is
+unmoved in substance — LightGBM still wins by ~1.4× on RMSE.
+
+### 16.4 Environment confound — `ols` drift (disclose before citing)
+
+This is **not** a pure model-only diff, contrary to the ideal in §15.3 step 2.
+`scikit-learn` also moved: `requirements.lock` pins **1.6.1**; this re-test ran **1.9.0**
+(the Aug-2026 benchmark venv at `/tmp/tabarena/.venv-ta` no longer exists, so its exact
+version is unverifiable). Baseline reproduction against the committed CSVs:
+
+| Method | Reproduced? | Largest drift |
+| --- | --- | --- |
+| `lgbm`, `cat`, `xgb` | **bit-exact on all 4** | — |
+| `ols` | **no — all 4 datasets** | +5.63% (`spanish_motor_freq`) |
+| `rf`, `poissonglm`, `tweedieglm` | near-exact | <0.2% |
+
+Why the conclusions survive it:
+
+1. `lgbm` is the best rival on all four datasets and reproduced exactly, so every paired
+   test in §16.2 is unaffected.
+2. No `ols` frontier flag changed anywhere, despite the drift — at 11–21 parameters it is
+   too parsimonious to be dominated.
+3. The §16.3 flip depends only on TabPFN's mean/SE versus lgbm's unchanged numbers.
+
+What it does mean: the `ols` rows in this re-test must not be compared against the
+committed v3 `ols` rows. A future re-test should pin `scikit-learn==1.6.1` to make the
+diff genuinely model-only.
+
+### 16.5 Two harness defects found (both fixed here)
+
+Neither is a model finding; both would have silently corrupted this re-test.
+
+1. **Auth (silent TabPFN dropout).** `src/api_key.py` exported only `TABPFN_API_KEY`;
+   `tabpfn-client` reads **`TABPFN_TOKEN`** after 0.3.3. The failure mode is quiet — all
+   eight baselines populate normally while every TabPFN fold fails its retries. Fixed by
+   exporting both names, which keeps 0.3.3 baseline re-runs working.
+2. **Retry did not cover `predict`.** The 3-attempt backoff wrapped `model.fit()` only.
+   On `freMTPL2freq` a transient server error (`The worker failed to process this
+   request`) at fold 4 of 5 aborted the dataset and discarded **four completed folds,
+   ~59 minutes of compute and its tokens** — nothing was written but an empty manifest.
+   Fixed by moving construction, fit and predict inside the retry, so a predict failure
+   re-fits and retries.
+
+The re-run after the fix reproduced folds 0–3 to the digit (0.3012 / 0.2968 / 0.2983 /
+0.3038), confirming determinism, and completed fold 4 at 0.3063.
+
+### 16.6 Version-vs-version paired test — not done here, but now unblocked
+
+The `Δ/SE` column in §16.2 is a two-sample comparison against the baseline SE, **not** a
+paired per-fold test. Nothing in `main` supports the paired version: the committed v3
+frontier CSVs carry only mean ± SE.
+
+The per-fold v3 arrays do exist, however — in open PR
+[#152](https://github.com/IFoA-ADSWP/tabular-foundation-model/pull/152), which backfills
+`v3_default` predictions for six regression datasets, including all four re-tested here.
+Once it merges, a paired `v3_default`-vs-`v3.5_default` test on identical folds becomes a
+mechanical exercise, and it should replace the `Δ/SE` column. Treat §16.2 as provisional
+in that respect.
+
+**Filename collision, and the fix.** #152's artefacts were named
+`<dataset>__seed<seed>`, which has no version component — so this re-test would have
+written over the exact baseline it is diffed against, leaving the manifest as the only way
+to tell the two apart. `write_predictions_npz` now appends the resolved `model_path`:
+
+```
+predictions/freMTPL2freq__seed42__v3_default.npz      <- #152 (baseline)
+predictions/freMTPL2freq__seed42__v3.5_default.npz    <- this re-test
+```
+
+Generations therefore coexist, and each `§15` re-test preserves its predecessor instead of
+destroying it. #152's files need the matching rename before merge; the `.gitignore`
+exemption (`!scripts/eval/insurance_benchmark_v1/predictions/*.npz`, per the #150 decision
+to commit directly) is glob-based and already covers both names — both PRs add the same
+line, so expect a trivial conflict there.
+
+Other limits unaffected by the above: single seed (42), single split, and no
+`v3.5-fast_default` arm.
+
+### 16.7 Cost
+
+Metered via `get_api_usage()`: **~4.8M tokens** for the tier including the discarded
+`freMTPL2freq` attempt (~2.3M for its re-run alone). Account usage moved 19.37M → 24.17M
+of a 60M allowance. `estimate_cost` quoted `freMTPL2freq` well (2.27M vs ~2.3M actual)
+but under-quoted the three smaller datasets, which hit a 10,000-token-per-call floor
+while actually costing ~50–95k per fold — treat quotes on small datasets as a floor.
+
+### 16.8 Bottom line
+
+> On the four regression/count datasets where `v3_default` sat off the parsimony frontier,
+> **`v3.5_default` improved on every one**, each beyond 2× the baseline SE. One verdict
+> change: `spanish_motor_freq` moved onto the frontier and is no longer statistically
+> separable from LightGBM (p=0.47), which falsifies §14.9's "tree-extractable only"
+> reading for that dataset and takes the off-frontier count from 5/12 to 4/12.
+> `freMTPL2freq` improved most (−22.3%) but remains a paired-significant loss.
+> `bemtl97_amount` and `spanish_motor_severity` remain paired-significant losses.
+> The pricing-at-scale verdict therefore **narrows but does not reverse** — and the
+> `scikit-learn` drift in §16.4 means the `ols` rows here are not comparable to v3.
+
+Still open under #186: the classification tiers (`ausprivauto0405`, `bemtl97`, `norauto`
+calibration; `bemtl16` top-decile lift), the `eudirectlapse` loss, and the sweep refresh
+that §15.2 requires before any `bemtl97` frontier claim.
+
 ## 9. Source Workbooks
 
 - `scripts/benchmarks/run_home_turf_size_sweep.py` — home-turf size sweep runner (3 datasets × 3
