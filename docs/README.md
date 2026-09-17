@@ -2,6 +2,24 @@
 
 45 docs (this index included). Start from your role, not the file list. Every finding is version-pinned — see [MODEL_VERSIONS.md](MODEL_VERSIONS.md) before citing a number.
 
+## Start here — the current line of work (fine-tuning on lapse data)
+
+Everything below indexes the whole repository. **If you are here for the fine-tuning programme, read these first.**
+
+| Question | Document |
+| --- | --- |
+| What is being proposed, and why | `reports/FINE_TUNING_EXPERIMENT_DESIGN.md` — its front section *is* the design; everything under it is reference |
+| Which document governs the next round | `reports/NEXT_STAGE_PROPOSAL.md` (transfer, with the decisions needed from the team); the design document's front section (lapse extension) |
+| What the pilot actually found | `reports/PROBE_RESULTS.md` — outcome 3 at 2,000 rows, superseded at 10,000 by measurement |
+| What it cost | `reports/PILOT_2_COST_AND_CONTROLS.md` — measured, not modelled: $0.0122 and $0.0368 for the two runs |
+| What the literature says | `reports/TABPFN_FINETUNING_LITERATURE.md` — sources read at source, each carrying a verification status |
+| Where the raw evidence is | `../outputs/gpu-pilot/` — records, logs, manifests, and per-arm predictions under `runs/<run_id>/` |
+| The wider proposal | `reports/PILOT_2_BRIEFING.md` (one page) → `reports/PILOT_2_DESIGN.md` → `reports/PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` |
+
+**Eras.** R1 (first pilot, no reliable gain) → Pilot 2 (the wider staged proposal) → the probe (2,000 rows, negative) → **lapse-v3 (current)**, where the row cap was lifted to 10,000 and every fine-tuning rung beat raw with intervals excluding zero. Earlier-era documents carry a status banner; where a banner and a front section disagree, the front section wins.
+
+The report-level index is `reports/REPORT_REGISTRY.md` and is deliberately not restated here, so there is exactly one place to update when a report is added.
+
 ## Start here by role
 
 | You are… | Read in order |
@@ -14,7 +32,10 @@
 
 ## Era legend
 
-- **Scripts era (current, v3):** `scripts/eval/`, `scripts/benchmarks/`, hosted API (`tabpfn-client` 0.3.3, `v3_default`). Verdicts live here.
+- **Fine-tuning / lapse era (current):** `scripts/run_pilot.py`, `scripts/analyse_pilot.py`,
+  `scripts/gpu_helpers/`, `outputs/gpu-pilot/`. Owns the fine-tuning question; see the section at the
+  top of this file.
+- **Scripts era (v3, predecessor line):** `scripts/eval/`, `scripts/benchmarks/`, hosted API (`tabpfn-client` 0.3.3, `v3_default`). Verdicts live here.
 - **Notebook era (legacy, v2):** `notebooks/baseline_experiments/01–08` + `src/`, laptop runs, `outputs/current/`. Historical arc; banners mark validity. See `KNOWLEDGE-PATH.md` "two eras" and `REPRODUCIBILITY_RUNBOOK.md` §B.
 
 ## On-ramps & how the code runs
