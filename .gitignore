@@ -193,3 +193,9 @@ CLAUDE.md
 scripts/gpu_helpers/.onstart.*.sh
 *.onstart.sh
 outputs/finetune/pilot/*/*/
+
+# Run artifacts and logs ARE kept, under the run id. The rules above predate that policy and
+# were silently swallowing them: a plain `git add` skipped .npy and .log without a word, which is
+# how a run's predictions ended up recorded in the working tree only.
+!/outputs/gpu-pilot/runs/**
+!/outputs/gpu-pilot/logs/**

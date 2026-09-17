@@ -1,0 +1,40 @@
+Sun Sep 13 22:33:05 UTC 2026
+Hit:1 http://security.ubuntu.com/ubuntu jammy-security InRelease
+Hit:2 http://archive.ubuntu.com/ubuntu jammy InRelease
+Hit:3 http://archive.ubuntu.com/ubuntu jammy-updates InRelease
+Hit:4 http://archive.ubuntu.com/ubuntu jammy-backports InRelease
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+curl is already the newest version (7.81.0-1ubuntu1.27).
+less is already the newest version (590-1ubuntu0.22.04.3).
+locales is already the newest version (2.35-0ubuntu3.15).
+openssh-server is already the newest version (1:8.9p1-3ubuntu0.17).
+software-properties-common is already the newest version (0.99.22.9).
+sudo is already the newest version (1.9.9-1ubuntu2.6).
+tmux is already the newest version (3.2a-4ubuntu0.2).
+wget is already the newest version (1.21.2-2ubuntu1.5).
+0 upgraded, 0 newly installed, 0 to remove and 51 not upgraded.
+Reading package lists...
+Building dependency tree...
+Reading state information...
+git is already the newest version (1:2.34.1-1ubuntu1.17).
+rsync is already the newest version (3.2.7-0ubuntu0.22.04.7).
+0 upgraded, 0 newly installed, 0 to remove and 51 not upgraded.
+rm: cannot remove '/etc/forward_port2': No such file or directory
+============================================================
+BOOTSTRAP — branch=main arms=A_raw,B_ft3,B_ft10,B_ft30 workdir=/workspace/tfm
+============================================================
+--- GPU check ---
+Server listening on 0.0.0.0 port 22.
+Server listening on :: port 22.
+Sun Sep 13 22:33:10 UTC 2026
+NVIDIA RTX PRO 4000 Blackwell, 24467 MiB, 595.58.03
+--- cloning ---
+Cloning into '/workspace/tfm'...
+Warning: Permanently added 'ssh9.vast.ai' (ED25519) to the list of known hosts.
+fatal: reference is not a tree: 71a4783b5301a92ad595813b008521909f0d2714
+FATAL: the box cannot check out 71a4783b5301a92ad595813b008521909f0d2714 -- refusing to run different code
+BOOTSTRAP FINISHED
+

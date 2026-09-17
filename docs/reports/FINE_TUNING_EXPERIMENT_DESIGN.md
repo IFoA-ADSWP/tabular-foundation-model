@@ -81,6 +81,15 @@ yet exist. The reasons are in the sections below and in `TABPFN_FINETUNING_LITER
 
 ---
 
+> **Historical document.** Superseded by `PILOT_2_DESIGN.md` and `PILOT_2_DECISION_GRAPH.md`
+> (2026-09-13). Kept for the record -- **do not reconcile it against the current design**, which
+> deliberately differs from it.
+>
+> **Amended 14 Sep.** This file is no longer only history. The front section above is the design
+> being proposed for the lapse extension and it takes precedence; the banner applies to the v6
+> material that follows, not to the front section. Both statements are true of different halves of
+> this document, which is why they sit together rather than one replacing the other.
+
 ## Research Question
 
 Does fine-tuning TabPFN on insurance data improve performance on **unseen insurance tasks** versus raw TabPFN and actuarial baselines (GLM)?
