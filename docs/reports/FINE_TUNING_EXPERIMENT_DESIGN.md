@@ -89,6 +89,10 @@ Does fine-tuning TabPFN on insurance data improve performance on **unseen insura
 
 ## Available Datasets (15 total, successor repo)
 
+> **Superseded for the current design.** The scope is lapse classification only, three datasets, as stated
+> in the front section. The other twelve are not out of reach; they are simply not needed to answer a lapse
+> question, and listing them here as if they were in play is what made this section misleading.
+
 ### Classification targets (binary)
 
 | Dataset | File | Rows | Target | Positive Rate | Market | Master report outcome |
@@ -117,6 +121,9 @@ Does fine-tuning TabPFN on insurance data improve performance on **unseen insura
 ---
 
 ## Pilot Dataset Selection (4 datasets)
+
+> **Superseded.** Four datasets was the pre-probe selection. The current design uses the three lapse
+> datasets, staged, and `A_raw` is re-measured in every run rather than compared across runs.
 
 For the initial pilot, select 4 classification datasets that cover:
 
@@ -377,6 +384,10 @@ Otherwise stop at R2 and report findings.
 
 ## Budget
 
+> **Superseded by measurement.** Figures in this section were modelled from a first-pilot rate of
+> $0.544-0.657/hr. Measured since: **$0.0122** for a four-arm run at 2,000 rows, **$0.0368** at 10,000 rows.
+> Read `PILOT_2_COST_AND_CONTROLS.md` for the current anchor; treat what follows as history.
+
 | Item | Cost |
 |---|---|
 | R1 (pilot, 4 datasets × 4 arms, 1 config) | $0 (T4, ~1 hour) |
@@ -387,6 +398,10 @@ Otherwise stop at R2 and report findings.
 ---
 
 ## Hardware Requirements
+
+> **Partly superseded.** The tiers below predate the measured runs. Both used Vast.ai: an RTX PRO 4000 at
+> $0.2893/hr and an RTX 4090 at $0.3367/hr. Colab's T4 path was never available to us (503s and an L4
+> entitlement block), so that tier is aspirational rather than tested.
 
 ### Free Tier: Google Colab T4
 
