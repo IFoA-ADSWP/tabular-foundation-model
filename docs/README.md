@@ -103,8 +103,8 @@ The report-level index is `reports/REPORT_REGISTRY.md` and is deliberately not r
 |---|---|
 | `papers/Theres-Life-in-the-Old-GLM-Yet.md` | Round-1 single-dataset paper (v2.0 era — historical record, see status note) |
 | `papers/APPENDIX_REPRODUCIBILITY.md` | Reproducibility package for round-1 results |
-| `papers/FOLLOW_UP_ROUND2_JOURNAL_SHORT.md` | Round-2 short journal format (multi-dataset + regression) |
-| `papers/FOLLOW_UP_ROUND2_JOURNAL_PLAIN.md` | Round-2 plain-English summary |
+| `papers/FOLLOW_UP_ROUND2_JOURNAL_SHORT.md` | Round-2 short journal format (multi-dataset + regression) | — **historical**
+| `papers/FOLLOW_UP_ROUND2_JOURNAL_PLAIN.md` | Round-2 plain-English summary | — **superseded**
 | `analyses/tabpfn_small_finetune_methodology.md` | Small classifier finetune methodology |
 | `analyses/tabpfn_finetune_limit_test_plan.md` | Finetune limit test plan (classifier-only) |
 
