@@ -119,7 +119,7 @@ The docs are extensive. Start here:
 - **`docs/REPORT_REGISTRY.md`** — maps every report to its source notebook and evidence files
 - **`docs/archive/TECHNICAL_COMPANION.md`** — explains all metrics in actuarial context (best first read)
 - **`docs/REPLICATION_SETUP_GUIDE.md`** — step-by-step to reproduce the paper results
-- **`docs/archive/archive/status/STATUS_REPORT_FINAL.md`** — summary of validated findings and recommendations
+- **`docs/archive/archive/archive/status/STATUS_REPORT_FINAL.md`** — summary of validated findings and recommendations
 
 ## Dependencies
 

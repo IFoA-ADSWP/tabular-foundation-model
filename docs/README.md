@@ -49,7 +49,7 @@ The report-level index is `docs/REPORT_REGISTRY.md` and is deliberately not rest
 | Actuary (do I adopt this?) | `docs/archive/TABPFN_BENCHMARK_SUMMARY.md` → `analyses/metrics_explained.md` → `analyses/regime_characterization.md` → `docs/archive/RESERVING_WITH_FOUNDATIONAL_MODELS.md` |
 | Engineer (how does it run?) | `docs/archive/CODE_WALKTHROUGH.md` → `REPRODUCIBILITY_RUNBOOK.md` → `MODEL_VERSIONS.md` → `docs/REPORT_REGISTRY.md` |
 | Contributor (how do I add work?) | `KNOWLEDGE-PATH.md` → `REPRODUCIBILITY_RUNBOOK.md` → `docs/REPORT_REGISTRY.md` → `MODEL_VERSIONS.md` (re-test policy §15) |
-| Replicator (paper numbers) | `REPLICATION_SETUP_GUIDE.md` → `papers/APPENDIX_REPRODUCIBILITY.md` → `papers/Theres-Life-in-the-Old-GLM-Yet.md` |
+| Replicator (paper numbers) | `REPLICATION_SETUP_GUIDE.md` → `archive/papers/APPENDIX_REPRODUCIBILITY.md` → `archive/papers/Theres-Life-in-the-Old-GLM-Yet.md` |
 
 ## Era legend
 
@@ -122,10 +122,10 @@ The report-level index is `docs/REPORT_REGISTRY.md` and is deliberately not rest
 
 | Doc | Purpose |
 |---|---|
-| `papers/Theres-Life-in-the-Old-GLM-Yet.md` | Round-1 single-dataset paper (v2.0 era — historical record, see status note) |
-| `papers/APPENDIX_REPRODUCIBILITY.md` | Reproducibility package for round-1 results |
-| `papers/FOLLOW_UP_ROUND2_JOURNAL_SHORT.md` | Round-2 short journal format (multi-dataset + regression) | — **historical**
-| `papers/FOLLOW_UP_ROUND2_JOURNAL_PLAIN.md` | Round-2 plain-English summary | — **superseded**
+| `archive/papers/Theres-Life-in-the-Old-GLM-Yet.md` | Round-1 single-dataset paper (v2.0 era — historical record, see status note) |
+| `archive/papers/APPENDIX_REPRODUCIBILITY.md` | Reproducibility package for round-1 results |
+| `archive/papers/FOLLOW_UP_ROUND2_JOURNAL_SHORT.md` | Round-2 short journal format (multi-dataset + regression) | — **historical**
+| `archive/papers/FOLLOW_UP_ROUND2_JOURNAL_PLAIN.md` | Round-2 plain-English summary | — **superseded**
 | `analyses/tabpfn_small_finetune_methodology.md` | Small classifier finetune methodology |
 | `analyses/tabpfn_finetune_limit_test_plan.md` | Finetune limit test plan (classifier-only) |
 
@@ -134,9 +134,9 @@ The report-level index is `docs/REPORT_REGISTRY.md` and is deliberately not rest
 | Doc | Purpose |
 |---|---|
 | `analyses/merge_plan_tabarena.md` | TabArena branch staged merge plan — MERGED 2026-08-04, coordination record |
-| `sessions/2026-07-28-tabarena-benchmark-setup.md` | Session log: TabArena setup first step |
-| `status/STATUS_REPORT_FINAL.md` | SUPERSEDED — kept for history, do not cite |
-| `status/SECURITY_INCIDENT_RESOLVED.md` | 2024 HF token exposure — resolved/remediated |
+| `archive/sessions/2026-07-28-tabarena-benchmark-setup.md` | Session log: TabArena setup first step |
+| `archive/status/STATUS_REPORT_FINAL.md` | SUPERSEDED — kept for history, do not cite |
+| `archive/status/SECURITY_INCIDENT_RESOLVED.md` | 2024 HF token exposure — resolved/remediated |
 | `REPLICATION_SETUP_GUIDE.md` | (listed above) paper replication setup |
 
 ## Outside docs/

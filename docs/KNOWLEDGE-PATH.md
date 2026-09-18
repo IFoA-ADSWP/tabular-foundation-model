@@ -143,9 +143,9 @@ By the end of this stage: given a new research question, you can name which skil
 - Model catalog context: `docs/analyses/tabular_foundation_models_catalog.md`
 - Side studies: `docs/archive/CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md` (round 2/3 — does a homogeneous fine-tuning pool beat a heterogeneous one? inconclusive; read for the method, not the verdict)
 - The paper layer: `docs/papers/` — the GLM paper, the round-2 journal follow-ups (`FOLLOW_UP_ROUND2_JOURNAL_SHORT.md` / `FOLLOW_UP_ROUND2_JOURNAL_PLAIN.md`; *historical record — the "no universal winner" conclusion is superseded on AUC by §14.11*, the docs themselves carry this banner), `APPENDIX_REPRODUCIBILITY.md`, and `docs/REPLICATION_SETUP_GUIDE.md` (step-by-step paper replication)
-- Repo hygiene history: `docs/status/STATUS_REPORT_FINAL.md`
+- Repo hygiene history: `docs/archive/status/STATUS_REPORT_FINAL.md`
 
-**Deliberately not in this path** (look here only if you must): `docs/analyses/tabpfn_finetune_limit_test_plan.md` (superseded by the executed limit study), `docs/sessions/2026-07-28-tabarena-benchmark-setup.md` (session log), `docs/status/SECURITY_INCIDENT_RESOLVED.md` (ops record), `tests/` (smoke-only coverage), `legacy/` (deprecated R scripts).
+**Deliberately not in this path** (look here only if you must): `docs/analyses/tabpfn_finetune_limit_test_plan.md` (superseded by the executed limit study), `docs/archive/sessions/2026-07-28-tabarena-benchmark-setup.md` (session log), `docs/archive/status/SECURITY_INCIDENT_RESOLVED.md` (ops record), `tests/` (smoke-only coverage), `legacy/` (deprecated R scripts).
 
 ---
 
@@ -197,7 +197,7 @@ GLMs are interpretable (you can read off the coefficient of every feature), regu
 
 **The central framing of this repo:** model quality must be judged *against effort*. A zero-tune TabPFN vs a tuned GBDT is the comparison that matters for a real actuary team. See `docs/analyses/levers_assessment.md` and the "finality test" in `run_tuned_baselines.py`.
 
-Where it lives: `src/model_training.py` (baseline zoo), `src/baseline_utils.py` (preprocessing + eval), `docs/papers/Theres-Life-in-the-Old-GLM-Yet.md`.
+Where it lives: `src/model_training.py` (baseline zoo), `src/baseline_utils.py` (preprocessing + eval), `docs/archive/papers/Theres-Life-in-the-Old-GLM-Yet.md`.
 
 ## S3. TabPFN — the transformer for tabular data
 
