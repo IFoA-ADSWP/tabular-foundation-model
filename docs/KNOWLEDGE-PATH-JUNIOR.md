@@ -154,7 +154,7 @@ The "Subset (10K)" row exists because pilot subsets must preserve class balance 
 Know these exist and what they're for:
 - `README.md` — project purpose, environment, how to run things
 - `data/README.md` — dataset provenance
-- `docs/reports/REPORT_REGISTRY.md` — the index: every report, its evidence files, its dedup key
+- `docs/REPORT_REGISTRY.md` — the index: every report, its evidence files, its dedup key
 - `docs/analyses/` — specs and studies of the current (scripts) era
 - `outputs/current/tables/` — **the source of truth** (you just read four files from it)
 
@@ -167,7 +167,7 @@ By now you should be able to:
 - Explain why PR AUC matters when positives are ~10% of the data
 - Explain what ROC AUC does *not* tell you about a model that ranks well
 - Explain what "same folds" means and why every comparison in this repo requires it
-- Deeper reading when ready: `docs/analyses/metrics_explained.md` (v3, actuarial framing) and `docs/reports/TECHNICAL_COMPANION.md` §1 (legacy v2 numbers).
+- Deeper reading when ready: `docs/analyses/metrics_explained.md` (v3, actuarial framing) and `docs/archive/TECHNICAL_COMPANION.md` §1 (legacy v2 numbers).
 - Read Table1 like a scientist: the best ranking model is LogisticRegression at 0.599, but the band is ~0.55–0.60 — within noise of each other on one split — so no winner can be called from this table alone; single-table comparisons don't tell you about variance or paired significance.
 
 ## Phase 1 — First Runs Runbook (Days 3–5)
@@ -177,7 +177,7 @@ Goal: TabPFN works end-to-end on this machine, and you've seen real results. Thr
 ### Lesson 1.0 — Environment setup (30 min)
 
 Do, in order:
-1. Activate the notebook-era environment: `source .venv312/bin/activate` (Python 3.12.x, the preferred kernel per `docs/reports/MULTI_DATASET_GLM_VS_TABPFN_SUMMARY.md`). For a fresh checkout instead: `python -m venv .venv && pip install -r requirements.txt` (README).
+1. Activate the notebook-era environment: `source .venv312/bin/activate` (Python 3.12.x, the preferred kernel per `docs/archive/MULTI_DATASET_GLM_VS_TABPFN_SUMMARY.md`). For a fresh checkout instead: `python -m venv .venv && pip install -r requirements.txt` (README).
 2. Verify imports: `python -c "import tabpfn, tabpfn_client, sklearn; print('ok')"` — no import errors.
 3. API key: the hosted client needs `TABPFN_API_KEY` — as an env var, or a `.env` file in the repo root, or `TABPFN_ENV_FILE` pointing elsewhere (README §setup; scripts fail with a clear error if missing). A cached token already exists in the repo's gitignored `.env`, so first runs may just work.
 4. Note the **two ways to run TabPFN** in this repo: (a) the local package (notebook era, what you use this phase), and (b) the hosted API via `tabpfn_client` (`model_path="v3_default"`, what Phase 3's frontier scripts use). Same model, different plumbing.
@@ -255,7 +255,7 @@ Goal: know what was tried and why the repo looks the way it does.
 Do:
 - Read these notebooks **in order, with `outputs/current/tables/` open next to them**: `baseline_experiments/02_tabpfn_vs_glm_lapse` → `04_probability_calibration` → `07_multi_dataset_benchmark` → `08_multi_dataset_regression_benchmark` → `06_synthetic_data_exploration`
 - Notebook 06 is short and the finding is negative (augmentation hurts) — read it anyway; it saves you a month
-- **Trace one report end-to-end:** pick any row in `REPORT_REGISTRY.md`, open the report, find its evidence files, and confirm the numbers in the report match the tables
+- **Trace one report end-to-end:** pick any row in `docs/REPORT_REGISTRY.md`, open the report, find its evidence files, and confirm the numbers in the report match the tables
 - Read main path Part 2: **S6** (negative findings — learn these so you don't repeat them)
 
 By now you should be able to:
@@ -313,7 +313,7 @@ By the end: you should be able to state the report's verdict, say whether its nu
 - **TabArena harness** (`/tmp/tabarena`, `.venv-ta`) — tooling, not core; revisit only if asked
 - **`legacy/` R scripts and `legacy_finetuning/`** — historical record; read-only archaeology, if ever
 - **Embeddings** (`04_tabpfn_embedding_workflow.ipynb`) — side track, not in the current benchmark spine
-- **Fine-tuning** — before running anything, read `docs/reports/TABPFN_FINE_TUNING_LIMIT_STUDY.md`. It's a bounded lever with real failure modes (save/load, regressor instability). Baseline first. **Also note the 2026-09-12 pilot:** arm B ran successfully for the first time (GPU, same device/run/seed as raw TabPFN) and a **3-pass** fine-tune bought nothing measurable — deltas ≤0.010 with one negative, against raw TabPFN's +0.007 to +0.068 over the actuarial baselines. See `FINE_TUNING_PILOT_RESULTS.md` §5c and `MASTER-REPORT-DIGEST.md` §14.16 for the scope limits (3 passes, default subsampling, one seed) — this bounds *small* fine-tunes, not every configuration.
+- **Fine-tuning** — before running anything, read `docs/archive/TABPFN_FINE_TUNING_LIMIT_STUDY.md`. It's a bounded lever with real failure modes (save/load, regressor instability). Baseline first. **Also note the 2026-09-12 pilot:** arm B ran successfully for the first time (GPU, same device/run/seed as raw TabPFN) and a **3-pass** fine-tune bought nothing measurable — deltas ≤0.010 with one negative, against raw TabPFN's +0.007 to +0.068 over the actuarial baselines. See `docs/reference/FINE_TUNING_PILOT_RESULTS.md` §5c and `MASTER-REPORT-DIGEST.md` §14.16 for the scope limits (3 passes, default subsampling, one seed) — this bounds *small* fine-tunes, not every configuration.
 - **Paper replication** (`REPLICATION_There_Is_Life_in_the_Old_GLM_Yet.ipynb`) — until asked; it's the historical anchor, not the current work
 - **Save/load and device debugging** — note the bug classes exist (issue #851); don't study them yet
 

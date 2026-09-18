@@ -53,7 +53,7 @@ Most of this already exists in our notebooks and src/ — it's a packaging job, 
 
 - `docs/analyses/tabarena_reference.md` — overview of TabArena
 - `docs/analyses/cpu_model_feasibility.md` — which models we can run
-- `docs/reports/REPORT_REGISTRY.md` — entry for this doc
+- `docs/REPORT_REGISTRY.md` — entry for this doc
 
 ## Key links
 

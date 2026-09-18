@@ -1,11 +1,11 @@
 # Fine-Tuning Pilot — Pre-Fine-Tuning Baseline Results
 
-> **Status:** complete. All four arms — `A_raw`, `B_in_domain`, `E_glm`, `F_catboost` — are measured on all four datasets. **Arm B ran successfully for the first time on 2026-09-12** (NVIDIA L40S; see §5b–5c) after its long-standing "does not fit" diagnosis was shown to be wrong. The research question in `PRE_FINETUNING_INVESTIGATIONS.md` is answered for the configuration tested: **a 3-pass in-domain fine-tune does not reliably beat raw TabPFN** (deltas ≤0.010, one negative), while raw TabPFN's advantage over the actuarial baselines is much larger (+0.007 to +0.068). Single seed, single split, 3 fine-tune passes — see §5c for the scope limits and §6 for the caveats.
+> **Status:** complete. All four arms — `A_raw`, `B_in_domain`, `E_glm`, `F_catboost` — are measured on all four datasets. **Arm B ran successfully for the first time on 2026-09-12** (NVIDIA L40S; see §5b–5c) after its long-standing "does not fit" diagnosis was shown to be wrong. The research question in `docs/archive/PRE_FINETUNING_INVESTIGATIONS.md` is answered for the configuration tested: **a 3-pass in-domain fine-tune does not reliably beat raw TabPFN** (deltas ≤0.010, one negative), while raw TabPFN's advantage over the actuarial baselines is much larger (+0.007 to +0.068). Single seed, single split, 3 fine-tune passes — see §5c for the scope limits and §6 for the caveats.
 
 > **Reading this as a statistician?** The method itself — the estimator, the exact call
 > sequence, what happens inside the fine-tune loop, the effective configuration and every
-> leakage control — is described separately in **`FINE_TUNING_METHOD.md`**. What R1 did and
-> did not exercise is in **`SMOKE_TEST_SCOPE.md`**.
+> leakage control — is described separately in **`docs/archive/FINE_TUNING_METHOD.md`**. What R1 did and
+> did not exercise is in **`docs/archive/SMOKE_TEST_SCOPE.md`**.
 
 ---
 
@@ -87,7 +87,7 @@ Weights ID evidenced from the resolved cache file on the VM (`/root/.cache/tabpf
 
 ## 1. Purpose
 
-`PRE_FINETUNING_INVESTIGATIONS.md` frames the goal as: does fine-tuning TabPFN on insurance data improve performance on held-out insurance tasks, versus raw TabPFN and actuarial baselines?
+`docs/archive/PRE_FINETUNING_INVESTIGATIONS.md` frames the goal as: does fine-tuning TabPFN on insurance data improve performance on held-out insurance tasks, versus raw TabPFN and actuarial baselines?
 
 Arm A (raw TabPFN) is the "no fine-tuning" reference. Without it the B-vs-A delta — the actual quantity of interest — has no denominator. This report supplies A, E and F.
 
@@ -572,7 +572,7 @@ for any delta: all four are single-split point estimates.
 7. Add a calibration metric to the fine-tuned arm.
 
 > **Scope boundary:** for a full statement of what this pilot proved and never exercised —
-> including which arms and rungs remain unrun — see `SMOKE_TEST_SCOPE.md`.
+> including which arms and rungs remain unrun — see `docs/archive/SMOKE_TEST_SCOPE.md`.
 
 ## 6. Provenance gaps and deviations
 

@@ -1,13 +1,13 @@
 # Pilot 2 — alternative design: staged isolation
 
-**This is an alternative to the design in `PILOT_2_DESIGN.md`, not a revision of it.** It differs in
+**This is an alternative to the design in `docs/reference/PILOT_2_DESIGN.md`, not a revision of it.** It differs in
 kind, not just in budget: it changes **one factor at a time** and treats every step as a screening
-question with its own stop rule. The design in `PILOT_2_DESIGN.md` changes several factors together
+question with its own stop rule. The design in `docs/reference/PILOT_2_DESIGN.md` changes several factors together
 and reads the result at the end.
 
 ## Why an alternative is worth considering
 
-The concern is analytic, not financial. **`PILOT_2_DESIGN.md` varies three things at once** — the
+The concern is analytic, not financial. **`docs/reference/PILOT_2_DESIGN.md` varies three things at once** — the
 number of repeats, the training length, and the data scale — across two experiments (in-domain and
 transfer) with two pool policies and a control. If the result comes back negative, the negative is
 **ambiguous**: it could be the epoch budget, the pool's composition, the scale, or the repeat
@@ -21,7 +21,7 @@ varies several factors at once reproduces that risk at a larger price.
 
 ## The two designs
 
-| | **A. As specified** (`PILOT_2_DESIGN.md`) | **B. Staged isolation** (`PILOT_2_DECISION_GRAPH.md`) |
+| | **A. As specified** (`docs/reference/PILOT_2_DESIGN.md`) | **B. Staged isolation** (`docs/reference/PILOT_2_DECISION_GRAPH.md`) |
 | --- | --- | --- |
 | Factors varied at once | repeats, epochs, rows, pool policy | **one per step** |
 | Order | all arms, all stages, then read | each step gated on the last |
@@ -71,7 +71,7 @@ Stated plainly, because it is a real trade:
    Stage 1 is negative.
 4. **Isolation invites peeking.** Stopping when a result looks good is a way to manufacture a
    finding. This is why every step's decision rule and the noise floor must be **fixed in advance**,
-   and the stop rules in `PILOT_2_DECISION_GRAPH.md` are written to be pre-registerable.
+   and the stop rules in `docs/reference/PILOT_2_DECISION_GRAPH.md` are written to be pre-registerable.
 
 ## Interaction policy — by decision, with a stated mechanism
 

@@ -27,7 +27,7 @@ Benchmark suite release: TabArena harness, parsimony frontier, lapse settlement,
 - Regression Phase 2: RMSE + Poisson-deviance frontiers, 4 datasets (issue #27 D4)
 - Home-turf size sweep: 3 datasets × 3 sizes × TabPFN (n8/n1/default) + GBDT baselines — `home_turf_sweep_results.csv`
 - Imbalance pilot — `scripts/eval/insurance_imbalance_pilot/`
-- Benchmark summary one-pager for actuarial colleagues — `docs/reports/TABPFN_BENCHMARK_SUMMARY.md`
+- Benchmark summary one-pager for actuarial colleagues — `docs/archive/TABPFN_BENCHMARK_SUMMARY.md`
 - Regime characterization + adoption guidance (issues #52/#53) — `docs/analyses/regime_characterization.md`
 - TabPFN levers assessment: fine-tuning / HPO / ensembling (issue #54)
 - Version-drift re-test policy (issue #55)
@@ -49,7 +49,7 @@ Benchmark suite release: TabArena harness, parsimony frontier, lapse settlement,
 - Colab widget metadata stripped from notebooks
 
 ### Headline verdict
-TabPFN is a small-data specialist, not a general engine: wins 8/9 size-sweep cells at ≤5K rows and the Spanish lapse + premium-regression cases, but sits off the parsimony frontier 5 of 12 times at scale. Adoption decision rule: `docs/analyses/regime_characterization.md`. One-page summary: `docs/reports/TABPFN_BENCHMARK_SUMMARY.md`.
+TabPFN is a small-data specialist, not a general engine: wins 8/9 size-sweep cells at ≤5K rows and the Spanish lapse + premium-regression cases, but sits off the parsimony frontier 5 of 12 times at scale. Adoption decision rule: `docs/analyses/regime_characterization.md`. One-page summary: `docs/archive/TABPFN_BENCHMARK_SUMMARY.md`.
 
 ## [0.0.0] — pre-release
 

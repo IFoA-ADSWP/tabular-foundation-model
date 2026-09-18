@@ -100,7 +100,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup and contribution gui
 
 ## Key Findings
 
-**Current verdict (2026-08-06):** TabPFN is the best risk-ranking model in the suite — AUC #1 over GLMs, LightGBM, CatBoost, XGBoost and RF on all six canonical classification datasets (deltas +0.006 to +0.033 over the best GLM, five ≥2.5 SE (four >2.5); calibration never significantly worse, log loss better or tied vs the best GLM), holding #1 at production scale up to 184K rows (master report §14.11; [`TABPFN_BENCHMARK_SUMMARY.md`](docs/reports/TABPFN_BENCHMARK_SUMMARY.md)). It wins the business case where the question is which policies are risky — underwriting triage, lapse/surrender propensity, claim/no-claim targeting — and stays on the bench for pricing/regression targets where GBDTs win. The eudirectlapse loss below is the known exception.
+**Current verdict (2026-08-06):** TabPFN is the best risk-ranking model in the suite — AUC #1 over GLMs, LightGBM, CatBoost, XGBoost and RF on all six canonical classification datasets (deltas +0.006 to +0.033 over the best GLM, five ≥2.5 SE (four >2.5); calibration never significantly worse, log loss better or tied vs the best GLM), holding #1 at production scale up to 184K rows (master report §14.11; [`docs/archive/TABPFN_BENCHMARK_SUMMARY.md`](docs/archive/TABPFN_BENCHMARK_SUMMARY.md)). It wins the business case where the question is which policies are risky — underwriting triage, lapse/surrender propensity, claim/no-claim targeting — and stays on the bench for pricing/regression targets where GBDTs win. The eudirectlapse loss below is the known exception.
 
 On the eudirectlapse lapse-prediction task (13% lapse rate):
 
@@ -110,16 +110,16 @@ On the eudirectlapse lapse-prediction task (13% lapse rate):
 | **Calibration (Brier)** | TabPFN after isotonic calibration **0.1080** vs GLM 0.1098 |
 | **Bottom line** | TabPFN matches a tuned GLM out-of-the-box with no traditional training. Post-hoc calibration gives it a small edge on probability accuracy — relevant for pricing and reserving. |
 
-See [`docs/reports/TECHNICAL_COMPANION.md`](docs/reports/TECHNICAL_COMPANION.md) for a walkthrough of every metric.
+See [`docs/archive/TECHNICAL_COMPANION.md`](docs/archive/TECHNICAL_COMPANION.md) for a walkthrough of every metric.
 
 ## Documentation Index
 
 The docs are extensive. Start here:
 
-- **`docs/reports/REPORT_REGISTRY.md`** — maps every report to its source notebook and evidence files
-- **`docs/reports/TECHNICAL_COMPANION.md`** — explains all metrics in actuarial context (best first read)
+- **`docs/REPORT_REGISTRY.md`** — maps every report to its source notebook and evidence files
+- **`docs/archive/TECHNICAL_COMPANION.md`** — explains all metrics in actuarial context (best first read)
 - **`docs/REPLICATION_SETUP_GUIDE.md`** — step-by-step to reproduce the paper results
-- **`docs/status/STATUS_REPORT_FINAL.md`** — summary of validated findings and recommendations
+- **`docs/archive/archive/status/STATUS_REPORT_FINAL.md`** — summary of validated findings and recommendations
 
 ## Dependencies
 

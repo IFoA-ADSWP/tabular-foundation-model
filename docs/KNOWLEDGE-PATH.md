@@ -37,7 +37,7 @@ Goal: know what the repo holds and where things live.
 Read:
 - `README.md` (project purpose, structure, environment notes)
 - `data/README.md` (dataset provenance — which insurance datasets exist and where they came from)
-- `docs/` tree: `reports/REPORT_REGISTRY.md` (the index of every report + evidence), `analyses/` (specs/studies for current era)
+- `docs/` tree: `docs/REPORT_REGISTRY.md` (the index of every report + evidence), `analyses/` (specs/studies for current era)
 - `outputs/current/` — skim `tables/` and `logs/domain_finetune_logbook.md` (this is the "source of truth" for results)
 - `CHANGELOG.md` + `TASKS.md` (history + current state)
 - `0_roadmap and project dashboard/` — the workstream roadmap (Excel dashboard: current state, milestones)
@@ -61,8 +61,8 @@ By the end of this stage: given a result table with AUC/log_loss/Brier, you can 
 Goal: understand the model itself — what "pretrained" means here, why there's no training loop.
 
 Read:
-- `docs/reports/TABPFN_BENCHMARK_SUMMARY.md` + `docs/reports/TECHNICAL_COMPANION.md` (repo's own intro to TabPFN)
-- `docs/reports/COMBINED_TABPFN_CLASSIFIER_REGRESSOR_ANALYSIS.md` (classifier + regressor behavior on our data)
+- `docs/archive/TABPFN_BENCHMARK_SUMMARY.md` + `docs/archive/TECHNICAL_COMPANION.md` (repo's own intro to TabPFN)
+- `docs/archive/COMBINED_TABPFN_CLASSIFIER_REGRESSOR_ANALYSIS.md` (classifier + regressor behavior on our data)
 - Run one pilot yourself following `.opencode/skills/tabpfn-classify/SKILL.md` (or `tabpfn-regress` / `tabpfn-explore` for pre-flight) — the skills are the repo's own runbooks
 - `notebooks/adswp_project/REPLICATION_There_Is_Life_in_the_Old_GLM_Yet.ipynb` — first real study: pretrained TabPFN vs GLM, post-hoc isotonic calibration; artifacts in `outputs/replication/`
 
@@ -130,18 +130,18 @@ By the end of this stage: you can explain what changed between §4 and §14.14 a
 Goal: how work actually gets done here — runbooks + the evidence chain.
 
 - Read the 8 skills in `.opencode/skills/`: `tabpfn-explore`, `tabpfn-classify`, `tabpfn-regress`, `tabpfn-finetune`, `tabpfn-benchmark`, `tabpfn-technical-report`, `tabpfn-nontechnical-report`, `insurance-objective`. Note each one's entry criteria and outputs.
-- Learn the evidence flow: experiment → `outputs/current/{tables,logs}` → report in `docs/reports/` → row in `REPORT_REGISTRY.md` (dedup before drafting — the registry is the anti-duplication lock).
+- Learn the evidence flow: experiment → `outputs/current/{tables,logs}` → report in `docs/reports/` → row in `docs/REPORT_REGISTRY.md` (dedup before drafting — the registry is the anti-duplication lock).
 - `scripts/` housekeeping: `scripts/infra/make_notebook.py` (scaffold new experiment notebooks)
 
 By the end of this stage: given a new research question, you can name which skill(s) you'd invoke and where the evidence would land.
 
 ## Stage 6 — Extensions (optional, pick what's relevant)
 
-- Fine-tuning: `docs/reports/INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md`, `TABPFN_FINE_TUNING_LIMIT_STUDY.md`, `docs/analyses/tabpfn_small_finetune_methodology.md`, plus `scripts/legacy_finetuning/` (historical local runs)
+- Fine-tuning: `docs/archive/INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md`, `docs/archive/TABPFN_FINE_TUNING_LIMIT_STUDY.md`, `docs/analyses/tabpfn_small_finetune_methodology.md`, plus `scripts/legacy_finetuning/` (historical local runs)
 - TabArena harness: `scripts/benchmarks/run_tabarena_insurance_benchmark.py` (needs external `/tmp/tabarena` env), `docs/analyses/tabarena_reference.md`
 - Embeddings: `notebooks/adswp_project/04_tabpfn_embedding_workflow.ipynb`
 - Model catalog context: `docs/analyses/tabular_foundation_models_catalog.md`
-- Side studies: `docs/reports/CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md` (round 2/3 — does a homogeneous fine-tuning pool beat a heterogeneous one? inconclusive; read for the method, not the verdict)
+- Side studies: `docs/archive/CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md` (round 2/3 — does a homogeneous fine-tuning pool beat a heterogeneous one? inconclusive; read for the method, not the verdict)
 - The paper layer: `docs/papers/` — the GLM paper, the round-2 journal follow-ups (`FOLLOW_UP_ROUND2_JOURNAL_SHORT.md` / `FOLLOW_UP_ROUND2_JOURNAL_PLAIN.md`; *historical record — the "no universal winner" conclusion is superseded on AUC by §14.11*, the docs themselves carry this banner), `APPENDIX_REPRODUCIBILITY.md`, and `docs/REPLICATION_SETUP_GUIDE.md` (step-by-step paper replication)
 - Repo hygiene history: `docs/status/STATUS_REPORT_FINAL.md`
 
@@ -224,9 +224,9 @@ flowchart LR
 
 **Hosted vs local:** this repo evolved from a local `torch` install (notebook era) to the **hosted API** (`tabpfn-client`, `TABPFN_API_KEY`) in the scripts era — the frontier benchmark calls the API with retry/backoff.
 
-**Fine-tuning (optional):** TabPFN can be trained *further* on your own data (a few epochs, small learning rate, limited context) — this is the "fine-tune" track of the research. Repo findings to date: works on tiny data (128–500 rows), context sizes 64–128, 1 epoch smoke tests; on Apple Silicon `cpu` beat `mps`; **save/load reliability was a real bug class** (issue #851); and **regressor fine-tuning on claim counts was numerically unstable** (non-finite loss — the `claimnb_finiteness_checkpoints` ledger). Conclusions live in `docs/reports/TABPFN_FINE_TUNING_LIMIT_STUDY.md`, `INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md` (protocol) and `STAGE_A_B_FINDINGS_AND_RECOMMENDATIONS.md` (non-technical summary).
+**Fine-tuning (optional):** TabPFN can be trained *further* on your own data (a few epochs, small learning rate, limited context) — this is the "fine-tune" track of the research. Repo findings to date: works on tiny data (128–500 rows), context sizes 64–128, 1 epoch smoke tests; on Apple Silicon `cpu` beat `mps`; **save/load reliability was a real bug class** (issue #851); and **regressor fine-tuning on claim counts was numerically unstable** (non-finite loss — the `claimnb_finiteness_checkpoints` ledger). Conclusions live in `docs/archive/TABPFN_FINE_TUNING_LIMIT_STUDY.md`, `docs/archive/INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md` (protocol) and `docs/archive/STAGE_A_B_FINDINGS_AND_RECOMMENDATIONS.md` (non-technical summary).
 
-Where it lives: `docs/reports/TABPFN_BENCHMARK_SUMMARY.md` + `TECHNICAL_COMPANION.md` (repo's own intro), skills `tabpfn-classify` / `tabpfn-regress` / `tabpfn-finetune` (runbooks), `docs/analyses/tabular_foundation_models_catalog.md` (context: other tabular FMs).
+Where it lives: `docs/archive/TABPFN_BENCHMARK_SUMMARY.md` + `docs/archive/TECHNICAL_COMPANION.md` (repo's own intro), skills `tabpfn-classify` / `tabpfn-regress` / `tabpfn-finetune` (runbooks), `docs/analyses/tabular_foundation_models_catalog.md` (context: other tabular FMs).
 
 ## S4. Scoring models: discrimination vs calibration
 
@@ -245,7 +245,7 @@ Two distinct things "a good model" can mean, and the repo carefully separates th
 
 **Why the distinction is the research:** a model can rank perfectly (high AUC) while being useless for pricing (probabilities off by 2×), or be perfectly calibrated but not rank well. GLMs are calibration-native; GBDTs need probability calibration (e.g. Platt/isotonic); TabPFN's claim is good calibration *without* post-hoc. The repo's arc: `02_tabpfn_vs_glm_lapse.ipynb` (calibration-first study, Tables 2/4, Figures 1–6) → `04_probability_calibration.ipynb` (isotonic post-hoc, production assessment) → frontier benchmark now records AUC **and** Brier (`docs/analyses/frontier_auc_brier_rescore_spec.md`).
 
-Where it lives: `docs/analyses/metrics_explained.md` (the repo's own metric explainer), `docs/reports/POST_HOC_OPTIMISATION.md` (the 04-notebook calibration study), `src/evaluation_metrics.py`, `src/baseline_utils.py::calibration_error`.
+Where it lives: `docs/analyses/metrics_explained.md` (the repo's own metric explainer), `docs/archive/POST_HOC_OPTIMISATION.md` (the 04-notebook calibration study), `src/evaluation_metrics.py`, `src/baseline_utils.py::calibration_error`.
 
 ## S5. The experimental methodology (how claims get tested)
 
@@ -264,7 +264,7 @@ Where it lives: `docs/analyses/insurance_frontier_benchmark_spec.md` (the spec),
 - **TabFM was scoped and not run** — evaluated as a baseline candidate, closed out as not worth pursuing (bus log §14.13).
 - **Regression fine-tuning instability** — non-finite loss on claim-count targets (S3); the classifier track is the stable one.
 
-Where it lives: notebook `06`, `scripts/legacy_finetuning/` (historical record), `docs/reports/INSURANCE_SPECIFIC_FINETUNING_EVIDENCE.md`.
+Where it lives: notebook `06`, `scripts/legacy_finetuning/` (historical record), `docs/archive/INSURANCE_SPECIFIC_FINETUNING_EVIDENCE.md`.
 
 ## S7. Embeddings (a different way to use TabPFN)
 
@@ -278,10 +278,10 @@ A community harness for tabular foundation models (leaderboards, standardized co
 
 Exact numbers live in the evidence files listed; these are the conclusions the evidence supports:
 
-1. **TabPFN is competitive with the classics on insurance tasks without tuning** — the frontier benchmark and head-to-head tables (`data/processed/glm_vs_tabpfn_head_to_head.csv`) place zero-tune TabPFN at or near the efficient frontier on discrimination, and strong on calibration (Brier/log loss). [evidence: `frontier_results_*.csv`, `docs/reports/TABPFN_BENCHMARK_SUMMARY.md`]
+1. **TabPFN is competitive with the classics on insurance tasks without tuning** — the frontier benchmark and head-to-head tables (`data/processed/glm_vs_tabpfn_head_to_head.csv`) place zero-tune TabPFN at or near the efficient frontier on discrimination, and strong on calibration (Brier/log loss). [evidence: `frontier_results_*.csv`, `docs/archive/TABPFN_BENCHMARK_SUMMARY.md`]
 2. **The tuned-baseline challenge is the fair test, and it narrows the gap** — tuned GLM/GBDT on the same folds is the honest comparison; the §14.13 "finality verdict" documents where TabPFN still wins and where it doesn't. [evidence: `analyze_tuned_baselines.py` outputs, `docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md`]
 3. **Data augmentation and synthetic data don't help — they hurt.** (S6)
-4. **Fine-tuning is a bounded lever** — works on small data with the right settings, but save/load and regressor stability are real failure modes; the limit study maps the envelope. [evidence: `outputs/current/tables/tabpfn_finetune_trial_results.csv`, `TABPFN_FINE_TUNING_LIMIT_STUDY.md`]
+4. **Fine-tuning is a bounded lever** — works on small data with the right settings, but save/load and regressor stability are real failure modes; the limit study maps the envelope. [evidence: `outputs/current/tables/tabpfn_finetune_trial_results.csv`, `docs/archive/TABPFN_FINE_TUNING_LIMIT_STUDY.md`]
 5. **Imbalance is the dominant regime problem** — PR AUC and focused imbalance pilots exist because rare positives are the norm; log-loss rescoring (`rescore_focused_imbalance_logloss.py`) shows calibration degrades under imbalance and needs watching. [evidence: `focused_imbalance_*.csv`, `docs/analyses/class_imbalance_analysis_summary.md`]
 6. **Frequency reframing (binary/ordinal) is the open question** — the current branch's experiment (§14.14). [evidence: `reframe_frequency_results.csv`, `run_reframe_frequency.py`]
 7. **2026-08 master verdict (the one to know now):** TabPFN is **AUC #1 of 9 methods — and of 14 once tuned baselines are added (§14.13) — on all six classification datasets** (deltas +0.006 to +0.033 over the best GLM; paired-significant on AUC 6/6, PR-AUC 5/6); regression/frequency stays GBDT territory (Poisson deviance at scale: TabPFN ~+33% behind on freMTPL2freq); the **GLM family is never dominated on any frontier**; fine-tuning does not consistently help; reframing counts as classification inverts the frequency verdict. [evidence: master report §14.11–§14.14]

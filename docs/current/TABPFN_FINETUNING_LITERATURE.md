@@ -2,7 +2,7 @@
 
 **Purpose.** External evidence, kept deliberately separate from our own measurements. This file records what
 the published work and the vendor's own guidance claim, **and whether we have checked it**. Our own results
-live in `docs/current/PROBE_RESULTS.md`, `FINE_TUNING_PILOT_RESULTS.md` and the run records — not here.
+live in `docs/current/PROBE_RESULTS.md`, `docs/reference/FINE_TUNING_PILOT_RESULTS.md` and the run records — not here.
 
 **Two rules for this document.**
 
@@ -59,7 +59,7 @@ Attributed to (1) unless noted:
 | "1,000 to 50,000 rows" is Prior Labs' recommended band | `corrected` | Read directly, 13 Sep. **No such band exists on the page.** Its only row threshold is the small-data one below 1,000 rows. The upper figure was not theirs |
 | Drift-Resilient TabPFN is irrelevant to this question | `corrected` | It is the most relevant paper for a temporal domain, and it is absent from the common summaries |
 | Fine-tuning is amortised over repeated inference on a fixed schema | `verified` | (2) names it as a good candidate in its own words: an upfront cost that pays off across many future predictions |
-| Fine-tuning a single model across several related tables | `verified` | (2) names this as a good candidate -- relevant to the pooling idea in `PILOT_2_DESIGN.md` |
+| Fine-tuning a single model across several related tables | `verified` | (2) names this as a good candidate -- relevant to the pooling idea in `docs/reference/PILOT_2_DESIGN.md` |
 | Fine-tuning is worth trying when the baseline is already close | `corrected` | (2) lists the opposite: if baseline TabPFN is within a few percent of the target metric, simpler approaches usually close the gap first |
 
 ## What this does to our own result
@@ -106,7 +106,7 @@ Fetched at source (`docs.priorlabs.ai/capabilities/fine-tuning.md`), so these ar
 **Good candidates, in their framing.** Amortised prediction cost -- the same schema predicted repeatedly.
 Niche or specialised domains whose distribution the pretraining priors do not cover well, with
 domain-specific financial instruments named among the examples. And **multiple related tables**, where one
-model is fine-tuned across a family of datasets -- which is the pooling idea in `PILOT_2_DESIGN.md`, and the
+model is fine-tuned across a family of datasets -- which is the pooling idea in `docs/reference/PILOT_2_DESIGN.md`, and the
 vendor names it as a reason to fine-tune.
 
 **Less likely to help.** Datasets under **1,000 rows**, where overfitting risk outweighs adaptation. Cases
@@ -253,9 +253,9 @@ than rediscovered, with the caveat they carry themselves: v2-era, weights ID unr
 
 | document | what it is | how to use it |
 | --- | --- | --- |
-| `INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md` | the same test, proposed April 2026: H1 probability quality, H2 ranking, zero-leakage rule, arms, tuning policy, initial budget | **the protocol transfers**; its numbers do not |
-| `INSURANCE_SPECIFIC_FINETUNING_EVIDENCE.md` | evidence review of insurance-specific fine-tuning; short answer, then what cannot be claimed yet | cite for the framing, not the figures |
-| `TABPFN_FINE_TUNING_LIMIT_STUDY.md` | empirical study of which row/context/step settings are workable on Apple Silicon | feasibility, not efficacy |
+| `docs/archive/INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md` | the same test, proposed April 2026: H1 probability quality, H2 ranking, zero-leakage rule, arms, tuning policy, initial budget | **the protocol transfers**; its numbers do not |
+| `docs/archive/INSURANCE_SPECIFIC_FINETUNING_EVIDENCE.md` | evidence review of insurance-specific fine-tuning; short answer, then what cannot be claimed yet | cite for the framing, not the figures |
+| `docs/archive/TABPFN_FINE_TUNING_LIMIT_STUDY.md` | empirical study of which row/context/step settings are workable on Apple Silicon | feasibility, not efficacy |
 | `tabpfn_finetune_limit_test_plan.md` | the plan behind that study (CPU row scaling, M1 spot checks) | feasibility, not efficacy |
 | `tabpfn_small_finetune_methodology.md` | small, low-risk fine-tuning readiness method and defaults | feasibility, not efficacy |
 

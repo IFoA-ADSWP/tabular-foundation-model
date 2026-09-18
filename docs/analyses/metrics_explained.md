@@ -115,7 +115,7 @@ Two consequences for our workload:
   [Adoption-Guidance](Adoption-Guidance) (regime/decision rule)
 - Local: `docs/analyses/metrics_explained.md` (this page),
   `docs/KNOWLEDGE-PATH-JUNIOR.md` Phase 0 lessons 0.2–0.4 (from-scratch course),
-  `docs/reports/TECHNICAL_COMPANION.md` §1 (legacy v2-era numbers, same concepts),
+  `docs/archive/TECHNICAL_COMPANION.md` §1 (legacy v2-era numbers, same concepts),
   `docs/analyses/regime_characterization.md`, master report
   `docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md` (§14)
 - Evidence: `scripts/eval/insurance_benchmark_v1/focused_imbalance_results.csv`

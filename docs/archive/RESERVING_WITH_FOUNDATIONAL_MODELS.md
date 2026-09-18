@@ -3,7 +3,7 @@
 **Document purpose:** Summary of findings relevant to using foundational models (specifically TabPFN) for insurance reserving tasks. Compiled from the IFoA ADSWP benchmark suite.
 
 **Date:** 2026-08-20  
-**Sources:** Master report (`tabpfn_vs_gbdt_baselines_finetuning.md`), regime analysis (`regime_characterization.md`), benchmark summary (`TABPFN_BENCHMARK_SUMMARY.md`), combined analysis (`COMBINED_TABPFN_CLASSIFIER_REGRESSOR_ANALYSIS.md`)
+**Sources:** Master report (`tabpfn_vs_gbdt_baselines_finetuning.md`), regime analysis (`regime_characterization.md`), benchmark summary (`docs/archive/TABPFN_BENCHMARK_SUMMARY.md`), combined analysis (`docs/archive/COMBINED_TABPFN_CLASSIFIER_REGRESSOR_ANALYSIS.md`)
 
 ---
 
@@ -273,9 +273,9 @@ From §14.13.3:
 | Claim reframe results | Binary/ordinal classification results | `scripts/eval/insurance_benchmark_v1/reframe_frequency_results.csv` |
 | Regime analysis | Decision rules and hypothesis tests | `docs/analyses/regime_characterization.md` |
 | Master report | Full benchmark evidence (§1–§14.14) | `docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md` |
-| Benchmark summary | One-page verdict | `docs/reports/TABPFN_BENCHMARK_SUMMARY.md` |
-| Technical companion | Metric explanations | `docs/reports/TECHNICAL_COMPANION.md` |
-| Combined analysis | Cross-task conclusions | `docs/reports/COMBINED_TABPFN_CLASSIFIER_REGRESSOR_ANALYSIS.md` |
+| Benchmark summary | One-page verdict | `docs/archive/TABPFN_BENCHMARK_SUMMARY.md` |
+| Technical companion | Metric explanations | `docs/archive/TECHNICAL_COMPANION.md` |
+| Combined analysis | Cross-task conclusions | `docs/archive/COMBINED_TABPFN_CLASSIFIER_REGRESSOR_ANALYSIS.md` |
 
 ---
 

@@ -4,9 +4,9 @@
 
 Date: 2026-03-29
 
-> Superseded by `docs/reports/TABPFN_BENCHMARK_SUMMARY.md` (v3, Aug 2026) — read that for the current verdict; this page is the v2-era record.
+> Superseded by `docs/archive/TABPFN_BENCHMARK_SUMMARY.md` (v3, Aug 2026) — read that for the current verdict; this page is the v2-era record.
 
-Canonical current summary: docs/reports/TABPFN_BENCHMARK_SUMMARY.md (2026-08 frontier-era verdict refines this report's "dataset-dependent" conclusion; master report §14.11 AUC/Brier re-score supersedes the ranking story on the canonical 5-fold protocol).
+Canonical current summary: docs/archive/TABPFN_BENCHMARK_SUMMARY.md (2026-08 frontier-era verdict refines this report's "dataset-dependent" conclusion; master report §14.11 AUC/Brier re-score supersedes the ranking story on the canonical 5-fold protocol).
 
 ## Objective
 Evaluate whether TabPFN (client backend) outperforms a logistic regression baseline (GLM) across multiple insurance datasets, not only on EU Direct Lapse.

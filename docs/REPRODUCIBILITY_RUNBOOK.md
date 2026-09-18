@@ -514,7 +514,7 @@ bash scripts/legacy_finetuning/run_finetune_stress_batch_2000.sh    # S1-S4 @200
   reload check on CPU. Inputs: `data/raw/coil2000.csv` (trial defaults), local TabPFN v6.
 - Outputs: append to `outputs/current/tables/tabpfn_finetune_trial_results.csv` +
   `tabpfn_finetune_reload_checks.csv`; artifacts in `outputs/current/models/`.
-- Evidence for `TABPFN_FINE_TUNING_LIMIT_STUDY.md` (registry: `finetuning-limit-study`).
+- Evidence for `docs/archive/TABPFN_FINE_TUNING_LIMIT_STUDY.md` (registry: `finetuning-limit-study`).
 
 ## C. GPU execution era (2026-09 →) — fine-tuning pilot on a rented GPU
 

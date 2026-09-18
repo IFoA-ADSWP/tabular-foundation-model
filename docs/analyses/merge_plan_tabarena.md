@@ -2,7 +2,7 @@
 
 > **STATUS: MERGED 2026-08-04** — PR #51 merged to `main` (merge commit `31d40a5`; final branch tip `f7790ce`, 44 commits). All 5 stages and all pre-merge fixes complete; registry path check post-merge clean. Follow-ups tracked as issues #52–#57.
 
-Coordination/ops document — not a research report; no `docs/reports/REPORT_REGISTRY.md` row is added for this file.
+Coordination/ops document — not a research report; no `docs/REPORT_REGISTRY.md` row is added for this file.
 Branch: `feat/tabarena-benchmark` vs `origin/main` — 44 commits, ~86 files. Diff was additive + script reorg moves (7 committed CSVs in `data/raw/`, ~510K rows total). Two merge commits had already reconciled the branch with `origin/main`; final pre-merge `git merge origin/main` resolved cleanly (`ed6de3a`).
 
 ## 1. What this branch contains
@@ -39,7 +39,7 @@ All research work for issue #27 (TabArena insurance frontier benchmark).
 
 - **Evidence** — `scripts/eval/{smoke_test, lapse_benchmark_v1, insurance_benchmark_v1, insurance_imbalance_pilot}/`: ~60 files — leaderboards, `results_per_split.csv`, 11 `frontier_results_<dataset>.csv` + PNG plots (10 → 11 with `frontier_results_spanish_motor_freq.csv` + `frontier_plot_spanish_motor_freq.png`), Pareto PDFs/HTML explorers. `insurance_benchmark_v1` covers 9 task ids / 7 datasets; the frontier covers 11 datasets (6 classification + 5 regression — `spanish_motor_freq` is counted with the regression family, metric `poisson_deviance`), 9 methods for classification / 8 regressors.
 
-- **Docs** — `docs/analyses/insurance_frontier_benchmark_spec.md` (D1–D5 design), `docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md` (master report, §1–§14.9), `docs/analyses/benchmark_portfolio.md` (benchmark portfolio + naming canon, `58dde49`), `docs/sessions/2026-07-28-tabarena-benchmark-setup.md`, a `REPORT_REGISTRY.md` row, and the `TASKS.md` #27 / #27a rows.
+- **Docs** — `docs/analyses/insurance_frontier_benchmark_spec.md` (D1–D5 design), `docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md` (master report, §1–§14.9), `docs/analyses/benchmark_portfolio.md` (benchmark portfolio + naming canon, `58dde49`), `docs/sessions/2026-07-28-tabarena-benchmark-setup.md`, a `docs/REPORT_REGISTRY.md` row, and the `TASKS.md` #27 / #27a rows.
 
 ## 2. Staged implementation plan (5 stages, in merge order)
 

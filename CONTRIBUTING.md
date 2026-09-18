@@ -84,7 +84,7 @@ The main replication notebook is `notebooks/adswp_project/REPLICATION_There_Is_L
 | Run a head-to-head model comparison | `notebooks/baseline_experiments/NN_descriptive_name.ipynb` | Same |
 | Write a reusable utility | `src/` as a Python module | Importable function/class, notebook-inline code does not belong here |
 | Run a one-off analysis (not a notebook) | `scripts/descriptive_name.py` | snake_case, `if __name__ == "__main__":` guard |
-| Write an analysis report | `docs/reports/DESCRIPTIVE_NAME.md` | ALL_CAPS snake_case, register in `REPORT_REGISTRY.md` |
+| Write an analysis report | `docs/reports/DESCRIPTIVE_NAME.md` | ALL_CAPS snake_case, register in `docs/REPORT_REGISTRY.md` |
 | Write a lightweight methodology note | `docs/analyses/descriptive_name.md` | snake_case, no registry entry needed |
 | Update the paper | `docs/papers/` | Markdown or `.sty` as appropriate |
 | Save output figures | `outputs/current/figures/` | Descriptive PNG name |
@@ -100,7 +100,7 @@ Every contribution should satisfy these before review:
 - [ ] **Naming** — notebooks are two-digit numbered + snake_case; reports are ALL_CAPS snake_case; scripts and modules are snake_case
 - [ ] **No code duplication** — import from `src/` rather than copying utility code into notebooks
 - [ ] **Idempotent notebooks** — runs top-to-bottom without pre-existing state; outputs are regenerated, not committed (unless a deliberate reproducibility snapshot)
-- [ ] **Reports registered** — any new file in `docs/reports/` must have a row in `docs/reports/REPORT_REGISTRY.md` with topic_key, audience, source_workbooks, and evidence_files
+- [ ] **Reports registered** — any new file in `docs/reports/` must have a row in `docs/REPORT_REGISTRY.md` with topic_key, audience, source_workbooks, and evidence_files
 - [ ] **Changelog updated** — user-facing changes get an entry in `CHANGELOG.md` under `[Unreleased]`
 - [ ] **Pre-commit green** — see below
 - [ ] **Smoke test passes** — `pytest tests/` after any change to `src/`
@@ -130,7 +130,7 @@ ruff format src/ tests/
 
 ## Report Registration
 
-If you add a file to `docs/reports/`, open `docs/reports/REPORT_REGISTRY.md` and add a row with:
+If you add a file to `docs/reports/`, open `docs/REPORT_REGISTRY.md` and add a row with:
 
 - `report_path` — relative path to your file
 - `topic_key` — short kebab-case identifier (check for duplicates first)

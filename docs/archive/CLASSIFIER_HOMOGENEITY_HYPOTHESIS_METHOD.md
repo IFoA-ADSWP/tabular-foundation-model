@@ -1,12 +1,12 @@
 # Classifier Fine-Tuning Homogeneity Hypothesis: Method and Initial Evaluation
 
-> **Historical document.** Superseded by `PILOT_2_DESIGN.md` and `PILOT_2_DECISION_GRAPH.md`
+> **Historical document.** Superseded by `docs/reference/PILOT_2_DESIGN.md` and `docs/reference/PILOT_2_DECISION_GRAPH.md`
 > (2026-09-13). Kept for the record -- **do not reconcile it against the current design**,
 > which deliberately differs from it.
 
 > Tested: Apr 2026 · TabPFN v2 era (v2.0 via API; weights ID unrecorded). Do not assume results hold on v2.5/v3 — see [../MODEL_VERSIONS.md](../MODEL_VERSIONS.md).
 >
-> **⚠ Read `HISTORIC_FINETUNING_APPRAISAL.md` before acting on the DOWNGRADE recommendation below.**
+> **⚠ Read `docs/archive/HISTORIC_FINETUNING_APPRAISAL.md` before acting on the DOWNGRADE recommendation below.**
 > That appraisal found the two TabPFN arms in this study were **not evaluated on equal terms**: the
 > fine-tuned arm's inference context was subsampled to `context_samples` (64 in Round 2, 128 in
 > Round 3) while the raw arm used the full training split — and the measured deficit shrank as the
