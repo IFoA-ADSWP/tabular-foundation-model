@@ -63,7 +63,7 @@ This analysis focuses on a single motor insurance dataset with additive risk fac
 - Known problem: Policy Lapse is well-studied. Novel problems with unknown interactions may differ.
 - Research transparency: Public data (CASdatasets). Fixed random seeds (seed=45). Results reproducible using scikit-learn, TabPFN v2.0 API, standard calibration libraries.
 
-For a full step-by-step replication protocol (environment, run order, seeds, expected artifacts, and checks), see: docs/papers/APPENDIX_REPRODUCIBILITY.md.
+For a full step-by-step replication protocol (environment, run order, seeds, expected artifacts, and checks), see: docs/archive/archive/papers/APPENDIX_REPRODUCIBILITY.md.
 
 ## The Honest Conclusion
 
