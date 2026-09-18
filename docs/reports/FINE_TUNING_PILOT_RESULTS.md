@@ -467,7 +467,7 @@ dataset".
 distribution rather than a point; a **paired** test on the shared test rows (the pilot
 already has the necessary structure, but see the evidence gap in §5d.9); a cross-dataset
 transfer arm; ideally an out-of-time or external holdout; and the pre-specified decision rule
-actually applied. **That rule already exists** — the R3 gate in `FINE_TUNING_EXPERIMENT_DESIGN.md`
+actually applied. **That rule already exists** — the R3 gate in `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md`
 ("proceed if arm B beats A or E in R2; otherwise stop and report"). It has never been evaluated
 against a result, because it is specified on R2 and R2 has never run. The gap is application and
 recording, not design.

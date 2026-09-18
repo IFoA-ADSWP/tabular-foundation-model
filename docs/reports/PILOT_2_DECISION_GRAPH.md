@@ -20,10 +20,10 @@ compute. That is why the budget is tested first and the transfer question is ask
 than folded in.
 
 **Read, in this order:** this page → `PILOT_2_DESIGN.md` (the specification this plan arrives at) →
-`PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` (how the numbers are computed) →
-`PILOT_2_COST_AND_CONTROLS.md` (what it costs, and the controls). Background and evidence:
+`docs/current/PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` (how the numbers are computed) →
+`docs/current/PILOT_2_COST_AND_CONTROLS.md` (what it costs, and the controls). Background and evidence:
 `FINE_TUNING_PILOT_RESULTS.md`, `SMOKE_TEST_SCOPE.md`, `HISTORIC_FINETUNING_APPRAISAL.md`. The
-decisions are in `PILOT_2_DECISION_LOG.md`; the isolation argument and the interaction policy are in
+decisions are in `docs/current/PILOT_2_DECISION_LOG.md`; the isolation argument and the interaction policy are in
 `PILOT_2_DESIGN_ALTERNATIVE.md`.
 
 ### Sequencing — what happens, in this order
@@ -131,7 +131,7 @@ flowchart TD
 > `R_random`, which is a full pooled training run — and **step 4 does not re-run step 3's target**;
 > its result carries forward. Counting two pooled arms and re-running the probe target understated the
 > steps 0-4 total by about 50c. The corrected figure, **~$4.70**, agrees with the independent
-> calculation in `PILOT_2_COST_AND_CONTROLS.md`.
+> calculation in `docs/current/PILOT_2_COST_AND_CONTROLS.md`.
 
 ## What each stopping point lets us claim
 
@@ -180,7 +180,7 @@ routinely conflated:
 sample of 3,500 rows *before* the stratified split, so the positive count is whatever that sample
 happened to include — 57 for coil2000, 369 for uslapseagent. **A stratified cap would equalise positives
 across datasets and is the cheapest available improvement to the minimum detectable effect**
-(`PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` §12.1). It is a candidate change, not a made one, because it would
+(`docs/current/PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` §12.1). It is a candidate change, not a made one, because it would
 alter the split that every existing number was computed on.
 
 **How the split relates to the epoch budget: they are not independent.**

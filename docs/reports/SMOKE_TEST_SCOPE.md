@@ -1,7 +1,7 @@
 # Smoke Test Scope — What R1 Has and Has Not Established
 
 > Date: 2026-09-12 | Status: current | Related: #22
-> Design: `FINE_TUNING_EXPERIMENT_DESIGN.md` (this is rung **R1** of that design)
+> Design: `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md` (this is rung **R1** of that design)
 > Results: `FINE_TUNING_PILOT_RESULTS.md` (the numbers; §5d covers statistical validity)
 > Runbook: `../REPRODUCIBILITY_RUNBOOK.md` §C (how to operate the harness)
 
@@ -22,7 +22,7 @@ numbers.
 
 ## 1. What the smoke test was
 
-R1 of `FINE_TUNING_EXPERIMENT_DESIGN.md`:
+R1 of `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md`:
 
 | Element | Specification | Executed |
 | --- | --- | --- |

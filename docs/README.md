@@ -15,7 +15,7 @@ the document is worth to you now.
 
 **The current line of work, by tier.**
 
-- **current** — `FINE_TUNING_EXPERIMENT_DESIGN.md` (its front section is the design; below it is reference) · `FINDINGS.md` · `NEXT_RUN.md` · `PILOT_2_BRIEFING.md` · `PILOT_2_COST_AND_CONTROLS.md` · `PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` · `PILOT_2_DECISION_LOG.md` (D6 is live) · `PILOT_2_PREREQUISITES.md` · `PROBE_RESULTS.md` · `TABPFN_FINETUNING_LITERATURE.md`
+- **current** — `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md` (its front section is the design; below it is reference) · `docs/current/FINDINGS.md` · `docs/current/NEXT_RUN.md` · `docs/current/PILOT_2_BRIEFING.md` · `docs/current/PILOT_2_COST_AND_CONTROLS.md` · `docs/current/PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` · `docs/current/PILOT_2_DECISION_LOG.md` (D6 is live) · `docs/current/PILOT_2_PREREQUISITES.md` · `docs/current/PROBE_RESULTS.md` · `docs/current/TABPFN_FINETUNING_LITERATURE.md`
 - **reference** — `PROBE_PLAN.md` · `PROBE_FIRST_RUN.md` · `PILOT_2_DESIGN.md` · `PILOT_2_DESIGN_ALTERNATIVE.md` · `PILOT_2_DECISION_GRAPH.md` (its step 0 fired) · `FINE_TUNING_PILOT_RESULTS.md` · the five v2-era fine-tuning pages listed in the literature record
 - **archive** — everything in the legacy tables further down this file: the earlier benchmark, analysis and session documents.
 
