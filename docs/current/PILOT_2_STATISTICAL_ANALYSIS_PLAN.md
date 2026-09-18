@@ -2,7 +2,7 @@
 
 > **Status: DRAFT for sign-off.** This plan fixes the analysis **before** any data exists, so that the
 > result cannot be chosen after seeing it. Any departure is recorded as a dated deviation (§10).
-> Related: `PILOT_2_DESIGN.md` (§5, §6.5), `PILOT_2_DECISION_LOG.md` (D4, D8), `PILOT_2_DECISION_GRAPH.md`.
+> Related: `PILOT_2_DESIGN.md` (§5, §6.5), `docs/current/PILOT_2_DECISION_LOG.md` (D4, D8), `PILOT_2_DECISION_GRAPH.md`.
 
 ## 1. Purpose and scope
 

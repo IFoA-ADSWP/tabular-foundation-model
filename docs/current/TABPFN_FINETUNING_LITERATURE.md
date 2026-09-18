@@ -2,7 +2,7 @@
 
 **Purpose.** External evidence, kept deliberately separate from our own measurements. This file records what
 the published work and the vendor's own guidance claim, **and whether we have checked it**. Our own results
-live in `PROBE_RESULTS.md`, `FINE_TUNING_PILOT_RESULTS.md` and the run records — not here.
+live in `docs/current/PROBE_RESULTS.md`, `FINE_TUNING_PILOT_RESULTS.md` and the run records — not here.
 
 **Two rules for this document.**
 

@@ -7,7 +7,7 @@
 >
 > **The wider testing's code does not exist yet.** The transfer arms, the pool construction, the schema rule
 > and the label harmonisation are all unbuilt, and four open decisions (D1–D3, D8) determine their shape —
-> see *What the WIDER testing still needs built* in `PILOT_2_PREREQUISITES.md`. The probe is separate and
+> see *What the WIDER testing still needs built* in `docs/current/PILOT_2_PREREQUISITES.md`. The probe is separate and
 > needs none of it.
 
 > Date: 2026-09-12, revised 2026-09-13 | **Status: DESIGN — awaiting team sign-off. No spend is
@@ -111,7 +111,7 @@ only Stage 2 tests the *claim*.
 recorded (`build_pool`, PR-5: target absent by **name and content hash**, `out_of_pool_asserted:
 true`). The equivalent assertion for the **inference context** does not yet exist — it is true by
 construction today because the split is disjoint, but "true by construction" is this project's
-least-reliable category of guarantee. **PR-10** (in `PILOT_2_PREREQUISITES.md`) adds the mirror assertion: context and
+least-reliable category of guarantee. **PR-10** (in `docs/current/PILOT_2_PREREQUISITES.md`) adds the mirror assertion: context and
 validation indices disjoint from test indices, asserted and recorded per arm.
 
 **Verified in the runner (2026-09-13).** The split is stratified and seeded
@@ -180,7 +180,7 @@ Interpretation is fixed in advance:
 
 ### 4.5 Cost
 
-**Full explanation, written for a non-specialist reader: `PILOT_2_COST_AND_CONTROLS.md`.** In brief:
+**Full explanation, written for a non-specialist reader: `docs/current/PILOT_2_COST_AND_CONTROLS.md`.** In brief:
 
 | | Cost | In units of one successful first-pilot comparison (5p) |
 | --- | --- | --- |
@@ -217,7 +217,7 @@ reference specification; the alternative is the recommended route to it.
 
 ## 5. Gate 1
 
-> Inputs to these criteria are computed per `PILOT_2_STATISTICAL_ANALYSIS_PLAN.md`.
+> Inputs to these criteria are computed per `docs/current/PILOT_2_STATISTICAL_ANALYSIS_PLAN.md`.
 
 **Proceed to Stage 2 if and only if all four criteria in §4.4 hold.**
 
@@ -308,7 +308,7 @@ the historic set makes the re-test legible; the R1 set connects to R1.
 
 ### 6.5 Pre-registered decision rule
 
-> **How the inputs to this rule are computed is fixed in `PILOT_2_STATISTICAL_ANALYSIS_PLAN.md`**
+> **How the inputs to this rule are computed is fixed in `docs/current/PILOT_2_STATISTICAL_ANALYSIS_PLAN.md`**
 > (estimands, pairing, intervals, the D4 aggregation and multiplicity rule, the escalation and
 > inconclusive rules, and the reporting format). This section states the rule; that plan states the
 > arithmetic.
@@ -339,14 +339,14 @@ criterion cannot discriminate the hypothesis and must be replaced before the run
    "how much transfers" question is answered numerically — and so a small absolute gain cannot be
    presented as a large one relative to what in-domain adaptation achieved.
 
-**Rejected:** the `R3 gate` in `FINE_TUNING_EXPERIMENT_DESIGN.md` — its second criterion (B > E)
+**Rejected:** the `R3 gate` in `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md` — its second criterion (B > E)
 is satisfied by raw TabPFN, so it cannot discriminate the fine-tuning hypothesis.
 
 ### 6.6 Cost
 
 Stage 2 multiplies Stage 1's per-target cost by the number of targets and pool policies. At P1a
    **modelled, and now consistent with the cost page:** the transfer experiment is ~$20 at 15
-   repeats at sample scale (`PILOT_2_COST_AND_CONTROLS.md` derives it from the measured arm
+   repeats at sample scale (`docs/current/PILOT_2_COST_AND_CONTROLS.md` derives it from the measured arm
    times). An earlier revision of this section quoted $2-4 and $15-30, which predated the
    pooled-arm correction and did not count the shuffled-label control as a training run.
 mechanism is established. Note that at P1c scale Stage 2 **cannot be funded from the current
@@ -415,7 +415,7 @@ confound.
 ## 10. Open decisions for the team
 
 **These are tracked with options, recommendations and blanks to fill in
-`PILOT_2_DECISION_LOG.md`**, which is the document the review works through. Three of them
+`docs/current/PILOT_2_DECISION_LOG.md`**, which is the document the review works through. Three of them
 (**D1** transfer vs few-shot, **D2** the schema-matching rule, **D3** the target set) change the
 *shape of the code*, not its parameters, so Stage 2 is not built until they are answered.
 

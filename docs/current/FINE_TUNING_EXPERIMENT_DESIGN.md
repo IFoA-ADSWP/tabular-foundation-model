@@ -76,7 +76,7 @@ here is approved or funded; this is the request, not the commitment.
 
 The 15-dataset sweep, the factorial N x train-ratio extension, the pooling arms, the transfer stage, and the
 temporal-split test. Each is either out of scope for lapse, or contingent on a positive result that does not
-yet exist. The reasons are in the sections below and in `TABPFN_FINETUNING_LITERATURE.md`.
+yet exist. The reasons are in the sections below and in `docs/current/TABPFN_FINETUNING_LITERATURE.md`.
 
 
 > Date: 2026-09-11 | Status: **R1 complete — smoke test only; R2, R3 and Q4/Q5 not run** | Related: #22, #129, #156, #159
@@ -413,7 +413,7 @@ Otherwise stop at R2 and report findings.
 
 > **Superseded by measurement.** Figures in this section were modelled from a first-pilot rate of
 > $0.544-0.657/hr. Measured since: **$0.0122** for a four-arm run at 2,000 rows, **$0.0368** at 10,000 rows.
-> Read `PILOT_2_COST_AND_CONTROLS.md` for the current anchor; treat what follows as history.
+> Read `docs/current/PILOT_2_COST_AND_CONTROLS.md` for the current anchor; treat what follows as history.
 
 | Item | Cost |
 |---|---|
@@ -804,7 +804,7 @@ _Next step: Build the runner script or run the pilot on T4._
 
 ## Design principles after the probe and the literature
 
-Sources: `TABPFN_FINETUNING_LITERATURE.md`. Our own measurements: `PROBE_RESULTS.md`, the run records.
+Sources: `docs/current/TABPFN_FINETUNING_LITERATURE.md`. Our own measurements: `docs/current/PROBE_RESULTS.md`, the run records.
 
 **The objective function.** Not "does fine-tuning work" but **the probability that a result changes a
 decision, per unit of spend**. Everything below follows from that: resolution before effect, one factor at a

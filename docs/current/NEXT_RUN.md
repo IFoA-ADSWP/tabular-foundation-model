@@ -18,7 +18,7 @@ bash scripts/gpu_helpers/vast_run.sh \
 
 **Acceptance, per seed and pre-registered before the run:** each rung's paired interval against the in-run
 `A_raw` excludes zero, in the same direction as the first seed, with no `***` marker; Brier and ECE reported
-against a tolerance fixed in advance (`PILOT_2_DECISION_LOG.md`, D6). **Stop rule:** if a second seed shows the
+against a tolerance fixed in advance (`docs/current/PILOT_2_DECISION_LOG.md`, D6). **Stop rule:** if a second seed shows the
 rungs flat or worse, the line stops here rather than extending to more seeds or more datasets.
 
 ## Stage 2 — the same ladder on a second lapse dataset (conditional)

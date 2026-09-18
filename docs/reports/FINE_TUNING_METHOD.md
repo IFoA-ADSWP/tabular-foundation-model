@@ -3,7 +3,7 @@
 > Date: 2026-09-12 | Status: current | Related: #22
 > Describes the method used in **R1** (the smoke test). The results are in
 > `FINE_TUNING_PILOT_RESULTS.md`; what R1 did and did not exercise is in `SMOKE_TEST_SCOPE.md`.
-> The wider study this belongs to is `FINE_TUNING_EXPERIMENT_DESIGN.md`.
+> The wider study this belongs to is `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md`.
 >
 > Written so a statistician can assess the method without reading the code. Every parameter
 > named below was verified against the installed package (`tabpfn==8.5.0`) and against our
