@@ -1,6 +1,6 @@
 # Regime Characterization — When Default TabPFN Wins (Issue #53)
 
-Analysis note feeding the adoption guidance (one-pager `docs/reports/TABPFN_BENCHMARK_SUMMARY.md`).
+Analysis note feeding the adoption guidance (one-pager `docs/archive/TABPFN_BENCHMARK_SUMMARY.md`).
 Answers: what distinguishes the datasets where default TabPFN wins from those where it is
 dominated, so the adoption rule is predictive rather than descriptive. Desk analysis over
 committed evidence only — no new fits, no new numbers without a source.
@@ -183,4 +183,4 @@ won every classification task tested (8/9 sweep cells including the two full-siz
   `results_per_split.csv` (per-fold AUC).
 - Money chart: `scripts/eval/insurance_benchmark_v1/plot_money_chart.py` (docstring:
   off-frontier ⇒ ≥53.5K rows, ratio ≥1.03; sweep 8/9).
-- One-pager: `docs/reports/TABPFN_BENCHMARK_SUMMARY.md`.
+- One-pager: `docs/archive/TABPFN_BENCHMARK_SUMMARY.md`.

@@ -1,8 +1,8 @@
 # Historic Fine-Tuning Testing — Appraisal and Limitations
 
 > Date: 2026-09-12 | Status: current | Related: #22
-> Companion to `NEXT_STAGE_PROPOSAL.md` (the proposed next stage) and
-> `CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md` (the historic pooling study itself).
+> Companion to `docs/archive/NEXT_STAGE_PROPOSAL.md` (the proposed next stage) and
+> `docs/archive/CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md` (the historic pooling study itself).
 >
 > **Purpose:** the historic fine-tuning work produced a negative verdict. This document sets out
 > what was actually run, under what constraints, and **why that verdict may not be a fair test of
@@ -195,7 +195,7 @@ With GPU available, the fair test can:
 
 `tabpfn.finetuning.finetuned_classifier.FinetunedTabPFNClassifier` — AdamW, weight decay, a warmup
 schedule, an internal validation split and best-checkpoint selection, all maintained by the library
-and verified in `FINE_TUNING_METHOD.md`. The historic loop re-implemented a worse version of this
+and verified in `docs/archive/FINE_TUNING_METHOD.md`. The historic loop re-implemented a worse version of this
 against an API that no longer exists.
 
 ### 6.5 Add the controls that separate the competing explanations
@@ -210,7 +210,7 @@ against an API that no longer exists.
 
 ### 6.6 Record enough to audit
 
-The manifest specified in `NEXT_STAGE_PROPOSAL.md` §4.2: dataset content hashes, split indices and
+The manifest specified in `docs/archive/NEXT_STAGE_PROPOSAL.md` §4.2: dataset content hashes, split indices and
 hash, pool contents, **per-arm effective configuration including the inference context**, per-arm
 predictions, model hashes, cost, and an in-code assertion that the target is absent from its own
 pool.
@@ -240,7 +240,7 @@ budget between arms, establish a positive in-domain control first, use the shipp
 the full datasets, and record everything** — then ask whether a single model fine-tuned on other
 datasets transfers to one it has never seen.
 
-> **These requirements are implemented in `PILOT_2_DESIGN.md`** — a two-stage design (positive
+> **These requirements are implemented in `docs/reference/PILOT_2_DESIGN.md`** — a two-stage design (positive
 > control in-domain, then transfer) with the fairness requirements of §6 mapped to concrete design
 > choices, a pre-run fairness checklist, and gates between stages. Note the design also surfaces a
 > budget point this appraisal did not cover: the library default is **30 epochs**, and no

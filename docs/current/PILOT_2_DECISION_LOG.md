@@ -1,6 +1,6 @@
 # Pilot 2 — Decision Log (for the technical review)
 
-> Companion to `PILOT_2_DESIGN.md`. **Purpose:** the review's answers, recorded against the
+> Companion to `docs/reference/PILOT_2_DESIGN.md`. **Purpose:** the review's answers, recorded against the
 > sections they change, so that a decision cannot be remembered differently by different people
 > later — the failure mode this project has already paid for once.
 >
@@ -194,7 +194,7 @@ OPEN; this holds what the design review settled.
 | **C3** | **R1's total spend is not a planning figure** | Only ~8p of 53p produced a result; the rest bought a working pipeline. The planning figure is the marginal cost of a successful comparison |
 | **C4** | **Controls are described by what is proven, not what is built** | Implemented and unit-tested is not the same as exercised on real hardware, and the watchdog's firing is scheduled rather than observed |
 
-The parameters these decisions produce are tabulated in `PILOT_2_DECISION_GRAPH.md` under *Step 0 in
+The parameters these decisions produce are tabulated in `docs/reference/PILOT_2_DECISION_GRAPH.md` under *Step 0 in
 full*, with a reason beside every value.
 
 ## 4. Sign-off

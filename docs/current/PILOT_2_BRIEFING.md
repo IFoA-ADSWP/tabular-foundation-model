@@ -95,15 +95,15 @@ Everything below is appendix. It exists for whoever wants to challenge a number 
 
 | To check | Read |
 | --- | --- |
-| What the first pilot actually found | `FINE_TUNING_PILOT_RESULTS.md` |
-| What it did and did **not** test | `SMOKE_TEST_SCOPE.md` |
-| The plan as a graph, and what each stopping point lets us claim | `PILOT_2_DECISION_GRAPH.md` |
-| The full experiment specification | `PILOT_2_DESIGN.md` |
-| Why this is a correction, not a scale-up — and the interaction policy | `PILOT_2_DESIGN_ALTERNATIVE.md` |
+| What the first pilot actually found | `docs/reference/FINE_TUNING_PILOT_RESULTS.md` |
+| What it did and did **not** test | `docs/archive/SMOKE_TEST_SCOPE.md` |
+| The plan as a graph, and what each stopping point lets us claim | `docs/reference/PILOT_2_DECISION_GRAPH.md` |
+| The full experiment specification | `docs/reference/PILOT_2_DESIGN.md` |
+| Why this is a correction, not a scale-up — and the interaction policy | `docs/reference/PILOT_2_DESIGN_ALTERNATIVE.md` |
 | Every cost figure, in units of a run we have already done | `docs/current/PILOT_2_COST_AND_CONTROLS.md` |
 | How the numbers will be computed, and what counts as a positive | `docs/current/PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` |
 | The decisions, with options and recommendations | `docs/current/PILOT_2_DECISION_LOG.md` |
-| Why the historic "don't chase fine-tuning" verdict is unusable | `HISTORIC_FINETUNING_APPRAISAL.md` |
+| Why the historic "don't chase fine-tuning" verdict is unusable | `docs/archive/HISTORIC_FINETUNING_APPRAISAL.md` |
 | The infrastructure and the analysis code | PR #173 |
 
 ## Status: the probe has run and answered

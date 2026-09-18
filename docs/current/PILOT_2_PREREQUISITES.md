@@ -3,7 +3,7 @@
 > Date: 2026-09-12 (counts corrected 2026-09-13) | Status: **7 of 10 DONE, 3 IN PROGRESS**
 > The three open items (PR-1, PR-3, PR-9) are code-complete and free-verified; each is
 > waiting on the SAME thing -- one real box -- which is what the Gate Amendment below resolves.
-> Design: `PILOT_2_DESIGN.md` §7 (this is that section, expanded and tracked)
+> Design: `docs/reference/PILOT_2_DESIGN.md` §7 (this is that section, expanded and tracked)
 > Related: #22 | No paid run may proceed until the Gate in this file is green — see the Gate
 > Amendment below for how a run may satisfy three prerequisites without breaking that rule.
 
@@ -99,7 +99,7 @@ epoch budget (30, the library's own default; 3 has already been answered).
 **Why.** R1's records could not answer basic questions about its own runs: which arms executed, what
 config each arm actually used, which data version was loaded, what the split was, what anything cost
 per arm, or whether the decision rule was evaluated. Twelve capture gaps are catalogued in
-`NEXT_STAGE_PROPOSAL.md` §4.1.
+`docs/archive/NEXT_STAGE_PROPOSAL.md` §4.1.
 
 **Required.** One immutable JSON per invocation, plus a per-arm record, containing: run id and
 status; git SHA/branch/dirty; host and environment (GPU model, VRAM, driver, CUDA); dataset
@@ -468,7 +468,7 @@ machine's cold cache.
 ## Gate — no spend until all of these hold
 
 - [ ] PR-1 through PR-9 are `DONE`, each with a recorded evidence artefact.
-- [ ] The fairness checklist in `PILOT_2_DESIGN.md` §8 is satisfied for the specific rung being run.
+- [ ] The fairness checklist in `docs/reference/PILOT_2_DESIGN.md` §8 is satisfied for the specific rung being run.
 - [ ] The decision rule and outcome mapping for that rung are written down **before** the run.
 - [ ] The run's cost ceiling is set, and per-run approval has been given explicitly for that run.
 
@@ -478,7 +478,7 @@ machine's cold cache.
 
 | Date | Change | Commit |
 | --- | --- | --- |
-| 2026-09-12 | Checklist created from `PILOT_2_DESIGN.md` §7 | — |
+| 2026-09-12 | Checklist created from `docs/reference/PILOT_2_DESIGN.md` §7 | — |
 | 2026-09-12 | Runner rewritten to Pilot 2 schema v2: manifest, fingerprints, matched-context assertion, LODO assertion, epoch ladder, model hashing, log loss + ECE. PR-4/5/6/7 DONE; PR-1/3 IN PROGRESS; PR-2/8 TODO. 20 new acceptance tests, suite at 68 passed / 1 pre-existing failure. | — |
 | 2026-09-12 | PR-9 added and implemented: `scripts/gpu_helpers/fetch_weights.py` + bootstrap step 3a, with the licence preflight at 3b now skipped when the weights are already cached. 5 more tests (25 total in this file; full suite 73 passed / 1 pre-existing failure). `bash -n` and `shellcheck -S error` clean. | — |
 | 2026-09-12 | PR-2 done: `emit_artifacts.sh` + `verify_artifacts.py`, wired into the bootstrap, log window 5000 → 20000. Payload now carries every arm's predictions and is hash-verified on return. **Found and fixed two pre-existing bugs**: `meta.json` was never returned (glob one level too shallow), and BSD `grep -c` produced a two-line file count. 17 new tests incl. a real emit→verify round trip; full suite 90 passed / 1 pre-existing failure. | — |
@@ -489,7 +489,7 @@ machine's cold cache.
 
 ## PR-10 — Test-contamination assertion
 
-**Fixes.** The leakage rule in `PILOT_2_DESIGN.md` §3.1 was stated in documents describing R1 and the
+**Fixes.** The leakage rule in `docs/reference/PILOT_2_DESIGN.md` §3.1 was stated in documents describing R1 and the
 historic protocol, and asserted nowhere for the live design. PR-5 asserts the *transfer target's*
 absence from its own pool; nothing asserted the *test rows'* absence from everything the model is
 fitted on. That matters most for the inference context — TabPFN conditions on a context set, so a
@@ -520,8 +520,8 @@ exercised directly against the real module, each raising with a message naming t
 
 ## What the WIDER testing still needs built (not started)
 
-The probe (its own proposal, `PROBE_PLAN.md`) is complete and needs nothing from this list. **The wider
-testing described in `PILOT_2_DESIGN.md` cannot run yet: the code does not exist**, and the shape of it
+The probe (its own proposal, `docs/reference/PROBE_PLAN.md`) is complete and needs nothing from this list. **The wider
+testing described in `docs/reference/PILOT_2_DESIGN.md` cannot run yet: the code does not exist**, and the shape of it
 depends on decisions that are still open.
 
 | Missing build | State | Blocked by |

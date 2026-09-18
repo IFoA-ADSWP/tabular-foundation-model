@@ -1,6 +1,6 @@
 # Pilot 2 — Design for a Fair Test of Fine-Tuning
 
-> **Start here: [`PILOT_2_DECISION_GRAPH.md`](PILOT_2_DECISION_GRAPH.md)** — the design as a gated
+> **Start here: [`docs/reference/PILOT_2_DECISION_GRAPH.md`](docs/reference/PILOT_2_DECISION_GRAPH.md)** — the design as a gated
 > graph: the recommendation, what every stopping point lets us claim, and the cost of each step.
 > This document is the reference specification that route arrives at; the graph page is the entry
 > point for a reviewer.
@@ -16,9 +16,9 @@
 > **Revision 2026-09-13** adds the leakage policy (§3.1), the frozen-configuration rule at Gate 1
 > (§5), an explicit pool order and the missing schema-matched arm (§6.2–6.3), a funded cost envelope
 > (§4.5), and four checklist lines (§8).
-> Basis: `HISTORIC_FINETUNING_APPRAISAL.md` (why the historic verdict is unusable),
-> `NEXT_STAGE_PROPOSAL.md` (scale options, audit schema), `FINE_TUNING_METHOD.md` (how the
-> fine-tune works), `SMOKE_TEST_SCOPE.md` (what R1 did and did not exercise).
+> Basis: `docs/archive/HISTORIC_FINETUNING_APPRAISAL.md` (why the historic verdict is unusable),
+> `docs/archive/NEXT_STAGE_PROPOSAL.md` (scale options, audit schema), `docs/archive/FINE_TUNING_METHOD.md` (how the
+> fine-tune works), `docs/archive/SMOKE_TEST_SCOPE.md` (what R1 did and did not exercise).
 
 ---
 
@@ -94,8 +94,8 @@ any plausible effect. **No run may be reported as a win without a CI that exclud
 model selection** — for any arm, in any stage, in any form. *Model selection* includes choosing the
 epoch budget, the pool policy, or the feature set by looking at test performance.
 
-This rule is stated in `FINE_TUNING_METHOD.md` §9, `FINE_TUNING_PILOT_RESULTS.md` §0.2 and the
-"zero leakage rule" in `INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md` — all of which describe **R1
+This rule is stated in `docs/archive/FINE_TUNING_METHOD.md` §9, `docs/reference/FINE_TUNING_PILOT_RESULTS.md` §0.2 and the
+"zero leakage rule" in `docs/archive/INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md` — all of which describe **R1
 or the historic protocol**. It is restated here because *this* is the document the next experiment is
 held to, and the rule belongs in the document that governs the run rather than in one describing a
 past one.
@@ -209,7 +209,7 @@ Two points a reviewer should hold on to:
 
 ## 4.9 An alternative design
 
-**`PILOT_2_DESIGN_ALTERNATIVE.md`** states a staged-isolation design as a genuine alternative to this
+**`docs/reference/PILOT_2_DESIGN_ALTERNATIVE.md`** states a staged-isolation design as a genuine alternative to this
 one. It changes **one factor at a time**, so a negative names its cause instead of leaving the
 combination to blame, and it reaches the same decisions for roughly **$4 rather than $31**. Its
 trade is explicit: it will not detect interactions between factors. Where an interaction is worth pursuing, the alternative states the **four entry criteria** (a stated technical mechanism, an isolation result that implies it, an attributing design, and pre-registration) and prices a designed 2x2 probe at **$1.11** against an incidental one at $31. This design remains the
@@ -360,7 +360,7 @@ Each item fixes a gap found in R1 or in the historic work.
 
 | # | Prerequisite | Fixes |
 |---|---|---|
-| 1 | **Run manifest** per `NEXT_STAGE_PROPOSAL.md` §4.2, with all seven acceptance criteria passing | 12 R1 capture gaps |
+| 1 | **Run manifest** per `docs/archive/NEXT_STAGE_PROPOSAL.md` §4.2, with all seven acceptance criteria passing | 12 R1 capture gaps |
 | 2 | **Per-arm predictions returned** from the box, chunked past the 500-char log cap | arm B was unverifiable in R1 |
 | 3 | **Fine-tuned weights saved** where size permits, with hash; else the exact reproduction command | no model artefact in R1 |
 | 4 | **Matched-context assertion** — `effective_context` recorded per arm, and the A-vs-B comparison refuses to report if they differ | the historic confound |
@@ -430,5 +430,5 @@ confound.
      measured numbers. Confirm, or set a different ceiling.
 5. **Pool policy** — the historic comparison was a coin flip under a confounded design. Re-test
    `similarity_topk` vs `mixed_baseline`, or fix one policy and spend the budget on power?
-6. **Audit schema sign-off** — is the manifest in `NEXT_STAGE_PROPOSAL.md` §4.2 sufficient for the
+6. **Audit schema sign-off** — is the manifest in `docs/archive/NEXT_STAGE_PROPOSAL.md` §4.2 sufficient for the
    project's audit requirement?

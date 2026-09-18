@@ -2,7 +2,7 @@
 
 > **Status: DRAFT for sign-off.** This plan fixes the analysis **before** any data exists, so that the
 > result cannot be chosen after seeing it. Any departure is recorded as a dated deviation (§10).
-> Related: `PILOT_2_DESIGN.md` (§5, §6.5), `docs/current/PILOT_2_DECISION_LOG.md` (D4, D8), `PILOT_2_DECISION_GRAPH.md`.
+> Related: `docs/reference/PILOT_2_DESIGN.md` (§5, §6.5), `docs/current/PILOT_2_DECISION_LOG.md` (D4, D8), `docs/reference/PILOT_2_DECISION_GRAPH.md`.
 
 ## 1. Purpose and scope
 
@@ -14,7 +14,7 @@ two pool policies, a control, several metrics). **Without a fixed analysis, a pr
 outputs will find something positive in it**, and the finding will be an artefact of which comparison
 was reported.
 
-Scope: the five gated steps of `PILOT_2_DECISION_GRAPH.md` and the guarded interaction off-ramp. It does
+Scope: the five gated steps of `docs/reference/PILOT_2_DECISION_GRAPH.md` and the guarded interaction off-ramp. It does
 not re-open anything the design has settled.
 
 ## 2. Estimands — what is actually being estimated
@@ -117,7 +117,7 @@ interval is sampling noise.
 
 **Interactions** carry four times the variance of a main effect in a 2×2 with equal cells, so an
 interaction claim requires the pre-set maximum repeats **and** the four entry criteria in
-`PILOT_2_DESIGN_ALTERNATIVE.md`. An interaction is never reported as a headline.
+`docs/reference/PILOT_2_DESIGN_ALTERNATIVE.md`. An interaction is never reported as a headline.
 
 ## 7. Decision rules — linkage, not restatement
 
@@ -152,7 +152,7 @@ interval, the number of test rows, the number of repeats, **the noise floor for 
 run ids the numbers came from, and whether the step was gated and on what result.
 
 **A negative is reported with the same detail as a positive.** The negative outcomes are deliverables
-(they are the stopping points in `PILOT_2_DECISION_GRAPH.md`), so they are reported as findings, not as
+(they are the stopping points in `docs/reference/PILOT_2_DECISION_GRAPH.md`), so they are reported as findings, not as
 failures to find something.
 
 The transfer result is additionally reported **as a fraction of `B_in_domain`'s gain**, so a small

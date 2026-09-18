@@ -39,13 +39,13 @@ all was settled for one configuration; what remains is the conditions under whic
 
 ### Relationship to the repository's own April protocol
 
-`INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md` (2026-04-02) proposed **the same test** in the v2 era, with
+`docs/archive/INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md` (2026-04-02) proposed **the same test** in the v2 era, with
 H1 = probability quality (Brier, log loss, ECE) and H2 = ranking (ROC AUC, PR AUC) -- the ordering the table
 above now adopts. That is not a coincidence to be tidied away: lapse is priced, so the probability is the
 deployment quantity, and ranking only matters if the probabilities are usable. The protocol also carries the
 zero-leakage rule this design keeps.
 
-`INSURANCE_SPECIFIC_FINETUNING_EVIDENCE.md` (2026-03-29) is the evidence review for the same question; its
+`docs/archive/INSURANCE_SPECIFIC_FINETUNING_EVIDENCE.md` (2026-03-29) is the evidence review for the same question; its
 "what we cannot claim yet" section still holds. Both are v2-era and say so in their banners: **their protocol
 transfers, their numbers do not.**
 
@@ -83,10 +83,10 @@ yet exist. The reasons are in the sections below and in `docs/current/TABPFN_FIN
 > Builds on: PRE_FINETUNING_INVESTIGATIONS.md, master report (v3, canonical folds)
 >
 > **Reconciled 2026-09-12.** R1 has now run. Read the outcome alongside this design:
-> - **`SMOKE_TEST_SCOPE.md`** — what R1 proved and, more importantly, what it never exercised
+> - **`docs/archive/SMOKE_TEST_SCOPE.md`** — what R1 proved and, more importantly, what it never exercised
 >   (notably **arms C/D, so the transfer question in the Research Question below is still
 >   untested**). Also records where R1 deviated from this design.
-> - **`FINE_TUNING_PILOT_RESULTS.md`** — the R1 numbers (§5c) and their statistical limits (§5d).
+> - **`docs/reference/FINE_TUNING_PILOT_RESULTS.md`** — the R1 numbers (§5c) and their statistical limits (§5d).
 >
 > The `R3 Gate` in this document is the pre-specified decision rule for advancing rungs. R1
 > evidence (arm B ≈ arm A, both inside the noise floor) points to its "otherwise stop" branch,
@@ -99,7 +99,7 @@ yet exist. The reasons are in the sections below and in `docs/current/TABPFN_FIN
 
 ---
 
-> **Historical document.** Superseded by `PILOT_2_DESIGN.md` and `PILOT_2_DECISION_GRAPH.md`
+> **Historical document.** Superseded by `docs/reference/PILOT_2_DESIGN.md` and `docs/reference/PILOT_2_DECISION_GRAPH.md`
 > (2026-09-13). Kept for the record -- **do not reconcile it against the current design**, which
 > deliberately differs from it.
 >
@@ -671,8 +671,8 @@ errors = np.abs(y_true - y_prob)
 ### Pilot Results (R1) — as executed
 
 > Filled in 2026-09-12 from `outputs/gpu-pilot/pilot_metrics.parquet` (16 arm-runs).
-> Full analysis, statistical limits and evidence gaps: `FINE_TUNING_PILOT_RESULTS.md` §3 and §5d.
-> Scope boundary (what R1 did *not* exercise): `SMOKE_TEST_SCOPE.md`.
+> Full analysis, statistical limits and evidence gaps: `docs/reference/FINE_TUNING_PILOT_RESULTS.md` §3 and §5d.
+> Scope boundary (what R1 did *not* exercise): `docs/archive/SMOKE_TEST_SCOPE.md`.
 
 **Provenance, because the arms did not all come from one run.** A_raw and B_in_domain were
 produced on the **L40S GPU instance** (20:16-20:19, python 3.11.12 / torch 2.7.0+cu128 /
@@ -684,7 +684,7 @@ comparable.
 
 Reported `config` in the metrics file is the same `PILOT_CONFIG` for every arm, including
 `context_samples: 64`, which **neither arm uses**. Treat the config column as nominal; the
-effective per-arm settings are in `FINE_TUNING_PILOT_RESULTS.md` §5d.4.
+effective per-arm settings are in `docs/reference/FINE_TUNING_PILOT_RESULTS.md` §5d.4.
 
 #### coil2000 (9,822 rows, CARAVAN, 5.97% positive)
 
@@ -746,7 +746,7 @@ Delta (B − E): ROC **+0.110624**
 **Observations:**
 
 1. **ROC is mixed and tiny** — 3 datasets up, 1 down, |ΔROC| ≤ 0.0096. Against the test-set
-   resolution computed in `FINE_TUNING_PILOT_RESULTS.md` §5d.6 (95% CI widths 0.031-0.118),
+   resolution computed in `docs/reference/FINE_TUNING_PILOT_RESULTS.md` §5d.6 (95% CI widths 0.031-0.118),
    **no delta is distinguishable from zero.**
 2. **PR AUC improves for B on all four datasets** (+0.0031 to +0.0083), and Brier improves on
    3 of 4. This is the only consistent directional pattern in the data. It is still inside the

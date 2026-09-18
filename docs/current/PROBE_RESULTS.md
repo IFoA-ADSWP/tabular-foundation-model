@@ -5,7 +5,7 @@
 
 # The probe's result, and which pre-registered outcome it lands in
 
-**Pre-registration:** `PROBE_PLAN.md` (merged, #173). **Run:** `20260913T225032Z`, pinned to
+**Pre-registration:** `docs/reference/PROBE_PLAN.md` (merged, #173). **Run:** `20260913T225032Z`, pinned to
 `d5aebe7`, RTX PRO 4000, 2.53 min, **$0.0122**. All four arms ran:
 `ARM SUMMARY ok= A_raw B_ft3 B_ft10 B_ft30 failed=none`. Every arm's `meta.json` declares a
 `predictions_sha256`, so the artifacts are attributable to this run.

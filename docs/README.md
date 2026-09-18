@@ -16,7 +16,7 @@ the document is worth to you now.
 **The current line of work, by tier.**
 
 - **current** — `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md` (its front section is the design; below it is reference) · `docs/current/FINDINGS.md` · `docs/current/NEXT_RUN.md` · `docs/current/PILOT_2_BRIEFING.md` · `docs/current/PILOT_2_COST_AND_CONTROLS.md` · `docs/current/PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` · `docs/current/PILOT_2_DECISION_LOG.md` (D6 is live) · `docs/current/PILOT_2_PREREQUISITES.md` · `docs/current/PROBE_RESULTS.md` · `docs/current/TABPFN_FINETUNING_LITERATURE.md`
-- **reference** — `PROBE_PLAN.md` · `PROBE_FIRST_RUN.md` · `PILOT_2_DESIGN.md` · `PILOT_2_DESIGN_ALTERNATIVE.md` · `PILOT_2_DECISION_GRAPH.md` (its step 0 fired) · `FINE_TUNING_PILOT_RESULTS.md` · the five v2-era fine-tuning pages listed in the literature record
+- **reference** — `docs/reference/PROBE_PLAN.md` · `docs/reference/PROBE_FIRST_RUN.md` · `docs/reference/PILOT_2_DESIGN.md` · `docs/reference/PILOT_2_DESIGN_ALTERNATIVE.md` · `docs/reference/PILOT_2_DECISION_GRAPH.md` (its step 0 fired) · `docs/reference/FINE_TUNING_PILOT_RESULTS.md` · the five v2-era fine-tuning pages listed in the literature record
 - **archive** — everything in the legacy tables further down this file: the earlier benchmark, analysis and session documents.
 
 **The rule for adding a document:** it enters as **current** only if it carries content nothing else carries; otherwise it is `reference` from the start. When a current document stops being current it is amended with a dated note and its tier changes — never deleted, because the trail is the point.
@@ -29,26 +29,26 @@ Everything below indexes the whole repository. **If you are here for the fine-tu
 
 | Question | Document |
 | --- | --- |
-| What is being proposed, and why | `reports/FINE_TUNING_EXPERIMENT_DESIGN.md` — its front section *is* the design; everything under it is reference |
-| Which document governs the next round | `reports/NEXT_STAGE_PROPOSAL.md` (transfer, with the decisions needed from the team); the design document's front section (lapse extension) |
-| What the pilot actually found | `reports/PROBE_RESULTS.md` — outcome 3 at 2,000 rows, superseded at 10,000 by measurement |
-| What it cost | `reports/PILOT_2_COST_AND_CONTROLS.md` — measured, not modelled: $0.0122 and $0.0368 for the two runs |
-| What the literature says | `reports/TABPFN_FINETUNING_LITERATURE.md` — sources read at source, each carrying a verification status |
+| What is being proposed, and why | `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md` — its front section *is* the design; everything under it is reference |
+| Which document governs the next round | `docs/archive/NEXT_STAGE_PROPOSAL.md` (transfer, with the decisions needed from the team); the design document's front section (lapse extension) |
+| What the pilot actually found | `docs/current/PROBE_RESULTS.md` — outcome 3 at 2,000 rows, superseded at 10,000 by measurement |
+| What it cost | `docs/current/PILOT_2_COST_AND_CONTROLS.md` — measured, not modelled: $0.0122 and $0.0368 for the two runs |
+| What the literature says | `docs/current/TABPFN_FINETUNING_LITERATURE.md` — sources read at source, each carrying a verification status |
 | Where the raw evidence is | `../outputs/gpu-pilot/` — records, logs, manifests, and per-arm predictions under `runs/<run_id>/` |
-| The wider proposal | `reports/PILOT_2_BRIEFING.md` (one page) → `reports/PILOT_2_DESIGN.md` → `reports/PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` |
+| The wider proposal | `docs/current/PILOT_2_BRIEFING.md` (one page) → `docs/reference/PILOT_2_DESIGN.md` → `docs/current/PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` |
 
 **Eras.** R1 (first pilot, no reliable gain) → Pilot 2 (the wider staged proposal) → the probe (2,000 rows, negative) → **lapse-v3 (current)**, where the row cap was lifted to 10,000 and every fine-tuning rung beat raw with intervals excluding zero. Earlier-era documents carry a status banner; where a banner and a front section disagree, the front section wins.
 
-The report-level index is `reports/REPORT_REGISTRY.md` and is deliberately not restated here, so there is exactly one place to update when a report is added.
+The report-level index is `docs/REPORT_REGISTRY.md` and is deliberately not restated here, so there is exactly one place to update when a report is added.
 
 ## Start here by role
 
 | You are… | Read in order |
 |---|---|
-| Junior data scientist | `KNOWLEDGE-PATH-JUNIOR.md` → `analyses/metrics_explained.md` → `reports/CODE_WALKTHROUGH.md` → `MASTER-REPORT-DIGEST.md` |
-| Actuary (do I adopt this?) | `reports/TABPFN_BENCHMARK_SUMMARY.md` → `analyses/metrics_explained.md` → `analyses/regime_characterization.md` → `reports/RESERVING_WITH_FOUNDATIONAL_MODELS.md` |
-| Engineer (how does it run?) | `reports/CODE_WALKTHROUGH.md` → `REPRODUCIBILITY_RUNBOOK.md` → `MODEL_VERSIONS.md` → `reports/REPORT_REGISTRY.md` |
-| Contributor (how do I add work?) | `KNOWLEDGE-PATH.md` → `REPRODUCIBILITY_RUNBOOK.md` → `reports/REPORT_REGISTRY.md` → `MODEL_VERSIONS.md` (re-test policy §15) |
+| Junior data scientist | `KNOWLEDGE-PATH-JUNIOR.md` → `analyses/metrics_explained.md` → `docs/archive/CODE_WALKTHROUGH.md` → `MASTER-REPORT-DIGEST.md` |
+| Actuary (do I adopt this?) | `docs/archive/TABPFN_BENCHMARK_SUMMARY.md` → `analyses/metrics_explained.md` → `analyses/regime_characterization.md` → `docs/archive/RESERVING_WITH_FOUNDATIONAL_MODELS.md` |
+| Engineer (how does it run?) | `docs/archive/CODE_WALKTHROUGH.md` → `REPRODUCIBILITY_RUNBOOK.md` → `MODEL_VERSIONS.md` → `docs/REPORT_REGISTRY.md` |
+| Contributor (how do I add work?) | `KNOWLEDGE-PATH.md` → `REPRODUCIBILITY_RUNBOOK.md` → `docs/REPORT_REGISTRY.md` → `MODEL_VERSIONS.md` (re-test policy §15) |
 | Replicator (paper numbers) | `REPLICATION_SETUP_GUIDE.md` → `papers/APPENDIX_REPRODUCIBILITY.md` → `papers/Theres-Life-in-the-Old-GLM-Yet.md` |
 
 ## Era legend
@@ -65,7 +65,7 @@ The report-level index is `reports/REPORT_REGISTRY.md` and is deliberately not r
 |---|---|---|---|
 | `KNOWLEDGE-PATH-JUNIOR.md` | Junior | Both | 2-week run-first on-ramp; graduation = question → skill → experiment → report → registry |
 | `KNOWLEDGE-PATH.md` | All | Both | Full staged map from new joiner to extending the research |
-| `reports/CODE_WALKTHROUGH.md` | Engineer | Scripts | `run_frontier_benchmark.py` step by step (2026-08-20) |
+| `docs/archive/CODE_WALKTHROUGH.md` | Engineer | Scripts | `run_frontier_benchmark.py` step by step (2026-08-20) |
 | `REPRODUCIBILITY_RUNBOOK.md` | Engineer | Both | Every committed result → exact command; separate frontier-era and legacy sections |
 | `MODEL_VERSIONS.md` | All | Both | v2 → v2.5 → v3 timeline, what flipped, per-artifact validity, re-test rule |
 | `REPLICATION_SETUP_GUIDE.md` | Replicator | Notebook | Paper replication notebook setup (v2-era, seed 45) |
@@ -74,13 +74,13 @@ The report-level index is `reports/REPORT_REGISTRY.md` and is deliberately not r
 
 | Doc | Audience | Era | Purpose |
 |---|---|---|---|
-| `reports/TABPFN_BENCHMARK_SUMMARY.md` | Actuary | Scripts/v3 | One-page adoption answer + decision rule |
+| `docs/archive/TABPFN_BENCHMARK_SUMMARY.md` | Actuary | Scripts/v3 | One-page adoption answer + decision rule |
 | `MASTER-REPORT-DIGEST.md` | All | Scripts/v3 | Addendum arc §4→§14.14 in one paragraph each — the 5-minute story |
 | `analyses/tabpfn_vs_gbdt_baselines_finetuning.md` | Technical | Scripts/v3 | Master report: full evidence, §§1–14.14 |
 | `analyses/regime_characterization.md` | Actuary | Scripts/v3 | When default TabPFN wins — predictive adoption rule |
 | `analyses/benchmark_portfolio.md` | Colleague | Both | Living index of every benchmark: question, finding, evidence location |
-| `reports/MEETING_NARRATIVE_2026-08-20.md` | Stakeholder | Scripts/v3 | Chronological project story for the 2026-08-21 meeting |
-| `reports/RESERVING_WITH_FOUNDATIONAL_MODELS.md` | Actuary | Scripts/v3 | Reserving-task findings compiled from the benchmark suite |
+| `docs/archive/MEETING_NARRATIVE_2026-08-20.md` | Stakeholder | Scripts/v3 | Chronological project story for the 2026-08-21 meeting |
+| `docs/archive/RESERVING_WITH_FOUNDATIONAL_MODELS.md` | Actuary | Scripts/v3 | Reserving-task findings compiled from the benchmark suite |
 
 ## Methods & metrics explainers
 
@@ -88,7 +88,7 @@ The report-level index is `reports/REPORT_REGISTRY.md` and is deliberately not r
 |---|---|---|---|
 | `analyses/metrics_explained.md` | Actuary | Both | Log loss vs AUC vs Brier: what each rewards, which to use for which decision |
 | `analyses/tabular_foundation_models_catalog.md` | Technical | Both | All known tabular foundation models (excludes per-dataset-trained nets) |
-| `reports/TECHNICAL_COMPANION.md` | Junior | Notebook/v2 | Metrics + GLM comparison explainer (v2-era numbers — see banner) |
+| `docs/archive/TECHNICAL_COMPANION.md` | Junior | Notebook/v2 | Metrics + GLM comparison explainer (v2-era numbers — see banner) |
 | `analyses/tabarena_reference.md` | Technical | — | TabArena background (51 IID + 142 BeyondArena sets, NeurIPS spotlight) |
 | `analyses/tabarena_insurance_benchmark_direction.md` | Technical | Scripts/v3 | What we learned from TabArena; direction for our insurance benchmark |
 | `analyses/cpu_model_feasibility.md` | Engineer | Scripts/v3 | Which TabArena method families are usable with no GPU |
@@ -108,15 +108,15 @@ The report-level index is `reports/REPORT_REGISTRY.md` and is deliberately not r
 
 | Doc | Purpose |
 |---|---|
-| `reports/COMBINED_TABPFN_CLASSIFIER_REGRESSOR_ANALYSIS.md` | Consolidated classifier + regressor findings |
+| `docs/archive/COMBINED_TABPFN_CLASSIFIER_REGRESSOR_ANALYSIS.md` | Consolidated classifier + regressor findings |
 | `reports/MULTI_DATASET_GLM_VS_TABPFN_SUMMARY.md` | Multi-dataset GLM vs TabPFN (non-technical) |
-| `reports/POST_HOC_OPTIMISATION.md` | Calibration/optimisation summary |
-| `reports/STAGE_A_B_FINDINGS_AND_RECOMMENDATIONS.md` | Stage A/B short report |
-| `reports/TABPFN_FINE_TUNING_LIMIT_STUDY.md` | Apple-Silicon finetune limits (classifier-only) |
-| `reports/INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md` | Domain finetune method protocol |
-| `reports/INSURANCE_SPECIFIC_FINETUNING_EVIDENCE.md` | Insurance finetune evidence review |
-| `reports/CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md` | Homogeneity-hypothesis method + evaluation |
-| `reports/REPORT_REGISTRY.md` | Registry: topic keys → workbooks → evidence files (+ `model_version`) |
+| `docs/archive/POST_HOC_OPTIMISATION.md` | Calibration/optimisation summary |
+| `docs/archive/STAGE_A_B_FINDINGS_AND_RECOMMENDATIONS.md` | Stage A/B short report |
+| `docs/archive/TABPFN_FINE_TUNING_LIMIT_STUDY.md` | Apple-Silicon finetune limits (classifier-only) |
+| `docs/archive/INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md` | Domain finetune method protocol |
+| `docs/archive/INSURANCE_SPECIFIC_FINETUNING_EVIDENCE.md` | Insurance finetune evidence review |
+| `docs/archive/CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md` | Homogeneity-hypothesis method + evaluation |
+| `docs/REPORT_REGISTRY.md` | Registry: topic keys → workbooks → evidence files (+ `model_version`) |
 
 ## Papers & follow-ups
 

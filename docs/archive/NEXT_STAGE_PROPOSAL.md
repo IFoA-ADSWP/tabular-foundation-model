@@ -1,6 +1,6 @@
 # Next-Stage Proposal — A Single Fine-Tuned Model Tested on an Unseen Dataset
 
-> **Historical document.** Superseded by `PILOT_2_DESIGN.md` and `PILOT_2_DECISION_GRAPH.md`
+> **Historical document.** Superseded by `docs/reference/PILOT_2_DESIGN.md` and `docs/reference/PILOT_2_DECISION_GRAPH.md`
 > (2026-09-13). Kept for the record -- **do not reconcile it against the current design**,
 > which deliberately differs from it.
 
@@ -11,8 +11,8 @@
 > funded or scheduled; no GPU spend is authorised by this document.
 > Date: 2026-09-12 | **Status: PROPOSAL — awaiting team confirmation. Nothing here is approved,
 > funded or scheduled; no GPU spend is authorised by this document.**
-> Related: #22, `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md`, `CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md`,
-> `SMOKE_TEST_SCOPE.md`, `FINE_TUNING_PILOT_RESULTS.md`, `FINE_TUNING_METHOD.md`
+> Related: #22, `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md`, `docs/archive/CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md`,
+> `docs/archive/SMOKE_TEST_SCOPE.md`, `docs/reference/FINE_TUNING_PILOT_RESULTS.md`, `docs/archive/FINE_TUNING_METHOD.md`
 >
 > **Read §2 before §5.** The transfer experiment this document proposes has already been designed
 > and run twice — on the v2 API — and came out strongly negative. That changes what the next stage
@@ -22,7 +22,7 @@
 
 ## 1. Purpose and status
 
-R1 (`SMOKE_TEST_SCOPE.md`) proved the GPU pipeline works and sensibly checked the fine-tuning
+R1 (`docs/archive/SMOKE_TEST_SCOPE.md`) proved the GPU pipeline works and sensibly checked the fine-tuning
 code. This document proposes the **next stage**: a scaled experiment whose objective is the one
 R1 could not reach —
 
@@ -36,7 +36,7 @@ from the team before any run.
 
 ## 2. What the historic work already attempted — and why it changes the proposal
 
-> **Read `HISTORIC_FINETUNING_APPRAISAL.md` alongside this section.** The historic study reached a
+> **Read `docs/archive/HISTORIC_FINETUNING_APPRAISAL.md` alongside this section.** The historic study reached a
 > negative verdict, but that appraisal shows **the comparison was confounded**: the fine-tuned arm
 > was evaluated with a subsampled inference context (64 then 128 rows) while the raw arm used the
 > full training split — and the deficit shrank as the handicap was reduced. So the historic result
@@ -44,7 +44,7 @@ from the team before any run.
 > This section reports what was run and recorded; the appraisal explains why it should not be read
 > as a verdict.
 
-`CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md` documents a **completed LODO transfer study**,
+`docs/archive/CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md` documents a **completed LODO transfer study**,
 run on the v2-era model line in April 2026, on CPU, at small scale. It is the experiment we were
 about to propose, and it already has a recorded verdict.
 
@@ -106,7 +106,7 @@ enough to overturn the v2 verdict if that verdict is model-dependent. It is not 
 
 Read to avoid re-deriving settled choices. Sources: `tabpfn_vs_gbdt_baselines_finetuning.md`
 (§13 size sweep, §14 frontier benchmark), `tabpfn_finetune_limit_test_plan.md`,
-`CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md`.
+`docs/archive/CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md`.
 
 | Dimension | Historic usage | Relevant to us? |
 |---|---|---|
@@ -324,7 +324,7 @@ Sourcing, the paid-run approval gate, and the teardown/watchdog discipline from
 4. **Not running the pooling proposal as an approved experiment yet.** This document is the
    proposal; execution follows team confirmation.
 5. **Not claiming anything from R1 about fine-tuning as a strategy.** R1 was four in-domain
-   adaptations, not a transfer test — see `FINE_TUNING_PILOT_RESULTS.md` §0.
+   adaptations, not a transfer test — see `docs/reference/FINE_TUNING_PILOT_RESULTS.md` §0.
 
 ---
 

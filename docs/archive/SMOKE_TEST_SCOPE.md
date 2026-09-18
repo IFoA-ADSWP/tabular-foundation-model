@@ -2,7 +2,7 @@
 
 > Date: 2026-09-12 | Status: current | Related: #22
 > Design: `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md` (this is rung **R1** of that design)
-> Results: `FINE_TUNING_PILOT_RESULTS.md` (the numbers; §5d covers statistical validity)
+> Results: `docs/reference/FINE_TUNING_PILOT_RESULTS.md` (the numbers; §5d covers statistical validity)
 > Runbook: `../REPRODUCIBILITY_RUNBOOK.md` §C (how to operate the harness)
 
 ---
@@ -301,7 +301,7 @@ licence gate rejecting every dataset — and each one spun up billable instances
 
 It is therefore **not the price of an experiment**. The marginal cost of a successful four-dataset
 A/B run was **$0.0482**, and that is the number Pilot 2 should be budgeted from
-(`PILOT_2_DESIGN.md` section 4.5.1). Nor is it a cost a second attempt repeats: every one of those
+(`docs/reference/PILOT_2_DESIGN.md` section 4.5.1). Nor is it a cost a second attempt repeats: every one of those
 defects now has a fix and an assertion behind it, which is what the prerequisite work exists for.
 
 **Three different totals exist, and the account is the authority.** They are not reconcilable from

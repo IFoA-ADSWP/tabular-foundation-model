@@ -4,7 +4,7 @@
 
 Scope note: this summary covers a classification use case (insurance lapse prediction) and references classifier workflows, not `TabPFNRegressor`.
 
-Canonical current summary: docs/reports/TABPFN_BENCHMARK_SUMMARY.md (2026-08 frontier-era verdict refines this report's "dataset-dependent" conclusion).
+Canonical current summary: docs/archive/TABPFN_BENCHMARK_SUMMARY.md (2026-08 frontier-era verdict refines this report's "dataset-dependent" conclusion).
 
 ## Overview
 

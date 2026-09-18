@@ -12,19 +12,19 @@ that claim is a statement about the *edges* — what happens after each result �
 **One question:** does fine-tuning TabPFN beat raw TabPFN and the actuarial baselines on insurance
 data, first on the same dataset and then on a dataset it has never seen?
 
-**The evidence this rests on is `FINE_TUNING_PILOT_RESULTS.md`** (the first pilot's results) with
-`SMOKE_TEST_SCOPE.md` for what that pilot did and did not exercise. In one line: a 3-epoch in-domain
+**The evidence this rests on is `docs/reference/FINE_TUNING_PILOT_RESULTS.md`** (the first pilot's results) with
+`docs/archive/SMOKE_TEST_SCOPE.md` for what that pilot did and did not exercise. In one line: a 3-epoch in-domain
 fine-tune did **not** reliably beat raw TabPFN (deltas of 0.0008-0.0095; one dataset negative), while
 **using TabPFN at all** beat the best baseline by +0.068 on coil2000 at roughly a third of the
 compute. That is why the budget is tested first and the transfer question is asked separately rather
 than folded in.
 
-**Read, in this order:** this page → `PILOT_2_DESIGN.md` (the specification this plan arrives at) →
+**Read, in this order:** this page → `docs/reference/PILOT_2_DESIGN.md` (the specification this plan arrives at) →
 `docs/current/PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` (how the numbers are computed) →
 `docs/current/PILOT_2_COST_AND_CONTROLS.md` (what it costs, and the controls). Background and evidence:
-`FINE_TUNING_PILOT_RESULTS.md`, `SMOKE_TEST_SCOPE.md`, `HISTORIC_FINETUNING_APPRAISAL.md`. The
+`docs/reference/FINE_TUNING_PILOT_RESULTS.md`, `docs/archive/SMOKE_TEST_SCOPE.md`, `docs/archive/HISTORIC_FINETUNING_APPRAISAL.md`. The
 decisions are in `docs/current/PILOT_2_DECISION_LOG.md`; the isolation argument and the interaction policy are in
-`PILOT_2_DESIGN_ALTERNATIVE.md`.
+`docs/reference/PILOT_2_DESIGN_ALTERNATIVE.md`.
 
 ### Sequencing — what happens, in this order
 
@@ -36,7 +36,7 @@ decisions are in `docs/current/PILOT_2_DECISION_LOG.md`; the isolation argument 
 4. **Decide the wider testing on the result.** Nothing beyond the probe is released before it.
 
 **The probe is a separate pilot, deliberately.** It answers one question and it is allowed to fail — a
-flat ladder is a finding, not a wasted run. Holding the wider design (`PILOT_2_DESIGN.md`) back means
+flat ladder is a finding, not a wasted run. Holding the wider design (`docs/reference/PILOT_2_DESIGN.md`) back means
 its release is a decision taken on evidence rather than on confidence, which is also what makes the
 probe's cost defensible to a reader who is sceptical of the programme as a whole.
 

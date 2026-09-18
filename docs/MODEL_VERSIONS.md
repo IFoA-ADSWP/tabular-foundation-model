@@ -1,7 +1,7 @@
 # Model Versions & Validity Timeline
 
 > Read this before citing any number in this repo. Every finding is pinned to the TabPFN version that produced it — versions change behaviour, so findings do not automatically carry forward.
-> Current pinned version here is **v3_default (tabpfn-client 0.3.3)** — see `docs/reports/TABPFN_BENCHMARK_SUMMARY.md`, master report §12.1 (version correction) and §15 (re-test policy). Legacy v2-era rows below are frozen and must not be cited as current.
+> Current pinned version here is **v3_default (tabpfn-client 0.3.3)** — see `docs/archive/TABPFN_BENCHMARK_SUMMARY.md`, master report §12.1 (version correction) and §15 (re-test policy). Legacy v2-era rows below are frozen and must not be cited as current.
 
 ## The rule
 
@@ -49,5 +49,5 @@ Tags: `paper-snapshot-2026-08-22` (pre-hygiene baseline backing §14.x verdicts)
 ## What to do
 
 1. **Citing old numbers?** Quote with version: "TabPFN v2.0 via API (Mar–Apr 2026): lapse AUC 0.593 vs GLM 0.599". Never write "v2.6" unless you have a manifest proving the weights ID — `tabpfn==2.6.0` is the pip package, not the model.
-2. **Running today?** Install, run, and write a `manifest.json` (model, package, date, seed, dataset SHA). If on v3, compare against `docs/reports/TABPFN_BENCHMARK_SUMMARY.md`, not the legacy v2-era tables.
+2. **Running today?** Install, run, and write a `manifest.json` (model, package, date, seed, dataset SHA). If on v3, compare against `docs/archive/TABPFN_BENCHMARK_SUMMARY.md`, not the legacy v2-era tables.
 3. **Bumping versions?** Follow the re-test policy: trigger (new weights/client) → scope (canonical folds) → diff (paired per-fold tests) → addendum (append here + report header, never silently overwrite).

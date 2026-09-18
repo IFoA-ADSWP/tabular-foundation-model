@@ -2,7 +2,7 @@
 
 > Date: 2026-09-12 | Status: current | Related: #22
 > Describes the method used in **R1** (the smoke test). The results are in
-> `FINE_TUNING_PILOT_RESULTS.md`; what R1 did and did not exercise is in `SMOKE_TEST_SCOPE.md`.
+> `docs/reference/FINE_TUNING_PILOT_RESULTS.md`; what R1 did and did not exercise is in `docs/archive/SMOKE_TEST_SCOPE.md`.
 > The wider study this belongs to is `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md`.
 >
 > Written so a statistician can assess the method without reading the code. Every parameter
@@ -91,7 +91,7 @@ Per dataset, in order:
 
 **Effective sample sizes per dataset:** 2,000 training rows, 1,000 test rows, ~500 discarded.
 Test-set positive counts are small on some datasets (coil2000: 57 positives), which dominates
-the achievable precision — see `FINE_TUNING_PILOT_RESULTS.md` §5d.6.
+the achievable precision — see `docs/reference/FINE_TUNING_PILOT_RESULTS.md` §5d.6.
 
 ---
 
@@ -286,7 +286,7 @@ second criterion raw TabPFN satisfies on its own; and arms C/D for any transfer 
 | Runner | `scripts/run_pilot.py`, arm `B_in_domain` |
 | On the GPU box | `scripts/gpu_helpers/bootstrap_pilot.sh` (installs `tabpfn==8.5.0`) |
 | Metrics / artifacts | `outputs/gpu-pilot/pilot_metrics.parquet` (16 arm-runs) |
-| Predictions | `outputs/finetune/pilot/<dataset>/<arm>/predictions.npy` — **absent for arm B** (see `SMOKE_TEST_SCOPE.md` §6.4) |
+| Predictions | `outputs/finetune/pilot/<dataset>/<arm>/predictions.npy` — **absent for arm B** (see `docs/archive/SMOKE_TEST_SCOPE.md` §6.4) |
 | Split seed | 42 (outer split, training cap, and the fine-tuner's `random_state`) |
 | Package versions | box: python 3.11.12, torch 2.7.0+cu128, numpy 2.2.5, tabpfn 8.5.0, scikit-learn 1.9.1 |
 | Hardware | NVIDIA L40S (A and B); local CPU (E and F) |

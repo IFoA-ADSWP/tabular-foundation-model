@@ -37,11 +37,11 @@ Answer two questions with reproducible evidence:
 2. **Does domain fine-tuning make TabPFN materially better, and can it close the gap?**
    (Earlier fine-tuning studies — different protocol, synthesized here, not re-run.)
 
-Cross-checked against `docs/reports/REPORT_REGISTRY.md`: no existing report covers the
+Cross-checked against `docs/REPORT_REGISTRY.md`: no existing report covers the
 `insurance_benchmark_v1` GBDT comparison (`results_per_split.csv` is not referenced by any
 registry entry). Fine-tuning evidence overlaps with
-`docs/reports/COMBINED_TABPFN_CLASSIFIER_REGRESSOR_ANALYSIS.md` and
-`docs/reports/STAGE_A_B_FINDINGS_AND_RECOMMENDATIONS.md`; this report cross-references them
+`docs/archive/COMBINED_TABPFN_CLASSIFIER_REGRESSOR_ANALYSIS.md` and
+`docs/archive/STAGE_A_B_FINDINGS_AND_RECOMMENDATIONS.md`; this report cross-references them
 rather than duplicating their content.
 
 ## 2. Experimental Setup
@@ -148,7 +148,7 @@ other folds — memory/context pressure on the 184K-row task). For production ba
 - Aggregate deltas (logbook): ROC AUC **−0.0752**, PR AUC −0.0314, Brier +0.0017,
   LogLoss +0.0106 — net degradation under this low-budget protocol.
 - Finding consistent with prior report
-  `docs/reports/COMBINED_TABPFN_CLASSIFIER_REGRESSOR_ANALYSIS.md`: single-step/3-step/5-step
+  `docs/archive/COMBINED_TABPFN_CLASSIFIER_REGRESSOR_ANALYSIS.md`: single-step/3-step/5-step
   domain adaptation is currently **misaligned or too weak** for stable cross-dataset uplift.
 
 ### 5.2 Small-finetune trials (coil2000) — negligible
@@ -226,7 +226,7 @@ leakage:
 - **Adoption rule (issue #52)**: the decision-level guidance — when to adopt, when to
   expect domination on the trade-off at scale, and the GLM-default middle — lives in the
   one-pager's "Conclusion & adoption guidance"
-  (`docs/reports/TABPFN_BENCHMARK_SUMMARY.md`) and the regime analysis
+  (`docs/archive/TABPFN_BENCHMARK_SUMMARY.md`) and the regime analysis
   (`docs/analyses/regime_characterization.md`); this section stays the benchmark-level
   verdict.
 
@@ -946,7 +946,7 @@ protocol, so the regime rule (`docs/analyses/regime_characterization.md` §1: GL
 ≥ ~2.5% log loss or ≥ ~0.05 AUC ⇒ thin-signal/TabPFN-win regime; ≤ ~2% ⇒
 GLM-captured) applies to TabPFN-vs-GLM on the canonical protocol for the first time —
 previously the only AUC pairs were the older 80/20 head-to-head
-(`docs/reports/MULTI_DATASET_GLM_VS_TABPFN_SUMMARY.md`) and the 2 lapse datasets (§14.10),
+(`docs/archive/MULTI_DATASET_GLM_VS_TABPFN_SUMMARY.md`) and the 2 lapse datasets (§14.10),
 and Brier was never emitted (spec §1). All 9 methods are fit/reused exactly as before;
 the log-loss `mean`/`se` columns reproduce §14.2/§14.3/§14.6/§14.7 and the regime table
 to the printed precision (no protocol drift; spec acceptance #3). GLM family =
@@ -1157,7 +1157,7 @@ already strongest.
 - **Calibration and ranking separate cleanly.** On the 6-dataset suite TabPFN's
   calibration (log loss/Brier) is at worst a tie (ausprivauto0405, bemtl97) and its
   ranking (AUC) is best-in-suite everywhere. The one-pager's adoption rule
-  (`docs/reports/TABPFN_BENCHMARK_SUMMARY.md`) is unaffected on the log-loss leg; the
+  (`docs/archive/TABPFN_BENCHMARK_SUMMARY.md`) is unaffected on the log-loss leg; the
   AUC evidence adds a "ranking edge even in GLM-captured regimes" nuance for
   underwriting-scorecard contexts. Qualification (2026-08-07, §14.13): "at worst a
   tie" holds against the default-config suite; vs tuned/feature-engineered baselines
@@ -1188,13 +1188,13 @@ already strongest.
   `roc_auc`/`brier` columns; SE = std(ddof=1)/√5; sanity checks unchanged).
 - **Prior AUC evidence, not duplicated here:** §14.10's 5-fold lapse AUC
   (spanish_motor_lapse 0.7553 vs 0.7500, eudirectlapse 0.6260 LR — the 2-fold caveat
-  settled) and `docs/reports/MULTI_DATASET_GLM_VS_TABPFN_SUMMARY.md` (older 80/20
+  settled) and `docs/archive/MULTI_DATASET_GLM_VS_TABPFN_SUMMARY.md` (older 80/20
   head-to-head, ranked on 1−AUC, GLM `class_weight='balanced'` and TabPFN
   `random_state=42` — neither config matches the frontier protocol). This addendum is
   the first per-fold AUC/Brier on the canonical 5-fold protocol.
 - **Registry:** no new entry for §14.11 itself — it is an addendum to this already-registered master
   report (topic key `tabpfn-vs-gbdt-baselines-finetuning`,
-  `docs/reports/REPORT_REGISTRY.md`); the master-report row was bumped to 2026-08-06
+  `docs/REPORT_REGISTRY.md`); the master-report row was bumped to 2026-08-06
   with the AUC/Brier scope noted, and the rescore spec gained its own row
   (`frontier-auc-brier-rescore-spec`, 2026-08-06).
 
@@ -1538,8 +1538,8 @@ fires.
 2. **Run the same datasets/commands as the v3 baselines** (§15.2) — same folds (seed 42), same metrics, same D3 beyond-SE rule (§14.1).
 3. **Diff `scripts/eval/insurance_benchmark_v1/frontier_results_*.csv`** (the 12 committed v3 baselines, §14.2–§14.10) — compare `mean` ± `se` per method and the `on_frontier` flag (columns are stable: `method,mean,se,mean_auc,se_auc,mean_brier,se_brier,n_params,on_frontier` on the 6 classification CSVs, `run_frontier_benchmark.py` L569 — regression CSVs keep `method,mean,se,n_params,on_frontier`, L720; `mean`/`se` stay log loss, no protocol drift, §14.11.5).
 4. **Append a §14.x-style addendum** (this section becomes §16/§17 for the re-run, or a dated `§15.x` sub-section) documenting client + model versions, the command log, and the diff outcome.
-5. **Update the one-pager verdict / adoption rule only if the pattern changes** — wins/losses flip or beyond-SE shifts (`docs/reports/TABPFN_BENCHMARK_SUMMARY.md` "Conclusion & adoption guidance"; regime descriptor `docs/analyses/regime_characterization.md` §3). No change → note "pattern unchanged" in the addendum; do not re-derive the adoption rule.
-6. **Close-out**: registry evidence update (`docs/reports/REPORT_REGISTRY.md`) + a TASKS.md row (owned by the orchestrator).
+5. **Update the one-pager verdict / adoption rule only if the pattern changes** — wins/losses flip or beyond-SE shifts (`docs/archive/TABPFN_BENCHMARK_SUMMARY.md` "Conclusion & adoption guidance"; regime descriptor `docs/analyses/regime_characterization.md` §3). No change → note "pattern unchanged" in the addendum; do not re-derive the adoption rule.
+6. **Close-out**: registry evidence update (`docs/REPORT_REGISTRY.md`) + a TASKS.md row (owned by the orchestrator).
 
 ### 15.4 Automation note (optional)
 
@@ -1570,8 +1570,8 @@ gets CI.
 - `scripts/infra/prepare_insurance_datasets.py` — dataset prep (`make_bemtl97` at line 43).
 - `outputs/current/logs/domain_finetune_logbook.md` — domain fine-tune runs and
   interpretation blocks (protocol runs 2026-04-02).
-- Prior write-ups: `docs/reports/COMBINED_TABPFN_CLASSIFIER_REGRESSOR_ANALYSIS.md`,
-  `docs/reports/STAGE_A_B_FINDINGS_AND_RECOMMENDATIONS.md`,
+- Prior write-ups: `docs/archive/COMBINED_TABPFN_CLASSIFIER_REGRESSOR_ANALYSIS.md`,
+  `docs/archive/STAGE_A_B_FINDINGS_AND_RECOMMENDATIONS.md`,
   `docs/analyses/tabpfn_small_finetune_methodology.md`.
 
 ## 10. Evidence Files

@@ -2,7 +2,7 @@
 > Tested: Apr 2026 · TabPFN v2 era (v2.0 via API; weights ID unrecorded). Do not assume results hold on v2.5/v3 — see [../MODEL_VERSIONS.md](../MODEL_VERSIONS.md).
 
 
-> Superseded by `docs/reports/TABPFN_BENCHMARK_SUMMARY.md` (v3, Aug 2026) — read that for the current verdict; this page is the v2-era record.
+> Superseded by `docs/archive/TABPFN_BENCHMARK_SUMMARY.md` (v3, Aug 2026) — read that for the current verdict; this page is the v2-era record.
 
 ## Objective
 Provide one consolidated view of findings from:
@@ -260,7 +260,7 @@ Declare exhausted only after all of the following are met:
 
 **Decision: Downgrade classifier fine-tuning hypothesis for this dataset family.** Do not pursue larger budgets or new data expansion. Shift focus to calibration/preprocessing improvements.
 
-Details: See `docs/reports/CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md::Round 3 Results` for execution summary, decision rule evaluation, and saved deltas.
+Details: See `docs/archive/CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md::Round 3 Results` for execution summary, decision rule evaluation, and saved deltas.
 
 ---
 

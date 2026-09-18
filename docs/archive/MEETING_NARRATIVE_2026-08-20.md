@@ -122,10 +122,10 @@ What makes this project credible is not just the result — it's the process:
 
 | Document | Purpose | Path |
 |----------|---------|------|
-| **One-page summary** | Quick verdict for actuarial colleagues | `docs/reports/TABPFN_BENCHMARK_SUMMARY.md` |
+| **One-page summary** | Quick verdict for actuarial colleagues | `docs/archive/TABPFN_BENCHMARK_SUMMARY.md` |
 | **Master report** | Full evidence with 9 addenda (~1600 lines) | `docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md` |
 | **Regime characterization** | Decision rule for when to use TabPFN | `docs/analyses/regime_characterization.md` |
-| **Technical companion** | Walkthrough of every metric in actuarial context | `docs/reports/TECHNICAL_COMPANION.md` |
+| **Technical companion** | Walkthrough of every metric in actuarial context | `docs/archive/TECHNICAL_COMPANION.md` |
 | **Learning path** | Onboarding for new contributors (2-3 days) | `docs/KNOWLEDGE-PATH.md` |
 
 ---
@@ -157,7 +157,7 @@ All findings trace to:
 - **Figures:** 6 canonical figures in `outputs/current/figures/`
 - **Tables:** 7 canonical tables in `outputs/current/tables/`
 
-Full traceability matrix: `docs/reports/REPORT_REGISTRY.md`
+Full traceability matrix: `docs/REPORT_REGISTRY.md`
 
 ---
 
