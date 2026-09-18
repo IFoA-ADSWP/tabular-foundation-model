@@ -2,6 +2,27 @@
 
 Start from your role, not the file list. Deliberately no document count here: this index held a stale one for as long as the work outgrew it, and a number nobody checks is a claim waiting to be false. Every finding is version-pinned — see [MODEL_VERSIONS.md](MODEL_VERSIONS.md) before citing a number.
 
+## How this documentation is organised
+
+Every report declares **one tier** in its first lines. Nothing is moved, so no link breaks; the tier says what
+the document is worth to you now.
+
+| Tier | Means | Where it lives |
+| --- | --- | --- |
+| **current** | describes the design as built, the current answer, or a rule still in force | read it; cite it |
+| **reference** | historical, still cited for provenance — the protocol, the measurement, the rejected option | read it when tracing a decision |
+| **archive** | kept for the record, not cited | read it only for history |
+
+**The current line of work, by tier.**
+
+- **current** — `FINE_TUNING_EXPERIMENT_DESIGN.md` (its front section is the design; below it is reference) · `FINDINGS.md` · `NEXT_RUN.md` · `PILOT_2_BRIEFING.md` · `PILOT_2_COST_AND_CONTROLS.md` · `PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` · `PILOT_2_DECISION_LOG.md` (D6 is live) · `PILOT_2_PREREQUISITES.md` · `PROBE_RESULTS.md` · `TABPFN_FINETUNING_LITERATURE.md`
+- **reference** — `PROBE_PLAN.md` · `PROBE_FIRST_RUN.md` · `PILOT_2_DESIGN.md` · `PILOT_2_DESIGN_ALTERNATIVE.md` · `PILOT_2_DECISION_GRAPH.md` (its step 0 fired) · `FINE_TUNING_PILOT_RESULTS.md` · the five v2-era fine-tuning pages listed in the literature record
+- **archive** — everything in the legacy tables further down this file: the earlier benchmark, analysis and session documents.
+
+**The rule for adding a document:** it enters as **current** only if it carries content nothing else carries; otherwise it is `reference` from the start. When a current document stops being current it is amended with a dated note and its tier changes — never deleted, because the trail is the point.
+
+**Enforcement.** `scripts/check_doc_status.py` asserts that every report declares a status in its first fifteen lines. **27 of 33 reports do not yet**, which is the backfill this structure makes visible rather than fixes by reorganisation.
+
 ## Start here — the current line of work (fine-tuning on lapse data)
 
 Everything below indexes the whole repository. **If you are here for the fine-tuning programme, read these first.**
