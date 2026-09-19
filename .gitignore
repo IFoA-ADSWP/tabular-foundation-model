@@ -138,6 +138,7 @@ outputs/finetune/pilot/*.npy
 outputs/finetune/pilot/*/predictions.npy
 outputs/finetune/pilot/*/ground_truth.npy
 outputs/gpu-pilot/run_ledger.csv.corrupt-bak
+outputs/gpu-pilot/dry-runs/
 pilot_metrics.parquet
 *.pkl
 *.joblib
