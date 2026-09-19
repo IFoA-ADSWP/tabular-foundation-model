@@ -73,7 +73,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup and contribution gui
 │   └── REPLICATION_SETUP_GUIDE.md  # Step-by-step replication instructions
 │
 ├── scripts/                        # One-off experiment scripts
-├── legacy/                         # Deprecated R analysis scripts
+├── legacy/                         # Deprecated R analysis scripts — see legacy/README.md
 ├── tests/                          # Smoke tests
 ├── requirements.txt
 ├── CONTRIBUTING.md
@@ -119,7 +119,7 @@ The docs are extensive. Start here:
 - **`docs/reports/REPORT_REGISTRY.md`** — maps every report to its source notebook and evidence files
 - **`docs/reports/TECHNICAL_COMPANION.md`** — explains all metrics in actuarial context (best first read)
 - **`docs/REPLICATION_SETUP_GUIDE.md`** — step-by-step to reproduce the paper results
-- **`docs/status/STATUS_REPORT_FINAL.md`** — summary of validated findings and recommendations
+- **`docs/reports/TABPFN_BENCHMARK_SUMMARY.md`** — summary of validated findings and recommendations
 
 ## Dependencies
 

@@ -8,9 +8,15 @@ scipy>=1.10,<2
 pyreadr>=0.5,<0.6
 
 # TabPFN and extensions
-tabpfn>=6,<7
+tabpfn>=6,<7        # loose pin for non-pilot work; see note below
 tabpfn-client==0.3.3   # every benchmark verdict is stamped to 0.3.3 (see notebooks/reproducibility/README.md)
 tabpfn-extensions>=0.2,<0.3
+
+# NOTE: the GPU pilot artifacts (outputs/finetune/, outputs/gpu-pilot/) were produced on
+# tabpfn==8.5.0 (v3_default weights). Reproducing those artifacts requires that version:
+#   pip install tabpfn==8.5.0
+# The repo pin above (>=6,<7) is for the non-pilot codebase. See docs/reports/FINE_TUNING_METHOD.md
+# and docs/reports/FINE_TUNING_PILOT_RESULTS.md §6 for the deviation.
 
 # Optional: boosted tree baselines
 xgboost>=1.7,<3      # optional
