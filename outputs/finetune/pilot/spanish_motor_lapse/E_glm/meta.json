@@ -1,0 +1,23 @@
+{
+  "run_id": "spanish_motor_lapse_E_glm_seed42",
+  "dataset": "spanish_motor_lapse",
+  "arm": "E_glm",
+  "config": {
+    "context_samples": 64,
+    "max_finetune_steps": 3,
+    "n_estimators": 2,
+    "learning_rate": 1e-05,
+    "fit_mode": "batched"
+  },
+  "seed": 42,
+  "train_rows": 2000,
+  "test_rows": 1000,
+  "device": "cpu",
+  "device_name": "cpu",
+  "run_time_seconds": 0.009135961532592773,
+  "timestamp": "2026-09-11T23:56:05.686574+00:00",
+  "status": "success",
+  "roc_auc": 0.6165625929229854,
+  "brier": 0.22216200612935763,
+  "pr_auc": 0.4469044921368508
+}
