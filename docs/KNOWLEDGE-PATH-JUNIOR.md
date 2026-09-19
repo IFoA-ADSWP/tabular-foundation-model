@@ -312,7 +312,7 @@ By the end: you should be able to state the report's verdict, say whether its nu
 - **TabArena harness** (`/tmp/tabarena`, `.venv-ta`) — tooling, not core; revisit only if asked
 - **`legacy/` R scripts and `legacy_finetuning/`** — historical record; read-only archaeology, if ever
 - **Embeddings** (`04_tabpfn_embedding_workflow.ipynb`) — side track, not in the current benchmark spine
-- **Fine-tuning** — before running anything, read `docs/reports/TABPFN_FINE_TUNING_LIMIT_STUDY.md`. It's a bounded lever with real failure modes (save/load, regressor instability). Baseline first.
+- **Fine-tuning** — before running anything, read `docs/reports/TABPFN_FINE_TUNING_LIMIT_STUDY.md`. It's a bounded lever with real failure modes (save/load, regressor instability). Baseline first. **Also note the 2026-09-12 pilot:** arm B ran successfully for the first time (GPU, same device/run/seed as raw TabPFN) and a **3-pass** fine-tune bought nothing measurable — deltas ≤0.010 with one negative, against raw TabPFN's +0.007 to +0.068 over the actuarial baselines. See `FINE_TUNING_PILOT_RESULTS.md` §5c and `MASTER-REPORT-DIGEST.md` §14.16 for the scope limits (3 passes, default subsampling, one seed) — this bounds *small* fine-tunes, not every configuration.
 - **Paper replication** (`REPLICATION_There_Is_Life_in_the_Old_GLM_Yet.ipynb`) — until asked; it's the historical anchor, not the current work
 - **Save/load and device debugging** — note the bug classes exist (issue #851); don't study them yet
 

@@ -1,5 +1,13 @@
 # Classifier Fine-Tuning Homogeneity Hypothesis: Method and Initial Evaluation
 > Tested: Apr 2026 · TabPFN v2 era (v2.0 via API; weights ID unrecorded). Do not assume results hold on v2.5/v3 — see [../MODEL_VERSIONS.md](../MODEL_VERSIONS.md).
+>
+> **⚠ Read `HISTORIC_FINETUNING_APPRAISAL.md` before acting on the DOWNGRADE recommendation below.**
+> That appraisal found the two TabPFN arms in this study were **not evaluated on equal terms**: the
+> fine-tuned arm's inference context was subsampled to `context_samples` (64 in Round 2, 128 in
+> Round 3) while the raw arm used the full training split — and the measured deficit shrank as the
+> handicap was reduced. The negative deltas here therefore mix a context handicap with any
+> fine-tuning effect, and should not be cited as evidence that fine-tuning degrades performance.
+> The design, the pool-policy machinery and the decision-rule shape remain reusable.
 
 
 ## Objective
