@@ -14,10 +14,17 @@
   "test_rows": 1000,
   "device": "cpu",
   "device_name": "cpu",
-  "run_time_seconds": 61.89167523384094,
-  "timestamp": "2026-09-11T23:54:52.133315+00:00",
+  "run_time_seconds": 83.48095631599426,
+  "timestamp": "2026-09-12T09:18:03.727686+00:00",
   "status": "success",
-  "roc_auc": 0.7551766478763187,
-  "brier": 0.051463356023650486,
-  "pr_auc": 0.16149190281344158
+  "versions": {
+    "python": "3.13.15",
+    "torch": "2.11.0+cpu",
+    "numpy": "2.1.3",
+    "tabpfn": "8.5.0",
+    "scikit-learn": "1.6.1"
+  },
+  "roc_auc": 0.7679019925210695,
+  "brier": 0.050737694601318904,
+  "pr_auc": 0.18818818207809623
 }
