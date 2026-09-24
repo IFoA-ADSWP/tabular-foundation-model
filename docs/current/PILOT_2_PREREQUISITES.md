@@ -1,5 +1,7 @@
 # Pilot 2 — Prerequisites Checklist
 
+> **Supporting execution document.** The canonical current proposal is `docs/current/FULL_FINE_TUNING_PILOT_DESIGN.md`. This checklist tracks implementation readiness; it does not replace the pilot design or define the research scope.
+>
 > Date: 2026-09-12 (counts corrected 2026-09-13) | Status: **7 of 10 DONE, 3 IN PROGRESS**
 > The three open items (PR-1, PR-3, PR-9) are code-complete and free-verified; each is
 > waiting on the SAME thing -- one real box -- which is what the Gate Amendment below resolves.

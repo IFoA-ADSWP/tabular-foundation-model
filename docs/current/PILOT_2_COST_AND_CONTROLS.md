@@ -1,6 +1,6 @@
 # Pilot 2 — what it costs, and why
 
-**Written for a non-specialist reader.** One page. No jargon.
+> **Supporting cost appendix.** The canonical current proposal is `docs/current/FULL_FINE_TUNING_PILOT_DESIGN.md`. This page owns measured and modelled cost figures; it does not define the current pilot scope.
 
 ## The headline
 

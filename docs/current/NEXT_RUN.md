@@ -1,7 +1,6 @@
-# The next round — replication first, breadth second
+# The next round — execution appendix
 
-> **Status: PROPOSED, 2026-09-17.** Nothing here is approved or funded, and no GPU spend is authorised by this
-> page. It exists because the current design states what to do but not how the next round is run or judged.
+> **Supporting document.** The canonical funded proposal is `docs/current/FULL_FINE_TUNING_PILOT_DESIGN.md`. This page retains the concrete next-run commands and acceptance procedure; it does not define the overall scope. The funded work is the diagnostics phase followed by the full in-domain pilot.
 
 **Prerequisite 0: the seed is not reachable.** The loader and the split both hard-code seed 42, and the launcher
 exposes no flag for it. Replication therefore needs a small pass-through first (`--seed`, alongside the existing

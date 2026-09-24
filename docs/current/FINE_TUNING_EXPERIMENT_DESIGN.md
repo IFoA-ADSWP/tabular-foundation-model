@@ -1,5 +1,7 @@
 # Experiment Design: Insurance-Specialized TabPFN Fine-Tuning (v6)
 
+> **Technical reference, not the canonical proposal.** The current funded diagnostics and full pilot are defined in `docs/current/FULL_FINE_TUNING_PILOT_DESIGN.md`. This document preserves the detailed experiment history and technical rationale. Where the two disagree, the full pilot design wins.
+
 ---
 
 ## The design being proposed (read this first — everything below is reference)

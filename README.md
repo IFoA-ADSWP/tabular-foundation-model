@@ -117,9 +117,15 @@ See [`docs/archive/TECHNICAL_COMPANION.md`](docs/archive/TECHNICAL_COMPANION.md)
 The docs are extensive. Start here:
 
 - **`docs/REPORT_REGISTRY.md`** — maps every report to its source notebook and evidence files
+- **`docs/current/FULL_FINE_TUNING_PILOT_DESIGN.md`** — **start here for the current funded fine-tuning proposal**: diagnostics, full in-domain pilot, arms, metrics, and decision rules
+- **`docs/current/FINETUNING_STATUS_BRIEF.md`** — one-page stakeholder summary of the two completed probes and the funded work
+- **`docs/current/FINDINGS.md`** — current evidence registry; use it to check whether a claim is current or superseded
+- **`docs/current/DIAGNOSTICS_PHASE_DESIGN.md`** — detailed diagnostic methods for Phase 1
 - **`docs/archive/TECHNICAL_COMPANION.md`** — explains all metrics in actuarial context (best first read)
 - **`docs/REPLICATION_SETUP_GUIDE.md`** — step-by-step to reproduce the paper results
-- **`docs/archive/archive/archive/status/STATUS_REPORT_FINAL.md`** — summary of validated findings and recommendations
+- **`docs/archive/archive/status/STATUS_REPORT_FINAL.md`** — summary of validated findings and recommendations
+
+The other `docs/current/PILOT_2_*` files are supporting execution, cost, statistical, and decision appendices. If a document conflicts with the canonical full pilot design, use the canonical design and treat the older text as historical or supporting material.
 
 ## Dependencies
 

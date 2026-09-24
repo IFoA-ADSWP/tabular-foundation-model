@@ -1,11 +1,6 @@
 # Pilot 2 — Decision Log (for the technical review)
 
-> Companion to `docs/reference/PILOT_2_DESIGN.md`. **Purpose:** the review's answers, recorded against the
-> sections they change, so that a decision cannot be remembered differently by different people
-> later — the failure mode this project has already paid for once.
->
-> **Nothing in Stage 2 is built, and no spend is authorised, until D1, D2 and D3 are answered.**
-> Those three change the *shape of the code*, not its parameters.
+> **Supporting document.** The canonical current proposal is `docs/current/FULL_FINE_TUNING_PILOT_DESIGN.md`. This log preserves technical decisions from the earlier pilot design. Its transfer and pooling entries are historical context, not current gates for the funded in-domain diagnostics and pilot.
 
 ## How to use this document
 
