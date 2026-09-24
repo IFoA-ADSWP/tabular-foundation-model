@@ -77,6 +77,7 @@ The complete design is `docs/current/FINETUNING_PILOT_DESIGN.md`; the diagnostic
 | primary metrics | Brier, log loss, and calibration error |
 | secondary metrics | ROC AUC and PR AUC |
 | cost | Existing measured anchors; any new figure must be labelled measured or modelled |
+| evidence status | Probe 1 and Probe 2 measured; replication, breadth, synthetic ablation, and transfer remain unrun |
 
 ---
 
@@ -89,7 +90,7 @@ The complete design is `docs/current/FINETUNING_PILOT_DESIGN.md`; the diagnostic
 | 3 | What counts as a meaningful gain? | Pre-register a calibration tolerance and minimum practical effect before the pilot |
 | 4 | How will model adaptation be separated from data treatment? | Record preprocessing, class weighting, resampling, synthetic augmentation, and row count as explicit factors |
 | 5 | When can transfer and pooling be considered? | Only after the in-domain result is credible across seeds and datasets |
-| 6 | What is the primary transfer pool? | Coherent same-schema pooling first; heterogeneous pooling second, with `R_random` control |
+| 6 | What is the primary transfer pool? | Coherent same-schema pooling first; heterogeneous pooling second, with the `T_RANDOM_LABELS` control |
 
 ---
 

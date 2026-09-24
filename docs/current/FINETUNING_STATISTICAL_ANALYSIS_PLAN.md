@@ -16,10 +16,22 @@ two pool policies, a control, several metrics). **Without a fixed analysis, a pr
 outputs will find something positive in it**, and the finding will be an artefact of which comparison
 was reported.
 
-Scope: the five gated steps of `docs/reference/PILOT_2_DECISION_GRAPH.md` and the guarded interaction off-ramp. It does
-not re-open anything the design has settled.
+Scope: the funded in-domain pilot in `docs/current/FINETUNING_PILOT_DESIGN.md`, plus the conditional Phase 3 transfer/pooling analysis. The current phase-qualified labels are:
 
-## 2. Estimands — what is actually being estimated
+| Phase | Display label | Implementation label |
+|---|---|---|
+| 2 | `I_RAW` | `A_raw` |
+| 2 | `I_SFT_3` | `B_ft3` |
+| 2 | `I_SFT_10` | `B_ft10` |
+| 2 | `I_SFT_30` | `B_ft30` |
+| 2 | `I_DATA_TREATMENT` | `B_ft_data_treatment` |
+| 2 | `I_PEFF` | `B_ft_peft` |
+| 3 | `T_RAW` | `A_raw(T)` |
+| 3 | `T_POOL_ALL` | `C_pooled_all(T)` |
+| 3 | `T_POOL_SCHEMA` | `D_pooled_schema(T)` |
+| 3 | `T_RANDOM_LABELS` | `R_random(T)` |
+
+The old pooled labels are retained only as implementation identifiers; they are not reused as Phase 2 labels. The full experiment matrix and seed/split policy are frozen in the canonical pilot design before execution.
 
 **Sign convention is stated once and used everywhere.** For loss-type metrics, Δ is *arm − `A_raw`*, so
 **negative means the fine-tuned arm wins**. For discrimination and calibration metrics (ROC AUC, PR AUC,
@@ -27,15 +39,15 @@ Brier), positive means improvement. Every reported number states which conventio
 
 | Level | Estimand |
 | --- | --- |
-| **Primary** | The **paired** difference in log loss between the fine-tuned arm and `A_raw`, on the **same test rows**, for one dataset at one budget and one split |
+| **Primary** | The **paired** difference in log loss between the fine-tuned arm (`I_SFT_*`) and `I_RAW`, on the **same test rows**, for one dataset at one row count and one seed |
 | **Co-primary** | The same paired difference in ROC AUC |
-| **Secondary (transfer)** | The paired difference for the pooled arms against `A_raw(T)` **and** against `R_random(T)`; and the transfer gain expressed as a **fraction of `B_in_domain`'s gain** |
+| **Secondary (transfer)** | The paired difference for `T_POOL_SCHEMA` and `T_POOL_ALL` against `T_RAW` **and** against `T_RANDOM_LABELS`; transfer gain expressed as a **fraction of the matched `I_SFT_*` gain** |
 | **Tertiary (ladder)** | Marginal differences between adjacent epoch rungs (30 vs 10 vs 3) — exploratory, not a decision |
 | **Interaction (off-ramp only)** | The difference-of-differences between two factors, with everything else held fixed |
 
 ## 3. Metrics
 
-- **Primary:** log loss — the metric the design's Gate 1 criterion is written in terms of.
+- **Primary:** log loss — the pre-registered probability-quality measure for the in-domain anchor and transfer comparison.
 - **Co-primary:** ROC AUC.
 - **Also reported, no decision role:** PR AUC (average precision), Brier, and calibration (ECE).
 - **Calibration tolerance must be numeric.** Design §6.5 criterion 5 requires the ECE/Brier tolerance to
@@ -76,11 +88,11 @@ not a plain mean.** Targets span 9.8K–53.5K rows, so a plain mean over targets
 dominate. Each target contributes its estimate weighted by its precision, with between-target
 heterogeneity reported (the I²-style spread) rather than assumed away.
 
-**One pre-specified primary target** for the transfer step, fixed before the run (a D4 decision). The
+**One pre-specified primary target** for the transfer step, fixed before the run. The
 others are secondary and are reported as such.
 
-**The primary pool policy is `D_pooled_schema`** (design §6.3, the coherent pool). `C_pooled_all` is
-**confirmatory only** — "positive for at least one policy" across two policies is a multiplicity hazard,
+**The primary pool policy is `T_POOL_SCHEMA`** (`D_pooled_schema`, the coherent pool). `T_POOL_ALL` is
+**confirmatory only** — “positive for at least one policy” across two policies is a multiplicity hazard,
 and with the order fixed in advance there is no justification for choosing the winner after seeing both.
 
 **Multiplicity.**
@@ -96,41 +108,30 @@ and with the order fixed in advance there is no justification for choosing the w
 
 1. the primary comparison's **interval excludes zero**;
 2. the direction matches the **pre-registered** direction for that metric's sign convention;
-3. for transfer, the arm also **beats `R_random`** — without which "the pool's signal helps" cannot be
-   separated from "fine-tuning on signal-free data helps".
+3. for transfer, the arm also **beats `T_RANDOM_LABELS`** — without which “the pool's signal helps”
+   cannot be separated from “fine-tuning on signal-free data helps”.
 
 ## 6. Precision, escalation, and the rule for "inconclusive"
 
-**Screening is separated from estimation.** Steps 0–4 are screening: *does an effect exist, and is it
-bigger than the noise?* Step 5 is estimation: *how large is it, with what interval?* The two are never
-mixed in a single report.
+**Seed structure for the current programme.** The anchor condition is three total seeds (the existing seed 42 plus two additional seeds) on one split. The four-dataset breadth condition is at least two seeds per dataset on the matched split. The primary transfer target is at least two seeds. All arms within a seed are paired on identical test rows.
 
-**Escalation rule, pre-registered.** If the primary interval **excludes zero** but is wider than the
-decision threshold, or if it **includes zero** while the point estimate favours the arm, then extend the
-repeat structure **once**, from 3 seeds × 1 split to 3 seeds × 5 folds, and no further. The escalation is
-a pre-set maximum, not a judgement call made when the result is disappointing.
+**Escalation rule, pre-registered.** The current design does not authorize a post-hoc increase in seeds, splits, datasets, or arms. If the primary interval includes zero while the point estimate favours the arm, report the result as inconclusive or propose a separately pre-registered follow-up. Any 5-fold expansion must be written as a dated design amendment before the run; it cannot be selected after seeing the result.
 
-**If it is still inconclusive, the result is reported as inconclusive.** Not "trending", not "marginally
-significant", not "underpowered but encouraging". The programme stops and reports the interval.
+**If it is still inconclusive, the result is reported as inconclusive.** Not “trending”, not “marginally significant”, not “underpowered but encouraging”. The programme stops and reports the interval.
 
-**The decision threshold is zero** — the rule is whether the interval excludes it — **and the measured
-noise floor for that comparison is always reported alongside**, so a reader can see how much of the
-interval is sampling noise.
+**The decision threshold is zero** — the rule is whether the interval excludes it — **and the measured noise floor for that comparison is always reported alongside**, so a reader can see how much of the interval is sampling noise.
 
-**Interactions** carry four times the variance of a main effect in a 2×2 with equal cells, so an
-interaction claim requires the pre-set maximum repeats **and** the four entry criteria in
-`docs/reference/PILOT_2_DESIGN_ALTERNATIVE.md`. An interaction is never reported as a headline.
+**Interactions** are not part of the current core matrix. Any interaction or scale × split-ratio extension requires a separately pre-registered amendment and is never reported as a headline from the current pilot.
 
 ## 7. Decision rules — linkage, not restatement
 
 This plan does **not** restate the decision rules, so it cannot drift from them. The rules are:
 
-- **Gate 1** (design §4.4/§5), with the winning configuration **frozen** there — Stage 2 inherits the
-  budget and does not re-tune per target. This is a statistical requirement, not a convenience: choosing
-  the budget per target would make the result N configurations rather than one model tested once.
-- **The transfer rule** (design §6.5), including the requirement that the control `R_random` is tested
-  **first** — any criterion the control passes is not discriminating and must be replaced before the run.
-- **The pre-registered outcome mapping** (decision log §3), followed exactly as written.
+- **Phase 2 seed gate:** the 10K `uslapseagent` result must repeat on two additional seeds before the four-dataset breadth result is treated as evidence for generalisation.
+- **Frozen configuration:** once the anchor configuration is selected, Phase 2 does not re-tune the epoch budget independently per dataset without recording a dated amendment.
+- **Transfer rule:** `T_POOL_SCHEMA` must beat both `T_RAW` and `T_RANDOM_LABELS` under the pre-registered interval rule. `T_POOL_ALL` is confirmatory only.
+- **Synthetic-data rule:** a synthetic arm is not a positive result unless it beats its matched real-data fine-tuning control and does not violate the pre-registered calibration tolerance.
+- **Pre-registered outcome mapping:** follow the outcome table in the canonical pilot design exactly as written.
 
 This plan specifies only **how the inputs to those rules are computed**.
 
@@ -157,7 +158,7 @@ run ids the numbers came from, and whether the step was gated and on what result
 (they are the stopping points in `docs/reference/PILOT_2_DECISION_GRAPH.md`), so they are reported as findings, not as
 failures to find something.
 
-The transfer result is additionally reported **as a fraction of `B_in_domain`'s gain**, so a small
+The transfer result is additionally reported **as a fraction of the matched `I_SFT_*` gain**, so a small
 absolute gain cannot be presented as a large one.
 
 ## 10. Deviations

@@ -33,6 +33,22 @@ This is an authorized, funded workstream. The stages below are scientific decisi
 
 The full proposal therefore includes the earlier transfer and pooling work as explicit conditional phases, while keeping the current in-domain pilot as the prerequisite. Synthetic data is not treated as an assumed benefit: the existing negative evidence is recorded and revisited only as a controlled ablation.
 
+## Run order and evidence status
+
+| Order | Work | Status |
+|---:|---|---|
+| 1 | Dataset, feature, preprocessing, imbalance, target, and synthetic-data diagnostics | Run now |
+| 2 | Two additional `uslapseagent` seeds at 10,000 rows | Run now |
+| 3 | Four-dataset in-domain breadth pilot | After the seed gate |
+| 4 | Targeted synthetic-data ablation, if diagnostics justify it | Conditional |
+| 5 | Same-schema pooled transfer | Conditional on in-domain replication |
+| 6 | Heterogeneous pooled transfer | Conditional on coherent-pool result |
+| 7 | Use-case interpretation and deployment recommendation | Final synthesis |
+
+**Measured now:** the 2,000-row probe and the 10,000-row `uslapseagent` probe.
+
+**Not yet measured:** multi-seed replication, four-dataset breadth, a current-v3 synthetic-data ablation, pooled transfer, the shuffled-label control, and temporal validation.
+
 ---
 
 ## 2. Research questions
@@ -55,7 +71,7 @@ The pilot answers the in-domain question first. Transfer and pooling are include
 
 ### Phase 1 — Diagnostics
 
-Run the five diagnostics in `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md` before drawing conclusions from the pilot.
+Run the five diagnostics in `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md`, plus the synthetic-data evidence review described below, before drawing conclusions from the pilot.
 
 The diagnostics cover:
 
@@ -88,20 +104,40 @@ The primary dataset is `uslapseagent`, because it produced the 10K positive resu
 
 The four-dataset family is the in-domain pilot scope. A wider 15-dataset sweep, pooled training, and cross-dataset transfer are not part of Phase 2; pooling and transfer are addressed conditionally in Phase 3.
 
-### 3.1 Experimental arms
+### Phase 2.1 — Canonical arm labels
 
-| Arm | Description | Purpose |
-|---|---|---|
-| `A_raw` | Unmodified TabPFN | In-run control |
-| `B_full_sft` | Full supervised fine-tuning | Main intervention |
-| `C_data_treatment` | Class weighting, resampling, or calibration treatment | Separate data treatment from weight adaptation |
-| `D_parameter_efficient` | Parameter-efficient adaptation or meta-learning | Test whether a smaller intervention is sufficient or superior |
+Display labels are phase-qualified. Implementation labels preserve the names already used by the pilot runner and artifacts.
 
-`A_raw` is re-run in every condition. Fine-tuning is always compared with the raw model measured in the same run, not with a result imported from another split.
+| Display label | Implementation/run label | Phase | Required? | Description |
+|---|---|---|---|---|
+| `I_RAW` | `A_raw` | 2 | yes | Raw TabPFN control in every in-domain run |
+| `I_SFT_3` | `B_ft3` | 2 | yes | Full SFT, 3 epochs |
+| `I_SFT_10` | `B_ft10` | 2 | yes | Full SFT, 10 epochs |
+| `I_SFT_30` | `B_ft30` | 2 | yes | Full SFT, 30 epochs |
+| `I_DATA_TREATMENT` | `B_ft_data_treatment` | 2 | conditional | Class weighting, resampling, or calibration treatment |
+| `I_PEFF` | `B_ft_peft` | 2 | conditional | Parameter-efficient or meta-learning comparison |
+| `I_GLM` | `E_glm` | 2 | reference | Existing GLM baseline |
+| `I_TREE` | `F_catboost` | 2 | reference | Existing tree baseline |
+| `T_RAW` | `A_raw(T)` | 3 | conditional | Raw TabPFN on held-out target `T` |
+| `T_POOL_ALL` | `C_pooled_all(T)` | 3 | conditional | Heterogeneous source pool |
+| `T_POOL_SCHEMA` | `D_pooled_schema(T)` | 3 | conditional, primary | Coherent same-schema pool |
+| `T_RANDOM_LABELS` | `R_random(T)` | 3 | conditional, control | Pooled training with shuffled source labels |
 
-The main question is whether standard full fine-tuning is sufficient. The parameter-efficient arm is a comparison point, not a requirement for the main conclusion.
+The display label is what appears in the proposal, tables, and interpretation. The implementation label is what appears in manifests, output directories, and analysis code. The mapping must be frozen before the next run; no arm may be renamed silently after results are inspected.
 
-### 3.2 Training design
+`A_raw` is re-run in every Phase 2 condition. Transfer comparisons use `A_raw(T)` on the held-out target. The parameter-efficient arm is a comparison point, not a requirement for the main conclusion.
+
+### Phase 2.2 — Experiment matrix and training design
+
+| Condition | Datasets | Rows | Seeds | Required arms | Epochs |
+|---|---|---:|---:|---|---|
+| Anchor replication | `uslapseagent` | 10,000 | 3 total, including the existing probe | `I_RAW`, `I_SFT_3`, `I_SFT_10`, `I_SFT_30` | 3, 10, 30 |
+| Low-data reference | `uslapseagent` | 2,000 | 1 historical reference; additional seeds only if needed to resolve a conflict | `I_RAW`, `I_SFT_3`, `I_SFT_10`, `I_SFT_30` | 3, 10, 30 |
+| In-domain breadth | all four R1 datasets | 2,000 and 10,000, subject to data availability | at least 2 | `I_RAW`, `I_SFT_3`, `I_SFT_10`, `I_SFT_30` | 3, 10, 30 |
+| Synthetic ablation | one preselected dataset | matched to the chosen in-domain condition | at least 2 | matched real-data control plus one synthetic treatment | matched |
+| Transfer | one preselected target `T` and eligible source pool | matched to the in-domain condition | at least 2 | `T_RAW`, `T_POOL_SCHEMA`, `T_RANDOM_LABELS`; `T_POOL_ALL` confirmatory | matched |
+
+The matrix is frozen before the run. If a dataset cannot supply the requested row count, record the actual count and explain the deviation rather than silently substituting another size.
 
 - Epoch budgets: 3, 10, and 30.
 - Early stopping state is recorded explicitly.
@@ -111,9 +147,9 @@ The main question is whether standard full fine-tuning is sufficient. The parame
 - Any class weighting or resampling is recorded as a separate arm.
 - No result is promoted from a single run without a replication or an explicit limitation.
 
-At minimum, run two additional seeds for the 10K `uslapseagent` condition. The two existing probes remain evidence, but the pilot must establish seed stability before making a general claim.
+**Seed and split policy.** A seed controls both the train/test split and model initialisation. Within a seed, every arm sees the identical test rows and identical preprocessing. The existing Probe 2 seed is 42; two additional seeds are required for the 10K `uslapseagent` anchor. The four-dataset breadth phase uses at least two seeds per dataset. The split is random and stratified because no usable temporal index is available; this limitation is reported with every result.
 
-### 3.3 Metrics
+### Phase 2.3 — Metrics
 
 Probability quality is primary because insurance decisions depend on usable probabilities:
 
@@ -142,9 +178,21 @@ The target dataset must be absent from the training pool. Every transfer run mus
 
 The primary transfer pool is the coherent same-schema pool because it reduces schema harmonisation as a confound. The heterogeneous pool is confirmatory and should be interpreted only after the coherent result. The transfer gain must be reported both against `A_raw(T)` and as a fraction of the corresponding in-domain gain, so a small absolute effect is not mistaken for a general transfer result.
 
+**Transfer pre-registration, before any pooled run:**
+
+1. Name the primary target `T` and record its held-out test fingerprint.
+2. Freeze the schema-matching rule and the source-pool manifest.
+3. Assert that no row, split, or derived context from `T` enters the pool.
+4. Freeze the `T_RANDOM_LABELS` (`R_random(T)`) control and the matched in-domain comparison.
+5. Declare the primary metric, calibration tolerance, and minimum practical effect before inspecting transfer results.
+
+A transfer result is positive only if the coherent-pool arm beats `T_RAW` with the pre-registered interval rule and beats `T_RANDOM_LABELS`. A positive heterogeneous-pool result cannot rescue a negative coherent-pool result.
+
 The prior transfer design and leakage rules are preserved in `docs/reference/PILOT_2_DESIGN.md` §6 and `docs/archive/SMOKE_TEST_SCOPE.md`. No transfer claim is made from the in-domain probe.
 
-### Synthetic-data and augmentation treatment
+### Cross-cutting data-treatment ablation — synthetic data and augmentation
+
+This is not a Phase 3 transfer arm. It belongs to the diagnostic/data-treatment workstream and, if justified, runs as one controlled follow-up to Phase 2.
 
 Synthetic data is a separate data-treatment question, not another name for domain adaptation. Existing evidence says broad augmentation harmed performance, so the default is not to add synthetic rows. If diagnostics justify a rerun, use one dataset and one controlled treatment, compare against the real-data fine-tuned control, and report whether the result changes ranking, calibration, or both.
 
