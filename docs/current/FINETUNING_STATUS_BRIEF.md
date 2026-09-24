@@ -1,7 +1,7 @@
 # Fine-Tuning Investigation — Status Brief
 
-> Date: 2026-09-24 | Status: **Probe complete; replication requested**
-> Related: #22 | One-page companion to the detailed reports below
+> Date: 2026-09-24 | Status: **Two probes complete; funded diagnostics and full pilot defined**
+> Related: #22 | Stakeholder summary; full design in `FULL_FINE_TUNING_PILOT_DESIGN.md`
 
 ---
 
@@ -49,37 +49,44 @@ Monotone in epochs — more training buys more gain. **The earlier negative was 
 
 ---
 
-## What we're proposing next
+## What we're doing next
 
-**Replicate the 10K-row finding at two further seeds on `uslapseagent`** — about **$0.037 per run**, measured.
+The work is funded and authorized as a staged programme. The immediate first step is to **run diagnostics and replicate the 10K finding on two further seeds of `uslapseagent`** — about **$0.037 per run**, measured.
 
-- If it holds on a second seed → extend to `spanish_motor_lapse`
-- If it fails → stop the fine-tuning line
-- Nothing beyond the first seed is funded until the one before it has produced a result
+The full pilot then tests the same hypothesis across the four R1 datasets, 2K versus 10K-plus rows, training duration, and data-treatment alternatives. It will distinguish genuine model adaptation from effects caused by preprocessing, feature coverage, class imbalance, calibration, or target definition.
 
-**Run the diagnostics phase** — understand *why* datasets are hard before fine-tuning them. Five $0 or near-$0 analyses (dataset profiling, feature importance, target reframing, preprocessing ablation, eudirectlapse deep-dive) that may reveal the real lever is feature engineering or preprocessing, not fine-tuning. Can run in parallel with the replication. See `docs/current/DIAGNOSTICS_PHASE_DESIGN.md`.
+- If diagnostics identify a data or preprocessing explanation → prioritize that intervention
+- If the 10K result does not replicate → do not generalize from Probe 2
+- If it replicates → test the other three R1 datasets
+- Transfer to unseen datasets remains a separate, later question
 
-### The design
+The complete design is `docs/current/FULL_FINE_TUNING_PILOT_DESIGN.md`; the diagnostics design is `docs/current/DIAGNOSTICS_PHASE_DESIGN.md`.
+
+### The full pilot at a glance
 
 | | |
 |---|---|
-| scope | `uslapseagent` first, then `spanish_motor_lapse` only if the first replicates |
-| rows | 10,000+ (lifted from the 2,000 default) |
-| arms | `A_raw` always in-run, versus full SFT at 3/10/30 epochs |
-| seeds | 2–3, sized against the measured 0.0003 run-to-run spread |
-| primary metric | probability quality (Brier, log loss, ECE); ROC AUC alongside |
-| cost | ~$0.037 per run at 10K rows (measured, not modelled) |
+| Phase 1 | Dataset, feature, preprocessing, imbalance, and target diagnostics |
+| Phase 2 | Full in-domain fine-tuning pilot on the four R1 datasets |
+| row conditions | 2,000 reference, 10,000 reference, and larger size if practical |
+| arms | `A_raw`, full SFT, explicit data treatment, and parameter-efficient comparison |
+| epochs | 3, 10, and 30 |
+| seeds | At least two additional seeds for the 10K `uslapseagent` condition |
+| primary metrics | Brier, log loss, and calibration error |
+| secondary metrics | ROC AUC and PR AUC |
+| cost | Existing measured anchors; any new figure must be labelled measured or modelled |
 
 ---
 
-## Open decisions
+## Research decisions to record before execution
 
-| # | Question | Recommendation |
+| # | Question | Working decision |
 |---|---|---|
-| 1 | Fund the two-seed replication? | Yes — $0.074 total, staged |
-| 2 | Which dataset is the primary target? | `uslapseagent` (largest, most stable) |
-| 3 | How many datasets for the family test? | Start with 3 lapse datasets; expand only on a positive |
-| 4 | How much calibration drift is acceptable? | Pre-register a numeric tolerance before the run |
+| 1 | What is the primary pilot dataset? | `uslapseagent`, because it produced the 10K positive result |
+| 2 | Which datasets form the in-domain family? | The four R1 datasets: `coil2000`, `eudirectlapse`, `spanish_motor_lapse`, `uslapseagent` |
+| 3 | What counts as a meaningful gain? | Pre-register a calibration tolerance and minimum practical effect before the pilot |
+| 4 | How will model adaptation be separated from data treatment? | Record preprocessing, class weighting, resampling, and row count as explicit factors |
+| 5 | When can transfer be considered? | Only after the in-domain result is credible across seeds and datasets |
 
 ---
 
@@ -95,7 +102,8 @@ Monotone in epochs — more training buys more gain. **The earlier negative was 
 
 | Report | Audience | Read for |
 |---|---|---|
-| `docs/current/PILOT_2_BRIEFING.md` | Anyone | One-page briefing with the full picture and the ask |
+| `docs/current/FULL_FINE_TUNING_PILOT_DESIGN.md` | Technical | Complete funded diagnostics-plus-pilot design and decision framework |
+| `docs/current/PILOT_2_BRIEFING.md` | Anyone | Historical five-step programme; use the full pilot design for the current scope |
 | `docs/current/FINDINGS.md` | Anyone | What the repository currently believes (F1–F6, L1–L3) |
 | `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md` | Technical | The full experiment design and decision rules |
 | `docs/current/PILOT_2_COST_AND_CONTROLS.md` | Technical | Every cost figure, in units of a run we have already done |

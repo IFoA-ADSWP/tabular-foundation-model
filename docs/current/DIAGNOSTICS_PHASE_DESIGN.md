@@ -1,7 +1,7 @@
 # Diagnostics Phase — Understanding Why Datasets Are Hard Before Fine-Tuning Them
 
-> Date: 2026-09-24 | Status: **PROPOSAL — awaiting team sign-off**
-> Related: #22 | Companion to `FINE_TUNING_EXPERIMENT_DESIGN.md`, `PILOT_2_BRIEFING.md`
+> Date: 2026-09-24 | Status: **Funded workstream — execution design**
+> Related: #22 | Phase 1 of `FULL_FINE_TUNING_PILOT_DESIGN.md`
 > Builds on: `regime_characterization.md`, `class_imbalance_analysis_summary.md`, master report §14
 
 ---
@@ -73,7 +73,7 @@ Each is $0 or near-$0. All can run on CPU. All produce evidence that changes the
 
 **Question:** What features does TabPFN use vs GLM vs LGBM? Where do they disagree?
 
-**Approach:** For each of the 6 classification datasets, run permutation importance (or SHAP where feasible) on three models: TabPFN, best GLM, best LGBM. Compare the top-10 features per model.
+**Approach:** For each of the four R1 classification datasets, run permutation importance (or SHAP where feasible) on three models: TabPFN, best GLM, and best LGBM. Compare the top-10 features per model. Extend the analysis to other classification datasets only if the pilot needs a broader explanation.
 
 **What it answers:**
 - If TabPFN and GLM use **the same features** but TabPFN ranks them differently → fine-tuning might help by learning better weights
@@ -136,7 +136,7 @@ Compare TabPFN's performance across the three preprocessing regimes.
 
 ## 4. How this interacts with the fine-tuning plan
 
-The diagnostics run **before or alongside** the fine-tuning replication — not instead of it.
+The diagnostics are the first phase of the funded full pilot. They should be completed before interpreting the pilot's fine-tuning results. The fine-tuning pilot continues in parallel where useful, but the diagnostics determine which comparisons and conclusions are valid.
 
 | Scenario | Diagnostics say | Fine-tuning action |
 |---|---|---|
@@ -170,15 +170,15 @@ The diagnostics run **before or alongside** the fine-tuning replication — not 
 | D5 eudirectlapse deep-dive | $0 | ~1 hour analysis | D1–D4 outputs |
 | **Total** | **~$0.05** | **~5 days** | — |
 
-**The ask:** fund the diagnostics phase (~$0.05, ~5 days of analysis work) before or alongside the fine-tuning replication (~$0.074). Total: ~$0.13 for a complete picture.
+**Execution note:** the diagnostics are part of the funded workstream. The figures above are resource estimates for planning and reporting, not a request for additional approval. The full pilot design is `docs/current/FULL_FINE_TUNING_PILOT_DESIGN.md`.
 
 ---
 
-## 7. Decisions needed
+## 7. Execution decisions
 
-| # | Question | Options |
+| # | Question | Working decision |
 |---|---|---|
-| 1 | Run diagnostics before or in parallel with fine-tuning? | Before (informs the design) / Parallel (saves time) |
-| 2 | Which datasets get the full D1–D5 treatment? | All 15 / just the 4 R1 datasets / just eudirectlapse (the loss) |
-| 3 | Who owns the feature importance analysis? | Needs someone familiar with insurance feature semantics |
-| 4 | Is the preprocessing ablation worth running? | It changes the fine-tuning baseline if preprocessing matters |
+| 1 | When do diagnostics run? | Phase 1 of the full pilot; complete before interpreting the pilot |
+| 2 | Which datasets receive the full D1–D5 treatment? | Start with the four R1 datasets; use `eudirectlapse` as the focused failure case |
+| 3 | Who owns the feature importance analysis? | Assign an analyst familiar with insurance feature semantics |
+| 4 | How are results connected to fine-tuning? | Record preprocessing, class treatment, and row count as explicit pilot factors |

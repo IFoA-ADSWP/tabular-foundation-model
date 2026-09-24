@@ -49,12 +49,13 @@ zero-leakage rule this design keeps.
 "what we cannot claim yet" section still holds. Both are v2-era and say so in their banners: **their protocol
 transfers, their numbers do not.**
 
-### The decision this design requests
+### The funded workstream
 
-Fund replication of F1 at **two further seeds** on `uslapseagent` -- about **$0.037 per run**, measured -- and,
-only if it holds, the same ladder on `spanish_motor_lapse`. Staged: the second dataset is not released by a
-positive on the first, and flat-or-worse rungs on a second seed stop the line rather than extend it. Nothing
-here is approved or funded; this is the request, not the commitment.
+The work is authorized as a staged programme. It begins with the diagnostics in `docs/current/DIAGNOSTICS_PHASE_DESIGN.md`, followed by the full in-domain pilot in `docs/current/FULL_FINE_TUNING_PILOT_DESIGN.md`.
+
+The first robustness step is replication of F1 at **two further seeds** on `uslapseagent` — about **$0.037 per run**, measured. The pilot then tests the same hypotheses across the four R1 datasets, row counts, training budgets, and explicit data-treatment arms. The stages are scientific decision boundaries, not separate funding requests.
+
+Transfer to unseen datasets remains outside this in-domain pilot and should be considered only if the in-domain result is credible.
 ### Decision rules
 
 - **Continue** if a rung beats in-run `A_raw` with an interval excluding zero, and repeats on a second seed.

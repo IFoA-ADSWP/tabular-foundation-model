@@ -1,4 +1,6 @@
 # Pilot 2 — one-page briefing
+
+> **Current scope, 24 Sep.** This page records the earlier staged briefing. The funded work has expanded into a diagnostics phase followed by the full in-domain fine-tuning pilot. For the current proposal and execution design, use `docs/current/FULL_FINE_TUNING_PILOT_DESIGN.md`; the two-probe evidence is summarized in `docs/current/FINETUNING_STATUS_BRIEF.md`.
 > **Update, 17 Sep — the probe has run twice and the answer changed.** At 2,000 training rows fine-tuning did
 > not beat raw (outcome 3 of 3). At 10,000 rows every rung beat raw, paired intervals excluding zero, monotone in
 > epochs. The design below is still accurate; the numbers it was written against are not. See `docs/current/FINDINGS.md` and
