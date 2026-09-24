@@ -33,7 +33,7 @@ It is now a positive result at scale, measured in this repository, and worth a s
 6. **Result 3: the reframe inversion (money slide)** — same rows, count → classification target: rank #1 on all 5 metrics, paired-significant, two seeds (§14.14). Chart to build.
 7. **Regime synthesis** — thin-signal/ranking → TabPFN; GLM-captured/parsimony → classical; count axis → trees (regime_characterization.md)
 8. **Actuarial takeaway** — TabPFN for claim-propensity triage and lapse; GLM/GBDT for pricing. Transparency + parsimony govern deployment.
-9. **Caveats (own them)** — reframe n=1 (freMTPL2freq pending, gap B1); PR-AUC within noise; GLMs collapse on binary reframe; client version pin 0.3.3; fine-tuning — **do not repeat the older “degrades” line**: that negative was our own 2,000-row cap, and at 10,000 rows every rung beat raw with intervals excluding zero (`docs/current/PROBE_RESULTS.md`)
+9. **Caveats (own them)** — reframe n=1 (freMTPL2freq pending, gap B1); PR-AUC within noise; GLMs collapse on binary reframe; client version pin 0.3.3; fine-tuning — **do not repeat the older “degrades” line**: that negative was our own 2,000-row cap, and at 10,000 rows every rung beat raw with intervals excluding zero (`docs/current/FINETUNING_PROBE_RESULTS.md`)
 10. **Next steps** — freMTPL2freq reframe (B1), fairness addendum (#107), use-case doc (#25)
 11–13. **Appendix** — full digest table, protocol detail, files/links
 

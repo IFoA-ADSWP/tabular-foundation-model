@@ -1,10 +1,10 @@
-# Pilot 2 — Statistical Analysis Plan
+# Fine-Tuning — Statistical Analysis Plan
 
-> **Supporting technical appendix.** The canonical current proposal is `docs/current/FULL_FINE_TUNING_PILOT_DESIGN.md`. This plan owns the statistical rules for the pilot; it does not define the overall proposal or scope.
+> **Supporting technical appendix.** The canonical current proposal is `docs/current/FINETUNING_PILOT_DESIGN.md`. This plan owns the statistical rules for the pilot; it does not define the overall proposal or scope.
 >
 > **Status: DRAFT for sign-off.** This plan fixes the analysis **before** any data exists, so that the
 > result cannot be chosen after seeing it. Any departure is recorded as a dated deviation (§10).
-> Related historical design: `docs/reference/PILOT_2_DESIGN.md` (§5, §6.5), `docs/current/PILOT_2_DECISION_LOG.md` (D4, D8), `docs/reference/PILOT_2_DECISION_GRAPH.md`.
+> Related historical design: `docs/reference/PILOT_2_DESIGN.md` (§5, §6.5), `docs/current/FINETUNING_DECISION_LOG.md` (D4, D8), `docs/reference/PILOT_2_DECISION_GRAPH.md`.
 
 ## 1. Purpose and scope
 

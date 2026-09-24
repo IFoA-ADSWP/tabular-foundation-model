@@ -1,6 +1,6 @@
-# Experiment Design: Insurance-Specialized TabPFN Fine-Tuning (v6)
+# Fine-Tuning Experiment Reference (v6)
 
-> **Technical reference, not the canonical proposal.** The current funded diagnostics and full pilot are defined in `docs/current/FULL_FINE_TUNING_PILOT_DESIGN.md`. This document preserves the detailed experiment history and technical rationale. Where the two disagree, the full pilot design wins.
+> **Technical reference, not the canonical proposal.** The current funded diagnostics and full pilot are defined in `docs/current/FINETUNING_PILOT_DESIGN.md`. This document preserves the detailed experiment history and technical rationale. Where the two disagree, the full pilot design wins.
 
 ---
 
@@ -53,7 +53,7 @@ transfers, their numbers do not.**
 
 ### The funded workstream
 
-The work is authorized as a staged programme. It begins with the diagnostics in `docs/current/DIAGNOSTICS_PHASE_DESIGN.md`, followed by the full in-domain pilot in `docs/current/FULL_FINE_TUNING_PILOT_DESIGN.md`.
+The work is authorized as a staged programme. It begins with the diagnostics in `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md`, followed by the full in-domain pilot in `docs/current/FINETUNING_PILOT_DESIGN.md`.
 
 The first robustness step is replication of F1 at **two further seeds** on `uslapseagent` — about **$0.037 per run**, measured. The pilot then tests the same hypotheses across the four R1 datasets, row counts, training budgets, and explicit data-treatment arms. The stages are scientific decision boundaries, not separate funding requests.
 
@@ -79,7 +79,7 @@ Transfer to unseen datasets remains outside this in-domain pilot and should be c
 
 The 15-dataset sweep, the factorial N x train-ratio extension, the pooling arms, the transfer stage, and the
 temporal-split test. Each is either out of scope for lapse, or contingent on a positive result that does not
-yet exist. The reasons are in the sections below and in `docs/current/TABPFN_FINETUNING_LITERATURE.md`.
+yet exist. The reasons are in the sections below and in `docs/current/FINETUNING_LITERATURE.md`.
 
 
 > Date: 2026-09-11 | Status: **R1 complete — smoke test only; R2, R3 and Q4/Q5 not run** | Related: #22, #129, #156, #159
@@ -416,7 +416,7 @@ Otherwise stop at R2 and report findings.
 
 > **Superseded by measurement.** Figures in this section were modelled from a first-pilot rate of
 > $0.544-0.657/hr. Measured since: **$0.0122** for a four-arm run at 2,000 rows, **$0.0368** at 10,000 rows.
-> Read `docs/current/PILOT_2_COST_AND_CONTROLS.md` for the current anchor; treat what follows as history.
+> Read `docs/current/FINETUNING_COST_AND_CONTROLS.md` for the current anchor; treat what follows as history.
 
 | Item | Cost |
 |---|---|
@@ -807,7 +807,7 @@ _Next step: Build the runner script or run the pilot on T4._
 
 ## Design principles after the probe and the literature
 
-Sources: `docs/current/TABPFN_FINETUNING_LITERATURE.md`. Our own measurements: `docs/current/PROBE_RESULTS.md`, the run records.
+Sources: `docs/current/FINETUNING_LITERATURE.md`. Our own measurements: `docs/current/FINETUNING_PROBE_RESULTS.md`, the run records.
 
 **The objective function.** Not "does fine-tuning work" but **the probability that a result changes a
 decision, per unit of spend**. Everything below follows from that: resolution before effect, one factor at a

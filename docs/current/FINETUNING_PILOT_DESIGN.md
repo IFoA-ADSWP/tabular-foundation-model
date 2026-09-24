@@ -1,8 +1,8 @@
-# Full Fine-Tuning Pilot — Design and Decision Framework
+# Fine-Tuning Pilot — Canonical Design and Decision Framework
 
 > Date: 2026-09-24 | Status: **Funded research workstream — design to be executed**
-> Related: #22 | Follows the two measured probes documented in `FINDINGS.md`
-> Diagnostics: `docs/current/DIAGNOSTICS_PHASE_DESIGN.md`
+> Related: #22 | Follows the two measured probes documented in `docs/current/FINETUNING_FINDINGS.md`
+> Diagnostics: `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md`
 > Status summary: `docs/current/FINETUNING_STATUS_BRIEF.md`
 
 > **Start here.** This is the canonical current proposal. The status brief is the short stakeholder summary; the diagnostics, cost, statistical, decision, and execution documents are supporting appendices. If another document appears to describe a different programme, this document takes precedence.
@@ -39,7 +39,7 @@ The pilot answers the in-domain question. A separate transfer proposal may follo
 
 ### Phase 1 — Diagnostics
 
-Run the five diagnostics in `docs/current/DIAGNOSTICS_PHASE_DESIGN.md` before drawing conclusions from the pilot.
+Run the five diagnostics in `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md` before drawing conclusions from the pilot.
 
 The diagnostics cover:
 
@@ -163,12 +163,12 @@ No lapse dataset currently provides a usable time index, so all results remain c
 
 | Document | Role |
 |---|---|
-| `docs/current/FINDINGS.md` | Current claims and their evidence status |
+| `docs/current/FINETUNING_FINDINGS.md` | Current claims and their evidence status |
 | `docs/current/FINETUNING_STATUS_BRIEF.md` | Stakeholder-facing summary of the two probes |
-| `docs/current/DIAGNOSTICS_PHASE_DESIGN.md` | Phase 1 diagnostic work |
-| `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md` | Technical experiment design and caveats |
-| `docs/current/PILOT_2_COST_AND_CONTROLS.md` | Measured cost accounting |
-| `docs/current/PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` | Statistical analysis rules |
-| `docs/current/PILOT_2_DECISION_LOG.md` | Decisions and owners |
+| `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md` | Phase 1 diagnostic work |
+| `docs/current/FINETUNING_EXPERIMENT_REFERENCE.md` | Technical experiment design and caveats |
+| `docs/current/FINETUNING_COST_AND_CONTROLS.md` | Measured cost accounting |
+| `docs/current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md` | Statistical analysis rules |
+| `docs/current/FINETUNING_DECISION_LOG.md` | Decisions and owners |
 
 This document is the full in-domain pilot design. It supersedes the narrower “replicate one seed first” framing in earlier proposal text, while retaining that replication as the first robustness step of the pilot.

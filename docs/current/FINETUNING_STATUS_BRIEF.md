@@ -1,7 +1,7 @@
 # Fine-Tuning Investigation — Status Brief
 
 > Date: 2026-09-24 | Status: **Two probes complete; funded diagnostics and full pilot defined**
-> Related: #22 | Stakeholder summary; full design in `FULL_FINE_TUNING_PILOT_DESIGN.md`
+> Related: #22 | Stakeholder summary; full design in `docs/current/FINETUNING_PILOT_DESIGN.md`
 
 ---
 
@@ -60,7 +60,7 @@ The full pilot then tests the same hypothesis across the four R1 datasets, 2K ve
 - If it replicates → test the other three R1 datasets
 - Transfer to unseen datasets remains a separate, later question
 
-The complete design is `docs/current/FULL_FINE_TUNING_PILOT_DESIGN.md`; the diagnostics design is `docs/current/DIAGNOSTICS_PHASE_DESIGN.md`.
+The complete design is `docs/current/FINETUNING_PILOT_DESIGN.md`; the diagnostics design is `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md`.
 
 ### The full pilot at a glance
 
@@ -102,14 +102,14 @@ The complete design is `docs/current/FULL_FINE_TUNING_PILOT_DESIGN.md`; the diag
 
 | Report | Audience | Read for |
 |---|---|---|
-| `docs/current/FULL_FINE_TUNING_PILOT_DESIGN.md` | Technical | Complete funded diagnostics-plus-pilot design and decision framework |
-| `docs/current/PILOT_2_BRIEFING.md` | Anyone | Historical five-step programme; use the full pilot design for the current scope |
-| `docs/current/FINDINGS.md` | Anyone | What the repository currently believes (F1–F6, L1–L3) |
-| `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md` | Technical | The full experiment design and decision rules |
-| `docs/current/PILOT_2_COST_AND_CONTROLS.md` | Technical | Every cost figure, in units of a run we have already done |
-| `docs/current/PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` | Statistician | How the numbers will be computed |
-| `docs/current/DIAGNOSTICS_PHASE_DESIGN.md` | Anyone | Why we should understand datasets before fine-tuning them |
-| `docs/current/PILOT_2_DECISION_LOG.md` | Decision-makers | The decisions, with options and recommendations |
+| `docs/current/FINETUNING_PILOT_DESIGN.md` | Technical | Complete funded diagnostics-plus-pilot design and decision framework |
+| `docs/archive/PILOT_2_BRIEFING.md` | Anyone | Historical five-step programme; use the full pilot design for the current scope |
+| `docs/current/FINETUNING_FINDINGS.md` | Anyone | What the repository currently believes (F1–F6, L1–L3) |
+| `docs/current/FINETUNING_EXPERIMENT_REFERENCE.md` | Technical | The full experiment design and decision rules |
+| `docs/current/FINETUNING_COST_AND_CONTROLS.md` | Technical | Every cost figure, in units of a run we have already done |
+| `docs/current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md` | Statistician | How the numbers will be computed |
+| `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md` | Anyone | Why we should understand datasets before fine-tuning them |
+| `docs/current/FINETUNING_DECISION_LOG.md` | Decision-makers | The decisions, with options and recommendations |
 | `docs/reference/FINE_TUNING_PILOT_RESULTS.md` | Technical | The full R1 numbers, interpretation warnings, statistical limits |
 | `docs/archive/SMOKE_TEST_SCOPE.md` | Technical | What R1 did and never exercised, execution record |
 | `docs/archive/HISTORIC_FINETUNING_APPRAISAL.md` | Technical | Why the prior negative verdict was confounded and unusable |

@@ -15,7 +15,8 @@ the document is worth to you now.
 
 **The current line of work, by tier.**
 
-- **current** — `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md` (its front section is the design; below it is reference) · `docs/current/FINDINGS.md` · `docs/current/NEXT_RUN.md` · `docs/current/PILOT_2_BRIEFING.md` · `docs/current/PILOT_2_COST_AND_CONTROLS.md` · `docs/current/PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` · `docs/current/PILOT_2_DECISION_LOG.md` (D6 is live) · `docs/current/PILOT_2_PREREQUISITES.md` · `docs/current/PROBE_RESULTS.md` · `docs/current/TABPFN_FINETUNING_LITERATURE.md`
+- **current** — `docs/current/FINETUNING_PILOT_DESIGN.md` (canonical proposal) · `docs/current/FINETUNING_STATUS_BRIEF.md` · `docs/current/FINETUNING_FINDINGS.md` · `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md` · `docs/current/FINETUNING_EXECUTION_RUNBOOK.md` · `docs/current/FINETUNING_COST_AND_CONTROLS.md` · `docs/current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md` · `docs/current/FINETUNING_DECISION_LOG.md` · `docs/current/FINETUNING_PREREQUISITES.md` · `docs/current/FINETUNING_PROBE_RESULTS.md` · `docs/current/FINETUNING_LITERATURE.md`
+- **historical** — `docs/archive/PILOT_2_BRIEFING.md`
 - **reference** — `docs/reference/PROBE_PLAN.md` · `docs/reference/PROBE_FIRST_RUN.md` · `docs/reference/PILOT_2_DESIGN.md` · `docs/reference/PILOT_2_DESIGN_ALTERNATIVE.md` · `docs/reference/PILOT_2_DECISION_GRAPH.md` (its step 0 fired) · `docs/reference/FINE_TUNING_PILOT_RESULTS.md` · the five v2-era fine-tuning pages listed in the literature record
 - **archive** — everything in the legacy tables further down this file: the earlier benchmark, analysis and session documents.
 
@@ -29,15 +30,18 @@ Everything below indexes the whole repository. **If you are here for the fine-tu
 
 | Question | Document |
 | --- | --- |
-| What is being proposed, and why | `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md` — its front section *is* the design; everything under it is reference |
-| Which document governs the next round | `docs/archive/NEXT_STAGE_PROPOSAL.md` (transfer, with the decisions needed from the team); the design document's front section (lapse extension) |
-| What the pilot actually found | `docs/current/PROBE_RESULTS.md` — outcome 3 at 2,000 rows, superseded at 10,000 by measurement |
-| What it cost | `docs/current/PILOT_2_COST_AND_CONTROLS.md` — measured, not modelled: $0.0122 and $0.0368 for the two runs |
-| What the literature says | `docs/current/TABPFN_FINETUNING_LITERATURE.md` — sources read at source, each carrying a verification status |
-| Where the raw evidence is | `../outputs/gpu-pilot/` — records, logs, manifests, and per-arm predictions under `runs/<run_id>/` |
-| The wider proposal | `docs/current/PILOT_2_BRIEFING.md` (one page) → `docs/reference/PILOT_2_DESIGN.md` → `docs/current/PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` |
+| What is being proposed, and why | `docs/current/FINETUNING_PILOT_DESIGN.md` — the canonical funded proposal and decision framework |
+| What is the short stakeholder summary? | `docs/current/FINETUNING_STATUS_BRIEF.md` |
+| What did the probes actually find? | `docs/current/FINETUNING_PROBE_RESULTS.md` — the 2,000-row result is superseded by the 10,000-row measurement |
+| What diagnostics are planned? | `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md` — Phase 1 methods |
+| What does the evidence registry say? | `docs/current/FINETUNING_FINDINGS.md` — current versus superseded claims |
+| What does the execution runbook contain? | `docs/current/FINETUNING_EXECUTION_RUNBOOK.md` — commands and acceptance procedure |
+| What did it cost? | `docs/current/FINETUNING_COST_AND_CONTROLS.md` — measured anchors and cost controls |
+| What is the statistical plan? | `docs/current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md` |
+| Where is the technical history? | `docs/current/FINETUNING_EXPERIMENT_REFERENCE.md` and `docs/reference/` |
+| Where is the raw evidence? | `../outputs/gpu-pilot/` — records, logs, manifests, and per-arm predictions under `runs/<run_id>/` |
 
-**Eras.** R1 (first pilot, no reliable gain) → Pilot 2 (the wider staged proposal) → the probe (2,000 rows, negative) → **lapse-v3 (current)**, where the row cap was lifted to 10,000 and every fine-tuning rung beat raw with intervals excluding zero. Earlier-era documents carry a status banner; where a banner and a front section disagree, the front section wins.
+**Eras.** R1 (first pilot, no reliable gain) → Pilot 2 (the wider staged proposal) → the probe (2,000 rows, negative) → **the current funded diagnostics and full pilot**, where the row cap was lifted to 10,000 and every fine-tuning rung beat raw with intervals excluding zero. Earlier-era documents carry a status banner; where a banner and a front section disagree, the canonical pilot design wins.
 
 The report-level index is `docs/REPORT_REGISTRY.md` and is deliberately not restated here, so there is exactly one place to update when a report is added.
 

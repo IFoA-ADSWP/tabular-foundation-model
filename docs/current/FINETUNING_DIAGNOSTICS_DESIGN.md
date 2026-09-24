@@ -1,7 +1,7 @@
-# Diagnostics Phase — Understanding Why Datasets Are Hard Before Fine-Tuning Them
+# Fine-Tuning Diagnostics — Understanding Why Datasets Are Hard Before Fine-Tuning Them
 
 > Date: 2026-09-24 | Status: **Funded workstream — execution design**
-> Related: #22 | Phase 1 of `FULL_FINE_TUNING_PILOT_DESIGN.md`
+> Related: #22 | Phase 1 of `docs/current/FINETUNING_PILOT_DESIGN.md`
 > Builds on: `regime_characterization.md`, `class_imbalance_analysis_summary.md`, master report §14
 
 ---
@@ -170,7 +170,7 @@ The diagnostics are the first phase of the funded full pilot. They should be com
 | D5 eudirectlapse deep-dive | $0 | ~1 hour analysis | D1–D4 outputs |
 | **Total** | **~$0.05** | **~5 days** | — |
 
-**Execution note:** the diagnostics are part of the funded workstream. The figures above are resource estimates for planning and reporting, not a request for additional approval. The full pilot design is `docs/current/FULL_FINE_TUNING_PILOT_DESIGN.md`.
+**Execution note:** the diagnostics are part of the funded workstream. The figures above are resource estimates for planning and reporting, not a request for additional approval. The full pilot design is `docs/current/FINETUNING_PILOT_DESIGN.md`.
 
 ---
 
