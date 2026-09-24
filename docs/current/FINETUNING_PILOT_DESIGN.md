@@ -18,13 +18,15 @@ The two probes establish a useful but incomplete result:
 
 This is a hypothesis about a data-scale threshold, not yet a general finding about TabPFN on insurance data. The full pilot must determine whether the 10K result is robust, whether it is caused by genuine domain adaptation, and whether preprocessing, feature engineering, class imbalance, or target definition explain part of the effect.
 
+**Research context.** Christoph Molnar's *Tabular Foundation Models* describes PFN-style models as in-context predictors whose pretraining prior supplies an inductive bias. That framing sharpens this pilot: raw TabPFN is not a conventional zero-training model; it uses the supplied table as prediction context. The comparison must therefore ask whether weight adaptation adds value beyond simply giving raw TabPFN more context. The book also distinguishes synthetic pretraining tasks from downstream synthetic-data augmentation; this proposal preserves that distinction. Source: [Molnar, *Tabular Foundation Models*](https://tabularfoundationmodels.com/).
+
 This is an authorized, funded workstream. The stages below are scientific decision boundaries, not requests to release new funding.
 
 ## Programme scope map
 
 | Workstream | Current role | When addressed |
 |---|---|---|
-| Diagnostics and dataset diagnosis | Understand why the two probes differed | Phase 1 |
+| Diagnostics and prior-mismatch analysis | Understand why the two probes differed and which data structures may not match the model's learned prior | Phase 1 |
 | In-domain fine-tuning | Test full SFT on the four R1 datasets | Phase 2 |
 | Dataset pooling | Test whether source datasets can be combined | Phase 3, conditional on in-domain replication |
 | Transfer learning | Test a model on a target dataset absent from its training pool | Phase 3, conditional on in-domain replication |
@@ -62,6 +64,7 @@ The full proposal therefore includes the earlier transfer and pooling work as ex
 7. If in-domain adaptation works, does it transfer to a target dataset absent from the training pool?
 8. Does pool composition — same-schema versus heterogeneous — determine transfer success?
 9. Can synthetic data or augmentation add useful training signal, or does it reproduce the earlier negative result?
+10. Does fine-tuning outperform simply providing raw TabPFN with more context rows, and which insurance structures appear mismatched to the model's learned prior?
 
 The pilot answers the in-domain question first. Transfer and pooling are included as conditional Phase 3 work, not as claims that can be made before in-domain replication.
 
@@ -76,13 +79,14 @@ Run the five diagnostics in `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md`, plu
 The diagnostics cover:
 
 1. dataset structure and target distributions;
-2. feature-importance differences between TabPFN, GLM, and tree models;
-3. target reframing where count or frequency targets are involved;
-4. preprocessing and feature-engineering ablations;
-5. a focused `eudirectlapse` investigation;
-6. a review of the existing synthetic-data and augmentation results, followed by a targeted ablation if the diagnostics identify a plausible mechanism.
+2. prior-mismatch proxies: feature type mix, missingness, class balance, nonlinear interactions, target complexity, and row-to-feature ratio;
+3. feature-importance differences between TabPFN, GLM, and tree models;
+4. target reframing where count or frequency targets are involved;
+5. preprocessing and feature-engineering ablations;
+6. a focused `eudirectlapse` investigation;
+7. a review of the existing synthetic-data and augmentation results, followed by a targeted ablation if the diagnostics identify a plausible mechanism.
 
-The prior synthetic-data evidence is negative: TabPFN-extensions, SMOTE, and noise-based augmentation degraded performance, including a reported ROC AUC change from approximately 0.83 to 0.59 for noise augmentation. The relevant evidence is in `docs/archive/PRE_FINETUNING_INVESTIGATIONS.md`, `docs/KNOWLEDGE-PATH.md` §S6, and `notebooks/baseline_experiments/06_synthetic_data_exploration.ipynb`. We do not rerun augmentation broadly by default; if tested, it must be a controlled arm against the same real-data baseline.
+The prior synthetic-data evidence is negative: TabPFN-extensions, SMOTE, and noise-based augmentation degraded performance, including a reported ROC AUC change from approximately 0.83 to 0.59 for noise augmentation. This does not contradict the use of synthetic tasks during model pretraining: pretraining data define a broad task prior, while augmentation adds synthetic rows to this project's downstream fine-tuning set. The relevant downstream evidence is in `docs/archive/PRE_FINETUNING_INVESTIGATIONS.md`, `docs/KNOWLEDGE-PATH.md` §S6, and `notebooks/baseline_experiments/06_synthetic_data_exploration.ipynb`. We do not rerun augmentation broadly by default; if tested, it must be a controlled arm against the same real-data baseline.
 
 Diagnostics are not a substitute for the fine-tuning pilot. They identify confounds and determine which fine-tuning comparisons are meaningful.
 
@@ -194,7 +198,7 @@ The prior transfer design and leakage rules are preserved in `docs/reference/PIL
 
 This is not a Phase 3 transfer arm. It belongs to the diagnostic/data-treatment workstream and, if justified, runs as one controlled follow-up to Phase 2.
 
-Synthetic data is a separate data-treatment question, not another name for domain adaptation. Existing evidence says broad augmentation harmed performance, so the default is not to add synthetic rows. If diagnostics justify a rerun, use one dataset and one controlled treatment, compare against the real-data fine-tuned control, and report whether the result changes ranking, calibration, or both.
+Synthetic data is a separate data-treatment question, not another name for domain adaptation or evidence about the model's pretraining prior. Existing evidence says broad augmentation harmed performance, so the default is not to add synthetic rows. If diagnostics justify a rerun, use one dataset and one controlled treatment, compare against the real-data fine-tuned control, and report whether the result changes ranking, calibration, or both.
 
 ---
 

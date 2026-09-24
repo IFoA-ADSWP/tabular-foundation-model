@@ -64,6 +64,7 @@ Each is $0 or near-$0. All can run on CPU. All produce evidence that changes the
 | Target distribution | Histogram, zero-inflation rate, skewness | Zero-inflated targets break RMSE-based comparisons |
 | Feature correlation | Max pairwise correlation, VIF | Highly correlated features may confuse TabPFN's attention mechanism |
 | Effective sample size | After one-hot encoding, how many features vs rows? | The 86-column coil2000 at 9.8K rows has a 114:9.8K feature:row ratio |
+| Prior-mismatch proxies | Feature-type mix, nonlinear interactions, target complexity, and missingness compared with the model's learned task prior | Helps explain where raw in-context prediction may already be strong or where adaptation may be needed |
 
 **Where the data lives:** `data/raw/*.csv` — already committed.
 
@@ -113,7 +114,9 @@ Each is $0 or near-$0. All can run on CPU. All produce evidence that changes the
 
 Compare TabPFN's performance across the three preprocessing regimes.
 
-**What it answers:** If TabPFN's rank improves substantially under targeted preprocessing, the "model limitation" is actually a preprocessing limitation. This is the cheapest way to improve performance without fine-tuning.
+**What it answers:** If TabPFN's rank improves substantially under targeted preprocessing, the "model limitation" is actually a "preprocessing limitation". This is the cheapest way to improve performance without fine-tuning.
+
+The comparison must also record raw TabPFN at matched row counts. A fine-tuning gain is not evidence of domain adaptation if raw in-context prediction improves by the same mechanism simply from receiving more context rows.
 
 **Effort:** ~100 lines of preprocessing wrapper, reuse the benchmark runner.
 

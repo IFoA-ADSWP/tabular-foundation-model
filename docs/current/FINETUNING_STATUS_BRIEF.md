@@ -36,6 +36,8 @@ Ran the same test at **10,000 training rows** on `uslapseagent` — the dataset 
 
 Monotone in epochs — more training buys more gain. **The earlier negative was a small-data artefact**: the 2,000-row loader cap starved the model. The library documents 50,000 samples; we were using 2,000.
 
+The research context from Molnar's [*Tabular Foundation Models*](https://tabularfoundationmodels.com/) reinforces two design choices: raw TabPFN is an in-context predictor that already uses the supplied table, and synthetic pretraining tasks are not the same thing as synthetic augmentation in our fine-tuning data. The pilot therefore compares fine-tuning with matched raw in-context prediction and treats prior mismatch as a diagnostic question.
+
 ---
 
 ## What this means
