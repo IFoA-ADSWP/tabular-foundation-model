@@ -57,6 +57,8 @@ Monotone in epochs — more training buys more gain. **The earlier negative was 
 - If it fails → stop the fine-tuning line
 - Nothing beyond the first seed is funded until the one before it has produced a result
 
+**Run the diagnostics phase** — understand *why* datasets are hard before fine-tuning them. Five $0 or near-$0 analyses (dataset profiling, feature importance, target reframing, preprocessing ablation, eudirectlapse deep-dive) that may reveal the real lever is feature engineering or preprocessing, not fine-tuning. Can run in parallel with the replication. See `docs/current/DIAGNOSTICS_PHASE_DESIGN.md`.
+
 ### The design
 
 | | |
@@ -98,6 +100,7 @@ Monotone in epochs — more training buys more gain. **The earlier negative was 
 | `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md` | Technical | The full experiment design and decision rules |
 | `docs/current/PILOT_2_COST_AND_CONTROLS.md` | Technical | Every cost figure, in units of a run we have already done |
 | `docs/current/PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` | Statistician | How the numbers will be computed |
+| `docs/current/DIAGNOSTICS_PHASE_DESIGN.md` | Anyone | Why we should understand datasets before fine-tuning them |
 | `docs/current/PILOT_2_DECISION_LOG.md` | Decision-makers | The decisions, with options and recommendations |
 | `docs/reference/FINE_TUNING_PILOT_RESULTS.md` | Technical | The full R1 numbers, interpretation warnings, statistical limits |
 | `docs/archive/SMOKE_TEST_SCOPE.md` | Technical | What R1 did and never exercised, execution record |
