@@ -57,7 +57,8 @@ The work is authorized as a staged programme. It begins with the diagnostics in 
 
 The first robustness step is replication of F1 at **two further seeds** on `uslapseagent` — about **$0.037 per run**, measured. The pilot then tests the same hypotheses across the four R1 datasets, row counts, training budgets, and explicit data-treatment arms. The stages are scientific decision boundaries, not separate funding requests.
 
-Transfer to unseen datasets remains outside this in-domain pilot and should be considered only if the in-domain result is credible.
+Transfer to unseen datasets and dataset pooling are conditional Phase 3 work. Synthetic data and augmentation are diagnostic/ablation questions informed by the prior negative evidence, not assumed improvements.
+
 ### Decision rules
 
 - **Continue** if a rung beats in-run `A_raw` with an interval excluding zero, and repeats on a second seed.
@@ -77,9 +78,7 @@ Transfer to unseen datasets remains outside this in-domain pilot and should be c
 
 ### What is not being proposed
 
-The 15-dataset sweep, the factorial N x train-ratio extension, the pooling arms, the transfer stage, and the
-temporal-split test. Each is either out of scope for lapse, or contingent on a positive result that does not
-yet exist. The reasons are in the sections below and in `docs/current/FINETUNING_LITERATURE.md`.
+The 15-dataset sweep, the factorial N × train-ratio extension, regression/count/severity extensions, and the temporal-split test. The C/D pooled-transfer arms are also not run in the current pilot; they are defined as conditional Phase 3 work in `docs/current/FINETUNING_PILOT_DESIGN.md`. Synthetic-data scale-up is not proposed; only a targeted, controlled ablation is retained because earlier evidence was negative.
 
 
 > Date: 2026-09-11 | Status: **R1 complete — smoke test only; R2, R3 and Q4/Q5 not run** | Related: #22, #129, #156, #159

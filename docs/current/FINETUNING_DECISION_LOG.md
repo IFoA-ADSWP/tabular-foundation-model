@@ -1,6 +1,6 @@
 # Fine-Tuning — Decision Log for Technical Review
 
-> **Supporting document.** The canonical current proposal is `docs/current/FINETUNING_PILOT_DESIGN.md`. This log preserves technical decisions from the earlier pilot design. Its transfer and pooling entries are historical context, not current gates for the funded in-domain diagnostics and pilot.
+> **Supporting document.** The canonical current proposal is `docs/current/FINETUNING_PILOT_DESIGN.md`. This log preserves technical decisions from the earlier pilot design. Its transfer and pooling entries become active technical references only if the in-domain gate releases Phase 3; they are not blockers for Phases 1–2.
 
 ## How to use this document
 

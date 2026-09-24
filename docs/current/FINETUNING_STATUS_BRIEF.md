@@ -53,12 +53,13 @@ Monotone in epochs — more training buys more gain. **The earlier negative was 
 
 The work is funded and authorized as a staged programme. The immediate first step is to **run diagnostics and replicate the 10K finding on two further seeds of `uslapseagent`** — about **$0.037 per run**, measured.
 
-The full pilot then tests the same hypothesis across the four R1 datasets, 2K versus 10K-plus rows, training duration, and data-treatment alternatives. It will distinguish genuine model adaptation from effects caused by preprocessing, feature coverage, class imbalance, calibration, or target definition.
+The full proposal then tests the same hypothesis across the four R1 datasets, 2K versus 10K-plus rows, training duration, and data-treatment alternatives. If that in-domain result replicates, the same proposal includes a conditional transfer and dataset-pooling phase, with target-exclusion and shuffled-label controls. Synthetic data and augmentation are treated as a diagnostic/ablation question because the existing evidence is negative.
 
 - If diagnostics identify a data or preprocessing explanation → prioritize that intervention
 - If the 10K result does not replicate → do not generalize from Probe 2
 - If it replicates → test the other three R1 datasets
-- Transfer to unseen datasets remains a separate, later question
+- If in-domain replication holds → test coherent same-schema pooling, then heterogeneous pooling
+- If synthetic augmentation remains negative → do not include it in the deployment path
 
 The complete design is `docs/current/FINETUNING_PILOT_DESIGN.md`; the diagnostics design is `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md`.
 
@@ -66,8 +67,9 @@ The complete design is `docs/current/FINETUNING_PILOT_DESIGN.md`; the diagnostic
 
 | | |
 |---|---|
-| Phase 1 | Dataset, feature, preprocessing, imbalance, and target diagnostics |
+| Phase 1 | Dataset, feature, preprocessing, imbalance, target, and synthetic-data diagnostics |
 | Phase 2 | Full in-domain fine-tuning pilot on the four R1 datasets |
+| Phase 3 | Conditional transfer and dataset pooling, with target-exclusion and shuffled-label controls |
 | row conditions | 2,000 reference, 10,000 reference, and larger size if practical |
 | arms | `A_raw`, full SFT, explicit data treatment, and parameter-efficient comparison |
 | epochs | 3, 10, and 30 |
@@ -85,8 +87,9 @@ The complete design is `docs/current/FINETUNING_PILOT_DESIGN.md`; the diagnostic
 | 1 | What is the primary pilot dataset? | `uslapseagent`, because it produced the 10K positive result |
 | 2 | Which datasets form the in-domain family? | The four R1 datasets: `coil2000`, `eudirectlapse`, `spanish_motor_lapse`, `uslapseagent` |
 | 3 | What counts as a meaningful gain? | Pre-register a calibration tolerance and minimum practical effect before the pilot |
-| 4 | How will model adaptation be separated from data treatment? | Record preprocessing, class weighting, resampling, and row count as explicit factors |
-| 5 | When can transfer be considered? | Only after the in-domain result is credible across seeds and datasets |
+| 4 | How will model adaptation be separated from data treatment? | Record preprocessing, class weighting, resampling, synthetic augmentation, and row count as explicit factors |
+| 5 | When can transfer and pooling be considered? | Only after the in-domain result is credible across seeds and datasets |
+| 6 | What is the primary transfer pool? | Coherent same-schema pooling first; heterogeneous pooling second, with `R_random` control |
 
 ---
 
@@ -97,6 +100,7 @@ The complete design is `docs/current/FINETUNING_PILOT_DESIGN.md`; the diagnostic
 | `outputs/finetune/pilot/pilot_metrics.parquet` | R1 aggregate metrics (16 rows, all 4 arms × 4 datasets) |
 | `outputs/finetune/pilot/pilot_predictions.parquet` | Per-row predictions for all 12 R1 runs (12,000 rows) |
 | `outputs/finetune/pilot/<dataset>/<arm>/meta.json` | Per-run config, versions, device, timings |
+| `notebooks/baseline_experiments/06_synthetic_data_exploration.ipynb` | Earlier synthetic-data and augmentation evidence |
 
 ## Detailed reports
 
@@ -109,7 +113,9 @@ The complete design is `docs/current/FINETUNING_PILOT_DESIGN.md`; the diagnostic
 | `docs/current/FINETUNING_COST_AND_CONTROLS.md` | Technical | Every cost figure, in units of a run we have already done |
 | `docs/current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md` | Statistician | How the numbers will be computed |
 | `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md` | Anyone | Why we should understand datasets before fine-tuning them |
-| `docs/current/FINETUNING_DECISION_LOG.md` | Decision-makers | The decisions, with options and recommendations |
+| `docs/current/FINETUNING_DECISION_LOG.md` | Decision-makers | Historical transfer and pooling decisions, with their caveats |
+| `docs/reference/PILOT_2_DESIGN.md` | Technical | Earlier transfer and pooling design used as the Phase 3 reference |
+| `docs/archive/PRE_FINETUNING_INVESTIGATIONS.md` | Technical | Earlier in-domain, transfer, pooling, small-n, and synthetic-data questions |
 | `docs/reference/FINE_TUNING_PILOT_RESULTS.md` | Technical | The full R1 numbers, interpretation warnings, statistical limits |
 | `docs/archive/SMOKE_TEST_SCOPE.md` | Technical | What R1 did and never exercised, execution record |
 | `docs/archive/HISTORIC_FINETUNING_APPRAISAL.md` | Technical | Why the prior negative verdict was confounded and unusable |
