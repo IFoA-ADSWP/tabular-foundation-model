@@ -1,0 +1,23 @@
+{
+  "run_id": "uslapseagent_A_raw_seed42",
+  "dataset": "uslapseagent",
+  "arm": "A_raw",
+  "config": {
+    "context_samples": 64,
+    "max_finetune_steps": 3,
+    "n_estimators": 2,
+    "learning_rate": 1e-05,
+    "fit_mode": "batched"
+  },
+  "seed": 42,
+  "train_rows": 2000,
+  "test_rows": 1000,
+  "device": "cpu",
+  "device_name": "cpu",
+  "run_time_seconds": 14.447016954421997,
+  "timestamp": "2026-09-11T23:55:09.160847+00:00",
+  "status": "success",
+  "roc_auc": 0.9352814605800575,
+  "brier": 0.08745442408667707,
+  "pr_auc": 0.8261000583956826
+}
