@@ -211,6 +211,25 @@ full*, with a reason beside every value.
 - [ ] `docs/current/FINETUNING_PREREQUISITES.md` counts re-checked after the build (PR-1, PR-3, PR-9 still await
       one real box; see the Gate Amendment there)
 
+---
+
+## Current programme decisions
+
+These are the decisions required before the next run.
+
+| ID | Decision | Status |
+|---|---|---|
+| P1 | Core arm set (`A_raw`, `B_ft3`, `B_ft10`, `B_ft30`) | Proposed |
+| P2 | Anchor dataset and row count (`uslapseagent`, 10K) | Proposed |
+| P3 | Anchor seed count (three total, including seed 42) | Proposed |
+| P4 | Breadth datasets (four R1 datasets) | Proposed |
+| P5 | Breadth row counts (2K and 10K where available) | Proposed |
+| P6 | Calibration tolerance and minimum effect | Required before execution |
+| P7 | Conditional PEFT and data-treatment arms | Deferred pending P1–P5 |
+| P8 | Transfer and pooling | Deferred pending in-domain replication |
+
+---
+
 > **Superseded 17 Sep.** This recorded the probe at 2,000 training rows, where fine-tuning did not beat
 > raw. At 10,000 rows every rung beat raw, intervals excluding zero, monotone in epochs. The measurement
 > below stands as the 2,000-row result; it is not the current answer. See the front section of
