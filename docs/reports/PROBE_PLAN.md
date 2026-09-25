@@ -1,7 +1,15 @@
 # The budget probe — a standalone pilot
 
-> **Status: proposal for review. No spend is authorised by this document.** It runs only after the
-> plan and the code it needs are merged, and only on an explicit go-ahead.
+> **Status: DROPPED — superseded by the actual pilot that replaced it.** The probe described here was intended
+> to be a standalone 2,000-row epoch ladder on `uslapseagent`. Before it could run, the programme re-scoped to
+> the lapse extension (lapse-v3) and the actual probe ran differently: one dataset (`uslapseagent`), four arms
+> (`A_raw`, `B_ft3`, `B_ft10`, `B_ft30`) at 2,000/1,000 rows, as described here, but with the wider design's
+> scope and cost anchor. Outcome: **3 — flat ladder, arms do not beat A_raw on ROC** (`docs/reports/PROBE_RESULTS.md`).
+> This document remains for the record of what was planned before the run; for the result, read
+> `docs/reports/PROBE_RESULTS.md`. The wider staged design the probe fed into is at `docs/reports/PILOT_2_DESIGN.md`
+> and the gated version at `docs/reports/PILOT_2_DECISION_GRAPH.md`. The current lapse extension design
+> (the front section of `docs/reports/FINE_TUNING_EXPERIMENT_DESIGN.md`) is the live proposal; the v6 body of
+> that document is archived at `docs/reports/archive/FINE_TUNING_EXPERIMENT_DESIGN_BODY.md`.
 >
 > **Deliberately separate from the wider Pilot 2 design** (held in the wider proposal, which is **not merged and not required for this pilot**). The probe's outcome
 > will change that design, so the two are decoupled: approving, running and reading this commits

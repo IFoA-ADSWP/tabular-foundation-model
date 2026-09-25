@@ -6,15 +6,16 @@ Start from your role, not the file list. Deliberately no document count here: th
 
 Everything below indexes the whole repository. **If you are here for the fine-tuning programme, read these first.**
 
-| Question | Document |
-| --- | --- |
-| What is being proposed, and why | `reports/FINE_TUNING_EXPERIMENT_DESIGN.md` — its front section *is* the design; everything under it is reference |
-| Which document governs the next round | `reports/NEXT_STAGE_PROPOSAL.md` (transfer, with the decisions needed from the team); the design document's front section (lapse extension) |
-| What the pilot actually found | `reports/PROBE_RESULTS.md` — outcome 3 at 2,000 rows, superseded at 10,000 by measurement |
-| What it cost | `reports/PILOT_2_COST_AND_CONTROLS.md` — measured, not modelled: $0.0122 and $0.0368 for the two runs |
-| What the literature says | `reports/TABPFN_FINETUNING_LITERATURE.md` — sources read at source, each carrying a verification status |
-| Where the raw evidence is | `../outputs/gpu-pilot/` — records, logs, manifests, and per-arm predictions under `runs/<run_id>/` |
-| The wider proposal | `reports/PILOT_2_BRIEFING.md` (one page) → `reports/PILOT_2_DESIGN.md` → `reports/PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` |
+|||| Question | Document |
+||| --- | --- |
+||| What is being proposed, and why | `reports/FINE_TUNING_EXPERIMENT_DESIGN.md` — its front section *is* the design (lapse extension: 3 lapse datasets, 10,000+ rows, epoch ladder vs A_raw, ~$0.037/run). The v6 body (15-dataset Q4/Q5 plan, pipeline caching, hardware, R1 results) is archived at `reports/archive/FINE_TUNING_EXPERIMENT_DESIGN_BODY.md`. |
+||| Which document governs the next round | `reports/PILOT_2_DESIGN.md` (two-stage fair test: Stage 1 in-domain ladder 3/10/30, Stage 2 transfer) + `reports/PILOT_2_DECISION_GRAPH.md` (staged-isolation route, recommended). The design document's front section (lapse extension) is the narrower current question. |
+||| The measurement to date | `reports/PROBE_RESULTS.md` — outcome 3 at 2,000 rows: flat ladder, arms don't beat A_raw on ROC. The 10,000-row lapse extension is a *proposed* design, not a completed measurement. |
+|| What it cost | `reports/PILOT_2_COST_AND_CONTROLS.md` — measured, not modelled: $0.0122 and $0.0368 for the two runs |
+|| What the literature says | `reports/TABPFN_FINETUNING_LITERATURE.md` — sources read at source, each carrying a verification status |
+|| Where the raw evidence is | `../outputs/gpu-pilot/` — records, logs, manifests, and per-arm predictions under `runs/<run_id>/` |
+||| The wider proposal | `reports/PILOT_2_BRIEFING.md` (one page) → `reports/FINE_TUNING_STATUS_2026_09_20.md` (current state: where the proposal stands) → `reports/PILOT_2_DESIGN.md` → `reports/PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` → `reports/PILOT_2_DECISION_GRAPH.md` |
+|| v2-era (archived) | `reports/archive/` — 9 reports moved here 2026-09-20 with stubs live in `reports/`; see each stub + `docs/MODEL_VERSIONS.md`. Superseded proposal `reports/NEXT_STAGE_PROPOSAL.md` and transport log `reports/PROBE_FIRST_RUN.md` are now stubs. |
 
 **Eras.** R1 (first pilot, no reliable gain) → Pilot 2 (the wider staged proposal) → the probe (2,000 rows, negative) → **lapse-v3 (current)**, where the row cap was lifted to 10,000 and every fine-tuning rung beat raw with intervals excluding zero. Earlier-era documents carry a status banner; where a banner and a front section disagree, the front section wins.
 
@@ -83,18 +84,19 @@ The report-level index is `reports/REPORT_REGISTRY.md` and is deliberately not r
 | `analyses/prediction_capture_rescore_spec.md` | Proposed (#122) | Persisted per-fold predictions for retrospective re-scoring |
 | `analyses/altmetrics_rescore_spec.md` | Proposed (#123) | Gamma/Tweedie/MAE from stored predictions, no refits |
 
-## Legacy reports (v2-era — see banners, cite via MODEL_VERSIONS)
+## Legacy reports (v2-era — archived 2026-09-20; stubs live in `reports/`; see `MODEL_VERSIONS.md`)
 
-| Doc | Purpose |
-|---|---|
-| `reports/COMBINED_TABPFN_CLASSIFIER_REGRESSOR_ANALYSIS.md` | Consolidated classifier + regressor findings |
-| `reports/MULTI_DATASET_GLM_VS_TABPFN_SUMMARY.md` | Multi-dataset GLM vs TabPFN (non-technical) |
-| `reports/POST_HOC_OPTIMISATION.md` | Calibration/optimisation summary |
-| `reports/STAGE_A_B_FINDINGS_AND_RECOMMENDATIONS.md` | Stage A/B short report |
-| `reports/TABPFN_FINE_TUNING_LIMIT_STUDY.md` | Apple-Silicon finetune limits (classifier-only) |
-| `reports/INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md` | Domain finetune method protocol |
-| `reports/INSURANCE_SPECIFIC_FINETUNING_EVIDENCE.md` | Insurance finetune evidence review |
-| `reports/CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md` | Homogeneity-hypothesis method + evaluation |
+|| Doc | Purpose |
+||---|---|
+|| `reports/archive/COMBINED_TABPFN_CLASSIFIER_REGRESSOR_ANALYSIS.md` | Consolidated classifier + regressor findings (stub: `reports/COMBINED_TABPFN_CLASSIFIER_REGRESSOR_ANALYSIS.md`) |
+|| `reports/archive/MULTI_DATASET_GLM_VS_TABPFN_SUMMARY.md` | Multi-dataset GLM vs TabPFN (non-technical) (stub: `reports/MULTI_DATASET_GLM_VS_TABPFN_SUMMARY.md`) |
+|| `reports/archive/POST_HOC_OPTIMISATION.md` | Calibration/optimisation summary (stub: `reports/POST_HOC_OPTIMISATION.md`) |
+|| `reports/archive/STAGE_A_B_FINDINGS_AND_RECOMMENDATIONS.md` | Stage A/B short report (stub: `reports/STAGE_A_B_FINDINGS_AND_RECOMMENDATIONS.md`) |
+|| `reports/archive/TABPFN_FINE_TUNING_LIMIT_STUDY.md` | Apple-Silicon finetune limits (classifier-only) (stub: `reports/TABPFN_FINE_TUNING_LIMIT_STUDY.md`) |
+|| `reports/archive/INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md` | Domain finetune method protocol (stub: `reports/INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md`) |
+|| `reports/archive/INSURANCE_SPECIFIC_FINETUNING_EVIDENCE.md` | Insurance finetune evidence review (stub: `reports/INSURANCE_SPECIFIC_FINETUNING_EVIDENCE.md`) |
+|| `reports/archive/TECHNICAL_COMPANION.md` | Metrics + GLM comparison explainer (stub: `reports/TECHNICAL_COMPANION.md`) |
+|| `reports/archive/CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md` | Homogeneity-hypothesis method + evaluation; historic LODO study appraised in `reports/HISTORIC_FINETUNING_APPRAISAL.md` (stub: `reports/CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md`) |
 | `reports/REPORT_REGISTRY.md` | Registry: topic keys → workbooks → evidence files (+ `model_version`) |
 
 ## Papers & follow-ups
