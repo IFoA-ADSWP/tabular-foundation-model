@@ -134,6 +134,7 @@ Python 3.10+. Core stack: numpy, pandas, scikit-learn, torch, TabPFN, matplotlib
 ## References
 
 - [TabPFN upstream](https://github.com/PriorLabs/TabPFN) — the foundation model
+- [Molnar, *Tabular Foundation Models*](https://tabularfoundationmodels.com/) — external research context; see [`docs/reference/TABULAR_FOUNDATION_MODELS_MOLNAR.md`](docs/reference/TABULAR_FOUNDATION_MODELS_MOLNAR.md)
 - [CASdatasets](https://CRAN.R-project.org/package=CASdatasets) — R package supplying the datasets
 - `legacy/adswp_project_scripts/` — original R analysis scripts
 
