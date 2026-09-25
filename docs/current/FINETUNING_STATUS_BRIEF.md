@@ -53,33 +53,24 @@ The research context from Molnar's [*Tabular Foundation Models*](https://tabular
 
 ## What we're doing next
 
-The work is funded and authorized as a staged programme. The immediate first step is to **run diagnostics and replicate the 10K finding on two further seeds of `uslapseagent`** — about **$0.037 per run**, measured.
+**Decision requested now:** approve the core arm set and staged scale.
 
-The full proposal then tests the same hypothesis across the four R1 datasets, 2K versus 10K-plus rows, training duration, and data-treatment alternatives. If that in-domain result replicates, the same proposal includes a conditional transfer and dataset-pooling phase, with target-exclusion and shuffled-label controls. Synthetic data and augmentation are treated as a diagnostic/ablation question because the existing evidence is negative.
-
-- If diagnostics identify a data or preprocessing explanation → prioritize that intervention
-- If the 10K result does not replicate → do not generalize from Probe 2
-- If it replicates → test the other three R1 datasets
-- If in-domain replication holds → test coherent same-schema pooling, then heterogeneous pooling
-- If synthetic augmentation remains negative → do not include it in the deployment path
-
-The complete design is `docs/current/FINETUNING_PILOT_DESIGN.md`; the diagnostics design is `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md`.
-
-### The full pilot at a glance
-
-| | |
+| Core arms | Description |
 |---|---|
-| Phase 1 | Dataset, feature, preprocessing, imbalance, target, and synthetic-data diagnostics |
-| Phase 2 | Full in-domain fine-tuning pilot on the four R1 datasets |
-| Phase 3 | Conditional transfer and dataset pooling, with target-exclusion and shuffled-label controls |
-| row conditions | 2,000 reference, 10,000 reference, and larger size if practical |
-| arms | `A_raw`, full SFT, explicit data treatment, and parameter-efficient comparison |
-| epochs | 3, 10, and 30 |
-| seeds | At least two additional seeds for the 10K `uslapseagent` condition |
-| primary metrics | Brier, log loss, and calibration error |
-| secondary metrics | ROC AUC and PR AUC |
-| cost | Existing measured anchors; any new figure must be labelled measured or modelled |
-| evidence status | Probe 1 and Probe 2 measured; replication, breadth, synthetic ablation, and transfer remain unrun |
+| `A_raw` | Raw TabPFN control |
+| `B_ft3`, `B_ft10`, `B_ft30` | Full supervised fine-tuning at 3, 10, and 30 epochs |
+| `E_glm`, `F_catboost` | Existing reference baselines |
+
+**Staged scale:**
+
+1. **Anchor:** replicate the 10K `uslapseagent` result on two additional seeds (3 seeds total).
+2. **Breadth:** if the anchor replicates, run the same core arms on the four R1 datasets at 2K and 10K rows where available.
+3. **Scale extension:** if breadth is positive, test larger available row counts.
+4. **Transfer:** only after in-domain replication, test same-schema pooling and then heterogeneous pooling.
+
+Class weighting, resampling, PEFT, synthetic augmentation, and transfer are conditional follow-ups, not part of the core in-domain decision.
+
+The immediate question is not whether fine-tuning works on every insurance dataset. It is whether the 10K result is reproducible and then generalizes across the four R1 datasets.
 
 ---
 

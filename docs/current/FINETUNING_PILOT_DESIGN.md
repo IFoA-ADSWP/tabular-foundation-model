@@ -22,6 +22,33 @@ This is a hypothesis about a data-scale threshold, not yet a general finding abo
 
 This is an authorized, funded workstream. The stages below are scientific decision boundaries, not requests to release new funding.
 
+## Decision requested from colleagues
+
+We are asking colleagues to agree the core arms and the staged scaling sequence.
+
+### Core in-domain arms
+
+- `A_raw` — raw TabPFN control;
+- `B_ft3`, `B_ft10`, `B_ft30` — full supervised fine-tuning at 3, 10, and 30 epochs;
+- `E_glm` and `F_catboost` — existing reference baselines.
+
+### Staged scale
+
+1. **Anchor:** replicate the 10K `uslapseagent` result on two additional seeds.
+2. **Breadth:** if the anchor replicates, run the same core arms on the four R1 datasets at 2K and 10K rows where available.
+3. **Scale extension:** if breadth is positive, test larger available row counts.
+4. **Transfer:** only after in-domain replication, test same-schema pooling and then heterogeneous pooling.
+
+Class weighting, resampling, PEFT, synthetic augmentation, and transfer are conditional follow-ups, not part of the core in-domain decision.
+
+### Gates
+
+- **Anchor gate:** the 10K result must repeat on two additional seeds.
+- **Breadth gate:** the result must hold across the four R1 datasets before any generality claim.
+- **Scale gate:** larger row counts are tested only after breadth is positive.
+- **Transfer gate:** pooling and transfer are released only after the in-domain result is credible.
+- **Stop rule:** if the anchor result does not replicate, stop the fine-tuning line rather than expanding the experiment.
+
 ## Programme scope map
 
 | Workstream | Current role | When addressed |
@@ -111,6 +138,18 @@ The four-dataset family is the in-domain pilot scope. A wider 15-dataset sweep, 
 ### Phase 2.1 — Canonical arm labels
 
 Display labels are phase-qualified. Implementation labels preserve the names already used by the pilot runner and artifacts.
+
+#### Core vs conditional arms
+
+| Group | Arms | Included now? |
+|---|---|---|
+| Core in-domain | `A_raw`, `B_ft3`, `B_ft10`, `B_ft30` | Yes — required |
+| Reference baselines | `E_glm`, `F_catboost` | Yes — reference |
+| Conditional data treatment | `B_ft_data_treatment` | Deferred |
+| Conditional adaptation | `B_ft_peft` | Deferred |
+| Later transfer | `T_RAW`, `T_POOL_SCHEMA`, `T_POOL_ALL`, `T_RANDOM_LABELS` | Deferred |
+
+#### Detailed arm table
 
 | Display label | Implementation/run label | Phase | Required? | Description |
 |---|---|---|---|---|
