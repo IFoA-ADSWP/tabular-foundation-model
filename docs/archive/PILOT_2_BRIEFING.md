@@ -1,8 +1,10 @@
 # Pilot 2 — one-page briefing
+
+> **Historical document, 24 Sep.** This page records the earlier staged briefing. The funded work has expanded into a diagnostics phase followed by the full in-domain fine-tuning pilot. For the current proposal and execution design, use `docs/current/FINETUNING_PILOT_DESIGN.md`; the two-probe evidence is summarized in `docs/current/FINETUNING_STATUS_BRIEF.md`.
 > **Update, 17 Sep — the probe has run twice and the answer changed.** At 2,000 training rows fine-tuning did
 > not beat raw (outcome 3 of 3). At 10,000 rows every rung beat raw, paired intervals excluding zero, monotone in
-> epochs. The design below is still accurate; the numbers it was written against are not. See `docs/current/FINDINGS.md` and
-> the front section of `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md`. **The ask below stands, and now rests on a positive
+> epochs. The design below is still accurate; the numbers it was written against are not. See `docs/current/FINETUNING_FINDINGS.md` and
+> the front section of `docs/current/FINETUNING_EXPERIMENT_REFERENCE.md`. **The ask below stands, and now rests on a positive
 > rather than a negative.**
 
 **The question.** Does fine-tuning TabPFN beat the model straight out of the box, on our insurance data?
@@ -67,7 +69,7 @@ the last produced a result · and the first step costs **7p**.
 2. **Whether to fund the 7p first step.**
 
 **Then a review, not a snap answer in this meeting.** The design has deliberate holes, and they need
-reading rather than deciding on the spot. `docs/current/PILOT_2_DECISION_LOG.md` holds each with options, a
+reading rather than deciding on the spot. `docs/current/FINETUNING_DECISION_LOG.md` holds each with options, a
 recommendation and a blank:
 
 3. Does the transfer test get to see rows from the dataset it is tested on?
@@ -100,9 +102,9 @@ Everything below is appendix. It exists for whoever wants to challenge a number 
 | The plan as a graph, and what each stopping point lets us claim | `docs/reference/PILOT_2_DECISION_GRAPH.md` |
 | The full experiment specification | `docs/reference/PILOT_2_DESIGN.md` |
 | Why this is a correction, not a scale-up — and the interaction policy | `docs/reference/PILOT_2_DESIGN_ALTERNATIVE.md` |
-| Every cost figure, in units of a run we have already done | `docs/current/PILOT_2_COST_AND_CONTROLS.md` |
-| How the numbers will be computed, and what counts as a positive | `docs/current/PILOT_2_STATISTICAL_ANALYSIS_PLAN.md` |
-| The decisions, with options and recommendations | `docs/current/PILOT_2_DECISION_LOG.md` |
+| Every cost figure, in units of a run we have already done | `docs/current/FINETUNING_COST_AND_CONTROLS.md` |
+| How the numbers will be computed, and what counts as a positive | `docs/current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md` |
+| The decisions, with options and recommendations | `docs/current/FINETUNING_DECISION_LOG.md` |
 | Why the historic "don't chase fine-tuning" verdict is unusable | `docs/archive/HISTORIC_FINETUNING_APPRAISAL.md` |
 | The infrastructure and the analysis code | PR #173 |
 
@@ -115,11 +117,11 @@ including the replication gate (`A_raw` reproduced the first pilot's value to 0.
 That fires this proposal's first gate. The wider testing below was contingent on in-domain fine-tuning
 showing a gain; at this scale it does not, so the programme as written is **not earned on the basis it was
 designed to test**. The one signal moving in order is calibration -- PR AUC, Brier and log loss improve
-monotonically from 3 to 30 epochs while ROC AUC does not -- recorded in `docs/current/PROBE_RESULTS.md`, and the only
+monotonically from 3 to 30 epochs while ROC AUC does not -- recorded in `docs/current/FINETUNING_PROBE_RESULTS.md`, and the only
 thing that might justify a narrower question.
 
 Cost figures in this document are re-anchored on that measurement; see the section at the end of
-`docs/current/PILOT_2_COST_AND_CONTROLS.md`.
+`docs/current/FINETUNING_COST_AND_CONTROLS.md`.
 
 ## What we would ask for now
 

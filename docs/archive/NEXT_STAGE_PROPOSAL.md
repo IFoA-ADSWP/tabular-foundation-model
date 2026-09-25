@@ -11,7 +11,7 @@
 > funded or scheduled; no GPU spend is authorised by this document.
 > Date: 2026-09-12 | **Status: PROPOSAL — awaiting team confirmation. Nothing here is approved,
 > funded or scheduled; no GPU spend is authorised by this document.**
-> Related: #22, `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md`, `docs/archive/CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md`,
+> Related: #22, `docs/current/FINETUNING_EXPERIMENT_REFERENCE.md`, `docs/archive/CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md`,
 > `docs/archive/SMOKE_TEST_SCOPE.md`, `docs/reference/FINE_TUNING_PILOT_RESULTS.md`, `docs/archive/FINE_TUNING_METHOD.md`
 >
 > **Read §2 before §5.** The transfer experiment this document proposes has already been designed
@@ -282,7 +282,7 @@ v2 verdict model-dependent?", which is the cheapest informative question availab
   ROC AUC, PR AUC. Report calibration, since fine-tuning degraded it on `freMTPL2freq_binary`.
 - **Decision rule, tightened.** The historic rule (pooled ΔROC > 0 and ΔPR > 0 for the same
   policy, stable across seeds, calibration not materially degraded) is sound and should be reused.
-  The `R3 gate` in `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md` should **not** be — its second criterion is
+  The `R3 gate` in `docs/current/FINETUNING_EXPERIMENT_REFERENCE.md` should **not** be — its second criterion is
   satisfied by raw TabPFN, so it cannot discriminate the fine-tuning hypothesis.
 - **Pre-register the outcome mapping:** what result would (a) support, (b) fail to support, or
   (c) overturn the v2 verdict — written down before the run.

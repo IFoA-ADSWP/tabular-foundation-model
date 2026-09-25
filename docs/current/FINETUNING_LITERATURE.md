@@ -1,8 +1,8 @@
-# What the literature says about fine-tuning TabPFN — and what it means here
+# Fine-Tuning Literature Review — What It Means Here
 
 **Purpose.** External evidence, kept deliberately separate from our own measurements. This file records what
 the published work and the vendor's own guidance claim, **and whether we have checked it**. Our own results
-live in `docs/current/PROBE_RESULTS.md`, `docs/reference/FINE_TUNING_PILOT_RESULTS.md` and the run records — not here.
+live in `docs/current/FINETUNING_PROBE_RESULTS.md`, `docs/reference/FINE_TUNING_PILOT_RESULTS.md` and the run records — not here.
 
 **Two rules for this document.**
 

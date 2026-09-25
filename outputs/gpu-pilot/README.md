@@ -26,7 +26,7 @@ mismatch (see `scripts/gpu_helpers/vast_run.sh`).
 | `run_ledger.csv.stale-*` | quarantined corrupt ledger from the header-mismatch incident |
 
 **Identifying a mock record.** Mock runs carry the fixture instance id `12345678` and machine id
-`424242`. Records written after the dry-run marking was added (see `PILOT_2_PREREQUISITES.md`) also
+`424242`. Records written after the dry-run marking was added (see `docs/current/FINETUNING_PREREQUISITES.md`) also
 carry `dry_run: true`; the earlier ones predate that field and are identified by the fixture ids.
 
 ## Cost: three numbers, and the account is the authority

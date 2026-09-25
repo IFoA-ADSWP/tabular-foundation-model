@@ -1,8 +1,21 @@
-# Pilot 2 — what it costs, and why
+# Fine-Tuning — What It Costs, and Why
 
-**Written for a non-specialist reader.** One page. No jargon.
+> **Supporting cost appendix.** The canonical current proposal is `docs/current/FINETUNING_PILOT_DESIGN.md`. This page owns measured and modelled cost figures; it does not define the current pilot scope.
 
-## The headline
+## Current measured anchors
+
+These are the figures currently supported by completed runs:
+
+| Completed run | Cost | Use |
+|---|---:|---|
+| 2,000-row four-arm probe | **$0.0122** | Measured anchor for the low-data regime |
+| 10,000-row four-arm probe | **$0.0368** | Measured anchor for the positive regime |
+
+Transfer, breadth, and synthetic-ablation costs are not yet measured. Any new figure must be labelled measured or modelled before it is used in a proposal.
+
+## Historical modelled scenarios
+
+The scenarios below are retained for provenance. They are not the current budget and must not be quoted as if they described the funded current programme.
 
 | | Cost | In units of the run we have already done |
 | --- | --- | --- |

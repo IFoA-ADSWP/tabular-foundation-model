@@ -1,7 +1,6 @@
-# The next round — replication first, breadth second
+# Fine-Tuning Execution Runbook — Next-Run Appendix
 
-> **Status: PROPOSED, 2026-09-17.** Nothing here is approved or funded, and no GPU spend is authorised by this
-> page. It exists because the current design states what to do but not how the next round is run or judged.
+> **Supporting document.** The canonical funded proposal is `docs/current/FINETUNING_PILOT_DESIGN.md`. This page retains the concrete next-run commands and acceptance procedure; it does not define the overall scope. The funded work is the diagnostics phase followed by the full in-domain pilot.
 
 **Prerequisite 0: the seed is not reachable.** The loader and the split both hard-code seed 42, and the launcher
 exposes no flag for it. Replication therefore needs a small pass-through first (`--seed`, alongside the existing
@@ -18,7 +17,7 @@ bash scripts/gpu_helpers/vast_run.sh \
 
 **Acceptance, per seed and pre-registered before the run:** each rung's paired interval against the in-run
 `A_raw` excludes zero, in the same direction as the first seed, with no `***` marker; Brier and ECE reported
-against a tolerance fixed in advance (`docs/current/PILOT_2_DECISION_LOG.md`, D6). **Stop rule:** if a second seed shows the
+against a tolerance fixed in advance (`docs/current/FINETUNING_DECISION_LOG.md`, D6). **Stop rule:** if a second seed shows the
 rungs flat or worse, the line stops here rather than extending to more seeds or more datasets.
 
 ## Stage 2 — the same ladder on a second lapse dataset (conditional)

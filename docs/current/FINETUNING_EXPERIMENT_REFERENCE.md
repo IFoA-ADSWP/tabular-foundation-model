@@ -1,4 +1,6 @@
-# Experiment Design: Insurance-Specialized TabPFN Fine-Tuning (v6)
+# Fine-Tuning Experiment Reference (v6)
+
+> **Technical reference, not the canonical proposal.** The current funded diagnostics and full pilot are defined in `docs/current/FINETUNING_PILOT_DESIGN.md`. This document preserves the detailed experiment history and technical rationale. Where the two disagree, the full pilot design wins.
 
 ---
 
@@ -49,12 +51,14 @@ zero-leakage rule this design keeps.
 "what we cannot claim yet" section still holds. Both are v2-era and say so in their banners: **their protocol
 transfers, their numbers do not.**
 
-### The decision this design requests
+### The funded workstream
 
-Fund replication of F1 at **two further seeds** on `uslapseagent` -- about **$0.037 per run**, measured -- and,
-only if it holds, the same ladder on `spanish_motor_lapse`. Staged: the second dataset is not released by a
-positive on the first, and flat-or-worse rungs on a second seed stop the line rather than extend it. Nothing
-here is approved or funded; this is the request, not the commitment.
+The work is authorized as a staged programme. It begins with the diagnostics in `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md`, followed by the full in-domain pilot in `docs/current/FINETUNING_PILOT_DESIGN.md`.
+
+The first robustness step is replication of F1 at **two further seeds** on `uslapseagent` — about **$0.037 per run**, measured. The pilot then tests the same hypotheses across the four R1 datasets, row counts, training budgets, and explicit data-treatment arms. The stages are scientific decision boundaries, not separate funding requests.
+
+Transfer to unseen datasets and dataset pooling are conditional Phase 3 work. Synthetic data and augmentation are diagnostic/ablation questions informed by the prior negative evidence, not assumed improvements.
+
 ### Decision rules
 
 - **Continue** if a rung beats in-run `A_raw` with an interval excluding zero, and repeats on a second seed.
@@ -74,9 +78,7 @@ here is approved or funded; this is the request, not the commitment.
 
 ### What is not being proposed
 
-The 15-dataset sweep, the factorial N x train-ratio extension, the pooling arms, the transfer stage, and the
-temporal-split test. Each is either out of scope for lapse, or contingent on a positive result that does not
-yet exist. The reasons are in the sections below and in `docs/current/TABPFN_FINETUNING_LITERATURE.md`.
+The 15-dataset sweep, the factorial N × train-ratio extension, regression/count/severity extensions, and the temporal-split test. The C/D pooled-transfer arms are also not run in the current pilot; they are defined as conditional Phase 3 work in `docs/current/FINETUNING_PILOT_DESIGN.md`. Synthetic-data scale-up is not proposed; only a targeted, controlled ablation is retained because earlier evidence was negative.
 
 
 > Date: 2026-09-11 | Status: **R1 complete — smoke test only; R2, R3 and Q4/Q5 not run** | Related: #22, #129, #156, #159
@@ -413,7 +415,7 @@ Otherwise stop at R2 and report findings.
 
 > **Superseded by measurement.** Figures in this section were modelled from a first-pilot rate of
 > $0.544-0.657/hr. Measured since: **$0.0122** for a four-arm run at 2,000 rows, **$0.0368** at 10,000 rows.
-> Read `docs/current/PILOT_2_COST_AND_CONTROLS.md` for the current anchor; treat what follows as history.
+> Read `docs/current/FINETUNING_COST_AND_CONTROLS.md` for the current anchor; treat what follows as history.
 
 | Item | Cost |
 |---|---|
@@ -804,7 +806,7 @@ _Next step: Build the runner script or run the pilot on T4._
 
 ## Design principles after the probe and the literature
 
-Sources: `docs/current/TABPFN_FINETUNING_LITERATURE.md`. Our own measurements: `docs/current/PROBE_RESULTS.md`, the run records.
+Sources: `docs/current/FINETUNING_LITERATURE.md`. Our own measurements: `docs/current/FINETUNING_PROBE_RESULTS.md`, the run records.
 
 **The objective function.** Not "does fine-tuning work" but **the probability that a result changes a
 decision, per unit of spend**. Everything below follows from that: resolution before effect, one factor at a

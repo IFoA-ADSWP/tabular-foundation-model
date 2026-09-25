@@ -1,11 +1,6 @@
-# Pilot 2 — Decision Log (for the technical review)
+# Fine-Tuning — Decision Log for Technical Review
 
-> Companion to `docs/reference/PILOT_2_DESIGN.md`. **Purpose:** the review's answers, recorded against the
-> sections they change, so that a decision cannot be remembered differently by different people
-> later — the failure mode this project has already paid for once.
->
-> **Nothing in Stage 2 is built, and no spend is authorised, until D1, D2 and D3 are answered.**
-> Those three change the *shape of the code*, not its parameters.
+> **Supporting document.** The canonical current proposal is `docs/current/FINETUNING_PILOT_DESIGN.md`. This log preserves technical decisions from the earlier pilot design. Its transfer and pooling entries become active technical references only if the in-domain gate releases Phase 3; they are not blockers for Phases 1–2.
 
 ## How to use this document
 
@@ -109,7 +104,7 @@ DECISION: ______  Owner: ______  Date: ______  Section: §6.2
 **Why it matters.** The figures are modelled from the first pilot's measured arm times, and the model
 rests on **one** relationship nobody has measured: how cost grows with training length. On that basis
 the design as written is **~$31** against **~$9.60** of credit, and the recommended staged path is
-**~$4.70** (`docs/current/PILOT_2_COST_AND_CONTROLS.md` states the basis of every figure).
+**~$4.70** (`docs/current/FINETUNING_COST_AND_CONTROLS.md` states the basis of every figure).
 
 **Recommendation:** fund the **first step only (7p)**, which measures that relationship on one dataset.
 Fund the in-domain steps on its result, and take the transfer experiment and any increase in data
@@ -213,19 +208,19 @@ full*, with a reason beside every value.
 - [ ] §3 outcome mapping agreed
 - [ ] An owner is named for the schema-matching rule (D2)
 - [ ] The funded envelope is settled, and any top-up is an explicit decision
-- [ ] `docs/current/PILOT_2_PREREQUISITES.md` counts re-checked after the build (PR-1, PR-3, PR-9 still await
+- [ ] `docs/current/FINETUNING_PREREQUISITES.md` counts re-checked after the build (PR-1, PR-3, PR-9 still await
       one real box; see the Gate Amendment there)
 
 > **Superseded 17 Sep.** This recorded the probe at 2,000 training rows, where fine-tuning did not beat
 > raw. At 10,000 rows every rung beat raw, intervals excluding zero, monotone in epochs. The measurement
 > below stands as the 2,000-row result; it is not the current answer. See the front section of
-> `docs/current/FINE_TUNING_EXPERIMENT_DESIGN.md`.
+> `docs/current/FINETUNING_EXPERIMENT_REFERENCE.md`.
 
 ## P13 — the probe's outcome, and what it stands down
 
 **Settled by measurement:** the in-domain fine-tuning hypothesis is dead at 2,000 training rows. The epoch
 ladder is flat and the arms do not beat `A_raw` on the pre-registered primary; the one signal moving in
-order is calibration. Which pre-registered outcome that is, and the evidence, are in `docs/current/PROBE_RESULTS.md`.
+order is calibration. Which pre-registered outcome that is, and the evidence, are in `docs/current/FINETUNING_PROBE_RESULTS.md`.
 
 **Stood down as a consequence:** D1 (transfer leakage), D2 (pool rule), D3 (dataset count), D5 (pool row
 source), D8 (label harmonisation). Every one was contingent on in-domain fine-tuning showing a gain. None is
