@@ -139,6 +139,9 @@ outputs/archive/
 *.npy
 *.npz
 *.tabpfn_fit
+# --save-predictions persisted arrays are the deliverable, not a cache (#122); exempt
+# them from the blanket *.npz rule above (proposal, see decision issue #<TBD>)
+!scripts/eval/insurance_benchmark_v1/predictions/*.npz
 
 # OS / editor junk
 **/.DS_Store
