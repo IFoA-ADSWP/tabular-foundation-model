@@ -27,6 +27,7 @@ ARMS="${ARMS:-A_raw,B_in_domain,E_glm,F_catboost}"
 DATASET="${DATASET:-}"   # empty = every registered dataset
 TRAIN_SIZE="${TRAIN_SIZE:-}"   # empty = the runner's own default
 TEST_SIZE="${TEST_SIZE:-}"
+SEEDS="${SEEDS:-}"   # empty = the runner's own DEFAULT_SEED
 
 # A real run must record a commit_sha that describes the code that ran. The tree is a
 # fresh clone here, so any modification is a genuine provenance problem. Untracked files
@@ -300,7 +301,8 @@ for arm in ${ARMS//,/ }; do
     echo "########## ARM $arm ##########"
     # shellcheck disable=SC2086  # DATASET is a dataset name, not unquoted input
     python3 scripts/run_pilot.py --arms "$arm" ${DATASET:+--dataset "$DATASET"} \
-        ${TRAIN_SIZE:+--train-size "$TRAIN_SIZE"} ${TEST_SIZE:+--test-size "$TEST_SIZE"}
+        ${TRAIN_SIZE:+--train-size "$TRAIN_SIZE"} ${TEST_SIZE:+--test-size "$TEST_SIZE"} \
+        ${SEEDS:+--seeds "$SEEDS"}
     rc=$?
     if [ "$rc" -ne 0 ]; then
         # 137 => 128+9 SIGKILL, i.e. the OOM killer. Reported, not fatal.

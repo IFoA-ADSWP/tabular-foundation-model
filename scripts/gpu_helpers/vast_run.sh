@@ -76,6 +76,12 @@ DATASET="${DATASET:-}"
 # sizes is a NEW baseline, not comparable to earlier runs at 2,000 rows.
 TRAIN_SIZE="${TRAIN_SIZE:-}"
 TEST_SIZE="${TEST_SIZE:-}"
+# Seeds are passed through rather than defaulted here, for the same reason as the row sizes:
+# the runner owns DEFAULT_SEED, and a replication must record the seed it actually used.
+# This was unreachable until 2026-10-02 (issue #208 gap 1): run_pilot.py has taken --seeds
+# since it existed, but nothing in the paid-run path forwarded it, so a second-seed
+# replication could not be launched through vast_run.sh at all.
+SEEDS="${SEEDS:-}"
 IMAGE=""
 TRANSPORT="onstart"
 KEEP=0
@@ -107,6 +113,7 @@ while [ $# -gt 0 ]; do
         --dataset)   DATASET="$2"; shift 2 ;;
         --train-size) TRAIN_SIZE="$2"; shift 2 ;;
         --test-size)  TEST_SIZE="$2"; shift 2 ;;
+        --seeds)      SEEDS="$2"; shift 2 ;;
         --image)     IMAGE="$2"; shift 2 ;;
         --transport) TRANSPORT="$2"; shift 2 ;;
         --max-attempts) MAX_ATTEMPTS="$2"; shift 2 ;;
@@ -513,6 +520,7 @@ BOOTSTRAP_B64="$(gzip -9c "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh" | b
     [ -n "$DATASET" ] && printf 'export DATASET=%q\n' "$DATASET"
     [ -n "$TRAIN_SIZE" ] && printf 'export TRAIN_SIZE=%q\n' "$TRAIN_SIZE"
     [ -n "$TEST_SIZE" ] && printf 'export TEST_SIZE=%q\n' "$TEST_SIZE"
+    [ -n "$SEEDS" ] && printf 'export SEEDS=%q\n' "$SEEDS"
     # Identity for the audit record. The container image is chosen at RUN TIME from the
     # host's CUDA capability, so it is a moving part -- a re-run has to be able to say
     # which image produced the numbers, and the box has no way to know it otherwise.
@@ -664,7 +672,7 @@ RUN_RC=0
 if [ "$TRANSPORT" = "ssh" ]; then
     SSH_OPTS=(-o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 -o ServerAliveInterval=30)
     ssh -p "$PORT" "${SSH_OPTS[@]}" "root@$HOST" \
-        "TABPFN_TOKEN='$TABPFN_TOKEN' ARMS='$ARMS' DATASET='$DATASET' TRAIN_SIZE='$TRAIN_SIZE' TEST_SIZE='$TEST_SIZE' bash -s" \
+        "TABPFN_TOKEN='$TABPFN_TOKEN' ARMS='$ARMS' DATASET='$DATASET' TRAIN_SIZE='$TRAIN_SIZE' TEST_SIZE='$TEST_SIZE' SEEDS='$SEEDS' bash -s" \
         < "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh"
     RUN_RC=$?
 else

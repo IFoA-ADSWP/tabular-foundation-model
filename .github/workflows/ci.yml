@@ -1,0 +1,53 @@
+name: ci
+
+# Issue #208 gap 5: a stale assertion survived commit 85c30bc because .github/workflows/
+# did not exist, so nothing ran on clone. CONTRIBUTING.md:148 already promised these
+# checks run automatically; this file is what makes that true.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: ruff + pytest
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install
+        run: pip install -r requirements.txt pytest
+
+      - name: ruff
+        run: ruff check scripts/ src/ tests/
+
+      - name: pytest
+        run: pytest tests/ -q
+
+  shellcheck:
+    name: shellcheck the GPU helpers
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # vast_run.sh and bootstrap_pilot.sh are the paid-run path. A syntax error there
+      # fails on a rented box, mid-run, at cost -- and gap 1 added a variable to both.
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        # Severity gated to warning+. Four pre-existing SC2012/SC2016 info findings (ls-in-
+        # loop, single-quoted $VFM_BOOTSTRAP_B64) are deliberate: arm names are expanded
+        # into fixed glob paths, and the bootstrap is decoded on the far side of the pipe.
+        # Left at default severity these exit 1 and would fail every run on style, which is
+        # how a lint gate gets disabled. Revisit as part of issue #208, not before.
+        run: shellcheck --severity=warning scripts/gpu_helpers/*.sh
