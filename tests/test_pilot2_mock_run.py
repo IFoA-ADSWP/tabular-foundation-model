@@ -165,7 +165,13 @@ def test_mock_run_completes_verifies_and_tears_down(mock_env):
     assert "mismatched=0" in rc.stdout and "missing=0" in rc.stdout
 
     # 3. The manifest returned too -- PR-1 depends on it.
-    assert list(outdir.glob("manifest_*.json")), f"manifest did not return:\n{combined}"
+    # Recursive: commit 85c30bc ("artifacts land under the run id, so two runs can coexist")
+    # moved restored artifacts to <outdir>/runs/<run_stamp>/. The manifest does return, just
+    # one level down; the old top-level glob went empty and read as a transport failure.
+    manifests = sorted(outdir.glob("**/manifest_*.json"))
+    assert manifests, f"manifest did not return:\n{combined}"
+    # Guard the guard: if this ever passes with an empty list, the assertion is decorative.
+    assert all(m.is_file() for m in manifests), manifests
 
 
 def test_mock_run_reports_the_artifact_verification(mock_env):
