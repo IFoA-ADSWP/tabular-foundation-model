@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "dataset": "norauto",
+  "data_file": "norauto.csv",
+  "target": "NbClaim",
+  "drop": [],
+  "problem_type": "classification",
+  "primary_metric": "log_loss",
+  "stored_scale_note": "target stored/used as returned by load_Xy (no additional transform on capture)",
+  "clip_convention": "poisson_deviance: y_pred clipped >= 1e-12 at scoring time (metric_fn); tweedieglm/poissonglm classification-mode mu clipped to [1e-6, 1-1e-6] at scoring time (run_dataset fold loop); stored arrays are raw, pre-clip",
+  "n_folds": 5,
+  "seed": 123,
+  "split": "StratifiedKFold(5, shuffle=True, random_state=123)",
+  "methods": [
+    "cat",
+    "lgbm",
+    "xgb",
+    "lr",
+    "logisticglm",
+    "tweedieglm",
+    "poissonglm",
+    "rf",
+    "tabpfn"
+  ],
+  "model_version": "v3.5_default",
+  "tabpfn_client_version": "0.6.0",
+  "script_git_sha": "3c25533eece0d3b5725cbedbaad101b9cad5aaf2",
+  "created_at": "2026-10-07T17:45:40Z",
+  "predictions_sha256": "11643ae9da43168ff6247296f7caca7d924b44b51f9b43bd1810ff4eb19d64c3",
+  "predictions_sha256_scheme": "sha256 over arrays in sorted key order; per array: key, NUL, dtype.str, NUL, shape, NUL, C-contiguous data bytes. Hashes array content, not the .npz container, so zip timestamps/compression do not affect it"
+}

@@ -1894,8 +1894,8 @@ table, kept as the historical v3 record), `docs/archive/PRE_FINETUNING_INVESTIGA
 ## 18. Addendum — Tier 3 calibration re-test: `ausprivauto0405` (issue #186, 2026-10-07)
 
 Tier 3 of #186 covers the three classification datasets where TabPFN ranks risks best but
-loses on calibration. This section covers the first, `ausprivauto0405`; `norauto` and
-`bemtl97` are not yet run. The target is §14.13.3's documented exception: on
+loses on calibration. This section covers the first, `ausprivauto0405`; `norauto` is §19 and
+`bemtl97` is not yet run. The target is §14.13.3's documented exception: on
 `ausprivauto0405` **the entire linear family beat TabPFN v3 on log loss and Brier**,
 paired-significant and stable across split seeds 42/7/123, while TabPFN stayed AUC #1.
 
@@ -2011,7 +2011,7 @@ Two consequences:
   the frontier harness, so they do not appear in `frontier_results_*.csv` or the frontier
   flag.
 - **Lift@10%** differences are within noise for every comparison.
-- `bemtl97` and `norauto` are not covered. Before any `bemtl97` frontier claim, run with
+- `norauto` is covered in §19; `bemtl97` is not. Before any `bemtl97` frontier claim, run with
   `--save-predictions` (which forces fresh fits) or refresh the sweep first (§15.2).
 
 ### 18.7 Cost
@@ -2041,6 +2041,122 @@ seed 123); `scripts/eval/insurance_benchmark_v1/predictions/ausprivauto0405__see
 and `ausprivauto0405__seed{42,7,123}__v3.5_default.npz`, each with a manifest carrying
 `predictions_sha256`; `scripts/eval/insurance_benchmark_v1/analyze_version_retest.py`;
 `scripts/eval/insurance_benchmark_v1/version_retest_ausprivauto0405.csv`.
+
+## 19. Addendum — Tier 3 calibration re-test: `norauto` (issue #186, 2026-10-07)
+
+Second Tier 3 dataset. The published v3 result (§14.11, §14.13.3): TabPFN is AUC #1 but
+loses log loss to LightGBM (0.17619 vs 0.17518, paired p=0.005) and Brier (p=0.011),
+the largest dataset in the canonical suite. `bemtl97` is still not run.
+
+### 19.1 Design — same protocol as §18
+
+Identical to §18.1: v3 and v3.5 on seed 42 the same day (17:16–17:30 UTC, commit
+`3c25533`, `tabpfn-client` 0.6.0, `scikit-learn` 1.9.0), then v3.5 on seeds 7 and 123
+against the committed August v3 folds. Test folds and `y_true` are identical across the
+seed-42 runs and all eight non-TabPFN methods' predictions are bit-identical; for seeds 7
+and 123, August's per-fold baseline scores match today's (asserted by the analysis
+script). `norauto` has no home-turf sweep rows, so every method is a fresh fit.
+
+- 183,999 rows, 5 features: `DistLimit` and `GeoRegion` (categorical, 6 levels each),
+  `Male`, `Young` (binary), `Expo` (exposure, numeric); 4.6% positive.
+
+Analysis: `analyze_version_retest.py norauto` → `version_retest_norauto.csv`.
+
+### 19.2 v3 → v3.5 (seed 42, same day)
+
+| Metric | v3 | v3.5 | Δ | Paired p | v3.5 better on |
+| --- | --- | --- | --- | --- | --- |
+| Log loss | 0.17619 ± 0.00061 | **0.17446 ± 0.00053** | −0.00172 | **<0.0001** | 5/5 folds |
+| Brier | 0.04274 ± 0.00006 | **0.04260 ± 0.00006** | −0.00014 | **0.0001** | 5/5 |
+| AUC | 0.70158 ± 0.00438 | 0.70077 ± 0.00443 | −0.00082 | 0.27 | 1/5 |
+| PR-AUC | 0.10691 ± 0.00299 | 0.10709 ± 0.00277 | +0.00019 | 0.79 | 3/5 |
+| Lift@10% | 2.563 ± 0.063 | 2.576 ± 0.046 | +0.013 | 0.50 | 3/5 |
+
+Seeds 7 and 123 repeat it: log loss −0.00170 / −0.00178 and Brier −0.00014 / −0.00015,
+5/5 folds each (p ≤ 0.0011); AUC −0.0010 / −0.0005, not significant.
+
+### 19.3 Against LightGBM, the published rival — the loss reverses on every seed
+
+| Seed | v3 | **v3.5** | LightGBM | v3.5 − LGBM log loss | p | Brier p | AUC Δ | AUC p |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 42 | 0.17619 | **0.17446** | 0.17518 | −0.00072 | 0.0018 | 0.0020 | +0.0037 | 0.008 |
+| 7 | 0.17620 | **0.17450** | 0.17533 | −0.00083 | 0.0030 | 0.0026 | +0.0045 | 0.006 |
+| 123 | 0.17623 | **0.17445** | 0.17533 | −0.00089 | <0.0001 | 0.0042 | +0.0043 | 0.005 |
+
+v3.5 beats LightGBM on log loss and Brier on 15/15 folds and is rank 1 of the 9 harness
+methods on log loss, Brier and AUC on every seed. Against the other harness baselines and
+§14.13's `glm_eng` (seed 42: 0.17817) the log-loss and Brier margins are larger still
+(p ≤ 0.004).
+
+### 19.4 An exposure-aware GLM edges both versions
+
+The harness GLMs, the one-hot LR and §14.13's `glm_eng` all take `Expo` **raw**. With
+log(`Expo`) added to the one-hot LR — the usual actuarial treatment of exposure — the
+linear model becomes the strongest model on this dataset: log loss **0.17432**, against
+the one-hot LR's 0.17755 without it.
+
+v3.5 − that GLM (paired t, df=4; folds where v3.5 is better):
+
+| Seed | Log loss | Brier | AUC | PR-AUC |
+| --- | --- | --- | --- | --- |
+| 42 | +0.00014 (p=0.11, 1/5) | +0.00002 (p=0.051, 0/5) | −0.0012 (p=0.20, 1/5) | −0.0010 (p=0.054, 1/5) |
+| 7 | +0.00020 (p=0.049, 1/5) | +0.00003 (p=0.019, 0/5) | −0.0016 (p=0.11, 1/5) | −0.0015 (p=0.008, 0/5) |
+| 123 | +0.00015 (p=0.057, 0/5) | +0.00002 (p=0.13, 1/5) | −0.0010 (p=0.044, 0/5) | −0.0010 (p=0.23, 1/5) |
+
+The GLM is better on 13/15 folds for log loss, 14/15 for Brier, 13/15 for AUC and 13/15
+for PR-AUC. Per seed the gaps are small and only sometimes significant, so the fair
+reading is **v3.5 ≈ the exposure-aware GLM, with the GLM marginally ahead**.
+
+The **published v3** loses to the same GLM on every seed — log loss +0.0019 and Brier
++0.0002 (0/15 folds, p ≤ 0.0003); AUC −0.0003 to −0.0006 (v3 better on 1/15 folds;
+p=0.078 / 0.037 / 0.21); PR-AUC −0.0012 to −0.0015 (p=0.049 / 0.056 / 0.043). So
+§14.11–§14.13's "TabPFN AUC #1 on all six classification datasets" does not hold on
+`norauto` once the linear baseline treats exposure correctly. This is a property of the
+baselines, not of the version change, and is outside #186: it is flagged for a separate
+follow-up that re-tests all six datasets against exposure-aware GLMs. For contrast, on
+`ausprivauto0405` v3 keeps its AUC lead over the same specification (+0.0021, p=0.027,
+5/5 on seed 42; +0.0016, p=0.031, 5/5 on seed 7; +0.0011, p=0.15 on seed 123).
+
+### 19.5 No alias drift — second dataset
+
+Today's v3 against the committed August v3 on the seed-42 folds: log loss 0.176188 vs
+0.176192 (max per-fold difference 9.7e-6), Brier 1.5e-6, AUC 1.0e-4, PR-AUC 2.0e-4. This
+repeats §18.5 on a dataset nearly three times larger.
+
+### 19.6 Caveats
+
+- **Frontier flag, reversed pattern from §18.** August's v3 was on the frontier at seed 42
+  (and still is today) but off it at seeds 7 and 123; v3.5 is on it at all three. The flag
+  is computed over the 9 harness methods only, so the exposure-aware GLM (fitted offline)
+  does not enter it.
+- **AUC dips v3 → v3.5 on every seed of both Tier 3 datasets** — six of six cells, by
+  0.0005–0.0010, none significant alone. Six same-direction results make it a pattern
+  worth stating: v3.5 trades a little ranking for calibration on these two datasets.
+- **The GLM comparison is one specification.** log(`Expo`) as a covariate approximates an
+  exposure offset; an explicit offset or a complementary log-log link could do slightly
+  better still.
+- `bemtl97` remains open, with the §15.2 sweep-reuse caveat (§18.6).
+
+### 19.7 Cost
+
+1,262,655 credits, matching the `estimate_cost` quote: 176,265 for v3 (35,253 per fold)
+and 362,130 per v3.5 seed (72,426 per fold) × 3. No retries. Tier 3 to date: 1,536,110.
+
+### 19.8 Bottom line
+
+> On `norauto`, v3.5 **reverses the published calibration loss to LightGBM** on every
+> seed and ranks first among the harness methods on log loss, Brier and AUC. It is **not**
+> the best model on the dataset: an ordinary logistic GLM with one-hot factors and
+> log(exposure) is marginally better than v3.5 on most folds, and clearly better than the
+> published v3 on calibration — while matching or slightly beating it on AUC. The §14.11–§14.13
+> verdict for `norauto` should be read through §19.4 until the follow-up re-tests all six
+> datasets against exposure-aware GLMs.
+
+Evidence: `results/20261007-171627/` (v3, seed 42), `results/20261007-172201/` (v3.5,
+seed 42), `results/20261007-172949/` (v3.5, seed 7), `results/20261007-173750/` (v3.5,
+seed 123); `scripts/eval/insurance_benchmark_v1/predictions/norauto__seed42__v3_default.npz`
+and `norauto__seed{42,7,123}__v3.5_default.npz`, each with a manifest carrying
+`predictions_sha256`; `scripts/eval/insurance_benchmark_v1/version_retest_norauto.csv`.
 
 ## 9. Source Workbooks
 

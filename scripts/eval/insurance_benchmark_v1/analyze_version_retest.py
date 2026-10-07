@@ -14,11 +14,14 @@ Sections:
   2. Alias drift: today's v3 folds vs the committed August v3 rows
      (frontier_pr_auc_results.csv, seed 42). `v3_default` is a server-side alias, so a
      mismatch would mean the checkpoint behind it moved (§17.4 candidate 2).
-  3. Per seed: v3.5 vs v3, and v3.5 vs the linear family —
-       lr             harness default (categoricals as integer codes)
+  3. Per seed: v3.5 vs v3, vs every harness method from the same run (lr, logisticglm,
+     the GLMs, rf, cat, lgbm, xgb — the linear ones take categoricals as integer codes),
+     and vs stronger linear specifications —
        onehot_lr      one-hot categoricals + standardised numerics (§17.3's fair LR)
-       onehot_lr_logexp  onehot_lr + log(Exposure), when the data has Exposure
+       onehot_lr_logexp  onehot_lr + log(exposure), when the data has an exposure column
        glm_eng        §14.13's feature-engineered GLM, committed per-fold (seed 42 only)
+     plus v3 vs the same stronger linear specifications, to test the published v3
+     verdict against baselines it never faced (§19.4).
      v3 for seed 42 is the same-day run; for other seeds it is the committed August row,
      valid because section 2 shows no drift. Each non-42 seed is gated on August's
      baseline scores matching today's per fold, i.e. the folds are the same ones.
@@ -54,6 +57,7 @@ N_FOLDS = 5
 AUG_PER_FOLD = HERE / "frontier_pr_auc_results.csv"       # §14.12, Aug 2026, v3 + baselines
 TUNED_PER_FOLD = HERE / "frontier_tuned_baseline_results.csv"  # §14.13, glm_eng, seed 42
 METRIC = fb.metric_fn({})
+EXPOSURE_COLS = ("Exposure", "Expo")  # ausprivauto0405, norauto
 
 
 def load_store(ds_name: str, seed: int, version: str) -> dict[str, np.ndarray]:
@@ -86,7 +90,7 @@ def onehot_lr_scores(X: pd.DataFrame, y: np.ndarray, folds, cats: list[str], num
 
 
 def paired_rows(x: pd.DataFrame, ref: pd.DataFrame, **tags) -> list[dict]:
-    """One row per metric for delta = x - ref (x = v3.5 throughout)."""
+    """One row per metric for delta = x - ref (x is v3.5, or v3 for the fair-baseline rows)."""
     out = []
     for mt in METRICS:
         d = x[mt].to_numpy() - ref[mt].to_numpy()
@@ -162,10 +166,12 @@ def main() -> None:
             v3 = aug_s[aug_s.method == "tabpfn"].sort_values("fold")[METRICS].reset_index(drop=True)
             v3_src = "august"
         v35 = scores(v35_store, "tabpfn")
-        refs = {"v3": v3, "lr": scores(v35_store, "lr"),
-                "onehot_lr": onehot_lr_scores(X, y, folds, cats, nums)}
-        if "Exposure" in X:
-            refs["onehot_lr_logexp"] = onehot_lr_scores(X.assign(logExposure=np.log(X["Exposure"])),
+        refs = {"v3": v3}
+        refs.update({m: scores(v35_store, m) for m in methods if m != "tabpfn"})
+        refs["onehot_lr"] = onehot_lr_scores(X, y, folds, cats, nums)
+        expo = next((c for c in EXPOSURE_COLS if c in X), None)
+        if expo is not None:
+            refs["onehot_lr_logexp"] = onehot_lr_scores(X.assign(logExposure=np.log(X[expo])),
                                                         y, folds, cats, nums + ["logExposure"])
         if s == 42 and TUNED_PER_FOLD.exists():
             t = pd.read_csv(TUNED_PER_FOLD)
@@ -177,6 +183,12 @@ def main() -> None:
         print(f"  {'reference':17}" + "".join(f"{mt:>26}" for mt in METRICS))
         for name, ref in refs.items():
             rs = paired_rows(v35, ref, seed=s, a="v3.5", b=name, v3_source=v3_src)
+            rows.extend(rs)
+            print(f"  {name:17}" + "".join(
+                f"{r['delta']:+11.5f} p={r['p_paired']:.4f} {r['a_better_folds']}/5" for r in rs))
+        print(f"  -- v3 ({v3_src}) − fair linear reference")
+        for name in [n for n in ("onehot_lr", "onehot_lr_logexp", "glm_eng") if n in refs]:
+            rs = paired_rows(v3, refs[name], seed=s, a="v3", b=name, v3_source=v3_src)
             rows.extend(rs)
             print(f"  {name:17}" + "".join(
                 f"{r['delta']:+11.5f} p={r['p_paired']:.4f} {r['a_better_folds']}/5" for r in rs))
