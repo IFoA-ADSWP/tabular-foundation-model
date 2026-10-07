@@ -1836,6 +1836,15 @@ That outcome also bears on §16: its deltas compare **August** `v3_default` agai
 **September** `v3.5_default`, so any alias drift would be folded into what §16 attributes to
 the version change. The same-day paired design here is immune to it.
 
+**Update 2026-10-07 — candidate 2 ruled out.** The test ran under Tier 3 on
+`ausprivauto0405` instead of `coil2000` (master report §18.5,
+[#215](https://github.com/IFoA-ADSWP/tabular-foundation-model/pull/215)). Today's
+`v3_default` (client 0.6.0) reproduces the committed August per-fold values (client 0.3.3)
+to ~1e-5 log loss and ≤ 1.1e-4 AUC, about 30× below the fold SE. A swapped checkpoint
+would show on every dataset, so alias drift cannot explain the 0.023 AUC gap here.
+Candidates 1 (harness preprocessing) and 3 (fewer training rows) remain, and the cause is
+still unverified. The same result makes it unlikely that §16's deltas include alias drift.
+
 ### 17.5 Caveats
 
 - **Weak default linear baselines, benchmark-wide.** The frontier harness gives `lr` and
