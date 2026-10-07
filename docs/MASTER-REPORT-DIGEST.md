@@ -104,7 +104,7 @@ foundation model, not in adapting it.
 Method note worth carrying: arm B had never completed a run anywhere and was believed to be
 memory-bound. That diagnosis was wrong — it failed in 2-5 s with 50.8 GB of VRAM free, on a
 call-sequence defect — and the fix was to use the trainer TabPFN already ships rather than
-driving the model by hand. Details in `FINE_TUNING_PILOT_RESULTS.md` §5b-§5c.
+driving the model by hand. Details in `docs/reference/FINE_TUNING_PILOT_RESULTS.md` §5b-§5c.
 
 ## §15 Version-drift re-test policy (08-04, docs-only)
 

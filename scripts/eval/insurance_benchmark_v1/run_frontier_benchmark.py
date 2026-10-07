@@ -81,6 +81,8 @@ Usage:
     python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --save-predictions coil2000 # persist per-fold (y_true, y_pred, test_idx) for every
                                                                                                  #   method to predictions/<dataset>__seed<seed>__<model_path>.npz + .manifest.json (#122, #186);
                                                                                                  #   forces fresh fits (like --pr-auc), read-back verified in-run
+    python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --verify-predictions    # check committed predictions/*.npz against each manifest's
+                                                                                                 #   predictions_sha256 without refitting; exit 1 on mismatch
 
 Outputs (same dir as this script), per dataset:
     frontier_results_<dataset>.csv   method | mean <metric> | SE | n_params | on-frontier
@@ -719,6 +721,55 @@ def sanity_check(sweep_full: pd.DataFrame, folds: list[tuple[np.ndarray, np.ndar
 # in fold_scores/metric_fn, not part of the captured artifact; a future rescoring picks
 # its own treatment instead of inheriting today's (clip_convention notes it below).
 # ---------------------------------------------------------------------------
+PREDICTIONS_SHA256_SCHEME = (
+    "sha256 over arrays in sorted key order; per array: key, NUL, dtype.str, NUL, shape, "
+    "NUL, C-contiguous data bytes. Hashes array content, not the .npz container, so "
+    "zip timestamps/compression do not affect it"
+)
+
+
+def predictions_data_sha256(arrays) -> str:
+    """Content digest of an .npz payload (any mapping of key -> array, incl. np.load()).
+    Same idea as run_pilot.py's per-arm `predictions_sha256` (array data, not file bytes),
+    extended to the many arrays one frontier .npz holds."""
+    import hashlib
+
+    h = hashlib.sha256()
+    for key in sorted(arrays.keys()):
+        a = np.ascontiguousarray(arrays[key])
+        for part in (key, a.dtype.str, repr(a.shape)):
+            h.update(part.encode() + b"\0")
+        h.update(a.tobytes())
+    return h.hexdigest()
+
+
+def verify_predictions_dir(pred_dir: Path) -> int:
+    """Check every committed predictions/*.npz against its manifest's predictions_sha256.
+    Returns the number of failures (mismatch or missing .npz); manifests that predate the
+    field are reported, not failed."""
+    import json
+
+    failures = 0
+    for manifest_path in sorted(pred_dir.glob("*.manifest.json")):
+        npz_path = manifest_path.with_name(manifest_path.name.replace(".manifest.json", ".npz"))
+        claim = json.loads(manifest_path.read_text()).get("predictions_sha256")
+        if claim is None:
+            print(f"  NO HASH  {npz_path.name} (manifest predates predictions_sha256)")
+            continue
+        if not npz_path.exists():
+            print(f"  MISSING  {npz_path.name}")
+            failures += 1
+            continue
+        with np.load(npz_path) as data:
+            got = predictions_data_sha256(data)
+        if got == claim:
+            print(f"  OK       {npz_path.name}")
+        else:
+            print(f"  MISMATCH {npz_path.name}: manifest {claim[:16]}, file {got[:16]}")
+            failures += 1
+    return failures
+
+
 def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: list[str],
                            n_folds: int, problem_type: str, metric_name: str, seed: int) -> Path:
     """Write predictions/<dataset>__seed<seed>__<model_path>.npz + sibling .manifest.json
@@ -748,6 +799,9 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
             assert np.isfinite(y_pred).all(), f"fold {k}: NaN/Inf in {m} predictions"
 
     np.savez_compressed(npz_path, **pred_store)
+    # hash what landed on disk, not the in-memory store, so the manifest describes the file
+    with np.load(npz_path) as saved:
+        predictions_sha256 = predictions_data_sha256(saved)
 
     try:
         import importlib.metadata
@@ -786,6 +840,8 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
         "tabpfn_client_version": tabpfn_client_version,
         "script_git_sha": git_sha,
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "predictions_sha256": predictions_sha256,
+        "predictions_sha256_scheme": PREDICTIONS_SHA256_SCHEME,
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
     print(f"SAVED PREDICTIONS: {npz_path.name} ({len(methods)} methods x {n_folds} folds) "
@@ -1019,6 +1075,9 @@ def make_parser() -> argparse.ArgumentParser:
                         help="persist per-fold test predictions (.npz + manifest) under "
                              "predictions/ for retrospective re-scoring (#122); forces fresh "
                              "fits for every method, same as --pr-auc")
+    parser.add_argument("--verify-predictions", action="store_true",
+                        help="check every predictions/*.npz against its manifest's "
+                             "predictions_sha256 and exit (no fitting; exit 1 on any mismatch)")
     parser.add_argument("--seed", type=int, default=42, metavar="N",
                         help="StratifiedKFold random_state (default 42; seed != 42 writes "
                              "frontier_results_<ds>_seed<N>.csv/.png so canonical seed-42 files are not clobbered)")
@@ -1083,6 +1142,8 @@ def main() -> None:
     t0 = time.time()
     parser = make_parser()
     args = parser.parse_args()
+    if args.verify_predictions:
+        sys.exit(1 if verify_predictions_dir(PREDICTIONS_DIR) else 0)
     if args.data is not None and args.target is None:
         parser.error("--target is required when --data is given")
     SEED = args.seed

@@ -4,6 +4,8 @@
 
 ## "There's Life in the Old GLM Yet!" - Paper Replication Notebook
 
+> Hub: `docs/REPRODUCIBILITY_RUNBOOK.md` maps every committed result to its exact command across both eras — use it instead of hunting through guides.
+
 This document provides step-by-step instructions to replicate the experiments from the paper.
 
 ---

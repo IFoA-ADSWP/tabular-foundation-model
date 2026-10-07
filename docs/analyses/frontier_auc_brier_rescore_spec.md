@@ -10,7 +10,7 @@ new columns.
 
 The canonical frontier protocol scores classification datasets on log loss only, so
 "how much better is TabPFN than a standard GLM" cannot be answered on it: the only AUC
-pairs are the older 80/20 head-to-head (`docs/reports/MULTI_DATASET_GLM_VS_TABPFN_SUMMARY.md`,
+pairs are the older 80/20 head-to-head (`docs/archive/MULTI_DATASET_GLM_VS_TABPFN_SUMMARY.md`,
 4 datasets, GLM `class_weight='balanced'`, TabPFN `random_state=42` — neither matches
 the frontier's method configs) and the 2 lapse datasets (§14.10 of
 `docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md`); Brier — named the "secondary"

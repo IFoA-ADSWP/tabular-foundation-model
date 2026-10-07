@@ -100,7 +100,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup and contribution gui
 
 ## Key Findings
 
-**Current verdict (2026-08-06):** TabPFN is the best risk-ranking model in the suite — AUC #1 over GLMs, LightGBM, CatBoost, XGBoost and RF on all six canonical classification datasets (deltas +0.006 to +0.033 over the best GLM, five ≥2.5 SE (four >2.5); calibration never significantly worse, log loss better or tied vs the best GLM), holding #1 at production scale up to 184K rows (master report §14.11; [`TABPFN_BENCHMARK_SUMMARY.md`](docs/reports/TABPFN_BENCHMARK_SUMMARY.md)). It wins the business case where the question is which policies are risky — underwriting triage, lapse/surrender propensity, claim/no-claim targeting — and stays on the bench for pricing/regression targets where GBDTs win. The eudirectlapse loss below is the known exception.
+**Current verdict (2026-08-06):** TabPFN is the best risk-ranking model in the suite — AUC #1 over GLMs, LightGBM, CatBoost, XGBoost and RF on all six canonical classification datasets (deltas +0.006 to +0.033 over the best GLM, five ≥2.5 SE (four >2.5); calibration never significantly worse, log loss better or tied vs the best GLM), holding #1 at production scale up to 184K rows (master report §14.11; [`docs/archive/TABPFN_BENCHMARK_SUMMARY.md`](docs/archive/TABPFN_BENCHMARK_SUMMARY.md)). It wins the business case where the question is which policies are risky — underwriting triage, lapse/surrender propensity, claim/no-claim targeting — and stays on the bench for pricing/regression targets where GBDTs win. The eudirectlapse loss below is the known exception.
 
 On the eudirectlapse lapse-prediction task (13% lapse rate):
 
@@ -110,16 +110,22 @@ On the eudirectlapse lapse-prediction task (13% lapse rate):
 | **Calibration (Brier)** | TabPFN after isotonic calibration **0.1080** vs GLM 0.1098 |
 | **Bottom line** | TabPFN matches a tuned GLM out-of-the-box with no traditional training. Post-hoc calibration gives it a small edge on probability accuracy — relevant for pricing and reserving. |
 
-See [`docs/reports/TECHNICAL_COMPANION.md`](docs/reports/TECHNICAL_COMPANION.md) for a walkthrough of every metric.
+See [`docs/archive/TECHNICAL_COMPANION.md`](docs/archive/TECHNICAL_COMPANION.md) for a walkthrough of every metric.
 
 ## Documentation Index
 
 The docs are extensive. Start here:
 
-- **`docs/reports/REPORT_REGISTRY.md`** — maps every report to its source notebook and evidence files
-- **`docs/reports/TECHNICAL_COMPANION.md`** — explains all metrics in actuarial context (best first read)
+- **`docs/REPORT_REGISTRY.md`** — maps every report to its source notebook and evidence files
+- **`docs/current/FINETUNING_PILOT_DESIGN.md`** — **start here for the current funded fine-tuning proposal**: diagnostics, full in-domain pilot, arms, metrics, and decision rules
+- **`docs/current/FINETUNING_STATUS_BRIEF.md`** — one-page stakeholder summary of the two completed probes and the funded work
+- **`docs/current/FINETUNING_FINDINGS.md`** — current evidence registry; use it to check whether a claim is current or superseded
+- **`docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md`** — detailed diagnostic methods for Phase 1
+- **`docs/archive/TECHNICAL_COMPANION.md`** — explains all metrics in actuarial context (best first read)
 - **`docs/REPLICATION_SETUP_GUIDE.md`** — step-by-step to reproduce the paper results
-- **`docs/status/STATUS_REPORT_FINAL.md`** — summary of validated findings and recommendations
+- **`docs/archive/archive/status/STATUS_REPORT_FINAL.md`** — summary of validated findings and recommendations
+
+The other `docs/current/PILOT_2_*` files are supporting execution, cost, statistical, and decision appendices. If a document conflicts with the canonical full pilot design, use the canonical design and treat the older text as historical or supporting material.
 
 ## Dependencies
 
@@ -128,6 +134,7 @@ Python 3.10+. Core stack: numpy, pandas, scikit-learn, torch, TabPFN, matplotlib
 ## References
 
 - [TabPFN upstream](https://github.com/PriorLabs/TabPFN) — the foundation model
+- [Molnar, *Tabular Foundation Models*](https://tabularfoundationmodels.com/) — external research context; see [`docs/reference/TABULAR_FOUNDATION_MODELS_MOLNAR.md`](docs/reference/TABULAR_FOUNDATION_MODELS_MOLNAR.md)
 - [CASdatasets](https://CRAN.R-project.org/package=CASdatasets) — R package supplying the datasets
 - `legacy/adswp_project_scripts/` — original R analysis scripts
 
