@@ -25,5 +25,8 @@
   "model_version": "v3.5_default",
   "tabpfn_client_version": "0.6.0",
   "script_git_sha": "4a6897fd12ef4d3734154d578343fc248babedbb",
-  "created_at": "2026-09-17T07:50:20Z"
+  "created_at": "2026-09-17T07:50:20Z",
+  "predictions_sha256": "c9c5322329bf691b5892c336dab5758bc5bd34ddee70378af8c6edc1475f784d",
+  "predictions_sha256_scheme": "sha256 over arrays in sorted key order; per array: key, NUL, dtype.str, NUL, shape, NUL, C-contiguous data bytes. Hashes array content, not the .npz container, so zip timestamps/compression do not affect it",
+  "predictions_sha256_backfilled": "2026-10-07: computed from the .npz as committed in e5c6a10, not at production time; pins that file from here on, cannot attest it is what the 2026-09-17 run wrote"
 }
