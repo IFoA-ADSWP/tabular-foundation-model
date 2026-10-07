@@ -166,7 +166,7 @@ def test_write_predictions_npz_and_readback(tmp_path, monkeypatch):
                                           problem_type="classification",
                                           metric_name="log_loss", seed=42)
     assert npz_path.exists()
-    manifest_path = tmp_path / "toy__seed42.manifest.json"
+    manifest_path = npz_path.with_suffix(".manifest.json")
     assert manifest_path.exists()
 
     import json
