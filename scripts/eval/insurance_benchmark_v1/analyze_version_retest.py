@@ -57,7 +57,7 @@ N_FOLDS = 5
 AUG_PER_FOLD = HERE / "frontier_pr_auc_results.csv"       # §14.12, Aug 2026, v3 + baselines
 TUNED_PER_FOLD = HERE / "frontier_tuned_baseline_results.csv"  # §14.13, glm_eng, seed 42
 METRIC = fb.metric_fn({})
-EXPOSURE_COLS = ("Exposure", "Expo")  # ausprivauto0405, norauto
+EXPOSURE_COLS = ("Exposure", "Expo", "expo")  # ausprivauto0405, norauto, bemtl97
 
 
 def load_store(ds_name: str, seed: int, version: str) -> dict[str, np.ndarray]:

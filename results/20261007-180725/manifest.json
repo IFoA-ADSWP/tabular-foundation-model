@@ -1,0 +1,15 @@
+{
+  "run_id": "20261007-180725",
+  "utc": "2026-10-07T18:07:25Z",
+  "git_sha": "685c392f3f2f97451a44685663dbff78f6eb0f56",
+  "seed": 7,
+  "pr_auc_mode": false,
+  "argv": [
+    "scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py",
+    "--save-predictions",
+    "--seed",
+    "7",
+    "bemtl97"
+  ],
+  "note": null
+}
