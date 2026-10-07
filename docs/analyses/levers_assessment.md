@@ -34,6 +34,6 @@ Keep, sharpened. "Levers narrow but do not close the at-scale gap" is confirmed 
 ## References
 - Master report: docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md (§5, §8, §11.4, §12.1, §12.3, §13, §13.5, §14, §14.2, §14.8, §14.10, §15)
 - docs/analyses/regime_characterization.md
-- docs/reports/TABPFN_BENCHMARK_SUMMARY.md (Conclusion & adoption guidance)
+- docs/archive/TABPFN_BENCHMARK_SUMMARY.md (Conclusion & adoption guidance)
 - scripts/legacy_finetuning/ (fine-tune pipeline)
 - Issue #54
