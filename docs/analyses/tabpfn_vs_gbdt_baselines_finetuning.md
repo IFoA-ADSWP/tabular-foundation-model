@@ -1882,6 +1882,157 @@ table, kept as the historical v3 record), `docs/archive/PRE_FINETUNING_INVESTIGA
 ("EU Lapse is the disclosed exception"), and `docs/reference/FINE_TUNING_PILOT_RESULTS.md`
 §4 finding 2. Read them through this section.
 
+## 18. Addendum — Tier 3 calibration re-test: `ausprivauto0405` (issue #186, 2026-10-07)
+
+Tier 3 of #186 covers the three classification datasets where TabPFN ranks risks best but
+loses on calibration. This section covers the first, `ausprivauto0405`; `norauto` and
+`bemtl97` are not yet run. The target is §14.13.3's documented exception: on
+`ausprivauto0405` **the entire linear family beat TabPFN v3 on log loss and Brier**,
+paired-significant and stable across split seeds 42/7/123, while TabPFN stayed AUC #1.
+
+### 18.1 Design — same-day pair, then two more seeds
+
+- **Seed 42, both versions, same day.** As in §17: one environment, one commit
+  (`d0dd149`), `tabpfn-client` 0.6.0, `scikit-learn` 1.9.0,
+  `run_frontier_benchmark.py --save-predictions ausprivauto0405` run once with
+  `TABPFN_MODEL_PATH=v3_default` and once with `v3.5_default`, five minutes apart.
+  Test folds and `y_true` are identical across the runs, and all eight non-TabPFN methods'
+  predictions are bit-identical (max difference 0): the model is the only variable.
+- **Seeds 7 and 123, v3.5 only.** v3 for those seeds is the committed August per-fold
+  row (`frontier_pr_auc_results.csv`, §14.12.4). That comparison is valid because §18.5
+  shows `v3_default` has not drifted, and because August's per-fold baseline scores match
+  today's on each seed to ≤ 1.2e-5 (the analysis script asserts this), so the folds are
+  the same ones.
+- 67,856 rows, 6 features (4 categorical: `VehBody` 13 levels, `DrivAge` 6, `VehAge` 4,
+  `Gender` 2), 6.8% positive. `StratifiedKFold(5, shuffle=True, random_state=seed)`.
+- Paired t over the 5 folds of one seed, df=4, two-sided. Seeds are reported side by
+  side, never pooled — folds from different seeds overlap.
+
+Analysis: `scripts/eval/insurance_benchmark_v1/analyze_version_retest.py ausprivauto0405`
+(no API calls; reads the stored predictions) → `version_retest_ausprivauto0405.csv`.
+
+### 18.2 v3 → v3.5 (seed 42, same day) — calibration improves, ranking does not move
+
+| Metric | v3 | v3.5 | Δ | Paired p | v3.5 better on |
+| --- | --- | --- | --- | --- | --- |
+| Log loss | 0.24026 ± 0.00037 | **0.23816 ± 0.00028** | −0.00210 | **0.0002** | 5/5 folds |
+| Brier | 0.06247 ± 0.00005 | **0.06222 ± 0.00005** | −0.00025 | **0.0001** | 5/5 |
+| AUC | 0.66224 ± 0.00252 | 0.66156 ± 0.00248 | −0.00068 | 0.32 | 2/5 |
+| PR-AUC | 0.11289 ± 0.00160 | 0.11413 ± 0.00130 | +0.00124 | 0.086 | 4/5 |
+| Lift@10% | 1.877 ± 0.044 | 1.877 ± 0.041 | −0.00001 | 1.00 | 3/5 |
+
+TabPFN moves from **rank 5/9 to 1/9** on both log loss and Brier, and stays 1/9 on AUC,
+PR-AUC and lift. On seed 42 its frontier flag changes **no → yes**. (At seeds 7 and 123,
+August's v3 was already on the frontier — the D3 rule allowed it within one SE — so the
+flag does not change there.)
+
+### 18.3 Against the linear family — including fair baselines
+
+The harness's `lr` and `logisticglm` take the four categoricals as integer codes
+(§17.5), which handicaps them. v3.5 is therefore also tested against three stronger
+linear specifications: §17.3's one-hot LR (one-hot categoricals + standardised numerics);
+the same plus log(Exposure), since exposure drives claim occurrence; and §14.13's
+feature-engineered `glm_eng` (pairwise interactions, tuned C), whose per-fold values are
+committed for seed 42 only. Seed 42, delta = v3.5 − reference:
+
+| Reference | Its log loss | Log loss Δ | p | Brier Δ | p | AUC Δ | p |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `lr` (harness, integer codes) | 0.23947 | −0.00130 | 0.0002 | −0.00016 | 0.0007 | +0.00486 | 0.006 |
+| One-hot LR | 0.23921 | −0.00104 | 0.0002 | −0.00013 | 0.0001 | +0.00299 | 0.024 |
+| `glm_eng` (§14.13) | 0.23930 | −0.00114 | 0.0012 | −0.00015 | 0.0068 | +0.00296 | 0.020 |
+| One-hot LR + log(Exposure) | **0.23857** | **−0.00040** | **0.040** | −0.00005 | 0.0052 | +0.00142 | 0.088 |
+
+The one-hot LR + log(Exposure) is the strongest linear model this project has fitted on
+`ausprivauto0405` — stronger than §14.13's `glm_eng`. v3.5 beats it on log loss (4/5 folds)
+and Brier (5/5), but the log-loss margin is a third of the margin over the harness `lr`,
+and the AUC edge over it is no longer significant.
+
+### 18.4 Seed stability — the win holds on all three seeds
+
+Log loss (lower is better); last column is v3.5 vs the strongest linear model:
+
+| Seed | v3 | **v3.5** | `lr` | One-hot LR | One-hot LR + log(Exp) | v3.5 − strongest | p | Folds |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 42 | 0.24026 | **0.23816** | 0.23947 | 0.23921 | 0.23857 | −0.00040 | 0.040 | 4/5 |
+| 7 | 0.24033 | **0.23820** | 0.23943 | 0.23918 | 0.23853 | −0.00034 | 0.028 | 5/5 |
+| 123 | 0.24037 | **0.23824** | 0.23941 | 0.23917 | 0.23851 | −0.00027 | 0.043 | 4/5 |
+
+On every seed, v3.5 beats v3 on log loss and Brier on 5/5 folds (p ≤ 0.0002), and beats
+the harness `lr` and the one-hot LR on log loss and Brier on 5/5 folds (p ≤ 0.009). Against
+the strongest linear model it wins log loss on 13/15 folds (p = 0.028–0.043 per seed) and
+Brier on 15/15 (p = 0.002–0.039).
+
+### 18.5 `v3_default` has not drifted since August (closes §17.4 candidate 2)
+
+`v3_default` is a server-side alias (§17.4), so today's v3 arm need not be August's
+checkpoint. On the seed-42 folds, today's v3 (client 0.6.0) against the committed
+August v3 (client 0.3.3, `frontier_pr_auc_results.csv`):
+
+| Metric | August | Today | Max per-fold difference |
+| --- | --- | --- | --- |
+| Log loss | 0.240264 | 0.240261 | 1.3e-5 |
+| Brier | 0.062468 | 0.062467 | 2.2e-6 |
+| AUC | 0.662210 | 0.662242 | 1.1e-4 |
+| PR-AUC | 0.112926 | 0.112892 | 2.7e-4 |
+
+The log-loss differences are ~30× smaller than the fold SE (3.7e-4). They are not zero —
+consistent with run-to-run variation in hosted inference — and the two folds where lift
+differs by 0.011 are one positive crossing the top-decile cut. Neither the checkpoint
+behind the alias nor the 0.3.3 → 0.6.0 client change shows a measurable effect.
+
+Two consequences:
+
+- **§17.4:** alias drift cannot explain the 0.023 AUC gap between the published
+  `eudirectlapse` number and the frontier harness — a swapped checkpoint would show on every
+  dataset. That leaves AutoGluon preprocessing (candidate 1) or the validation holdout
+  (candidate 3).
+- **§16:** its deltas compare August v3 with September v3.5; this result makes it unlikely
+  that alias drift contaminates them.
+
+### 18.6 Caveats
+
+- **Thin margin over a well-specified GLM.** Against one-hot LR + log(Exposure) the
+  log-loss gain is ~0.0003 (≈0.1%), with p = 0.03–0.04 per seed on 5 folds. Consistent
+  across seeds, but not large; with three seeds and several references, treat individual
+  p-values near 0.04 as indicative, not decisive.
+- **AUC dips slightly from v3 to v3.5** on every seed (−0.0005 to −0.0007; p = 0.20–0.32,
+  1–2/5 folds better). Not significant on any seed, but the direction repeats: v3.5 may trade
+  a little ranking for calibration. TabPFN remains AUC #1 of 9 on all three seeds.
+- **Offline baselines.** The one-hot LR variants are fitted by the analysis script, not by
+  the frontier harness, so they do not appear in `frontier_results_*.csv` or the frontier
+  flag.
+- **Lift@10%** differences are within noise for every comparison.
+- `bemtl97` and `norauto` are not covered. Before any `bemtl97` frontier claim, run with
+  `--save-predictions` (which forces fresh fits) or refresh the sweep first (§15.2).
+
+### 18.7 Cost
+
+273,455 credits, matching the `estimate_cost` quote obtained before running (which uploads
+no data and uses no quota): 124,485 for the seed-42 pair (v3 10,000 per fold, the per-call
+minimum; v3.5 14,897 per fold) plus 148,970 for seeds 7 and 123 on v3.5. No retries.
+
+### 18.8 Bottom line
+
+> On `ausprivauto0405`, §14.13.3's calibration exception **does not hold on v3.5**. The
+> same-day paired test shows v3.5 improving log loss and Brier on every fold, which moves
+> TabPFN from 5th to 1st of 9; the result holds on all three split seeds behind the
+> original claim. v3.5 also beats every linear specification tested — including one-hot
+> encoding with log(Exposure), the strongest fitted on this dataset — though over that
+> one the margin is narrow (~0.1% log loss). Describe it as **a narrow, consistent
+> calibration win**, not a dominant one. The v3 exception remains the correct statement
+> for v3.
+
+Not edited here, and still citing the v3 exception: §14.13.3 and §14.13.5 (kept as the
+historical v3 record), and the benchmark summary's verdict paragraph (now carries a
+pointer). Read them through this section.
+
+Evidence: `results/20261007-142055/` (v3, seed 42), `results/20261007-142301/` (v3.5,
+seed 42), `results/20261007-142813/` (v3.5, seed 7), `results/20261007-143205/` (v3.5,
+seed 123); `scripts/eval/insurance_benchmark_v1/predictions/ausprivauto0405__seed42__v3_default.npz`
+and `ausprivauto0405__seed{42,7,123}__v3.5_default.npz`, each with a manifest carrying
+`predictions_sha256`; `scripts/eval/insurance_benchmark_v1/analyze_version_retest.py`;
+`scripts/eval/insurance_benchmark_v1/version_retest_ausprivauto0405.csv`.
+
 ## 9. Source Workbooks
 
 - `scripts/benchmarks/run_home_turf_size_sweep.py` — home-turf size sweep runner (3 datasets × 3
