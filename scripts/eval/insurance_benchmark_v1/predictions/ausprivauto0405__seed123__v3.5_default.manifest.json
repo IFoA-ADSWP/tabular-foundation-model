@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "dataset": "ausprivauto0405",
+  "data_file": "ausprivauto0405.csv",
+  "target": "ClaimOcc",
+  "drop": [],
+  "problem_type": "classification",
+  "primary_metric": "log_loss",
+  "stored_scale_note": "target stored/used as returned by load_Xy (no additional transform on capture)",
+  "clip_convention": "poisson_deviance: y_pred clipped >= 1e-12 at scoring time (metric_fn); tweedieglm/poissonglm classification-mode mu clipped to [1e-6, 1-1e-6] at scoring time (run_dataset fold loop); stored arrays are raw, pre-clip",
+  "n_folds": 5,
+  "seed": 123,
+  "split": "StratifiedKFold(5, shuffle=True, random_state=123)",
+  "methods": [
+    "cat",
+    "lgbm",
+    "xgb",
+    "lr",
+    "logisticglm",
+    "tweedieglm",
+    "poissonglm",
+    "rf",
+    "tabpfn"
+  ],
+  "model_version": "v3.5_default",
+  "tabpfn_client_version": "0.6.0",
+  "script_git_sha": "d0dd1496dd222691d2208c9a8538b8fa6ce6cbed",
+  "created_at": "2026-10-07T14:34:31Z",
+  "predictions_sha256": "e4da21fa781c0950f413f43f647a36b0b007ae917550f8b310761ae1616bdb0c",
+  "predictions_sha256_scheme": "sha256 over arrays in sorted key order; per array: key, NUL, dtype.str, NUL, shape, NUL, C-contiguous data bytes. Hashes array content, not the .npz container, so zip timestamps/compression do not affect it"
+}
