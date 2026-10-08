@@ -41,11 +41,13 @@ classification-only — regression never reuses it):
 
   ausautoBI8999         target=AggClaim (already log-scale),  drop=[], metric=rmse
   ausprivauto0405_vehvalue target=VehValue (raw),             drop=[], metric=rmse
-  bemtl97_amount        target=amount (log1p),                drop=["claim"], metric=rmse
+  bemtl97_amount        target=amount (log1p),                drop=["claim","nclaims"], metric=rmse
   freMTPL2freq          target=ClaimNb,                       drop=["IDpol"], metric=poisson_deviance
 
-bemtl97_amount drops `claim` because claim == (amount > 0) at 100% — a deterministic
-leak of the target (verified). freMTPL2freq drops IDpol (unique ids) and replaces the
+bemtl97_amount drops `claim` and `nclaims`: claim == (amount > 0) and (nclaims > 0) ==
+(amount > 0) at 100% — deterministic leaks of the target's zero/non-zero split
+(verified). `nclaims` was only added to the drop list in #216; earlier results include
+it. freMTPL2freq drops IDpol (unique ids) and replaces the
 Exposure column with log(Exposure): Exposure is the natural Poisson offset (verified:
 no Exposure=0 rows), and log-offset is the standard GLM form. RMSE/poisson deviance
 are computed on the target AS STORED — no re-transform of the log-scale targets.
@@ -131,7 +133,8 @@ DATASETS = [
 # Regression-mode datasets (--regression flag) — always FRESH power, no sweep reuse.
 # Targets are used AS STORED (AggClaim is already log-scale, amount is log1p — no
 # re-transform; RMSE/deviance computed on the stored scale). bemtl97_amount drops
-# `claim`: verified claim == (amount > 0) at 100% — a deterministic leak of the target.
+# `claim` and `nclaims`: both are 100% determined by amount > 0 (deterministic leaks of
+# the target; `nclaims` dropped since #216).
 # freMTPL2freq drops IDpol (unique ids) and replaces Exposure with log(Exposure)
 # (natural Poisson offset; verified no Exposure=0 rows) via transform="log_exposure".
 # spanish_motor_freq: last policy-year per ID (53,502 rows), target N_claims_year;
@@ -141,7 +144,7 @@ DATASETS = [
 REG_DATASETS = [
     dict(name="ausautoBI8999", file="ausautoBI8999.csv", target="AggClaim", drop=[], metric="rmse"),
     dict(name="ausprivauto0405_vehvalue", file="ausprivauto0405.csv", target="VehValue", drop=[], metric="rmse"),
-    dict(name="bemtl97_amount", file="bemtl97.csv", target="amount", drop=["claim"], metric="rmse"),
+    dict(name="bemtl97_amount", file="bemtl97.csv", target="amount", drop=["claim", "nclaims"], metric="rmse"),
     dict(name="freMTPL2freq", file="freMTPL2freq.csv", target="ClaimNb", drop=["IDpol"], metric="poisson_deviance", transform="log_exposure"),
     dict(name="spanish_motor_freq", file="spanish_motor_freq.csv", target="N_claims_year", drop=[], metric="poisson_deviance"),
     dict(name="spanish_motor_severity", file="spanish_motor_severity.csv", target="Cost_claims_year", drop=[], metric="rmse"),
