@@ -94,9 +94,18 @@ Manifest JSON (schema v1):
   "model_version": "v3_default",
   "tabpfn_client_version": "0.3.3",
   "script_git_sha": "<git rev-parse HEAD at run time>",
-  "created_at": "<ISO-8601 UTC>"
+  "created_at": "<ISO-8601 UTC>",
+  "predictions_sha256": "<content digest of the .npz arrays>",
+  "predictions_sha256_scheme": "<how the digest is computed>"
 }
 ```
+
+`predictions_sha256` (added 2026-10-07, #186 review) makes the committed `.npz` checkable
+against the manifest that describes it, without refitting:
+`run_frontier_benchmark.py --verify-predictions`. It hashes array content (sorted keys;
+key, dtype, shape, bytes), not the zip container, mirroring `predictions_sha256` in
+`scripts/run_pilot.py`. Manifests written before the field existed have it backfilled
+and say so in `predictions_sha256_backfilled`.
 
 The version block is mandatory: without it, retrospective metrics inherit exactly the
 ambiguity the §15 version-drift policy exists to prevent. Stored predictions also

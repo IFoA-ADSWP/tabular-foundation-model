@@ -166,7 +166,7 @@ def test_write_predictions_npz_and_readback(tmp_path, monkeypatch):
                                           problem_type="classification",
                                           metric_name="log_loss", seed=42)
     assert npz_path.exists()
-    manifest_path = tmp_path / "toy__seed42.manifest.json"
+    manifest_path = npz_path.with_suffix(".manifest.json")
     assert manifest_path.exists()
 
     import json
@@ -177,6 +177,9 @@ def test_write_predictions_npz_and_readback(tmp_path, monkeypatch):
     assert manifest["seed"] == 42
     assert manifest["schema_version"] == 1
     assert len(manifest["script_git_sha"]) in (7, 40, len("unknown"))
+    with np.load(npz_path) as saved:
+        assert manifest["predictions_sha256"] == mod.predictions_data_sha256(saved)
+    assert mod.verify_predictions_dir(tmp_path) == 0
 
     # rows["mean"] computed the exact same way read-back will recompute it, so this
     # must pass with plenty of margin (both paths reconstruct pp identically).
@@ -188,6 +191,21 @@ def test_write_predictions_npz_and_readback(tmp_path, monkeypatch):
         rows.append({"method": m, "mean": float(np.mean(vals))})
     mod.verify_predictions_readback(npz_path, methods, metric, rows, n_folds,
                                      problem_type="classification")
+
+
+def test_verify_predictions_dir_catches_tampered_npz(tmp_path, monkeypatch):
+    monkeypatch.setattr(mod, "PREDICTIONS_DIR", tmp_path)
+    n_folds, methods = 1, ["lgbm"]
+    pred_store = _toy_pred_store(n_folds=n_folds, methods=methods)
+    ds = dict(name="toy3", file="toy3.csv", target="y", drop=[])
+    npz_path = mod.write_predictions_npz(ds, pred_store, methods, n_folds,
+                                          problem_type="classification",
+                                          metric_name="log_loss", seed=42)
+    assert mod.verify_predictions_dir(tmp_path) == 0
+    # one prediction nudged by a float32 ulp must break the hash
+    pred_store["lgbm__fold0"][0] = np.nextafter(pred_store["lgbm__fold0"][0], np.float32(1))
+    np.savez_compressed(npz_path, **pred_store)
+    assert mod.verify_predictions_dir(tmp_path) == 1
 
 
 def test_verify_predictions_readback_catches_mismatch(tmp_path, monkeypatch):

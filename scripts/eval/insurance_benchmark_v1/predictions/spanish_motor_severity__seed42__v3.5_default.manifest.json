@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "dataset": "spanish_motor_severity",
+  "data_file": "spanish_motor_severity.csv",
+  "target": "Cost_claims_year",
+  "drop": [],
+  "problem_type": "regression",
+  "primary_metric": "rmse",
+  "stored_scale_note": "target stored/used as returned by load_Xy (no additional transform on capture)",
+  "clip_convention": "poisson_deviance: y_pred clipped >= 1e-12 at scoring time (metric_fn); tweedieglm/poissonglm classification-mode mu clipped to [1e-6, 1-1e-6] at scoring time (run_dataset fold loop); stored arrays are raw, pre-clip",
+  "n_folds": 5,
+  "seed": 42,
+  "split": "KFold(5, shuffle=True, random_state=42)",
+  "methods": [
+    "ols",
+    "poissonglm",
+    "tweedieglm",
+    "rf",
+    "cat",
+    "lgbm",
+    "xgb",
+    "tabpfn"
+  ],
+  "model_version": "v3.5_default",
+  "tabpfn_client_version": "0.6.0",
+  "script_git_sha": "0fc1158ee3d97274e853f3a878cda7909a70e3b7",
+  "created_at": "2026-09-16T10:30:14Z",
+  "predictions_sha256": "e0172916ee9a9db7a9fdc7a1fe3268ff49adff191fdcfc1c12691ecde2286808",
+  "predictions_sha256_scheme": "sha256 over arrays in sorted key order; per array: key, NUL, dtype.str, NUL, shape, NUL, C-contiguous data bytes. Hashes array content, not the .npz container, so zip timestamps/compression do not affect it",
+  "predictions_sha256_backfilled": "2026-10-07: computed from the .npz as committed in 4a6897f, not at production time; pins that file from here on, cannot attest it is what the 2026-09-16 run wrote"
+}

@@ -79,14 +79,18 @@ Usage:
     python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --seed 7 ausprivauto0405 # split-seed stability (default 42; seed != 42 writes
                                                                                                  #   frontier_results_<ds>_seed<N>.csv/.png so the canonical seed-42 files are not clobbered)
     python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --save-predictions coil2000 # persist per-fold (y_true, y_pred, test_idx) for every
-                                                                                                 #   method to predictions/<dataset>__seed<seed>.npz + .manifest.json (#122);
+                                                                                                 #   method to predictions/<dataset>__seed<seed>__<model_path>.npz + .manifest.json (#122, #186);
                                                                                                  #   forces fresh fits (like --pr-auc), read-back verified in-run
+    python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --verify-predictions    # check committed predictions/*.npz against each manifest's
+                                                                                                 #   predictions_sha256 without refitting; exit 1 on mismatch
 
 Outputs (same dir as this script), per dataset:
     frontier_results_<dataset>.csv   method | mean <metric> | SE | n_params | on-frontier
     frontier_plot_<dataset>.png      x = log10(n_params), y = mean <metric>, +/- SE bars,
                                      frontier red / dominated grey
-    predictions/<dataset>__seed<seed>.npz + .manifest.json   (--save-predictions only, #122)
+    predictions/<dataset>__seed<seed>__<model_path>.npz + .manifest.json
+                                     (--save-predictions only, #122; the model_path suffix
+                                      keeps version generations side by side, #186)
 
 Self-check: per-dataset assert-based sanity checks (5 fold rows per reused method —
 skipped when the sweep has no rows for that dataset — no NaNs, unique methods, >=1
@@ -109,6 +113,7 @@ REPO = HERE.parent.parent.parent
 import sys as _sys
 _sys.path.insert(0, str(REPO))  # repo root
 from src.api_key import load_api_key as _load_api_key  # noqa: E402
+from src.model_version import resolve_model_path as _model_path  # noqa: E402
 DATA_RAW = REPO / "data" / "raw"
 
 # D5 Option A: the home-turf sweep datasets plus norauto. Load configs identical to
@@ -575,20 +580,22 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
         scores = []
         t1 = time.time()
         for fold, (tr, te) in enumerate(folds):
-            model = TabPFNClassifier(model_path="v3_default", random_state=0)  # default n_estimators=None
             # Hosted API is flaky (RemoteProtocolError/ConnectionError/httpx timeouts
-            # seen in the sweep log): up to 3 attempts, backoff 10s/60s/300s.
+            # seen in the sweep log): up to 3 attempts, backoff 10s/60s/300s. predict
+            # is inside the retry because the server can fail there too, and a bare
+            # predict error otherwise discards every completed fold for the dataset.
             for attempt in range(1, 4):
                 try:
+                    model = TabPFNClassifier(model_path=_model_path(), random_state=0)  # default n_estimators=None
                     model.fit(X[tr], y[tr])
+                    pp = model.predict_proba(X[te])
                     break
                 except Exception as e:
                     wait = [10, 60, 300][attempt - 1]
-                    say(f"  tabpfn f{fold} fit attempt {attempt}/3 failed: {e!r}; retrying in {wait}s")
+                    say(f"  tabpfn f{fold} attempt {attempt}/3 failed: {e!r}; retrying in {wait}s")
                     time.sleep(wait)
                     if attempt == 3:
                         raise
-            pp = model.predict_proba(X[te])
             if pp.ndim == 1 or pp.shape[1] == 1:  # single-class fallback (sweep pattern)
                 pp = np.column_stack([1 - pp, pp]) if pp.ndim == 1 else np.column_stack([1 - pp[:, 0], pp[:, 0]])
             s = fold_scores(metric, y[te], pp)
@@ -714,16 +721,70 @@ def sanity_check(sweep_full: pd.DataFrame, folds: list[tuple[np.ndarray, np.ndar
 # in fold_scores/metric_fn, not part of the captured artifact; a future rescoring picks
 # its own treatment instead of inheriting today's (clip_convention notes it below).
 # ---------------------------------------------------------------------------
+PREDICTIONS_SHA256_SCHEME = (
+    "sha256 over arrays in sorted key order; per array: key, NUL, dtype.str, NUL, shape, "
+    "NUL, C-contiguous data bytes. Hashes array content, not the .npz container, so "
+    "zip timestamps/compression do not affect it"
+)
+
+
+def predictions_data_sha256(arrays) -> str:
+    """Content digest of an .npz payload (any mapping of key -> array, incl. np.load()).
+    Same idea as run_pilot.py's per-arm `predictions_sha256` (array data, not file bytes),
+    extended to the many arrays one frontier .npz holds."""
+    import hashlib
+
+    h = hashlib.sha256()
+    for key in sorted(arrays.keys()):
+        a = np.ascontiguousarray(arrays[key])
+        for part in (key, a.dtype.str, repr(a.shape)):
+            h.update(part.encode() + b"\0")
+        h.update(a.tobytes())
+    return h.hexdigest()
+
+
+def verify_predictions_dir(pred_dir: Path) -> int:
+    """Check every committed predictions/*.npz against its manifest's predictions_sha256.
+    Returns the number of failures (mismatch or missing .npz); manifests that predate the
+    field are reported, not failed."""
+    import json
+
+    failures = 0
+    for manifest_path in sorted(pred_dir.glob("*.manifest.json")):
+        npz_path = manifest_path.with_name(manifest_path.name.replace(".manifest.json", ".npz"))
+        claim = json.loads(manifest_path.read_text()).get("predictions_sha256")
+        if claim is None:
+            print(f"  NO HASH  {npz_path.name} (manifest predates predictions_sha256)")
+            continue
+        if not npz_path.exists():
+            print(f"  MISSING  {npz_path.name}")
+            failures += 1
+            continue
+        with np.load(npz_path) as data:
+            got = predictions_data_sha256(data)
+        if got == claim:
+            print(f"  OK       {npz_path.name}")
+        else:
+            print(f"  MISMATCH {npz_path.name}: manifest {claim[:16]}, file {got[:16]}")
+            failures += 1
+    return failures
+
+
 def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: list[str],
                            n_folds: int, problem_type: str, metric_name: str, seed: int) -> Path:
-    """Write predictions/<dataset>__seed<seed>.npz + sibling .manifest.json (schema v1,
-    docs/analyses/prediction_capture_rescore_spec.md §4). Asserts every fold/method array
-    is present, length-matched to its test split, and finite before writing anything."""
+    """Write predictions/<dataset>__seed<seed>__<model_path>.npz + sibling .manifest.json
+    (schema v1, docs/analyses/prediction_capture_rescore_spec.md §4). Asserts every
+    fold/method array is present, length-matched to its test split, and finite before
+    writing anything.
+
+    The model_path suffix keeps generations side by side: without it a version re-test
+    (§15/§16) silently overwrites the baseline it is being diffed against, since dataset
+    and seed are unchanged across versions."""
     import json
     import subprocess
 
     PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
-    stem = f"{ds['name']}__seed{seed}"
+    stem = f"{ds['name']}__seed{seed}__{_model_path()}"
     npz_path = PREDICTIONS_DIR / f"{stem}.npz"
     manifest_path = PREDICTIONS_DIR / f"{stem}.manifest.json"
 
@@ -738,6 +799,9 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
             assert np.isfinite(y_pred).all(), f"fold {k}: NaN/Inf in {m} predictions"
 
     np.savez_compressed(npz_path, **pred_store)
+    # hash what landed on disk, not the in-memory store, so the manifest describes the file
+    with np.load(npz_path) as saved:
+        predictions_sha256 = predictions_data_sha256(saved)
 
     try:
         import importlib.metadata
@@ -772,10 +836,12 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
         "seed": seed,
         "split": split_desc,
         "methods": methods,
-        "model_version": "v3_default",
+        "model_version": _model_path(),
         "tabpfn_client_version": tabpfn_client_version,
         "script_git_sha": git_sha,
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "predictions_sha256": predictions_sha256,
+        "predictions_sha256_scheme": PREDICTIONS_SHA256_SCHEME,
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
     print(f"SAVED PREDICTIONS: {npz_path.name} ({len(methods)} methods x {n_folds} folds) "
@@ -885,20 +951,22 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFra
     fold_vals = []
     t1 = time.time()
     for fold, (tr, te) in enumerate(folds):
-        model = TabPFNRegressor(model_path="v3_default", random_state=0)  # default n_estimators=None
         # Hosted API is flaky (RemoteProtocolError/ConnectionError/httpx timeouts seen
         # in the sweep log): up to 3 attempts, backoff 10s/60s/300s — same as classifier.
+        # predict is inside the retry because the server can fail there too, and a bare
+        # predict error otherwise discards every completed fold for the dataset.
         for attempt in range(1, 4):
             try:
+                model = TabPFNRegressor(model_path=_model_path(), random_state=0)  # default n_estimators=None
                 model.fit(X[tr], y[tr])
+                y_pred = model.predict(X[te])
                 break
             except Exception as e:
                 wait = [10, 60, 300][attempt - 1]
-                say(f"  tabpfn f{fold} fit attempt {attempt}/3 failed: {e!r}; retrying in {wait}s")
+                say(f"  tabpfn f{fold} attempt {attempt}/3 failed: {e!r}; retrying in {wait}s")
                 time.sleep(wait)
                 if attempt == 3:
                     raise
-        y_pred = model.predict(X[te])
         fold_vals.append(metric(y[te], y_pred))
         record_fold("tabpfn", fold, y[te], y_pred, te)
         say(f"  tabpfn f{fold} {ds['metric']}={fold_vals[-1]:.4f} ({time.time() - t1:.0f}s)")
@@ -1004,6 +1072,9 @@ def make_parser() -> argparse.ArgumentParser:
                         help="persist per-fold test predictions (.npz + manifest) under "
                              "predictions/ for retrospective re-scoring (#122); forces fresh "
                              "fits for every method, same as --pr-auc")
+    parser.add_argument("--verify-predictions", action="store_true",
+                        help="check every predictions/*.npz against its manifest's "
+                             "predictions_sha256 and exit (no fitting; exit 1 on any mismatch)")
     parser.add_argument("--seed", type=int, default=42, metavar="N",
                         help="StratifiedKFold random_state (default 42; seed != 42 writes "
                              "frontier_results_<ds>_seed<N>.csv/.png so canonical seed-42 files are not clobbered)")
@@ -1068,6 +1139,8 @@ def main() -> None:
     t0 = time.time()
     parser = make_parser()
     args = parser.parse_args()
+    if args.verify_predictions:
+        sys.exit(1 if verify_predictions_dir(PREDICTIONS_DIR) else 0)
     if args.data is not None and args.target is None:
         parser.error("--target is required when --data is given")
     SEED = args.seed
