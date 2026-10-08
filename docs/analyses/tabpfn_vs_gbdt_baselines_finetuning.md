@@ -20,7 +20,7 @@ Compact cross-dataset digest of the frontier runs — mean over folds from
 | bemtl16 † | classification — log loss (liability claim) | 58,723 | tabpfn 0.23803 | 0.23803 | 1.000 | yes |
 | ausautoBI8999 | regression — RMSE (BI severity) | 22,036 | tabpfn 0.96491 | 0.96491 | 1.000 | yes |
 | ausprivauto0405_vehvalue | regression — RMSE (vehicle value) | 67,856 | tabpfn 0.71162 | 0.71162 | 1.000 | yes |
-| bemtl97_amount | regression — RMSE (severity, log1p) | 163,212 | lgbm 0.48499 | 0.72825 | 1.502 | no |
+| bemtl97_amount ‡ | regression — RMSE (severity, log1p) | 163,212 | lgbm 0.48499 | 0.72825 | 1.502 | no |
 | freMTPL2freq | frequency — Poisson deviance | 678,013 | lgbm 0.29113 | 0.38770 | 1.332 | no |
 | spanish_motor_freq | frequency — Poisson deviance | 53,502 | lgbm 0.89157 | 0.98764 | 1.108 | no |
 | spanish_motor_severity | regression — RMSE (severity, log1p) | 53,502 | lgbm 1.83719 | 1.88616 | 1.027 | no |
@@ -31,6 +31,10 @@ leak-fixed frontier re-run (§14.2).
 † bemtl16: this row was computed with a target leak (`claim_responsibility_rate`, §6,
 issue #216). Superseded by the clean re-run in §21: TabPFN v3 0.5968 vs LightGBM 0.5985,
 still best.
+
+‡ bemtl97_amount: this row was computed with a target leak (`nclaims`, §6, issue #216).
+Superseded by the clean re-run in §22: TabPFN v3 2.0466 vs LightGBM 1.9954 RMSE (+2.6%,
+not +50%), and no model is much better than predicting the mean.
 
 ## 1. Objective
 
@@ -115,7 +119,8 @@ TabPFN rank within the task's method pool.
 - **LOSE (decisive)** — both severity regressions: bemtl97_amount (+48.3%) and
   ausprivauto0405_vehvalue (+67.2%), TabPFN rank 8/8. GBDTs and even linear models crush
   TabPFN on these; TabPFN's zero-shot regression transfer does not fit insurance severity
-  targets under default config.
+  targets under default config. *(bemtl97_amount superseded: this v1 run kept `claim` and
+  `nclaims` as features, both of which leak the target; see §22.)*
 
 **Tally on 8 valid tasks: 2 wins, 1 tie, 5 losses (2 of them large).** GBDTs (CAT/GBM/XGB)
 hold the aggregate lead; TabPFN wins only where default GBDTs are weakest.
@@ -199,6 +204,11 @@ accident, as a feature. Claim rate is 0.17% where it is 0 and ≈73% where it is
 on its own it scores AUC 0.893. Every `bemtl16` number in §3–§14 includes it. Removed and
 re-run in §21.
 
+**`bemtl97_amount` — `nclaims` (applied 2026-10-08, issue #216).** The cleanup flagged
+above was never applied: the frontier entry dropped only `claim`, and the v1 harness
+dropped nothing. Every `bemtl97_amount` number in §4, §12.1, §14.8 and §16 includes
+`nclaims`. Removed and re-run in §22.
+
 ## 7. Limitations and Risks
 
 1. **Default configs only** — `can_hpo=False` for all methods; HPO-tuned TabPFN (e.g. TabPFN's
@@ -228,7 +238,8 @@ re-run in §21.
   degrades AUC on 3/4 targets; step-count sweeps (1→5) and context (64→128) do not recover
   it. A working fine-tune is a precondition for any "TabPFN closes the gap" claim.
 - **Repair the benchmark**: remove `nclaims`/`amount` from bemtl97 features (also
-  `bemtl97_amount`), then re-run bemtl97.
+  `bemtl97_amount`), then re-run bemtl97. *(Done: bemtl97 in §14.2; `bemtl97_amount` on
+  2026-10-08, §22.)*
 - **What would change the answer**: (a) HPO-enabled TabPFN in the harness; (b) a
   fine-tuned-TabPFN arm inside the benchmark on the same folds; (c) GPU inference for the
   100K+ row tasks; (d) severity-specific transforms in the TabPFN arm. Without at least (a)
@@ -316,7 +327,7 @@ each prediction can effectively attend to only ~1K training rows — the local-A
 equivalent of this behavior is `ignore_pretraining_limits=True`. GBDTs, by contrast, see
 every row in training. This is a **capability limit of the model design, not a harness
 bug**. It predicts exactly where TabPFN lost worst: the largest datasets and the
-regression/severity tasks where every row of signal matters — bemtl97_amount +48.3% vs
+regression/severity tasks where every row of signal matters — bemtl97_amount +48.3% (with a target leak, §22) vs
 CAT (rank 8/8, §4), ausprivauto0405_vehvalue +67.2% vs XGB (rank 8/8, §4), and the
 184K-row norauto classification (+5.4%, rank 6/7, §4). The converse also holds: TabPFN
 won its two smallest classification tasks (bemtl16, coil2000; §4.1), where a ~1K-row
@@ -781,6 +792,10 @@ via hosted API), **5-fold KFold seed 42**, all fits fresh. The §14.7 pointer na
 | tweedieglm | 1.05117 | 0.01548 | 7 | yes |
 
 **bemtl97_amount** (163,212 rows, RMSE on stored log1p amount, `claim` dropped as leak):
+
+*Superseded (2026-10-08): `nclaims` was still a feature and leaks the target the same way
+(§6). The table and the "zero-inflation trap" paragraph below — including the
+"catastrophic" Poisson GLM — are leak effects; clean re-run in §22.*
 
 | method | mean RMSE | ± SE | n_params | on frontier |
 | --- | ---: | ---: | ---: | --- |
@@ -1616,6 +1631,9 @@ best rival within this run.
 | `bemtl97_amount` | 163,212 | RMSE | 0.7282 ± 0.0106 | **0.7012 ± 0.0062** | −3.7% | 2.6 | no | p<0.0001, 0/5 — worse |
 | `spanish_motor_severity` | 53,502 | RMSE | 1.8862 ± 0.0116 | **1.8607 ± 0.0113** | −1.4% | 2.2 | no | p=0.0004, 0/5 — worse |
 
+*`bemtl97_amount` row superseded (2026-10-08): computed with a target leak (`nclaims`).
+Clean re-run in §22 — v3.5 RMSE 2.0243 vs LightGBM 1.9954, a 1.4% loss rather than ~1.4×.*
+
 Per-fold TabPFN values (`v3.5_default`):
 
 - `freMTPL2freq` — 0.3012, 0.2968, 0.2983, 0.3038, 0.3063
@@ -1742,6 +1760,9 @@ while actually costing ~50–95k per fold — treat quotes on small datasets as 
 > `bemtl97_amount` and `spanish_motor_severity` remain paired-significant losses.
 > The pricing-at-scale verdict therefore **narrows but does not reverse** — and the
 > `scikit-learn` drift in §16.4 means the `ols` rows here are not comparable to v3.
+
+*`bemtl97_amount` (2026-10-08): the numbers above include a target leak. On clean data it is
+still a paired-significant loss, but by 1.4% rather than ~1.4× (§22).*
 
 Still open under #186: the classification tiers (`ausprivauto0405`, `bemtl97`, `norauto`
 calibration; `bemtl16` top-decile lift) and the sweep refresh that §15.2 requires before
@@ -2417,6 +2438,122 @@ Evidence: `results/20261008-133359/` (v3), `results/20261008-133634/` (v3.5);
 a manifest carrying `predictions_sha256`;
 `scripts/eval/insurance_benchmark_v1/version_retest_bemtl16.csv`;
 `data/raw/bemtl16.csv` (SHA-256 `c07c8552a83799ac793c077ae4c3a7f29c7e54ca470509daf3d453f8b1b9ba67`).
+
+## 22. Addendum — `bemtl97_amount` target leak removed (issue #216, 2026-10-08)
+
+The second leak in #216. `bemtl97_amount` (target log1p `amount`) dropped `claim` but kept
+`nclaims`, and `(nclaims > 0) == (amount > 0)` on every row. §6 flagged this in August
+("flag for the same cleanup") and §8 listed it under "Repair the benchmark", but the drop
+list was never changed. Every `bemtl97_amount` number in §4, §12.1, §14.8 and §16 includes
+the leak; the v1 TabArena harness, which had no drop list at all, also kept `claim`. This
+section removes it and re-runs both model versions. The earlier numbers stay as recorded.
+
+### 22.1 The leak
+
+- `nclaims > 0` matches `amount > 0` on all 163,212 rows (18,276 non-zero). The target is
+  88.8% zeros with standard deviation 2.014.
+- A one-line rule — predict the non-zero mean where `nclaims > 0`, else 0 — scores RMSE
+  0.4977, close to the published LightGBM 0.4850. Without `nclaims`, LightGBM scores 1.9954.
+- **No other leak.** Out-of-fold, no remaining feature explains more than 1% of the
+  target's variance (`bm`, R² 0.0098) or scores above AUC 0.581 for `amount > 0`.
+
+### 22.2 Fix and re-run
+
+- **Frontier harness:** `drop=["claim", "nclaims"]`, with the comments that justify the
+  list corrected. Each prediction manifest records the drop list, so the clean runs say
+  `["claim", "nclaims"]` and the leaky Tier 1 file says `["claim"]`.
+- **v1 TabArena harness:** `_load_raw` now applies a per-dataset `drop` list —
+  `["claim", "nclaims"]` for `bemtl97_amount` and `["nclaims", "amount"]` for `bemtl97`,
+  so a v1 re-run no longer reproduces §6's leak either. `make_bemtl97` documents that its
+  three targets are outcomes of the same event and must exclude each other.
+- **Earlier predictions kept.** Tier 1's leaky v3.5 file would have been overwritten by the
+  same name, so it was renamed `bemtl97_amount__seed42__v3.5_default__nclaims-leak.npz`
+  (and `.manifest.json`); its contents and stored hash are unchanged.
+- **Re-run:** `run_frontier_benchmark.py --regression --save-predictions bemtl97_amount`,
+  v3 then v3.5 the same day (2026-10-08 13:52–14:05 UTC), `tabpfn-client` 0.6.0,
+  `scikit-learn` 1.9.0. Folds identical across runs; all seven baselines bit-identical.
+  Regression splits are fixed at `KFold(5, shuffle=True, random_state=42)`, so one seed.
+- **Analysis:** `analyze_regression_retest.py bemtl97_amount` (new; the regression
+  counterpart of `analyze_version_retest.py`, with a training-mean null model) →
+  `version_retest_bemtl97_amount.csv`.
+
+### 22.3 Clean results
+
+| Method | RMSE (± SE) | MAE | Mean prediction | AUC for `amount > 0` | Spearman |
+| --- | --- | --- | --- | --- | --- |
+| LightGBM | **1.9954 ± 0.0063** | 1.2048 | 0.693 | 0.619 | 0.131 |
+| OLS | 1.9979 ± 0.0063 | 1.2107 | 0.693 | 0.610 | 0.120 |
+| CatBoost | 1.9981 ± 0.0062 | 1.2048 | 0.693 | 0.615 | 0.126 |
+| Poisson GLM | 1.9982 ± 0.0063 | 1.2103 | 0.693 | 0.611 | 0.121 |
+| Tweedie GLM | 2.0022 ± 0.0063 | 1.2166 | 0.692 | 0.591 | 0.100 |
+| XGBoost | 2.0077 ± 0.0060 | 1.2077 | 0.695 | 0.603 | 0.114 |
+| Null (training-fold mean) | 2.0137 ± 0.0067 | 1.2306 | 0.693 | — | — |
+| TabPFN v3.5 | 2.0243 ± 0.0072 | 0.9589 | **0.361** | **0.622** | **0.134** |
+| TabPFN v3 | 2.0466 ± 0.0075 | **0.8813** | **0.258** | 0.619 | 0.130 |
+| Random forest | 2.1463 ± 0.0046 | 1.3192 | 0.845 | 0.560 | 0.066 |
+
+The observed mean of the target is 0.693. Paired over the 5 folds, both TabPFN versions
+lose RMSE to every method except the random forest (0/5 folds each, p ≤ 0.0004) and win
+MAE against all of them (5/5).
+
+### 22.4 What changes against the leaky numbers
+
+| | Leaky (published) | Clean (§22.3) |
+| --- | --- | --- |
+| TabPFN v3 vs LightGBM, RMSE | 0.7282 vs 0.4850 (+50%) | 2.0466 vs 1.9954 (+2.6%) |
+| TabPFN v3.5 vs LightGBM, RMSE (§16) | 0.7012 vs 0.4850 (~1.4×) | 2.0243 vs 1.9954 (+1.4%) |
+| Best model vs the null model | — | LightGBM 0.9% better |
+| Poisson GLM (§14.8 "catastrophic") | 6.459 | 1.998, level with OLS |
+| TabPFN on the parsimony frontier | no | no (both versions) |
+
+- **Nobody predicts this target well.** Without the leak, the best model is 0.9% better
+  than always predicting the training mean: RMSE on a log1p amount that is 89% zeros is
+  dominated by the zero mass.
+- **TabPFN's RMSE loss is calibration, not ranking.** Its mean predictions average 0.26 (v3)
+  and 0.36 (v3.5) against an observed 0.69 — too low by 63% and 48% — while its ordering of
+  policies matches or beats every other method (v3.5 has the best AUC and Spearman). The same
+  low bias gives it by far the lowest MAE. This is the zero-inflated-target behaviour that
+  #159 studies, not weaker risk discrimination.
+- **The verdict's direction survives, its size does not.** TabPFN stays off the frontier and
+  remains a paired-significant RMSE loss, but by 1.4–2.6%, not 50%. The off-frontier count
+  (4 of 12 on v3.5) is unchanged.
+- **§14.8's Poisson-GLM explanation does not reproduce.** Its "catastrophic" 6.459 was the
+  leak, not the zero mass.
+
+### 22.5 v3 → v3.5
+
+RMSE −0.0223 (p<0.0001, 5/5 folds) and MAE +0.0776 (0/5). v3.5's predictions are less
+biased (mean 0.36 vs 0.26), which helps RMSE and costs MAE; it still loses RMSE to
+LightGBM by 0.0289 (0/5).
+
+### 22.6 Not re-run
+
+- **v1 TabArena run** (§4: +48.3%, with both `claim` and `nclaims` as features) — needs the
+  tabarena environment; superseded, not regenerated.
+- **#123 alt-metrics rescore** — the 144 `bemtl97_amount` rows in `alt_metrics_per_fold.csv`
+  and `alt_metrics_summary.csv` were computed from leaky predictions; superseded.
+- One seed by construction (§22.2).
+
+### 22.7 Cost
+
+441,170 credits, matching the `estimate_cost` quote: v3 144,580 (28,916 per fold), v3.5
+296,590 (59,318 per fold). No retries.
+
+### 22.8 Bottom line
+
+> `nclaims` leaked `bemtl97_amount`'s zero/non-zero split, and every published number used
+> it: the "+50%" gap measured how well each model exploited the leak. Without it, no model
+> predicts this target much better than its mean. TabPFN still loses RMSE — by 1.4% (v3.5)
+> to 2.6% (v3), not 50% — because its mean predictions are biased low on this zero-inflated
+> target, while it ranks policies as well as or better than LightGBM. Cite §22, not §14.8
+> or §16, for `bemtl97_amount`.
+
+Evidence: `results/20261008-135230/` (v3), `results/20261008-135747/` (v3.5);
+`scripts/eval/insurance_benchmark_v1/predictions/bemtl97_amount__seed42__v3_default.npz` and
+`scripts/eval/insurance_benchmark_v1/predictions/bemtl97_amount__seed42__v3.5_default.npz`,
+each with a manifest carrying `predictions_sha256` and the drop list; the leaky Tier 1
+predictions, renamed with the `__nclaims-leak` suffix;
+`scripts/eval/insurance_benchmark_v1/version_retest_bemtl97_amount.csv`.
 
 ## 9. Source Workbooks
 

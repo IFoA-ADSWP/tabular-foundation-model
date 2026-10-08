@@ -67,6 +67,9 @@ def make_uslapseagent(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
 
 
 def make_bemtl97(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+    """Three targets, all outcomes of the same claim event: claim == (nclaims > 0) ==
+    (amount > 0) on every row. A task on one must drop the other two as features
+    (bemtl97: master report §6; bemtl97_amount: #216)."""
     keep = ["expo", "coverage", "ageph", "sex", "bm", "power", "agec", "fuel",
             "use", "fleet", "claim", "nclaims", "amount"]
     cats = ["coverage", "sex", "fuel", "use"]

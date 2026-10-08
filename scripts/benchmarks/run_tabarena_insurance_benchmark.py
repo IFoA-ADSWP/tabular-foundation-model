@@ -89,6 +89,7 @@ CLASSIFICATION_DATASETS = {
     "bemtl97": {
         "file": "bemtl97.csv",
         "target": "claim",
+        "drop": ["nclaims", "amount"],  # post-claim outcomes: label leak (master report §6)
         "n_splits": 5,
         "desc": "Belgian motor TPL 1997, 163K rows, 11.2% positive",
     },
@@ -122,6 +123,7 @@ REGRESSION_DATASETS = {
     "bemtl97_amount": {
         "file": "bemtl97.csv",
         "target": "amount",
+        "drop": ["claim", "nclaims"],  # both encode amount > 0 exactly (#216)
         "n_splits": 3,
         "desc": "Belgian motor TPL 1997 severity, 163K rows, log1p zero-inflated target",
     },
@@ -161,6 +163,9 @@ def _load_raw(info: dict) -> pd.DataFrame:
     target = info["target"]
     if target not in df.columns:
         raise KeyError(f"Target column '{target}' not found in {path}")
+    # Leak columns: sibling outcomes of the same claim event (master report §6, #216).
+    # Results produced before these were dropped include them.
+    df = df.drop(columns=info.get("drop", []))
     # Convert object columns to categorical (TabArena metadata requires non-object dtypes)
     for col in df.select_dtypes(include=["object"]).columns:
         df[col] = df[col].astype("category")

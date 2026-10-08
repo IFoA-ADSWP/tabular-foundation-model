@@ -8,7 +8,7 @@ Companion to `docs/KNOWLEDGE-PATH.md` Stage 4.5. The master report (`docs/analys
 
 ## §4 v1 — the baseline that started it (2026-08-01)
 
-9 tasks (7 datasets, 2 dual targets), all-default configs, scored on `1 − ROC AUC` / RMSE. Verdict: **2W / 1T / 5L** — wins on the two smallest classification tasks (bemtl16 — computed with a target leak, see master report §21 — and coil2000), decisive losses on severity (vehvalue +67.2%, bemtl97_amount +48.3%). Compute cost objection: TabPFN 5–50× slower train, 100–1000×+ inference. **This verdict is the one the whole report exists to correct.**
+9 tasks (7 datasets, 2 dual targets), all-default configs, scored on `1 − ROC AUC` / RMSE. Verdict: **2W / 1T / 5L** — wins on the two smallest classification tasks (bemtl16 — computed with a target leak, see master report §21 — and coil2000), decisive losses on severity (vehvalue +67.2%, bemtl97_amount +48.3% — computed with a target leak, see master report §22). Compute cost objection: TabPFN 5–50× slower train, 100–1000×+ inference. **This verdict is the one the whole report exists to correct.**
 
 ## §11 Imbalance pilot & calibration re-score (08-02)
 
