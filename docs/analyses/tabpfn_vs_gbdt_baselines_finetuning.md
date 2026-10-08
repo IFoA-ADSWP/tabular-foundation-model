@@ -17,7 +17,7 @@ Compact cross-dataset digest of the frontier runs — mean over folds from
 | uslapseagent | classification — log loss (lapse) | 29,317 | tabpfn 0.24909 | 0.24909 | 1.000 | yes |
 | norauto | classification — log loss (claim occurrence) | 183,999 | lgbm 0.17518 | 0.17619 | 1.006 | yes |
 | ausprivauto0405 | classification — log loss (claim occurrence) | 67,856 | logisticglm 0.23947 | 0.24026 | 1.003 | no |
-| bemtl16 | classification — log loss (liability claim) | 58,723 | tabpfn 0.23803 | 0.23803 | 1.000 | yes |
+| bemtl16 † | classification — log loss (liability claim) | 58,723 | tabpfn 0.23803 | 0.23803 | 1.000 | yes |
 | ausautoBI8999 | regression — RMSE (BI severity) | 22,036 | tabpfn 0.96491 | 0.96491 | 1.000 | yes |
 | ausprivauto0405_vehvalue | regression — RMSE (vehicle value) | 67,856 | tabpfn 0.71162 | 0.71162 | 1.000 | yes |
 | bemtl97_amount | regression — RMSE (severity, log1p) | 163,212 | lgbm 0.48499 | 0.72825 | 1.502 | no |
@@ -27,6 +27,10 @@ Compact cross-dataset digest of the frontier runs — mean over folds from
 
 \* bemtl97: excluded from the v1 baseline tally (label leak, §6); this row is the
 leak-fixed frontier re-run (§14.2).
+
+† bemtl16: this row was computed with a target leak (`claim_responsibility_rate`, §6,
+issue #216). Superseded by the clean re-run in §21: TabPFN v3 0.5968 vs LightGBM 0.5985,
+still best.
 
 ## 1. Objective
 
@@ -188,6 +192,12 @@ leakage:
   of the claim event), or drop the task. Note `bemtl97_amount` (target=`amount`) also keeps
   `nclaims` as a feature, which encodes `amount>0` exactly — a partial target proxy; flag for
   the same cleanup.
+
+**`bemtl16` — `claim_responsibility_rate` (found 2026-10-08, issue #216).** A softer leak of
+the same kind: the prepared data kept the claim's responsibility rate, set after the
+accident, as a feature. Claim rate is 0.17% where it is 0 and ≈73% where it is 50 or 100;
+on its own it scores AUC 0.893. Every `bemtl16` number in §3–§14 includes it. Removed and
+re-run in §21.
 
 ## 7. Limitations and Risks
 
@@ -703,6 +713,10 @@ no reusable power; `run_frontier_benchmark.py` uses the same fallback path as no
 *Verdict update (2026-08-06): the DOMINATED verdict is retracted by §14.11.3
 (calibration tie; TabPFN best AUC of the suite, 0.6622) — the log-loss mechanics below
 remain as recorded.*
+
+*Superseded for bemtl16 (2026-10-08): the bemtl16 table and paragraph below include a
+target leak (`claim_responsibility_rate`, §6). Clean re-run: §21 — TabPFN still has the
+lowest log loss, but not beyond SE.*
 
 **ausprivauto0405 — the first outright TabPFN domination.** The frontier is exactly the
 four 7-param GLMs (logisticglm/lr tied at 0.23947, then poissonglm 0.23956, tweedieglm
@@ -1257,6 +1271,10 @@ region; at the extreme top of the distribution it is dataset-dependent, not
 universal.** "Use for triage" should be read as "strong global ranker; validate
 top-decile behaviour on your own book" — consistent with the §14.4 adoption posture.
 
+*Superseded for bemtl16 (2026-10-08): its row was computed with a target leak (§6). On
+clean data TabPFN is lift rank 1/9 (1.776 vs LightGBM 1.754, §21), so the bemtl16 part
+of this caveat no longer holds.*
+
 ### 14.12.4 Seed stability (ausprivauto0405, bemtl97, norauto × seeds 7/42/123)
 
 | dataset | Δ AUC vs best GLM, seed 7 | seed 42 | seed 123 | TabPFN AUC rank |
@@ -1338,6 +1356,8 @@ uslapseagent (+0.0027, p=0.022). PR-AUC: rank #1 on all 6, paired-significant on
 5/6 — the one non-significant win is glm_eng on ausprivauto0405 (delta +0.0017,
 p=0.077). The §14.12 lift10 caveat is unchanged: lgbm still beats TabPFN on bemtl16
 (delta −0.018, p=0.015); the norauto lgbm edge stays non-significant (p=0.949).
+*(bemtl16 superseded: computed with a target leak; on clean data TabPFN leads lgbm on
+lift, §21.)*
 
 ### 14.13.3 Calibration — two small documented exceptions
 
@@ -2265,6 +2285,138 @@ seed 42), `results/20261007-180725/` (v3.5, seed 7), `results/20261007-181518/` 
 seed 123); `scripts/eval/insurance_benchmark_v1/predictions/bemtl97__seed42__v3_default.npz`
 and `bemtl97__seed{42,7,123}__v3.5_default.npz`, each with a manifest carrying
 `predictions_sha256`; `scripts/eval/insurance_benchmark_v1/version_retest_bemtl97.csv`.
+
+## 21. Addendum — `bemtl16` target leak removed (issue #216, 2026-10-08)
+
+Every `bemtl16` number in §3–§14 was computed with a target leak: the prepared data kept
+`claim_responsibility_rate`, a field that only exists once a claim has happened. This
+section removes it, re-runs `bemtl16` on both model versions, and supersedes the earlier
+numbers. They are not overwritten; they remain the record of what was run.
+
+### 21.1 The leak
+
+- **Definition.** CASdatasets `man/beMTPL16.Rd`: *"Rate of responsibility for the claim
+  (100% full responsibility, 0% no responsibility)"* — set after the accident. The same page
+  lists `claim_value` and `claim_time`, which `make_bemtl16` already excluded.
+- **Separation.** Claim rate is 0.17% (51 of 29,759) where the rate is 0, and ≈73% where it is
+  50 or 100. The rate alone scores AUC 0.893 against `number_of_liability_claims`; with it,
+  harness LightGBM reached AUC 0.955, and without it 0.694.
+- **No other leak.** A single-feature screen (out-of-fold target-mean AUC for categoricals,
+  raw-value AUC for numerics) puts every remaining feature at ≤ 0.664 (`catalog_value`).
+  `policy_year` was checked specifically because the prep keeps each contract's *last*
+  observed year, which encodes whether it continued: AUC 0.508, claim rates 35–38% across
+  its four values — no leak.
+- **Correction to #216:** `policy_year`, `mileage` and `driving_training_label` are not
+  constant (4, 7 and 2 values); the issue's description was based on a 3,000-row sample.
+
+### 21.2 Fix and re-run
+
+- `make_bemtl16` (`scripts/infra/prepare_insurance_datasets.py`) no longer keeps the column;
+  its docstring lists every excluded claim attribute. `data/raw/bemtl16.csv` was regenerated
+  by deleting the column from the committed file — equivalent to re-running `make_bemtl16`,
+  since the `.rda` source is not in the repo — and checked identical in every other value.
+  SHA-256 before `89e1b91d…`, after `c07c8552…`. 58,723 rows, 12 features.
+- Frontier re-run, `--save-predictions bemtl16`, v3 then v3.5 on seed 42 the same day
+  (2026-10-08 13:34–13:39 UTC), `tabpfn-client` 0.6.0, `scikit-learn` 1.9.0. Test folds are
+  identical across the two runs and all eight non-TabPFN methods' predictions are
+  bit-identical. The prediction manifests record `script_git_sha` `b97afff`, the commit
+  *before* this fix; the data they used is identified by the SHA-256 above.
+- `analyze_version_retest.py` now detects that the committed August `bemtl16` rows were
+  computed on different data (baselines differ by 0.365 log loss) and skips the alias-drift
+  check and the committed `glm_eng` reference instead of misreading the change as drift.
+
+### 21.3 Clean results (seed 42)
+
+| Method | Log loss | Brier | AUC | PR-AUC | Lift@10% |
+| --- | --- | --- | --- | --- | --- |
+| TabPFN v3.5 | **0.5955** | **0.2041** | **0.6991** | **0.5519** | 1.769 |
+| TabPFN v3 | 0.5968 | 0.2046 | 0.6982 | 0.5514 | **1.776** |
+| LightGBM | 0.5985 | 0.2054 | 0.6939 | 0.5455 | 1.754 |
+| CatBoost | 0.6016 | 0.2065 | 0.6909 | 0.5404 | 1.745 |
+| One-hot LR + log(exposure) | 0.6037 | 0.2073 | 0.6903 | 0.5374 | 1.737 |
+| One-hot LR | 0.6037 | 0.2073 | 0.6904 | 0.5376 | 1.734 |
+| XGBoost | 0.6125 | 0.2107 | 0.6803 | 0.5274 | 1.699 |
+| `lr` / `logisticglm` (harness) | 0.6195 | 0.2134 | 0.6636 | 0.5026 | 1.536 |
+
+TabPFN v3 SE: log loss 0.0022, AUC 0.0029, lift 0.012. Under either version TabPFN ranks
+**1/9 on all five metrics** among the harness methods, and ahead of both one-hot LRs.
+
+Paired against the GBDTs (v3, delta = TabPFN − reference, df=4):
+
+| Reference | Log loss | Brier | AUC | PR-AUC | Lift@10% |
+| --- | --- | --- | --- | --- | --- |
+| LightGBM | −0.0017 (p=0.015, 5/5) | −0.0008 (p=0.009, 5/5) | +0.0043 (p=0.001, 5/5) | +0.0059 (p=0.001, 5/5) | +0.022 (p=0.12, 4/5) |
+| CatBoost | −0.0048 (p<0.001, 5/5) | −0.0020 (p=0.001, 5/5) | +0.0072 (p=0.001, 5/5) | +0.0110 (p=0.001, 5/5) | +0.031 (p=0.028, 5/5) |
+
+### 21.4 What changes against the leaky numbers
+
+| | Leaky (Aug 2026, v3) | Clean (v3, §21.3) |
+| --- | --- | --- |
+| TabPFN / LightGBM AUC | 0.9560 / 0.9552 | 0.6982 / 0.6939 |
+| TabPFN / LightGBM log loss | 0.2380 / 0.2398 | 0.5968 / 0.5985 |
+| TabPFN lift@10% | 2.607, **rank 3/9** behind LightGBM 2.625, CatBoost 2.615 | 1.776, **rank 1/9** |
+| TabPFN rank: log loss, Brier, AUC, PR-AUC | 1/9 | 1/9 |
+| Harness `logisticglm` log-loss gap (regime table) | +10.6% | +3.8% (+1.2% to the one-hot LR) |
+| On the frontier | TabPFN, LightGBM, the four GLMs | the same plus CatBoost |
+
+- **The ranking story survives; the magnitudes do not.** TabPFN stays first on every metric,
+  but every absolute value in §3–§14 overstates what is predictable here, and the GLM gap
+  that made `bemtl16` a "thin-signal win" is a third of what was published.
+- **"Beyond SE" (§14.7) does not hold.** Clean, TabPFN's log-loss lead over LightGBM is
+  paired-significant (p=0.015, 5/5) but inside one SE (TabPFN mean + SE 0.59895 vs LightGBM
+  mean − SE 0.59671). §14.7's leaky check compared the bounds the other way round; in the
+  orientation it uses for `ausprivauto0405` the leaky lead was not beyond SE either
+  (0.23932 vs 0.23873).
+- **The lift gap was the leak.** The only metric on which TabPFN trailed (§14.12.3, §14.13.2)
+  is now its best rank. #186's Tier 4 target — TabPFN losing top-decile lift on `bemtl16` —
+  does not exist on clean data.
+
+### 21.5 v3 → v3.5 (same day) — Tier 4 closed out
+
+| Metric | v3 | v3.5 | Δ | Paired p | v3.5 better on |
+| --- | --- | --- | --- | --- | --- |
+| Log loss | 0.5968 | **0.5955** | −0.0013 | 0.009 | 5/5 folds |
+| Brier | 0.2046 | **0.2041** | −0.0005 | 0.016 | 5/5 |
+| AUC | 0.6982 | 0.6991 | +0.0009 | 0.055 | 5/5 |
+| PR-AUC | 0.5514 | 0.5519 | +0.0005 | 0.41 | 3/5 |
+| Lift@10% | 1.776 | 1.769 | −0.007 | 0.12 | 1/5 |
+
+v3.5 beats LightGBM on log loss (−0.0030), Brier, AUC and PR-AUC on 5/5 folds (p<0.0001);
+lift +0.015 (p=0.14, 4/5). With no underperformance left to re-test, Tier 4 of #186 is
+answered by this run: on clean `bemtl16` TabPFN leads under both versions.
+
+### 21.6 Not re-run
+
+- **§14.13 tuned baselines** (`lr_tuned`, `glm_eng`, `lgbm_tuned`, `cat_tuned`, `rf_tuned`).
+  Their runner appends to the committed ledger with no data-version column and checks fold
+  identity against the leaky August rows, so it needs adapting first. Until then the
+  "#1 of 14" statement for `bemtl16` is unverified; the one-hot LRs above are the strongest
+  linear references fitted on the clean data.
+- **v1 TabArena run** (§3–§4, `results_per_split.csv`) and the §14.12 per-fold rows — superseded
+  by this section, not regenerated.
+- Single seed (August had only seed 42 for `bemtl16`). Reproducing the superseded numbers
+  needs a checkout from before this fix.
+
+### 21.7 Cost
+
+115,175 credits, matching the `estimate_cost` quote: v3 50,000 (10,000 per fold, the
+per-call minimum), v3.5 65,175 (13,035 per fold). No retries.
+
+### 21.8 Bottom line
+
+> `claim_responsibility_rate` leaked the target, and every published `bemtl16` number used
+> it. Without it the task is ordinary claim-occurrence prediction (best AUC ≈ 0.70, not
+> 0.96). TabPFN still ranks first on all five metrics under both versions — including
+> top-decile lift, where the published deficit was an artefact of the leak — but its lead
+> over LightGBM is small (v3: 0.0017 log loss, 0.0043 AUC; v3.5: 0.0030, 0.0052) and not
+> beyond one SE under either version. Cite §21, not §14.7–§14.13, for `bemtl16`.
+
+Evidence: `results/20261008-133359/` (v3), `results/20261008-133634/` (v3.5);
+`scripts/eval/insurance_benchmark_v1/predictions/bemtl16__seed42__v3_default.npz` and
+`scripts/eval/insurance_benchmark_v1/predictions/bemtl16__seed42__v3.5_default.npz`, each with
+a manifest carrying `predictions_sha256`;
+`scripts/eval/insurance_benchmark_v1/version_retest_bemtl16.csv`;
+`data/raw/bemtl16.csv` (SHA-256 `c07c8552a83799ac793c077ae4c3a7f29c7e54ca470509daf3d453f8b1b9ba67`).
 
 ## 9. Source Workbooks
 

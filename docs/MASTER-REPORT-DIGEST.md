@@ -8,7 +8,7 @@ Companion to `docs/KNOWLEDGE-PATH.md` Stage 4.5. The master report (`docs/analys
 
 ## §4 v1 — the baseline that started it (2026-08-01)
 
-9 tasks (7 datasets, 2 dual targets), all-default configs, scored on `1 − ROC AUC` / RMSE. Verdict: **2W / 1T / 5L** — wins on the two smallest classification tasks (bemtl16, coil2000), decisive losses on severity (vehvalue +67.2%, bemtl97_amount +48.3%). Compute cost objection: TabPFN 5–50× slower train, 100–1000×+ inference. **This verdict is the one the whole report exists to correct.**
+9 tasks (7 datasets, 2 dual targets), all-default configs, scored on `1 − ROC AUC` / RMSE. Verdict: **2W / 1T / 5L** — wins on the two smallest classification tasks (bemtl16 — computed with a target leak, see master report §21 — and coil2000), decisive losses on severity (vehvalue +67.2%, bemtl97_amount +48.3%). Compute cost objection: TabPFN 5–50× slower train, 100–1000×+ inference. **This verdict is the one the whole report exists to correct.**
 
 ## §11 Imbalance pilot & calibration re-score (08-02)
 
@@ -29,7 +29,7 @@ Question: *where does TabPFN sit on quality-per-parameter?* Pareto frontiers per
 ## §14.6–§14.10 The extensions (08-03 → 08-04)
 
 - **§14.6 norauto (184K rows):** LGBM takes power at scale; TabPFN survives the frontier only on a beyond-SE tie — the size ceiling transfers to the frontier axis.
-- **§14.7 ausprivauto0405 + bemtl16:** first outright TabPFN domination (ausprivauto0405 — *later retracted*) and first real beyond-SE win (bemtl16).
+- **§14.7 ausprivauto0405 + bemtl16:** first outright TabPFN domination (ausprivauto0405 — *later retracted*) and first real beyond-SE win (bemtl16 — superseded: computed with a target leak; on clean data TabPFN is still best but not beyond SE, §21).
 - **§14.8 Regression Phase 2 (D4):** TabPFN wins power at small N only (beyond-SE at 22K rows, tie at 68K), dominated at scale (163K, 678K). v1's vehvalue +67.2% shown to be a harness-specific artifact. Zero-inflation trap identified (poissonglm catastrophic on log1p amount).
 - **§14.9 Spanish motor frequency (real portfolio):** LGBM dominates beyond SE; TabPFN off-frontier a 4th time at scale; GLMs sit at the null-deviance floor — thin signal only trees extract. History-variable leak caught pre-run.
 - **§14.10 Gap-closing:** Spanish lapse 5-fold re-run — TabPFN 0.7553 > LGBM 0.7500, all 5 folds, the 2-fold caveat settled. eudirectlapse still Linear. Spanish severity: TabPFN mid-pack, off-frontier.

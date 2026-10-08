@@ -25,7 +25,7 @@ where the report records it. TabPFN n_params is the settled constant 10,000,000 
 | dataset | rows | target (metric) | balance | TabPFN mean ± SE | position | best competitor (mean, params) | GLM floor (params, score; gap) | outcome class |
 |---|---|---|---|---|---|---|---|---|
 | coil2000 | 9,822 | CARAVAN purchase (log loss) | 6% pos | 0.20059 ± 0.00221 | **on frontier, best** | lr 0.20554 (86) | lr 0.20554 (86); +2.5% | WIN |
-| bemtl16 | 58,723 | liability claims (log loss) | 36.0% pos | 0.23803 ± 0.00129 | **on frontier, best** | lgbm 0.23985 (3,100) | logisticglm 0.26315 (14); +10.6% | WIN |
+| bemtl16 † | 58,723 | liability claims (log loss) | 36.0% pos | 0.23803 ± 0.00129 | **on frontier, best** | lgbm 0.23985 (3,100) | logisticglm 0.26315 (14); +10.6% | WIN |
 | uslapseagent | 29,317 | surrender (log loss) | 38% pos | 0.24909 ± 0.00518 | **on frontier, best** | cat 0.25286 (63,394) | logisticglm 0.27624 (11); +10.9% | WIN |
 | ausautoBI8999 | 22,036 | log AggClaim (RMSE) | continuous | 0.96491 ± 0.00868 | **on frontier, best** | cat 0.96883 (63,944) | ols 1.07133 (12); +11.0% | WIN |
 | ausprivauto0405_vehvalue | 67,856 | VehValue (RMSE) | continuous | 0.71162 ± 0.01246 | **on frontier, best** | lgbm 0.71645 (3,100) | poissonglm 1.00932 (7); +41.8% | WIN (within SE of lgbm) |
@@ -38,6 +38,10 @@ where the report records it. TabPFN n_params is the settled constant 10,000,000 
 | freMTPL2freq | 678,013 | frequency (Poisson dev) | count | 0.38770 ± 0.00201 | **off frontier** | lgbm 0.29113 (3,100) | poissonglm 0.32109 (11); +10.3% | DOMINATED |
 | spanish_motor_lapse | 53,502 | surrender (AUC) | 35.4% pos | **0.7553 ± 0.0026** | wins all 5 folds | lgbm 0.7500 ± 0.0022 | LR 0.6841 ± 0.0015 (gap 0.071 AUC / +9.4% on TabPFN) | WIN |
 | eudirectlapse | 23,000 | lapse (AUC) | 12.8% pos | 0.6101 ± 0.0049 | loses all 5 folds | linear 0.6260 ± 0.0037 | LR is the best; 0.0% | LOSE |
+
+† bemtl16: computed with a target leak (`claim_responsibility_rate`, issue #216). On clean
+data (master report §21) TabPFN is still best — 0.5968 ± 0.0022 vs LightGBM 0.5985 — but the
+harness-GLM gap is +3.8%, not +10.6%, and +1.2% to a one-hot logistic regression.
 
 Size sweep (§13.2; `home_turf_sweep_results.csv`): bemtl97 / coil2000 / uslapseagent ×
 1K / 5K / full (163,212 / 9,822 / 29,317 rows) × 5 folds, log loss. **TabPFN wins 8/9
