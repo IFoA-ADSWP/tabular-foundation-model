@@ -435,11 +435,14 @@ Winner per cell computed from the CSV means (mean of 5 folds per dataset × size
 cells.** The single loss is bemtl97@full: LGBM 0.3418 vs TabPFN 0.3428 — a 0.0010 margin
 at 163K rows, the largest cell in the sweep.
 
+*v3.5 (2026-10-08): TabPFN wins 9/9 — the bemtl97@full loss reverses (0.3404 vs LightGBM
+0.3418). See §23.*
+
 ### 13.3 The size-ceiling curve is fully mapped — and it is flat for TabPFN
 
 - TabPFN leads on **all six practical-size cells** (1K and 5K on all three datasets) and
   on two of the three full-size cells; the GBDTs draw even exactly once, at 163K rows,
-  within 0.001.
+  within 0.001. *(On v3.5 that full-size loss is gone, §23.)*
 - This confirms §12.1: the v1 headline losses were driven by **dataset-size mismatch**,
   not by TabPFN's context ceiling per se. When the benchmark stays within TabPFN's
   training-data sweet spot, it beats all three GBDT families on log loss on every dataset.
@@ -1566,6 +1569,8 @@ fires.
   (`scripts/benchmarks/run_home_turf_size_sweep.py`) first, or the frontier will not
   see new model behavior on those three datasets. norauto / ausprivauto0405 / bemtl16
   and all regression datasets run fresh TabPFN power (lines 462–488, 603–626).
+  *(Closed 2026-10-08: the sweep was re-run on v3.5 (§23), and the frontier now refits every
+  method when the sweep's model version differs from the one under test, §23.4.)*
 
 ### 15.3 Procedure
 
@@ -2611,6 +2616,90 @@ Evidence: `results/20261008-135230/` (v3), `results/20261008-135747/` (v3.5);
 each with a manifest carrying `predictions_sha256` and the drop list; the leaky Tier 1
 predictions, renamed with the `__nclaims-leak` suffix;
 `scripts/eval/insurance_benchmark_v1/version_retest_bemtl97_amount.csv`.
+
+## 23. Addendum — size sweep on v3.5: TabPFN wins 9/9 cells (issue #186, 2026-10-08)
+
+The last item of #186: the §13 home-turf size sweep on v3.5. §15.2 required it before any
+`bemtl97` frontier claim, because the frontier reused the sweep's v3 TabPFN rows. §18–§20
+avoided that with fresh fits; this section refreshes the sweep itself and closes the gap in
+the harness (§23.4).
+
+### 23.1 Design
+
+- `run_home_turf_size_sweep.py --tabpfn-default-only` with `TABPFN_MODEL_PATH=v3.5_default`,
+  2026-10-08 14:39–14:50 UTC, commit `f87d4f5`, `tabpfn-client` 0.6.0. Same nine cells
+  (3 datasets × 1K / 5K / full, stratified slices) and folds as §13. It fits the
+  server-default TabPFN arm — the one §13.2's table scores — and refits CatBoost, LightGBM
+  and XGBoost in the same run. The `n_estimators` = 8 and 1 arms are not re-run.
+- **Output goes to `results/20261008-143926/`.** The committed August sweep is untouched: the
+  frontier still reuses it as the v3 record. Every row now records its `model_version`, and
+  a manifest records the run.
+- **Same folds.** CatBoost and LightGBM reproduce August's per-fold log loss exactly in every
+  cell. XGBoost differs in every cell (by up to 0.034) — a library-version change (xgboost
+  2.1.4 now; August's environment no longer exists). It is never the strongest GBDT in any
+  cell, so no winner depends on it.
+- Analysis: `analyze_sweep_retest.py` → `version_retest_home_turf_sweep.csv`.
+
+### 23.2 Results — mean log loss over 5 folds, lower is better
+
+| Dataset | Size | Rows | TabPFN v3 (Aug) | **TabPFN v3.5** | CatBoost | LightGBM | XGBoost | Winner, v3 → v3.5 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| coil2000 | 1K | 1,000 | 0.2080 | **0.2028** | 0.2205 | 0.3914 | 0.3396 | TabPFN → TabPFN |
+| coil2000 | 5K | 5,000 | 0.2026 | **0.1952** | 0.2103 | 0.2558 | 0.2836 | TabPFN → TabPFN |
+| coil2000 | full | 9,822 | 0.2006 | **0.1968** | 0.2082 | 0.2219 | 0.2494 | TabPFN → TabPFN |
+| uslapseagent | 1K | 1,000 | 0.2513 | **0.2320** | 0.2763 | 0.3459 | 0.3838 | TabPFN → TabPFN |
+| uslapseagent | 5K | 5,000 | 0.2602 | **0.2470** | 0.2718 | 0.2838 | 0.3125 | TabPFN → TabPFN |
+| uslapseagent | full | 29,317 | 0.2491 | **0.2438** | 0.2529 | 0.2537 | 0.2652 | TabPFN → TabPFN |
+| bemtl97 | 1K | 1,000 | 0.3529 | **0.3508** | 0.3687 | 0.5103 | 0.5317 | TabPFN → TabPFN |
+| bemtl97 | 5K | 5,000 | 0.3462 | **0.3439** | 0.3545 | 0.3778 | 0.4105 | TabPFN → TabPFN |
+| bemtl97 | full | 163,212 | 0.3428 | **0.3404** | 0.3436 | 0.3418 | 0.3451 | **LightGBM → TabPFN** |
+
+**TabPFN wins 9/9 cells (v3: 8/9).** Paired over the 5 folds (df=4):
+
+- **v3.5 vs the best GBDT:** lower log loss on 5/5 folds in every cell (p = 0.0004–0.026).
+- **v3.5 vs v3** (same folds): lower in every cell, by 0.0021 to 0.0193 (p ≤ 0.046); 5/5 folds
+  in eight cells, 4/5 at `uslapseagent` 5K. The largest gain is at `uslapseagent` 1K
+  (−0.019); on `bemtl97` it is a steady ~0.002 at every size.
+- **The flip:** `bemtl97` full — v3.5 0.3404 vs LightGBM 0.3418 (−0.0013, p=0.0004, 5/5). This
+  is the same computation as §20's seed-42 run (same folds, same call), and the cell
+  reproduces it to 7e-9 per fold: hosted v3.5 inference is effectively deterministic.
+
+### 23.3 What this changes
+
+- **§13.2–§13.3:** the single full-size loss (0.001 at 163K rows) is gone. On v3.5 TabPFN has
+  the lowest log loss in every cell from 1K to 163K rows, and the size-ceiling effect §13.3
+  described is not visible in this sweep.
+- **The adoption rule** cites "8/9 size-sweep cells won"; on v3.5 it is 9/9. The rule's
+  wording is unchanged here — the summary gets a pointer only.
+- **§15.2's sweep caveat is closed** two ways: the refreshed sweep exists, and the frontier
+  no longer reuses sweep rows from another model version (§23.4).
+
+### 23.4 Frontier guard
+
+`run_frontier_benchmark.py` now reuses committed sweep rows only when they came from the
+model under test (`reusable_sweep_rows`). The committed sweep predates the `model_version`
+column and counts as `v3_default` (`SWEEP_MODEL_VERSION`), so any other `TABPFN_MODEL_PATH`
+fits every method fresh and logs that it did. v3 runs are unchanged: a v3 frontier run on
+`coil2000` reproduces the committed TabPFN, CatBoost, LightGBM and XGBoost rows to 1e-16,
+while a v3.5 run logs the guard and refits. Unit test:
+`test_sweep_rows_reused_only_for_the_model_that_produced_them`.
+
+### 23.5 Cost
+
+696,590 credits, matching the `estimate_cost` quote: 50,000 per cell at the per-call
+minimum, and 296,590 for full-size `bemtl97`. No failed folds.
+
+### 23.6 Bottom line
+
+> On v3.5, TabPFN has the lowest log loss in all nine size-sweep cells — 1K, 5K and full size
+> on `coil2000`, `uslapseagent` and `bemtl97` — up from 8/9 on v3, and it improves on v3 in
+> every cell. The one v3 loss, LightGBM by 0.001 at 163K rows, reverses. This completes the
+> checklist of #186.
+
+Evidence: `results/20261008-143926/` (`home_turf_sweep_results.csv`, `home_turf_sweep_run.log`,
+`manifest.json`); `scripts/eval/insurance_benchmark_v1/version_retest_home_turf_sweep.csv`;
+`scripts/eval/insurance_benchmark_v1/analyze_sweep_retest.py`;
+`scripts/benchmarks/run_home_turf_size_sweep.py`.
 
 ## 9. Source Workbooks
 

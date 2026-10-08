@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- feat: home-turf size sweep re-run on TabPFN v3.5 — 9/9 cells won (v3: 8/9), master report §23 (#186). `run_home_turf_size_sweep.py` writes to `results/<UTC-timestamp>/` by default (`--out-dir legacy` for the committed file), gains `--tabpfn-default-only` and a per-row `model_version`; new `analyze_sweep_retest.py`; `run_frontier_benchmark.py` reuses sweep rows only when they came from the model under test
 - docs: Tier 2 follow-up (#186) — `eudirectlapse` v3/v3.5 pairs on seeds 7 and 123 (§17.9) and a train-fraction test that rules out fewer training rows as the cause of the published TabArena gap (§17.4); new `run_train_fraction_test.py`, and `analyze_version_retest.py` gains `--data` and same-day v3 on any seed
 - fix: `bemtl97_amount` target leak — `nclaims` (encodes `amount > 0` exactly) dropped in the frontier and v1 TabArena harnesses (the v1 harness gains per-dataset drop lists, also applied to `bemtl97`); clean re-run on TabPFN v3 + v3.5 and superseded markers in the master report, §22 (issue #216)
 - fix: `bemtl16` target leak — `claim_responsibility_rate` (a post-claim field) dropped from `make_bemtl16` and `data/raw/bemtl16.csv`; clean re-run on TabPFN v3 + v3.5 and superseded markers in the master report, §21 (issue #216)
