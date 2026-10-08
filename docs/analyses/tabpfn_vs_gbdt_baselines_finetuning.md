@@ -1886,6 +1886,16 @@ would show on every dataset, so alias drift cannot explain the 0.023 AUC gap her
 Candidates 1 (harness preprocessing) and 3 (fewer training rows) remain, and the cause is
 still unverified. The same result makes it unlikely that §16's deltas include alias drift.
 
+**Update 2026-10-08 — candidate 3 ruled out.** `run_train_fraction_test.py` re-ran
+`v3_default` on the same seed-42 test folds, training on a stratified 90% of each training
+fold — about the share the TabArena run kept after its validation holdout (AutoGluon's
+default holdout at ~18k training rows is 10%; not verifiable here without the tabarena
+package). AUC moved by −0.0003 (0.6328 vs 0.6331, paired p=0.69) and log loss by +0.0002
+(p=0.51), against a published gap of 0.016–0.033 on every fold (mean 0.023). Fewer training
+rows cannot explain it, even under a much larger holdout. That leaves candidate 1 — the
+TabArena wrapper, through AutoGluon's preprocessing or the way it calls TabPFN — by
+elimination; it is not tested directly, since the tabarena environment is not installed.
+
 ### 17.5 Caveats
 
 - **Weak default linear baselines, benchmark-wide.** The frontier harness gives `lr` and
@@ -1898,7 +1908,7 @@ still unverified. The same result makes it unlikely that §16's deltas include a
 - **`rf` log loss is clip-dependent.** The random forest emits exact 0/1 probabilities (43
   of them, 3 hard misses), so its log loss depends on the clipping epsilon: 0.3905 in
   float64 vs 0.3878 from float32 storage. Rank-based metrics are unaffected.
-- **Single seed (42).**
+- **Single seed (42).** Seeds 7 and 123 were added on 2026-10-08 (§17.9).
 
 ### 17.6 Harness defect found (fixed here)
 
@@ -1931,6 +1941,53 @@ Docs that still cite the published loss and are **not** edited here: §14.10 (th
 table, kept as the historical v3 record), `docs/archive/PRE_FINETUNING_INVESTIGATIONS.md`
 ("EU Lapse is the disclosed exception"), and `docs/reference/FINE_TUNING_PILOT_RESULTS.md`
 §4 finding 2. Read them through this section.
+
+### 17.9 Follow-up — seeds 7 and 123 (2026-10-08)
+
+The same same-day pair as §17.1 was repeated on split seeds 7 and 123
+(`run_frontier_benchmark.py --data data/raw/eudirectlapse.csv --target lapse
+--save-predictions --seed N`, commit `e87ceed`, `tabpfn-client` 0.6.0, `scikit-learn` 1.9.0).
+Within each pair the test folds are identical and all eight baselines' predictions are
+bit-identical. Analysis: `analyze_version_retest.py --data data/raw/eudirectlapse.csv
+--target lapse` → `version_retest_eudirectlapse.csv`; on seed 42 it reproduces §17.2–§17.3
+exactly.
+
+**v3 → v3.5 holds on every seed** (paired t, df=4; folds where v3.5 is better):
+
+| Seed | AUC v3 → v3.5 | Log loss Δ | Brier Δ | AUC Δ | PR-AUC Δ |
+| --- | --- | --- | --- | --- | --- |
+| 42 | 0.6331 → 0.6367 | −0.0032 (p=0.002, 5/5) | −0.0007 (p=0.002, 5/5) | +0.0036 (p=0.054, 4/5) | +0.0049 (p=0.014, 5/5) |
+| 7 | 0.6326 → 0.6363 | −0.0032 (p<0.001, 5/5) | −0.0007 (p<0.001, 5/5) | +0.0037 (p=0.023, 4/5) | +0.0036 (p<0.001, 5/5) |
+| 123 | 0.6320 → 0.6353 | −0.0031 (p=0.001, 5/5) | −0.0007 (p=0.002, 5/5) | +0.0033 (p=0.15, 4/5) | +0.0052 (p=0.057, 4/5) |
+
+Here AUC rises with v3.5 on every seed, as on `bemtl97` (§20.2) and unlike `ausprivauto0405`
+and `norauto` (§18.6, §19.6).
+
+**Against the fair one-hot LR (§17.3):**
+
+- **v3.5 wins every metric on every seed**, 5/5 folds each: log loss −0.0022 to −0.0027
+  (p ≤ 0.007), AUC +0.0075 to +0.0098 (p ≤ 0.025), PR-AUC, Brier, and lift.
+- **v3 leads on ranking on every seed:** PR-AUC +0.009 to +0.010 (p ≤ 0.021 on all three),
+  AUC +0.0042 to +0.0061 (p = 0.047 / 0.097 / 0.029 — significant on two seeds), lift +0.11
+  to +0.18.
+- **v3's calibration is a tie on seeds 42 and 7 but not on 123.** Brier ties on all three
+  (p ≥ 0.63); log loss ties on 42 and 7 (p = 0.19, 0.32) and is a narrow loss on 123
+  (+0.0009, p=0.022, 0/5 folds). §17.3's "v3 ties on calibration" therefore holds on two
+  seeds of three; read it as "v3 matches or narrowly trails the one-hot LR on calibration".
+
+Cost: 250,000 credits — 50,000 per harness run (four runs) and 50,000 for the train-fraction
+test, all at the 10,000-per-fold minimum — matching the `estimate_cost` quotes. No retries.
+
+Evidence: `results/20261008-142020/` (v3, seed 7), `results/20261008-142144/` (v3.5, seed 7),
+`results/20261008-142302/` (v3, seed 123), `results/20261008-142413/` (v3.5, seed 123),
+`results/20261008-142619/` (train-fraction test, with its own hashed predictions);
+`scripts/eval/insurance_benchmark_v1/predictions/eudirectlapse__seed7__v3_default.npz`,
+`scripts/eval/insurance_benchmark_v1/predictions/eudirectlapse__seed7__v3.5_default.npz`,
+`scripts/eval/insurance_benchmark_v1/predictions/eudirectlapse__seed123__v3_default.npz` and
+`scripts/eval/insurance_benchmark_v1/predictions/eudirectlapse__seed123__v3.5_default.npz`,
+each with a manifest carrying `predictions_sha256`;
+`scripts/eval/insurance_benchmark_v1/version_retest_eudirectlapse.csv`;
+`scripts/eval/insurance_benchmark_v1/run_train_fraction_test.py`.
 
 ## 18. Addendum — Tier 3 calibration re-test: `ausprivauto0405` (issue #186, 2026-10-07)
 

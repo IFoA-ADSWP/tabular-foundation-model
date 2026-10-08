@@ -4,13 +4,13 @@ report §18). Reads the per-fold predictions written by
 `run_frontier_benchmark.py --save-predictions` and fits no hosted model — no API calls.
 
 Inputs (predictions/):
-    <ds>__seed42__v3_default.npz      same-day v3 run (seed 42)
+    <ds>__seed42__v3_default.npz      same-day v3 run (seed 42; other seeds when present)
     <ds>__seed<s>__v3.5_default.npz   v3.5, one per seed in --seeds
 
 Sections:
-  1. Integrity (seed 42): identical test folds and y_true across the two same-day runs,
-     and every non-TabPFN method's predictions bit-identical between them — the model
-     is the only variable.
+  1. Integrity, for every seed with a same-day v3 run: identical test folds and y_true
+     across the two runs, and every non-TabPFN method's predictions bit-identical between
+     them — the model is the only variable.
   2. Alias drift: today's v3 folds vs the committed August v3 rows
      (frontier_pr_auc_results.csv, seed 42). `v3_default` is a server-side alias, so a
      mismatch would mean the checkpoint behind it moved (§17.4 candidate 2).
@@ -22,8 +22,8 @@ Sections:
        glm_eng        §14.13's feature-engineered GLM, committed per-fold (seed 42 only)
      plus v3 vs the same stronger linear specifications, to test the published v3
      verdict against baselines it never faced (§19.4).
-     v3 for seed 42 is the same-day run; for other seeds it is the committed August row,
-     valid because section 2 shows no drift. Every use of a committed row (August v3,
+     v3 is the same-day run where one exists (always for seed 42); otherwise the committed
+     August row, valid because section 2 shows no drift. Every use of a committed row (August v3,
      glm_eng) is gated on August's baseline scores matching today's per fold, i.e. the
      same folds of the same data: on seed 42 a mismatch skips the drift check and
      glm_eng (e.g. bemtl16 after its #216 leak fix); on other seeds it is an error.
@@ -38,6 +38,8 @@ Output: version_retest_<ds>.csv (long format, one row per seed x comparison x me
 Usage:
     python scripts/eval/insurance_benchmark_v1/analyze_version_retest.py ausprivauto0405
     python scripts/eval/insurance_benchmark_v1/analyze_version_retest.py norauto --seeds 42
+    python scripts/eval/insurance_benchmark_v1/analyze_version_retest.py \
+        --data data/raw/eudirectlapse.csv --target lapse     # a dataset run via --data
 """
 from __future__ import annotations
 
@@ -91,6 +93,16 @@ def onehot_lr_scores(X: pd.DataFrame, y: np.ndarray, folds, cats: list[str], num
     return pd.DataFrame(rows)
 
 
+def pair_gap(a: dict, b: dict, methods: list[str]) -> float:
+    """Assert two same-day runs share test folds and y_true; return the largest baseline
+    prediction difference between them (0 means only the TabPFN arm differs)."""
+    for k in range(N_FOLDS):
+        for key in (f"test_idx__fold{k}", f"y_true__fold{k}"):
+            assert np.array_equal(a[key], b[key]), f"{key} differs between the two runs"
+    return max(np.abs(a[f"{m}__fold{k}"].astype(np.float64) - b[f"{m}__fold{k}"]).max()
+               for m in methods if m != "tabpfn" for k in range(N_FOLDS))
+
+
 def august_gap(aug_s: pd.DataFrame, store: dict) -> float:
     """Largest per-fold log-loss gap between committed August baselines and today's run
     on the same seed (inf if the rows are missing). Below 1e-4 means same folds, same data."""
@@ -117,10 +129,16 @@ def paired_rows(x: pd.DataFrame, ref: pd.DataFrame, **tags) -> list[dict]:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("dataset")
+    ap.add_argument("dataset", nargs="?", help="registered frontier dataset name")
+    ap.add_argument("--data", help="CSV run via run_frontier_benchmark.py --data instead")
+    ap.add_argument("--target", help="target column (with --data)")
     ap.add_argument("--seeds", type=int, nargs="+", default=[42, 7, 123])
     args = ap.parse_args()
-    ds = next(d for d in fb.DATASETS if d["name"] == args.dataset)
+    if args.data:
+        path = Path(args.data) if Path(args.data).is_absolute() else fb.REPO / args.data
+        ds = dict(name=path.stem, file=str(path), target=args.target, drop=[])  # as the harness builds it
+    else:
+        ds = next(d for d in fb.DATASETS if d["name"] == args.dataset)
     from sklearn.model_selection import StratifiedKFold
 
     raw = pd.read_csv(fb.DATA_RAW / ds["file"]).dropna(subset=[ds["target"]]).reset_index(drop=True)
@@ -133,15 +151,11 @@ def main() -> None:
     aug = aug[aug.dataset == ds["name"]]
     rows: list[dict] = []
 
-    # ---- 1. integrity (seed 42, same day) ----
+    # ---- 1. integrity (seed 42, same day; other seeds' same-day pairs in section 3) ----
     v3_42 = load_store(ds["name"], 42, "v3_default")
     v35_42 = load_store(ds["name"], 42, "v3.5_default")
     methods = sorted({k.split("__")[0] for k in v3_42} - {"y_true", "test_idx"})
-    for k in range(N_FOLDS):
-        for key in (f"test_idx__fold{k}", f"y_true__fold{k}"):
-            assert np.array_equal(v3_42[key], v35_42[key]), f"{key} differs between the two runs"
-    worst = max(np.abs(v3_42[f"{m}__fold{k}"].astype(np.float64) - v35_42[f"{m}__fold{k}"]).max()
-                for m in methods if m != "tabpfn" for k in range(N_FOLDS))
+    worst = pair_gap(v3_42, v35_42, methods)
     print(f"=== {ds['name']}: integrity (seed 42)\n  test folds + y_true identical: yes; "
           f"max |baseline prediction diff| across runs = {worst:.3g} ({len(methods) - 1} methods)")
 
@@ -175,6 +189,12 @@ def main() -> None:
         aug_s = aug[aug.seed == s]
         if s == 42:
             v3, v3_src = today, "same-day"
+        elif (fb.PREDICTIONS_DIR / f"{ds['name']}__seed{s}__v3_default.npz").exists():
+            v3_store = load_store(ds["name"], s, "v3_default")
+            worst = pair_gap(v3_store, v35_store, methods)
+            print(f"\n=== {ds['name']}: integrity (seed {s})\n  test folds + y_true identical: yes; "
+                  f"max |baseline prediction diff| across runs = {worst:.3g}")
+            v3, v3_src = scores(v3_store, "tabpfn"), "same-day"
         else:
             # gate: August's per-fold baseline scores must match today's on this seed
             gap = august_gap(aug_s, v35_store)

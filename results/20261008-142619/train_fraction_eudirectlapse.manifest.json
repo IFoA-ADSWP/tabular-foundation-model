@@ -1,0 +1,46 @@
+{
+  "dataset": "eudirectlapse",
+  "data_file": "data/raw/eudirectlapse.csv",
+  "target": "lapse",
+  "split": "StratifiedKFold(5, shuffle=True, random_state=42)",
+  "train_rows": "stratified 0.9 of each training fold, train_test_split(random_state=0)",
+  "model_version": "v3_default",
+  "tabpfn_client_version": "0.6.0",
+  "script_git_sha": "e87ceed862770e1ba70492f42a11089f51da116b",
+  "created_at": "2026-10-08T14:26:20Z",
+  "predictions_sha256": "623b730e46e016c2e14adcbbb267fd82761faa27cc3c5a9f12b44efe6683f3c0",
+  "predictions_sha256_scheme": "sha256 over arrays in sorted key order; per array: key, NUL, dtype.str, NUL, shape, NUL, C-contiguous data bytes. Hashes array content, not the .npz container, so zip timestamps/compression do not affect it",
+  "full_fold_reference": "eudirectlapse__seed42__v3_default.npz",
+  "comparison": {
+    "log_loss": {
+      "fraction_mean": 0.3727068071219569,
+      "full_mean": 0.37255287077111204,
+      "delta": 0.00015393635084485214,
+      "p_paired": 0.5144420890203155
+    },
+    "brier": {
+      "fraction_mean": 0.10920560888001014,
+      "full_mean": 0.10918463776284033,
+      "delta": 2.0971117169818478e-05,
+      "p_paired": 0.6236441267657654
+    },
+    "auc": {
+      "fraction_mean": 0.6328079013290586,
+      "full_mean": 0.6331339283772706,
+      "delta": -0.00032602704821194095,
+      "p_paired": 0.6883889092953799
+    },
+    "pr_auc": {
+      "fraction_mean": 0.20251883226434134,
+      "full_mean": 0.2031003884755443,
+      "delta": -0.0005815562112029826,
+      "p_paired": 0.45529561318566897
+    },
+    "lift10": {
+      "fraction_mean": 1.8661337516825447,
+      "full_mean": 1.9135144176757268,
+      "delta": -0.047380665993182094,
+      "p_paired": 0.25491914081184586
+    }
+  }
+}
