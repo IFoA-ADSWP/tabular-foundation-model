@@ -128,7 +128,7 @@ won every classification task tested (8/9 sweep cells including the two full-siz
 
 ## 3. Regime descriptor (paste-ready for the one-pager)
 
-> **Use default TabPFN when** training rows are ≤ ~5K (won 8/9 size-sweep cells, §13.2),
+> **Use default TabPFN when** training rows are ≤ ~5K (won 8/9 size-sweep cells, §13.2; 9/9 on v3.5, master report §23),
 > **or** the task is classification/lapse-style and the linear floor is far from
 > achievable — best LR/GLM ≥ ~3% behind the best model (or ≥ ~0.05 AUC): that condition
 > holds for every TabPFN win (coil2000, bemtl16, uslapseagent, ausautoBI8999,

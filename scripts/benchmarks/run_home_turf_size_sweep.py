@@ -13,8 +13,14 @@ dropped, noted in the CSV via 'trimmed' column).
 Usage:
     source /tmp/tabarena/.venv-ta/bin/activate
     python scripts/benchmarks/run_home_turf_size_sweep.py
+    TABPFN_MODEL_PATH=v3.5_default python scripts/benchmarks/run_home_turf_size_sweep.py \
+        --tabpfn-default-only            # version re-test of the §13.2 winner table (#186)
 
-Output: scripts/eval/insurance_benchmark_v1/home_turf_sweep_results.csv
+Output: <out-dir>/home_turf_sweep_results.csv + home_turf_sweep_run.log + manifest.json,
+default <repo>/results/<UTC-timestamp>/. `--out-dir legacy` writes the committed
+scripts/eval/insurance_benchmark_v1/home_turf_sweep_results.csv instead — the August v3
+sweep that run_frontier_benchmark.py reuses, so a re-test must not overwrite it (§15.2).
+Every row records the model_version that produced it.
 """
 from __future__ import annotations
 
@@ -35,8 +41,8 @@ from src.model_version import resolve_model_path as _model_path  # noqa: E402
 REPO = HERE.parent.parent
 DATA_RAW = REPO / "data" / "raw"
 EVAL_DIR = REPO / "scripts" / "eval" / "insurance_benchmark_v1"
-OUT_CSV = EVAL_DIR / "home_turf_sweep_results.csv"
-LOG_FILE = EVAL_DIR / "home_turf_sweep_run.log"
+OUT_NAME = "home_turf_sweep_results.csv"  # committed v3 copy lives in EVAL_DIR (--out-dir legacy)
+LOG_NAME = "home_turf_sweep_run.log"
 
 # ---------------------------------------------------------------------------
 
@@ -108,12 +114,50 @@ def predict_proba(model, X: np.ndarray) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+def parse_args():
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--out-dir", default=None, metavar="DIR",
+                    help="output directory (default: <repo>/results/<UTC-timestamp>; 'legacy' "
+                         "writes the committed v3 sweep beside the frontier scripts)")
+    ap.add_argument("--tabpfn-default-only", action="store_true",
+                    help="fit only the server-default TabPFN arm, the one §13.2's winner table "
+                         "uses; skips the n_estimators=8 probe and the n_estimators=1 arm")
+    return ap.parse_args()
+
+
+def write_manifest(out_dir: Path, model_path: str) -> None:
+    """Run provenance: git state, model version, client version, command."""
+    import json
+    import subprocess
+    from importlib.metadata import version
+    try:
+        git_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True,
+                                 text=True, check=True).stdout.strip()
+    except Exception:
+        git_sha = "unknown"
+    manifest = {"utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "git_sha": git_sha,
+                "model_version": model_path, "tabpfn_client_version": version("tabpfn-client"),
+                "argv": sys.argv}
+    (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+
+
 def main() -> None:
+    args = parse_args()
     _load_api_key()
     os.environ.setdefault("TABPFN_CLIENT_TIMEOUT", "240")  # cap hangs; v1 max infer ~41s
-    EVAL_DIR.mkdir(parents=True, exist_ok=True)
+    if args.out_dir == "legacy":
+        out_dir = EVAL_DIR
+    elif args.out_dir:
+        out_dir = Path(args.out_dir) if Path(args.out_dir).is_absolute() else REPO / args.out_dir
+    else:
+        out_dir = REPO / "results" / time.strftime("%Y%m%d-%H%M%S", time.gmtime())
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_csv = out_dir / OUT_NAME
+    model_path = _model_path()
+    write_manifest(out_dir, model_path)
 
-    log = open(LOG_FILE, "w")
+    log = open(out_dir / LOG_NAME, "w")
     def say(msg: str) -> None:
         line = f"[{time.strftime('%H:%M:%S')}] {msg}"
         print(line, flush=True)
@@ -143,7 +187,7 @@ def main() -> None:
                 ("tabpfn", {"n_estimators": None}),
             ]
             trim_extra = ds["name"] == "bemtl97" and n is None
-            if not trim_extra:
+            if not trim_extra and not args.tabpfn_default_only:
                 # n8 included only while the probe is pending (None) or proved different (False)
                 if n8_equals_default is not True:
                     methods.append(("tabpfn", {"n_estimators": 8}))
@@ -158,6 +202,7 @@ def main() -> None:
                 for mname, mkw in methods:
                     row = {
                         "dataset": ds["name"],
+                        "model_version": model_path,
                         "n_rows": n_rows,
                         "method": mname,
                         "fold": fold,
@@ -203,12 +248,12 @@ def main() -> None:
                     if row["log_loss"] == row["log_loss"]:  # not NaN
                         say(f"  {ds['name']} n={n_rows} {mname}{mkw} f{fold} ll={row['log_loss']:.4f} brier={row['brier']:.4f} auc={row['roc_auc']:.4f} ({row['train_s']}s+{row['infer_s']}s)")
                     # flush CSV so partial results survive a crash/timeout
-                    pd.DataFrame(all_rows).to_csv(OUT_CSV, index=False)
+                    pd.DataFrame(all_rows).to_csv(out_csv, index=False)
 
             say(f"cell {ds['name']} n={n_rows} done in {time.time() - cell_t0:.0f}s")
 
             # Ensemble probe verdict (checked on first cell, applied everywhere)
-            if n8_equals_default is None and not trim_extra:
+            if n8_equals_default is None and not trim_extra and not args.tabpfn_default_only:
                 cell_rows = [r for r in all_rows if r["dataset"] == ds["name"] and r["n_rows"] == n_rows]
                 dflt = [r for r in cell_rows if r["method"] == "tabpfn" and r["n_estimators"] is None and r["error"] == ""]
                 n8 = [r for r in cell_rows if r["method"] == "tabpfn" and r["n_estimators"] == 8 and r["error"] == ""]
@@ -219,8 +264,8 @@ def main() -> None:
                 else:
                     n8_equals_default = False
 
-    pd.DataFrame(all_rows).to_csv(OUT_CSV, index=False)
-    say(f"ALL DONE in {time.time() - t0_all:.0f}s -> {OUT_CSV}")
+    pd.DataFrame(all_rows).to_csv(out_csv, index=False)
+    say(f"ALL DONE in {time.time() - t0_all:.0f}s -> {out_csv}")
     log.close()
 
 

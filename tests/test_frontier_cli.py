@@ -253,3 +253,17 @@ def test_reconstruct_pp():
     assert pp_glm.dtype == np.float32
     assert pp_glm[:, 1].min() >= np.float32(1e-6)
     assert pp_glm[:, 1].max() <= np.float32(1 - 1e-6)
+
+
+def test_sweep_rows_reused_only_for_the_model_that_produced_them():
+    """§15.2: a v3.5 run must never pick up the committed v3 sweep's TabPFN scores."""
+    sweep = pd.DataFrame({"dataset": ["bemtl97"] * 3, "n_rows": [100, 100, 50],
+                          "method": ["tabpfn", "lgbm", "tabpfn"], "n_estimators": [np.nan] * 3})
+    # the committed sweep has no model_version column: it is SWEEP_MODEL_VERSION (v3_default)
+    assert len(mod.reusable_sweep_rows(sweep, "bemtl97", 100, "v3_default")) == 2
+    assert mod.reusable_sweep_rows(sweep, "bemtl97", 100, "v3.5_default").empty
+
+    # a refreshed sweep records model_version per row and is matched on it
+    tagged = sweep.assign(model_version="v3.5_default")
+    assert len(mod.reusable_sweep_rows(tagged, "bemtl97", 100, "v3.5_default")) == 2
+    assert mod.reusable_sweep_rows(tagged, "bemtl97", 100, "v3_default").empty

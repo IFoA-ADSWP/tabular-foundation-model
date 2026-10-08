@@ -30,7 +30,9 @@ Pareto comparison).
 
 TabPFN/CAT/LGBM/XGB log-loss values are REUSED from home_turf_sweep_results.csv
 (identical splits — no re-running), filtered to dataset + full size
-(n_rows == len(X), n_estimators.isna()): 5 fold rows per method. Datasets with NO
+(n_rows == len(X), n_estimators.isna()): 5 fold rows per method — but only when the
+sweep came from the model under test. The committed sweep is v3_default, so any other
+TABPFN_MODEL_PATH fits every method fresh instead (SWEEP_MODEL_VERSION guard, §15.2). Datasets with NO
 sweep rows (norauto) fall back to FRESH power on the same 5 folds: cat/lgbm/xgb fit
 locally at sweep defaults; TabPFN runs last via the hosted API with a retry loop
 (3 attempts, backoff 10s/60s/300s) so a hosted stall never blocks the fast results.
@@ -157,6 +159,7 @@ METRIC_LABELS = {  # plot y-axis per metric (metric_fn dispatch)
 }
 N_FOLDS = 5
 SWEEP_CSV = HERE / "home_turf_sweep_results.csv"
+SWEEP_MODEL_VERSION = "v3_default"  # model behind SWEEP_CSV (Aug 2026); it predates the model_version column
 PR_AUC_CSV = HERE / "frontier_pr_auc_results.csv"  # per-fold PR-AUC/lift10 rows (append mode, --pr-auc only)
 PREDICTIONS_DIR = HERE / "predictions"  # --save-predictions: one .npz + manifest per dataset (#122)
 REUSED_METHODS = ["cat", "lgbm", "xgb", "tabpfn"]  # log loss reused as-is from the sweep
@@ -432,6 +435,17 @@ def pareto_frontier(rows: list[dict]) -> list[str]:
 # ---------------------------------------------------------------------------
 # One dataset
 # ---------------------------------------------------------------------------
+def reusable_sweep_rows(sweep: pd.DataFrame, name: str, n_rows: int, model_path: str) -> pd.DataFrame:
+    """Sweep rows that may stand in for fresh power: this dataset at full size, the
+    server-default TabPFN arm, and produced by the model under test. A sweep without a
+    model_version column is the committed SWEEP_MODEL_VERSION one, so any other model
+    refits every method rather than silently reusing v3 TabPFN scores (§15.2)."""
+    rows = sweep[(sweep.dataset == name) & (sweep.n_rows == n_rows) & (sweep.n_estimators.isna())]
+    versions = (rows["model_version"] if "model_version" in rows
+                else pd.Series(SWEEP_MODEL_VERSION, index=rows.index))
+    return rows[versions == model_path]
+
+
 def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
     from sklearn.model_selection import StratifiedKFold
 
@@ -469,8 +483,11 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
     # predictions, so PR AUC / top-decile lift cannot be computed from reused rows.
     # --save-predictions forces fresh power for the same reason: reused rows carry no
     # predictions to persist.
+    # Rows from another model version are never reused (reusable_sweep_rows, §15.2).
     sweep = pd.read_csv(SWEEP_CSV)
-    sweep_full = sweep[(sweep.dataset == ds["name"]) & (sweep.n_rows == len(X)) & (sweep.n_estimators.isna())]
+    sweep_full = reusable_sweep_rows(sweep, ds["name"], len(X), _model_path())
+    if sweep_full.empty and ((sweep.dataset == ds["name"]) & (sweep.n_rows == len(X))).any():
+        say(f"  sweep rows for {ds['name']} are not {_model_path()}: fitting every method fresh (§15.2)")
     fresh = sweep_full.empty or PR_AUC_MODE or SAVE_PREDICTIONS
     rows: list[dict] = []
 
