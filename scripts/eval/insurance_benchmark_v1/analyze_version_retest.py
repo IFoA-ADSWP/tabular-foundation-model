@@ -23,8 +23,10 @@ Sections:
      plus v3 vs the same stronger linear specifications, to test the published v3
      verdict against baselines it never faced (§19.4).
      v3 for seed 42 is the same-day run; for other seeds it is the committed August row,
-     valid because section 2 shows no drift. Each non-42 seed is gated on August's
-     baseline scores matching today's per fold, i.e. the folds are the same ones.
+     valid because section 2 shows no drift. Every use of a committed row (August v3,
+     glm_eng) is gated on August's baseline scores matching today's per fold, i.e. the
+     same folds of the same data: on seed 42 a mismatch skips the drift check and
+     glm_eng (e.g. bemtl16 after its #216 leak fix); on other seeds it is an error.
 
 Statistics: paired t over the 5 folds of one seed (df=4, two-sided), delta = v3.5 −
 reference. Seeds are reported side by side, never pooled: folds from different seeds
@@ -57,7 +59,7 @@ N_FOLDS = 5
 AUG_PER_FOLD = HERE / "frontier_pr_auc_results.csv"       # §14.12, Aug 2026, v3 + baselines
 TUNED_PER_FOLD = HERE / "frontier_tuned_baseline_results.csv"  # §14.13, glm_eng, seed 42
 METRIC = fb.metric_fn({})
-EXPOSURE_COLS = ("Exposure", "Expo", "expo")  # ausprivauto0405, norauto, bemtl97
+EXPOSURE_COLS = ("Exposure", "Expo", "expo", "exposure")  # ausprivauto0405, norauto, bemtl97, bemtl16
 
 
 def load_store(ds_name: str, seed: int, version: str) -> dict[str, np.ndarray]:
@@ -87,6 +89,18 @@ def onehot_lr_scores(X: pd.DataFrame, y: np.ndarray, folds, cats: list[str], num
         p1 = model.fit(X.iloc[tr], y[tr]).predict_proba(X.iloc[te])[:, 1]
         rows.append(fb.fold_scores(METRIC, y[te].astype(np.float64), np.column_stack([1 - p1, p1])))
     return pd.DataFrame(rows)
+
+
+def august_gap(aug_s: pd.DataFrame, store: dict) -> float:
+    """Largest per-fold log-loss gap between committed August baselines and today's run
+    on the same seed (inf if the rows are missing). Below 1e-4 means same folds, same data."""
+    gaps = []
+    for m in ("logisticglm", "lgbm"):
+        a = aug_s[aug_s.method == m].sort_values("fold")["log_loss"].to_numpy()
+        if len(a) != N_FOLDS:
+            return float("inf")
+        gaps.append(np.abs(a - scores(store, m)["log_loss"].to_numpy()).max())
+    return max(gaps)
 
 
 def paired_rows(x: pd.DataFrame, ref: pd.DataFrame, **tags) -> list[dict]:
@@ -134,8 +148,13 @@ def main() -> None:
     # ---- 2. alias drift ----
     today = scores(v3_42, "tabpfn")
     then = aug[(aug.method == "tabpfn") & (aug.seed == 42)].sort_values("fold")
+    gap42 = august_gap(aug[aug.seed == 42], v3_42)
+    committed_current = gap42 < 1e-4
     print(f"\n=== {ds['name']}: alias drift — today's v3 vs committed August v3 (seed 42)")
-    if len(then) == N_FOLDS:
+    if len(then) == N_FOLDS and not committed_current:
+        print(f"  committed August baselines differ from today's by {gap42:.2e} log loss: the data "
+              "changed since August, so the drift check and committed references are skipped")
+    elif len(then) == N_FOLDS:
         for mt in METRICS:
             diff = today[mt].to_numpy() - then[mt].to_numpy()
             print(f"  {mt:9} Aug {then[mt].mean():.6f}  today {today[mt].mean():.6f}  "
@@ -158,11 +177,8 @@ def main() -> None:
             v3, v3_src = today, "same-day"
         else:
             # gate: August's per-fold baseline scores must match today's on this seed
-            for m in ("logisticglm", "lgbm"):
-                a = aug_s[aug_s.method == m].sort_values("fold")["log_loss"].to_numpy()
-                assert len(a) == N_FOLDS, f"seed {s}: no committed August rows for {m}"
-                gap = np.abs(a - scores(v35_store, m)["log_loss"].to_numpy()).max()
-                assert gap < 1e-4, f"seed {s}: August {m} folds differ from today's by {gap:.1e}"
+            gap = august_gap(aug_s, v35_store)
+            assert gap < 1e-4, f"seed {s}: committed August baselines differ from today's by {gap:.1e}"
             v3 = aug_s[aug_s.method == "tabpfn"].sort_values("fold")[METRICS].reset_index(drop=True)
             v3_src = "august"
         v35 = scores(v35_store, "tabpfn")
@@ -173,7 +189,7 @@ def main() -> None:
         if expo is not None:
             refs["onehot_lr_logexp"] = onehot_lr_scores(X.assign(logExposure=np.log(X[expo])),
                                                         y, folds, cats, nums + ["logExposure"])
-        if s == 42 and TUNED_PER_FOLD.exists():
+        if s == 42 and committed_current and TUNED_PER_FOLD.exists():
             t = pd.read_csv(TUNED_PER_FOLD)
             g = t[(t.dataset == ds["name"]) & (t.method == "glm_eng")].sort_values("fold")
             if len(g) == N_FOLDS:
