@@ -1,0 +1,400 @@
+{
+  "utc": "2026-10-18T09:11:17Z",
+  "git_commit": "d4cfc006005ce0602ea0583e959a1fa5f2175bdd",
+  "git_branch": "feat/issue-222-v35-frontier",
+  "python": "3.12.0",
+  "interpreter": "/Users/mako/Desktop/ADSWP/tabular-foundation-model-tier3/.venv-tier3/bin/python",
+  "packages": {
+    "tabpfn-client": "0.6.0",
+    "scikit-learn": "1.9.0",
+    "lightgbm": "4.7.0",
+    "catboost": "1.2.10",
+    "xgboost": "2.1.4",
+    "numpy": "1.26.4",
+    "pandas": "2.3.3"
+  },
+  "model_paths": [
+    "v3_default",
+    "v3.5_default"
+  ],
+  "api_usage_before": "Currently, you have used 4073395 of the allowed limit of 180000000 credits. The limit will reset at 2026-11-01 00:00:00 UTC.",
+  "quotes": [
+    {
+      "dataset": "coil2000",
+      "task": "classification",
+      "rows": 9822,
+      "features": 85,
+      "model_version": "v3",
+      "fold_shapes": [
+        [
+          7857,
+          1965
+        ],
+        [
+          7857,
+          1965
+        ],
+        [
+          7858,
+          1964
+        ],
+        [
+          7858,
+          1964
+        ],
+        [
+          7858,
+          1964
+        ]
+      ],
+      "per_fold": [
+        10000,
+        10000,
+        10000,
+        10000,
+        10000
+      ],
+      "total": 50000,
+      "pricing_version": "quota_v3",
+      "inputs": {
+        "train_rows": 7858,
+        "raw_columns": 85,
+        "test_rows": 1964,
+        "model_version": "v3",
+        "operation": "predict",
+        "n_estimators": 8,
+        "thinking_effort": null
+      }
+    },
+    {
+      "dataset": "coil2000",
+      "task": "classification",
+      "rows": 9822,
+      "features": 85,
+      "model_version": "v3.5",
+      "fold_shapes": [
+        [
+          7857,
+          1965
+        ],
+        [
+          7857,
+          1965
+        ],
+        [
+          7858,
+          1964
+        ],
+        [
+          7858,
+          1964
+        ],
+        [
+          7858,
+          1964
+        ]
+      ],
+      "per_fold": [
+        10000,
+        10000,
+        10000,
+        10000,
+        10000
+      ],
+      "total": 50000,
+      "pricing_version": "quota_v3",
+      "inputs": {
+        "train_rows": 7858,
+        "raw_columns": 85,
+        "test_rows": 1964,
+        "model_version": "v3.5",
+        "operation": "predict",
+        "n_estimators": 8,
+        "thinking_effort": null
+      }
+    },
+    {
+      "dataset": "uslapseagent",
+      "task": "classification",
+      "rows": 29317,
+      "features": 10,
+      "model_version": "v3",
+      "fold_shapes": [
+        [
+          23453,
+          5864
+        ],
+        [
+          23453,
+          5864
+        ],
+        [
+          23454,
+          5863
+        ],
+        [
+          23454,
+          5863
+        ],
+        [
+          23454,
+          5863
+        ]
+      ],
+      "per_fold": [
+        10000,
+        10000,
+        10000,
+        10000,
+        10000
+      ],
+      "total": 50000,
+      "pricing_version": "quota_v3",
+      "inputs": {
+        "train_rows": 23454,
+        "raw_columns": 10,
+        "test_rows": 5863,
+        "model_version": "v3",
+        "operation": "predict",
+        "n_estimators": 8,
+        "thinking_effort": null
+      }
+    },
+    {
+      "dataset": "uslapseagent",
+      "task": "classification",
+      "rows": 29317,
+      "features": 10,
+      "model_version": "v3.5",
+      "fold_shapes": [
+        [
+          23453,
+          5864
+        ],
+        [
+          23453,
+          5864
+        ],
+        [
+          23454,
+          5863
+        ],
+        [
+          23454,
+          5863
+        ],
+        [
+          23454,
+          5863
+        ]
+      ],
+      "per_fold": [
+        10000,
+        10000,
+        10000,
+        10000,
+        10000
+      ],
+      "total": 50000,
+      "pricing_version": "quota_v3",
+      "inputs": {
+        "train_rows": 23454,
+        "raw_columns": 10,
+        "test_rows": 5863,
+        "model_version": "v3.5",
+        "operation": "predict",
+        "n_estimators": 8,
+        "thinking_effort": null
+      }
+    },
+    {
+      "dataset": "ausautoBI8999",
+      "task": "regression",
+      "rows": 22036,
+      "features": 11,
+      "model_version": "v3",
+      "fold_shapes": [
+        [
+          17628,
+          4408
+        ],
+        [
+          17629,
+          4407
+        ],
+        [
+          17629,
+          4407
+        ],
+        [
+          17629,
+          4407
+        ],
+        [
+          17629,
+          4407
+        ]
+      ],
+      "per_fold": [
+        10000,
+        10000,
+        10000,
+        10000,
+        10000
+      ],
+      "total": 50000,
+      "pricing_version": "quota_v3",
+      "inputs": {
+        "train_rows": 17629,
+        "raw_columns": 11,
+        "test_rows": 4407,
+        "model_version": "v3",
+        "operation": "predict",
+        "n_estimators": 8,
+        "thinking_effort": null
+      }
+    },
+    {
+      "dataset": "ausautoBI8999",
+      "task": "regression",
+      "rows": 22036,
+      "features": 11,
+      "model_version": "v3.5",
+      "fold_shapes": [
+        [
+          17628,
+          4408
+        ],
+        [
+          17629,
+          4407
+        ],
+        [
+          17629,
+          4407
+        ],
+        [
+          17629,
+          4407
+        ],
+        [
+          17629,
+          4407
+        ]
+      ],
+      "per_fold": [
+        10000,
+        10000,
+        10000,
+        10000,
+        10000
+      ],
+      "total": 50000,
+      "pricing_version": "quota_v3",
+      "inputs": {
+        "train_rows": 17629,
+        "raw_columns": 11,
+        "test_rows": 4407,
+        "model_version": "v3.5",
+        "operation": "predict",
+        "n_estimators": 8,
+        "thinking_effort": null
+      }
+    },
+    {
+      "dataset": "ausprivauto0405_vehvalue",
+      "task": "regression",
+      "rows": 67856,
+      "features": 6,
+      "model_version": "v3",
+      "fold_shapes": [
+        [
+          54284,
+          13572
+        ],
+        [
+          54285,
+          13571
+        ],
+        [
+          54285,
+          13571
+        ],
+        [
+          54285,
+          13571
+        ],
+        [
+          54285,
+          13571
+        ]
+      ],
+      "per_fold": [
+        10000,
+        10000,
+        10000,
+        10000,
+        10000
+      ],
+      "total": 50000,
+      "pricing_version": "quota_v3",
+      "inputs": {
+        "train_rows": 54285,
+        "raw_columns": 6,
+        "test_rows": 13571,
+        "model_version": "v3",
+        "operation": "predict",
+        "n_estimators": 8,
+        "thinking_effort": null
+      }
+    },
+    {
+      "dataset": "ausprivauto0405_vehvalue",
+      "task": "regression",
+      "rows": 67856,
+      "features": 6,
+      "model_version": "v3.5",
+      "fold_shapes": [
+        [
+          54284,
+          13572
+        ],
+        [
+          54285,
+          13571
+        ],
+        [
+          54285,
+          13571
+        ],
+        [
+          54285,
+          13571
+        ],
+        [
+          54285,
+          13571
+        ]
+      ],
+      "per_fold": [
+        14897,
+        14897,
+        14897,
+        14897,
+        14897
+      ],
+      "total": 74485,
+      "pricing_version": "quota_v3",
+      "inputs": {
+        "train_rows": 54285,
+        "raw_columns": 6,
+        "test_rows": 13571,
+        "model_version": "v3.5",
+        "operation": "predict",
+        "n_estimators": 8,
+        "thinking_effort": null
+      }
+    }
+  ],
+  "quote_total": 424485
+}
