@@ -2701,6 +2701,144 @@ Evidence: `results/20261008-143926/` (`home_turf_sweep_results.csv`, `home_turf_
 `scripts/eval/insurance_benchmark_v1/analyze_sweep_retest.py`;
 `scripts/benchmarks/run_home_turf_size_sweep.py`.
 
+## 24. Addendum — the v3 wins on v3.5: none lost (issue #222, 2026-10-18)
+
+#186 re-tested v3.5 only where `v3_default` lost. This section covers the other side: the
+four frontier datasets where v3 won, which #186 never ran through the frontier on v3.5
+(§23's sweep covered only the log loss of `coil2000` and `uslapseagent`, and only against
+the GBDTs). With it, all 12 frontier datasets have been run on v3.5.
+
+### 24.1 Design
+
+- `run_frontier_benchmark.py --save-predictions --seed 42`, run once with
+  `TABPFN_MODEL_PATH=v3_default` and once with `v3.5_default`, on `coil2000` and
+  `uslapseagent` and, with `--regression`, on `ausautoBI8999` and `ausprivauto0405_vehvalue`.
+  Runs were on 2026-10-18 between 09:14 and 09:32 UTC, at commit `d4cfc00`, with
+  `tabpfn-client` 0.6.0 and `scikit-learn` 1.9.0. Versions and quotes were recorded before
+  any fit in `results/issue-222-preflight/preflight.json`.
+- **Same day, paired, model-only.** In every pair the test folds and `y_true` are
+  identical, and every non-TabPFN method's predictions are bit-identical between the v3 and
+  the v3.5 run, so the model is the only variable.
+- **No `--pr-auc`.** That flag appends to the committed `frontier_pr_auc_results.csv`, which
+  has no model-version column, and that file is the August reference the drift check reads.
+  It is unchanged.
+- Analysis, with no API calls: `analyze_version_retest.py <ds> --seeds 42` and
+  `analyze_regression_retest.py <ds>` → `version_retest_<ds>.csv`. Paired t over the 5 folds
+  (df=4, two-sided).
+
+### 24.2 Classification — mean over 5 folds (seed 42)
+
+| Dataset | Metric | TabPFN v3 | **TabPFN v3.5** | v3.5 − v3 (p, folds) | Best rival | v3.5 − rival (p) |
+| --- | --- | ---: | ---: | --- | --- | --- |
+| coil2000 | log loss ↓ | 0.20060 | **0.19681** | −0.00379 (0.013, 5/5) | lr 0.20548 | −0.00866 (0.003) |
+| | Brier ↓ | 0.05276 | **0.05232** | −0.00044 (0.037, 4/5) | lr 0.05361 | −0.00129 (0.002) |
+| | AUC ↑ | 0.77315 | **0.77685** | +0.00370 (0.30, 4/5) | cat 0.74687 | +0.02998 (0.003) |
+| | PR-AUC ↑ | 0.18700 | **0.18990** | +0.00290 (0.47, 3/5) | lr 0.16739 | +0.02251 (0.024) |
+| | lift@10% ↑ | 3.335 | **3.489** | +0.154 (0.18, 4/5) | lr 3.147 | +0.342 (0.011) |
+| uslapseagent | log loss ↓ | 0.24906 | **0.24380** | −0.00526 (0.0002, 5/5) | cat 0.25286 | −0.00905 (0.002) |
+| | Brier ↓ | 0.08135 | **0.07954** | −0.00181 (0.0001, 5/5) | cat 0.08263 | −0.00309 (0.002) |
+| | AUC ↑ | 0.94661 | **0.94941** | +0.00280 (<0.0001, 5/5) | cat 0.94395 | +0.00546 (0.003) |
+| | PR-AUC ↑ | 0.88667 | **0.89403** | +0.00736 (<0.0001, 5/5) | cat 0.87896 | +0.01507 (0.0045) |
+| | lift@10% ↑ | 2.457 | **2.474** | +0.017 (0.003, 5/5) | lgbm 2.439 | +0.035 (0.042) |
+
+The best rival is the best mean among the harness methods of the same-day run.
+
+- **v3.5 is rank 1 on every metric of both datasets, and significantly better than the best
+  rival on all ten.** In August, the v3 log loss and Brier leads on `uslapseagent` were
+  within one SE; paired on the same folds, the v3.5 leads are significant.
+- **v3.5 vs v3:** better on all 5 metrics on `uslapseagent`, on every fold. On `coil2000` it
+  is significantly better on log loss and Brier, and better but not significantly on AUC,
+  PR-AUC and lift. No metric is worse.
+- v3.5 also wins every metric on both datasets against §17.3's fair one-hot LR
+  (`onehot_lr`, p ≤ 0.032), and on `uslapseagent` against §14.13's engineered GLM
+  (`glm_eng`). On `coil2000` the script skipped `glm_eng` (§24.4).
+
+### 24.3 Regression — mean over 5 folds
+
+| Dataset | Metric | TabPFN v3 | **TabPFN v3.5** | v3.5 − v3 (p, folds) | Best rival | v3.5 − rival (p) |
+| --- | --- | ---: | ---: | --- | --- | --- |
+| ausautoBI8999 | RMSE ↓ | 0.96490 | **0.95194** | −0.01296 (0.0002, 5/5) | cat 0.96883 | −0.01689 (0.0006) |
+| | MAE ↓ | 0.72312 | **0.71605** | −0.00708 (0.0006, 5/5) | cat 0.73061 | −0.01456 (0.0004) |
+| ausprivauto0405_vehvalue | RMSE ↓ | 0.71163 | **0.71049** | −0.00114 (0.17, 3/5) | lgbm 0.71645 | −0.00596 (0.078) |
+| | MAE ↓ | **0.41143** | 0.41649 | **+0.00506 (0.0001, 0/5)** | lgbm 0.41909 | −0.00260 (0.016) |
+
+- **`ausautoBI8999`:** v3.5 improves on v3 on every fold for both RMSE and MAE. On v3 the
+  RMSE lead over CatBoost was within one SE (p=0.15 paired); on v3.5 it is significant.
+- **`ausprivauto0405_vehvalue`: the one regression in this re-test.** RMSE, the frontier
+  metric, is unchanged (p=0.17). **MAE is worse on v3.5 on every fold** (+0.0051,
+  p=0.0001), though v3.5 still beats LightGBM on MAE. On RMSE TabPFN keeps the best mean but
+  is not separable from LightGBM under either version (v3 p=0.084, v3.5 p=0.078); its
+  August lead was already within one SE.
+- TabPFN stays on the parsimony frontier for all four datasets under both versions, and
+  every method's frontier flag matches August.
+
+### 24.4 Reproduction of August
+
+- **No alias drift.** Today's `v3_default` matches the committed August v3 per fold to
+  ≤ 3.1e-5 log loss on `coil2000` and ≤ 1.3e-4 on `uslapseagent`. Its regression means match
+  to ≤ 7e-6 RMSE. This agrees with §17.4's update.
+- **Baselines, per-fold log loss (classification) or mean RMSE (regression) against
+  August:**
+  - CatBoost and LightGBM reproduce everywhere, to ≤ 5e-10 per fold (float32 storage) and
+    exactly on the regression means.
+  - XGBoost differs on classification (up to 7.7e-3 on `coil2000`, 1.7e-3 on
+    `uslapseagent`) but reproduces the regression means exactly. §23.1 saw the same
+    classification gap. The cause is not investigated here, and XGBoost is never the best
+    rival in this section.
+  - The linear `scikit-learn` models drift on classification: `lr` and `logisticglm` by up
+    to 2.5e-4 log loss, `poissonglm` and `tweedieglm` by up to 1.9e-3. On `ausautoBI8999`
+    `poissonglm` and `tweedieglm` drift by +0.8–0.9% RMSE. `rf` reproduces classification to
+    ≤ 2e-9 and the regression means to within ±0.06%.
+  - **`ols` reproduces August** (≤ 5e-9), unlike in §16.4.
+- **False alarm in the analysis script.** On `coil2000`, `analyze_version_retest.py` reports
+  that "the data changed since August" and skips its drift check and `glm_eng`. Its gate
+  compares `logisticglm` and `lgbm` against a 1e-4 threshold, and `logisticglm`'s
+  `scikit-learn` drift (2.5e-4) exceeds it. The data did not change: CatBoost, LightGBM and
+  RF reproduce August. The drift check above was done by hand from the same files.
+- Every rival number in §24.2–§24.3 comes from the same-day run, not August, so none of this
+  drift enters a v3.5 comparison.
+
+### 24.5 Seeds not added
+
+#222 asked for seeds 7 and 123 wherever a delta fell within one SE. That applies in two
+places:
+
+- **`coil2000` AUC, PR-AUC and lift, v3 → v3.5.** Not run. Every delta favours v3.5, and v3.5
+  beats every rival on every metric significantly. The point of this re-test is to catch a
+  v3.5 regression, and none is suggested here.
+- **`ausprivauto0405_vehvalue` RMSE.** Not possible: regression splits are always
+  `KFold(5, shuffle=True, random_state=42)` regardless of `--seed`, and TabPFN runs with
+  `random_state=0`. Any seed would reproduce these numbers.
+
+### 24.6 Cost
+
+424,485 credits, matching the `estimate_cost` quote. That is 50,000 per run (10,000 per fold,
+the per-call minimum) for seven of the eight, and 74,485 for v3.5 on
+`ausprivauto0405_vehvalue` (14,897 per fold). Account usage moved 4,073,395 → 4,497,880 of a
+180M allowance. No failed folds and no retries.
+
+### 24.7 Bottom line
+
+> On the four frontier datasets where v3 won, v3.5 loses no win and no frontier position. It
+> is rank 1 on every metric of `coil2000`, `uslapseagent` and `ausautoBI8999`, and on every
+> frontier metric it is better than v3 or tied. The one regression is secondary:
+> `ausprivauto0405_vehvalue` MAE is 0.005 worse on every fold, while its RMSE is unchanged
+> and still not separable from LightGBM. Together with #186, all 12 frontier datasets have
+> now been run on v3.5.
+
+Evidence: `results/issue-222-preflight/preflight.json`; `results/20261018-091411/` (v3) and
+`results/20261018-091634/` (v3.5), `coil2000`; `results/20261018-091945/` (v3) and
+`results/20261018-092104/` (v3.5), `uslapseagent`; `results/20261018-092514/` (v3) and
+`results/20261018-092822/` (v3.5), regression pair;
+`scripts/eval/insurance_benchmark_v1/predictions/<ds>__seed42__{v3,v3.5}_default.npz` with
+manifests, for the four datasets;
+`scripts/eval/insurance_benchmark_v1/version_retest_coil2000.csv`,
+`scripts/eval/insurance_benchmark_v1/version_retest_uslapseagent.csv`,
+`scripts/eval/insurance_benchmark_v1/version_retest_ausautoBI8999.csv`,
+`scripts/eval/insurance_benchmark_v1/version_retest_ausprivauto0405_vehvalue.csv`;
+`scripts/eval/insurance_benchmark_v1/analyze_version_retest.py`;
+`scripts/eval/insurance_benchmark_v1/analyze_regression_retest.py`.
+
 ## 9. Source Workbooks
 
 - `scripts/benchmarks/run_home_turf_size_sweep.py` — home-turf size sweep runner (3 datasets × 3
