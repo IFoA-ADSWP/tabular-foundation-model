@@ -1,0 +1,50 @@
+# tabular-foundation-model — Agent Instructions
+
+## Canonical test command
+
+pytest tests/ -q
+
+Run it and iterate until it passes before reporting work as done. A failing gate
+means the task is not finished — do not claim completion on an unverified change.
+
+## Plans
+
+Write docs/plans/<task>.md before non-trivial work: what you intend to change and
+why. Commit it with the change.
+
+## Conventions
+
+Python research repo (TabPFN vs actuarial baselines). The test gate is CI, and CI is
+**four checks, not one** — a change that passes pytest can still fail the others:
+
+- `ruff check scripts/ src/ tests/`
+- `pytest tests/ -q`
+- `shellcheck --severity=warning scripts/gpu_helpers/*.sh`
+- doc link/doc-status checks
+
+`scripts/gpu_helpers/*.sh` is the **paid-run path** — it runs on rented boxes, mid-run, at
+cost. A syntax error there is expensive and happens away from your terminal. Run shellcheck
+before touching it.
+
+**Version pinning is load-bearing.** Legacy reports were produced against TabPFN v2 era;
+current verdicts are pinned to `v3_default` (tabpfn-client 0.3.3). `docs/MODEL_VERSIONS.md`
+records the timeline and what flipped. Never mix version eras in a claim — a number is only
+meaningful against the version it was measured with.
+
+`requirements.lock` exists alongside `requirements.txt`; use the lock.
+
+Doc-heavy repo: `TASKS.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `docs/` with a roadmap and a
+dashboard. Treat those as tracked artifacts — if a change makes one stale, update it.
+
+**Data hygiene.** `data/`, `outputs/`, `catboost_info/`, `legacy/` and `notebooks/` hold
+experiment outputs. Do not treat them as source; do not regenerate or delete them casually.
+
+<!-- Replace this block with gotchas as you find them. -->
+
+## Review
+
+Every change is reviewed before merge, in a fresh context, against the plan.
+
+## Issue tracker
+
+Config: docs/issue-tracker.md
