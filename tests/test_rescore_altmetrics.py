@@ -371,17 +371,21 @@ def test_main_end_to_end_synthetic(tmp_path, monkeypatch):
     summary = pd.read_csv(out_dir / "alt_metrics_summary.csv")
 
     assert set(per_fold["dataset"].unique()) == {"spanish_motor_severity", "freMTPL2freq"}
+    # The version comes from the capture manifest, so a row can be placed in the repo's
+    # per-artifact table (docs/MODEL_VERSIONS.md) instead of being era-less.
+    assert set(per_fold["model_version"].unique()) == {"v3_default"}
+    assert set(summary["model_version"].unique()) == {"v3_default"}
     assert set(per_fold[per_fold.dataset == "freMTPL2freq"]["metric"].unique()) == {"mae"}
     assert "gamma_deviance" in per_fold[per_fold.dataset == "spanish_motor_severity"]["metric"].unique()
     expected_per_fold_cols = {
-        "dataset", "seed", "method", "fold", "scale", "inverse_fn", "metric", "value",
+        "dataset", "seed", "model_version", "method", "fold", "scale", "inverse_fn", "metric", "value",
         "n_fold", "n_used", "zero_mass_frac", "gamma_subset_used",
         "n_true_floor_clipped", "n_true_ceiling_clipped",
         "n_pred_floor_clipped", "n_pred_ceiling_clipped",
     }
     assert expected_per_fold_cols == set(per_fold.columns)
     expected_summary_cols = {
-        "dataset", "seed", "metric", "method", "n_folds", "mean", "se", "rank",
+        "dataset", "seed", "model_version", "metric", "method", "n_folds", "mean", "se", "rank",
         "best_glm", "delta_vs_glm", "t_vs_glm", "p_vs_glm",
         "best_gbdt", "delta_vs_gbdt", "t_vs_gbdt", "p_vs_gbdt",
     }
