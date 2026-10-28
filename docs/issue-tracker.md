@@ -33,8 +33,11 @@ gh exposes these as first-class commands:
 Sub-issues and blocking relationships have **no** `gh` subcommand (`gh` 2.101); use `gh api`:
 - List sub-issues of #N:
   `gh api repos/IFoA-ADSWP/tabular-foundation-model/issues/N/sub_issues`
-- Resolve the database id of any issue: `gh issue view N -R IFoA-ADSWP/tabular-foundation-model --json id -q .id` (a large
-  number, NOT the issue #N). All write calls below take this database id.
+- Resolve the database id of any issue with the REST API:
+  `gh api repos/IFoA-ADSWP/tabular-foundation-model/issues/N --jq .id` — an integer, NOT the issue
+  #N and NOT the `I_kw…` node id that `gh issue view N --json id` returns. The dependency
+  endpoints reject the node id with HTTP 422 ("is not of type integer"). All write calls below
+  take this integer.
 - Add a sub-issue:
   `gh api repos/IFoA-ADSWP/tabular-foundation-model/issues/N/sub_issues -X POST -F sub_issue_id=<child-db-id>`
 - List what blocks #N: `gh api repos/IFoA-ADSWP/tabular-foundation-model/issues/N/dependencies/blocked_by`
