@@ -233,7 +233,8 @@ def build_per_fold_rows(dataset: str, seed: int, pred_store: dict, manifest: dic
             y_pred = pred_store[f"{method}__fold{fold}"]
             for m in compute_fold_metrics(y_true, y_pred, cfg):
                 rows.append({
-                    "dataset": dataset, "seed": seed, "method": method, "fold": fold,
+                    "dataset": dataset, "seed": seed, "model_version": manifest.get("model_version"),
+                    "method": method, "fold": fold,
                     "scale": cfg["scale"], "inverse_fn": cfg["inverse"], **m,
                 })
     return rows
@@ -262,12 +263,23 @@ def paired_test(a: np.ndarray, b: np.ndarray) -> tuple[float, float]:
 
 
 def summarize(per_fold_df: pd.DataFrame) -> pd.DataFrame:
-    """Per (dataset, seed, metric): mean/SE/rank per method; on the tabpfn row only,
-    paired-test deltas vs the best GLM-family member and best GBDT-family member.
+    """Per (dataset, seed, model_version, metric): mean/SE/rank per method; on the tabpfn row
+    only, paired-test deltas vs the best GLM-family member and best GBDT-family member.
     Lower is always better for mae/gamma_deviance/tweedie_deviance_p1.5 (no DIRECTION
-    dict needed, unlike analyze_pr_auc.py's mixed-direction classification metrics)."""
+    dict needed, unlike analyze_pr_auc.py's mixed-direction classification metrics).
+
+    model_version is carried through from the capture manifest: the repo runs two model
+    lines at once (docs/MODEL_VERSIONS.md), so a metric row that does not name its version
+    cannot be placed in the per-artifact table or cited. Frames built without the column
+    (older callers, tests) still group, with the version left empty."""
+    has_version = "model_version" in per_fold_df.columns
+    keys = ["dataset", "seed"] + (["model_version"] if has_version else []) + ["metric"]
     rows: list[dict] = []
-    for (dataset, seed, metric), sub in per_fold_df.groupby(["dataset", "seed", "metric"]):
+    # dropna=False: an empty version is a value to group on, not a group to discard.
+    for key, sub in per_fold_df.groupby(keys, dropna=False):
+        dataset, seed = key[0], key[1]
+        model_version = key[2] if has_version else None
+        metric = key[-1]
         means: dict[str, tuple[float, float]] = {}
         folds: dict[str, np.ndarray] = {}
         for method, msub in sub.groupby("method"):
@@ -282,7 +294,8 @@ def summarize(per_fold_df: pd.DataFrame) -> pd.DataFrame:
 
         for method, (mean, se) in means.items():
             row = {
-                "dataset": dataset, "seed": seed, "metric": metric, "method": method,
+                "dataset": dataset, "seed": seed, "model_version": model_version,
+                "metric": metric, "method": method,
                 "n_folds": len(folds[method]), "mean": mean, "se": se, "rank": ranks[method],
                 "best_glm": np.nan, "delta_vs_glm": np.nan, "t_vs_glm": np.nan, "p_vs_glm": np.nan,
                 "best_gbdt": np.nan, "delta_vs_gbdt": np.nan, "t_vs_gbdt": np.nan, "p_vs_gbdt": np.nan,
@@ -326,7 +339,8 @@ def sanity_check_altmetrics(per_fold_df: pd.DataFrame, summary_df: pd.DataFrame)
         "non-finite (inf) summary mean/se — a per-fold value was too extreme even after "
         "the euro-scale ceiling clip; notna() alone doesn't catch inf"
     )
-    for _, sub in summary_df.groupby(["dataset", "seed", "metric"]):
+    rank_keys = [k for k in ("dataset", "seed", "model_version", "metric") if k in summary_df.columns]
+    for _, sub in summary_df.groupby(rank_keys, dropna=False):
         assert sorted(sub["rank"]) == list(range(1, len(sub) + 1)), "rank is not a 1..k permutation"
     for col in ("p_vs_glm", "p_vs_gbdt"):
         vals = summary_df[col].dropna()
