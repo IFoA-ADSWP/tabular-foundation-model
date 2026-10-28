@@ -22,7 +22,7 @@ the document is worth to you now.
 
 **The rule for adding a document:** it enters as **current** only if it carries content nothing else carries; otherwise it is `reference` from the start. When a current document stops being current it is amended with a dated note and its tier changes — never deleted, because the trail is the point.
 
-**Enforcement.** `scripts/check_doc_status.py` asserts that every report declares a status in its first fifteen lines. **27 of 33 reports do not yet**, which is the backfill this structure makes visible rather than fixes by reorganisation.
+**Enforcement.** `scripts/check_doc_status.py` asserts that every report in the three tiers declares a status in its first fifteen lines. It currently **fails**, and its output is the backfill list. The count lives in that output rather than in this sentence: a number nobody re-runs is a claim waiting to be false.
 
 ## Start here — the current line of work (fine-tuning on lapse data)
 
