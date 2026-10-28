@@ -177,20 +177,44 @@ def compute_fold_metrics(y_true_raw: np.ndarray, y_pred_raw: np.ndarray, cfg: di
 # ---------------------------------------------------------------------------
 # Loading captured predictions
 # ---------------------------------------------------------------------------
-def load_prediction_store(dataset: str, seed: int, predictions_dir: Path) -> tuple[dict[str, np.ndarray], dict] | None:
-    """Load predictions/<dataset>__seed<seed>.npz + sibling .manifest.json. Returns None
-    if the capture doesn't exist (caller decides whether that's a skip or an error).
-    Asserts the manifest matches expectations (regression, right dataset, right methods)
-    so a stale/partial capture never rescoring silently."""
-    npz_path = predictions_dir / f"{dataset}__seed{seed}.npz"
-    manifest_path = predictions_dir / f"{dataset}__seed{seed}.manifest.json"
-    if not npz_path.exists() or not manifest_path.exists():
-        return None
+def load_prediction_store(
+    dataset: str, seed: int, predictions_dir: Path, model_version: str | None = None
+) -> tuple[dict[str, np.ndarray], dict] | None:
+    """Load predictions/<dataset>__seed<seed>__<model_version>.npz + sibling .manifest.json.
 
-    manifest = json.loads(manifest_path.read_text())
+    The version suffix is written by run_frontier_benchmark.write_predictions_npz so that a
+    version re-test cannot overwrite the baseline it is being diffed against, so the capture name
+    is discovered rather than reconstructed: rebuilding it from the *current* model version would
+    tie the reader to today's release, which is backwards for a script whose job is to score
+    captures produced earlier.
+
+    Returns None if no capture exists (caller decides whether that's a skip or an error).
+    Ambiguity is an error, not a silent pick: two generations on disk is a question only the
+    caller can answer, with --model-version."""
+    candidates = []
+    for npz_path in sorted(predictions_dir.glob(f"{dataset}__seed{seed}__*.npz")):
+        manifest_path = npz_path.with_name(npz_path.name.replace(".npz", ".manifest.json"))
+        if not manifest_path.exists():
+            raise FileNotFoundError(f"{npz_path.name}: capture has no sibling manifest, so it has no provenance")
+        manifest = json.loads(manifest_path.read_text())
+        if model_version is None or manifest.get("model_version") == model_version:
+            candidates.append((npz_path, manifest))
+
+    if not candidates:
+        return None
+    if len(candidates) > 1:
+        found = ", ".join(sorted(str(m.get("model_version", "?")) for _, m in candidates))
+        raise SystemExit(
+            f"{dataset}: {len(candidates)} captures for seed {seed} ({found}); "
+            f"pass --model-version to choose one"
+        )
+
+    npz_path, manifest = candidates[0]
+
     assert manifest["problem_type"] == "regression", f"{dataset}: expected regression manifest, got {manifest['problem_type']}"
     assert manifest["dataset"] == dataset, f"manifest dataset mismatch: {manifest['dataset']} != {dataset}"
     assert set(manifest["methods"]) == set(METHODS), f"{dataset}: method set mismatch: {manifest['methods']}"
+    assert manifest.get("seed") == seed, f"{dataset}: capture is seed {manifest.get('seed')}, asked for {seed}"
 
     data = np.load(npz_path)
     pred_store = {k: data[k] for k in data.files}
@@ -331,6 +355,9 @@ def make_parser() -> argparse.ArgumentParser:
                              "(default 42; matches run_frontier_benchmark.py --save-predictions --seed)")
     parser.add_argument("--predictions-dir", metavar="DIR", default=None,
                         help="override predictions/ directory (default: <script-dir>/predictions)")
+    parser.add_argument("--model-version", metavar="V", default=None,
+                        help="rescore captures produced by this model version; required only when "
+                             "more than one version's captures exist for a dataset and seed")
     parser.add_argument("--out-dir", metavar="DIR", default=None,
                         help="override output directory for the two CSVs "
                              "(default: <script-dir>, beside frontier_results_*.csv)")
@@ -351,9 +378,10 @@ def main() -> None:
     all_rows: list[dict] = []
     for dataset in datasets:
         cfg = REG_ALT_CONFIG[dataset]
-        loaded = load_prediction_store(dataset, args.seed, predictions_dir)
+        loaded = load_prediction_store(dataset, args.seed, predictions_dir, args.model_version)
         if loaded is None:
-            print(f"SKIP {dataset}: no capture at {predictions_dir}/{dataset}__seed{args.seed}.npz")
+            suffix = f"__{args.model_version}" if args.model_version else "__*"
+            print(f"SKIP {dataset}: no capture at {predictions_dir}/{dataset}__seed{args.seed}{suffix}.npz")
             continue
         pred_store, manifest = loaded
         if len(cfg["metrics"]) < 3:
