@@ -182,7 +182,7 @@ def test_summarize_best_family_member_is_min_mean():
 
 def _write_toy_npz(tmp_path: Path, dataset: str, methods: list[str], n_folds: int,
                     seed: int, problem_type: str = "regression",
-                    zero_mass: bool = False) -> Path:
+                    zero_mass: bool = False, model_version: str = "v3_default") -> Path:
     store = {}
     rng = np.random.default_rng(0)
     for k in range(n_folds):
@@ -197,13 +197,16 @@ def _write_toy_npz(tmp_path: Path, dataset: str, methods: list[str], n_folds: in
 
     predictions_dir = tmp_path / "predictions"
     predictions_dir.mkdir(parents=True, exist_ok=True)
-    npz_path = predictions_dir / f"{dataset}__seed{seed}.npz"
-    manifest_path = predictions_dir / f"{dataset}__seed{seed}.manifest.json"
+    # The writer appends the model version so generations sit side by side (#186). The fixture
+    # must match it, or the test agrees with the reader instead of checking it.
+    stem = f"{dataset}__seed{seed}__{model_version}"
+    npz_path = predictions_dir / f"{stem}.npz"
+    manifest_path = predictions_dir / f"{stem}.manifest.json"
     np.savez_compressed(npz_path, **store)
     manifest_path.write_text(json.dumps({
         "schema_version": 1, "dataset": dataset, "target": "y", "drop": [],
         "problem_type": problem_type, "primary_metric": "rmse", "n_folds": n_folds,
-        "seed": seed, "methods": methods, "model_version": "v3_default",
+        "seed": seed, "methods": methods, "model_version": model_version,
     }))
     return predictions_dir
 
@@ -221,6 +224,44 @@ def test_load_prediction_store_missing_returns_none(tmp_path):
     predictions_dir = tmp_path / "predictions"
     predictions_dir.mkdir()
     assert mod.load_prediction_store("nope", 42, predictions_dir) is None
+
+
+def test_load_prediction_store_finds_a_version_suffixed_capture(tmp_path):
+    """The writer has appended __{model_version} since #186; the reader must find it."""
+    predictions_dir = _write_toy_npz(tmp_path, "toy", mod.METHODS, mod.N_FOLDS, 42,
+                                     model_version="v3.5_default")
+    loaded = mod.load_prediction_store("toy", 42, predictions_dir)
+    assert loaded is not None
+    assert loaded[1]["model_version"] == "v3.5_default"
+
+
+def test_two_generations_are_an_error_not_a_silent_pick(tmp_path):
+    """Two versions on disk is a question for the caller. Picking one silently would hide it."""
+    predictions_dir = _write_toy_npz(tmp_path, "toy", mod.METHODS, mod.N_FOLDS, 42,
+                                     model_version="v3_default")
+    _write_toy_npz(tmp_path, "toy", mod.METHODS, mod.N_FOLDS, 42,
+                   model_version="v3.5_default")
+    with pytest.raises(SystemExit, match="pass --model-version"):
+        mod.load_prediction_store("toy", 42, predictions_dir)
+
+
+def test_model_version_selects_one_generation(tmp_path):
+    predictions_dir = _write_toy_npz(tmp_path, "toy", mod.METHODS, mod.N_FOLDS, 42,
+                                     model_version="v3_default")
+    _write_toy_npz(tmp_path, "toy", mod.METHODS, mod.N_FOLDS, 42,
+                   model_version="v3.5_default")
+    loaded = mod.load_prediction_store("toy", 42, predictions_dir, "v3.5_default")
+    assert loaded is not None
+    assert loaded[1]["model_version"] == "v3.5_default"
+    assert mod.load_prediction_store("toy", 42, predictions_dir, "v9_missing") is None
+
+
+def test_capture_without_a_manifest_raises(tmp_path):
+    """A capture with no manifest has no provenance; skipping it would hide that."""
+    predictions_dir = _write_toy_npz(tmp_path, "toy", mod.METHODS, mod.N_FOLDS, 42)
+    (predictions_dir / "toy__seed42__v3_default.manifest.json").unlink()
+    with pytest.raises(FileNotFoundError, match="no sibling manifest"):
+        mod.load_prediction_store("toy", 42, predictions_dir)
 
 
 def test_load_prediction_store_rejects_classification_manifest(tmp_path):
