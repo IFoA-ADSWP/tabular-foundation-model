@@ -165,7 +165,15 @@ def test_mock_run_completes_verifies_and_tears_down(mock_env):
     assert "mismatched=0" in rc.stdout and "missing=0" in rc.stdout
 
     # 3. The manifest returned too -- PR-1 depends on it.
-    assert list(outdir.glob("manifest_*.json")), f"manifest did not return:\n{combined}"
+    #    Since #184 artifacts land under runs/<id>/ rather than directly in $OUTDIR, so this
+    #    searches recursively instead of pinning the flat layout. Asserting the run_id keeps it
+    #    specific: the point is that the manifest the BOX wrote came back, not that some JSON did.
+    manifests = sorted(outdir.rglob("manifest_*.json"))
+    assert len(manifests) == 1, f"expected one returned manifest, found {manifests}:\n{combined}"
+    returned = json.loads(manifests[0].read_text())
+    assert returned["run_id"] == mock_env["run_id"], (
+        f"wrong manifest returned: {returned.get('run_id')!r} != {mock_env['run_id']!r}"
+    )
 
 
 def test_mock_run_reports_the_artifact_verification(mock_env):
