@@ -113,6 +113,26 @@ backlog is addressed, and #260 corrects the instructions to say three.
 lint error and a deliberate shellcheck violation; the recorded outcome of that run is the
 evidence that the gate is wired, not merely configured.
 
+### Evidence: the runs
+
+- **Green**, on #274: run `40798566228` — `ruff`, `pytest` and `shellcheck` all succeed.
+- **Red**, on a throwaway branch (#276): run `40799041147` — the run **fails** with
+  `ruff: failure` on `F401 os imported but unused` in the planted file, while `pytest` and
+  `shellcheck` pass. The gate does what it claims: a bad pull request cannot go green.
+
+That first red run also taught something worth keeping. The planted shellcheck violation
+was `SC2086` (unquote this to prevent word splitting), which is **info** severity, and the
+gate runs at `--severity=warning` — so the floor filtered it exactly as its comment says it
+would. A floor that filters what it says it filters is working. The branch was re-planted
+with a warning-level violation to prove the shellcheck half by a failure rather than by its
+absence.
+
+- **Red, both checks**, run `40799854243`: `ruff: failure` and `shellcheck: failure`, with
+  `pytest: success`. The gate reports each check separately, and a bad pull request fails
+  on more than one axis exactly as it should.
+
+
+
 ### Three gaps CI found that local runs could not
 
 The first CI run failed, and every failure was a real defect rather than a wiring mistake.
