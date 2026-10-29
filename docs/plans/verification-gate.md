@@ -190,3 +190,17 @@ on a machine with `ruff` installed — the old test skipped instead of asserting
 
 The corrected instructions (#260) and retiring the duplicate workflow still living on the
 old pull request (#261).
+
+
+## Follow-up — suppression reasons and the excluded lambdas (#258 review)
+
+Review found the criterion "every remaining per-line suppression states its reason" unmet:
+19 `# noqa` comments named a code but not why. Each now carries a short reason — the path
+insert above for E402, a NaN-safe explicit compare for E712, and "the smoke test reports any
+import failure" for BLE001. No suppression was added or removed.
+
+The seven assigned lambdas (E731) are all inside `scripts/legacy_finetuning/`, which this
+change deliberately excludes; there is no E731 in live code. The exclusion's comment says to
+re-include the tree when it is next touched for real, so the lambdas are left untouched and
+travel with that decision rather than being "fixed" in code nobody runs. Re-including the
+tree will surface them along with the other 19 findings there, and that is when to fix them.

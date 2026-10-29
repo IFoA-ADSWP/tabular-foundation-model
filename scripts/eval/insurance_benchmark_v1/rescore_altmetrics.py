@@ -329,7 +329,7 @@ def sanity_check_altmetrics(per_fold_df: pd.DataFrame, summary_df: pd.DataFrame)
     g = per_fold_df[per_fold_df.metric == "gamma_deviance"]
     if not g.empty:
         subset_rows = g[g.gamma_subset_used == True]  # noqa: E712 (explicit bool compare vs NaN)
-        full_rows = g[g.gamma_subset_used == False]  # noqa: E712
+        full_rows = g[g.gamma_subset_used == False]  # noqa: E712  (explicit bool compare keeps NaN rows out)
         assert (subset_rows["n_used"] < subset_rows["n_fold"]).all(), "subset flagged but n_used >= n_fold"
         assert (full_rows["n_used"] == full_rows["n_fold"]).all(), "full-fold flagged but n_used != n_fold"
         assert (g["n_used"] > 0).all(), "empty gamma-deviance subset slipped through"

@@ -54,7 +54,7 @@ sys.path.insert(0, str(REPO_ROOT))
 # `scripts/analyse_pilot.py` uses for `paired_analysis`.
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from provenance import (  # noqa: E402
+from provenance import (  # noqa: E402  (same-dir module, after the src path insert above)
     BASELINE_TABPFN_ARM,
     FT_ARMS,
     DataSource,
