@@ -1,4 +1,4 @@
-# A launch id, and a spend gate that decides rather than acts
+# A launch id, a spend gate, and a provider seam
 
 > **Status:** accepted, 2026-10-29
 
