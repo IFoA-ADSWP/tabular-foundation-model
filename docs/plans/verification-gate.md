@@ -47,11 +47,11 @@ The gate reported 64 errors. They divide cleanly:
 
 | Where | Count | Disposition |
 |---|---|---|
-| `scripts/legacy_finetuning/` | 25 | excluded, with the reason in `ruff.toml` |
-| live code | 39 | all fixed |
+| `scripts/legacy_finetuning/` | 26 | excluded, with the reason in `ruff.toml` |
+| live code | 38 | all fixed |
 
-Of the 39: 14 were mechanical and applied by `ruff --fix` (unused imports, unused
-variables, placeholder-less f-strings, one redefinition); 25 were done by hand —
+Of the 38: 14 were mechanical and applied by `ruff --fix` (unused imports, unused
+variables, placeholder-less f-strings, one redefinition); 24 were done by hand —
 16 semicolon statements split into one per line, 4 `import sys as _sys` aliases
 normalised to a module-level `import sys` placed after `from __future__`, 3 dead
 assignments deleted, and one further unused import.
@@ -73,13 +73,14 @@ assignments deleted, and one further unused import.
 
 ### Evidence
 
-Ruff reports **0 errors** where it reported 64, with 25 of those accounted for by the
-cited exclusion and 39 fixed in live code. The behaviour-preserving claim was checked
+Ruff reports **0 errors** where it reported 64, with 26 of those accounted for by the
+cited exclusion and 38 fixed in live code. The behaviour-preserving claim was checked
 rather than assumed: the four files whose imports were reorganised still parse, and each
 removed name (`os`, `bin_centers`, `args`, the inner `numpy` redefinition) has no
 remaining reference.
 
-`./scripts/check.sh` exits **0**: ruff clean, **249 passed**, shellcheck clean.
+`./scripts/check.sh` exits **0**: ruff clean, **256 passed**, shellcheck clean (the count rose from 249 when `main`'s
+later #271 and #277 tests were merged in).
 
 ### A blocker the gate found immediately
 
@@ -93,9 +94,13 @@ The consequence is larger than two tests: **the suite could only ever be green o
 so CI running `pytest` on a pull request — where HEAD is never on the base branch — would
 fail on every pull request. Landing the gate (#259) would have hit this on its first run.
 
-Fixed by scoping the guard to non-dry-run execution, and the reason is written beside it.
-This is exactly what the gate is for: it surfaced a structural problem on its first honest
-run, before it was wired into CI.
+On this branch the guard was scoped to non-dry-run execution. While the stack waited, #271
+landed the better fix on `main`: the guard now takes its commit from `TFM_COMMIT_SHA`,
+defaulting to `HEAD` and honouring an override only when the provider is detected as the
+mock. The guard still runs in a mock; it is simply answerable. That is why this branch's
+skip was dropped when `main` was merged in, and why the tests set `TFM_COMMIT_SHA` rather
+than bypassing the check. This is exactly what the gate is for: it surfaced a structural
+problem on its first honest run, before it was wired into CI.
 
 
 ## Slice 3 — CI invokes the gate and lands (#259)
