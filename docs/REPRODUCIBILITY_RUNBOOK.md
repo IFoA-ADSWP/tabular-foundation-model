@@ -260,19 +260,22 @@ python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --pr-auc   
 python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --regression        # 4+2 regression frontiers (fresh power, KFold seed 42)
 python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --regression ausautoBI8999
 python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --data data/raw/some.csv --target TARGET [--drop a,b]   # arbitrary CSV (issue #46)
+python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --experiment coil2000   # run a registered experiment (#230); stamps its id into every artifact
 ```
 
-Flags (from argparse, `run_frontier_benchmark.py:832`): positional `filters` (dataset names),
-`--regression`, `--pr-auc`, `--seed N` (default 42), `--data CSV`, `--target COL` (required
-with `--data`), `--drop COLS` (comma-separated). Verify with `python run_frontier_benchmark.py --help`.
+Flags (from argparse, `run_frontier_benchmark.py:1068`): positional `filters` (dataset names),
+`--regression`, `--pr-auc`, `--seed N` (default 42), `--experiment ID` (registered in
+`experiments.toml`; mutually exclusive with `filters`, `--data` and `--regression`),
+`--data CSV`, `--target COL` (required with `--data`), `--drop COLS` (comma-separated).
+Verify with `python run_frontier_benchmark.py --help`.
 
 - Inputs: 6 classification CSVs (`bemtl97` drops `nclaims`,`amount`; targets/drops table at
-  `run_frontier_benchmark.py:109`) or 6 regression CSVs (incl. `spanish_motor_freq`,
+  `run_frontier_benchmark.py:128`, mirrored in `experiments.toml`) or 6 regression CSVs (incl. `spanish_motor_freq`,
   `spanish_motor_severity`; `freMTPL2freq` applies log-Exposure offset); **reuses**
   `home_turf_sweep_results.csv` log-loss rows for cat/lgbm/xgb/tabpfn when present
   (norauto/ausprivauto0405/bemtl16 have no sweep rows → fresh power); `TABPFN_API_KEY`.
 - Outputs (in `scripts/eval/insurance_benchmark_v1/`): `frontier_results_<dataset>.csv`
-  (method | mean | se | mean_auc/se_auc | mean_brier/se_brier [+mean_pr_auc/se_pr_auc +
+  (experiment_id | method | mean | se | mean_auc/se_auc | mean_brier/se_brier [+mean_pr_auc/se_pr_auc +
   mean_lift10/se_lift10 in `--pr-auc`] | n_params | on_frontier), `frontier_plot_<dataset>.png`,
   per-fold append file `frontier_pr_auc_results.csv` (`--pr-auc` only), run logs
   `frontier_benchmark_run.log` / `frontier_v1suite_run.log` / `frontier_regression_run.log`.

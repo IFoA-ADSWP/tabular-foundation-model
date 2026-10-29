@@ -1,6 +1,8 @@
 # Plan — experiment spec
 
-**Status:** Current — agreed 2026-10-28, not implemented.
+**Status:** Current — agreed 2026-10-28. Slices 1–2 and the `experiment_id` stamping of
+slice 4 are implemented in #230 (`docs/plans/experiment-registry.md`); slices 3, 5 and 6
+remain open as #231–#233.
 **Origin:** issue #227 (survey) · issue #210 (the ask) · `docs/plans/experiment-spec-handoff.md` (grilling record)
 **Glossary:** `GLOSSARY.md` · **ADR:** `docs/adr/0001-experiment-spec-pins-version-and-guards-reuse.md`
 
