@@ -48,6 +48,22 @@ else:
     REPO_ROOT = Path(os.getcwd())
 sys.path.insert(0, str(REPO_ROOT))
 
+# Provenance lives in `src/provenance.py` since #211, so the pilot and the diagnostics
+# (D1-D5) share one implementation of the fingerprint, the matched-context assertion and
+# the record writer instead of each spelling them differently. The same `<repo>/src` path
+# `scripts/analyse_pilot.py` uses for `paired_analysis`.
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
+from provenance import (  # noqa: E402
+    BASELINE_TABPFN_ARM,
+    FT_ARMS,
+    DataSource,
+    assert_matched_context,
+    dataset_fingerprint as _shared_dataset_fingerprint,
+    inference_context_rows,
+    sha256_file as _sha256_file,
+)
+
 SCHEMA_VERSION = 2
 
 # ---------------------------------------------------------------------------
@@ -108,25 +124,10 @@ OUTPUT_DIR = REPO_ROOT / "outputs" / "finetune" / "pilot"
 DATA_REPO = os.environ.get("TFM_DATA_REPO", "IFoA-ADSWP/tabular-foundation-model")
 DATA_REF = os.environ.get("TFM_DATA_REF", "main")
 
-# Which arms are fine-tuning arms (subject to the matched-context assertion).
-FT_ARMS = ("B_in_domain", "B_ft3", "B_ft10", "B_ft30", "C_pooled_all", "D_pooled_homog")
-BASELINE_TABPFN_ARM = "A_raw"
-
 
 # ---------------------------------------------------------------------------
 # Fingerprints, versions, hashes  (PR-6, PR-1)
 # ---------------------------------------------------------------------------
-def _sha256_file(path, chunk=1 << 20):
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        while True:
-            b = f.read(chunk)
-            if not b:
-                break
-            h.update(b)
-    return h.hexdigest()
-
-
 def _sha256_array(arr):
     a = np.ascontiguousarray(arr)
     return hashlib.sha256(a.tobytes()).hexdigest()
@@ -204,32 +205,26 @@ def _host_info():
 
 
 def dataset_fingerprint(name):
-    """Content hash + shape + class balance for a dataset (PR-6)."""
-    path = DATA_DIR / f"{name}.csv"
-    if not path.exists():
-        return {"name": name, "path": str(path), "exists": False}
-    df = pd.read_csv(path)
-    target = DATASETS[name]["target"]
-    y = df[target].astype(int)
-    return {
-        "name": name,
-        "path": str(path.relative_to(REPO_ROOT)),
-        "file": f"{name}.csv",
-        "sha256": _sha256_file(path),
-        "n_rows": int(len(df)),
-        "n_cols": int(df.shape[1]),
-        "columns": list(df.columns),
-        "target_col": target,
-        "positive_rate": round(float(y.mean()), 6),
-        "n_positive": int(y.sum()),
-        # Provenance of the bytes: a content hash alone tells you a file CHANGED, not
-        # where to get the original back. DATA_REF pins the source; default `main` is a
-        # moving branch and is recorded as such so the gap is visible rather than implied.
-        "source_url": data_source_url(f"{name}.csv"),
-        "source_repo": DATA_REPO,
-        "source_ref": DATA_REF,
-        "source_ref_is_pinned": DATA_REF != "main",
-    }
+    """Pilot adapter over `provenance.dataset_fingerprint` (PR-6, moved by #211).
+
+    Which file and which target a dataset *name* means, and which ref this run pinned, are
+    this runner's declarations -- not facts `src/provenance.py` can know. The mechanics of the
+    fingerprint (hash, shape, balance, recorded source) are shared with the diagnostics; the
+    binding is four lines here. #241 replaces it with a frame-plus-target call when the pilot's
+    record gains its `provenance` block.
+    """
+    return _shared_dataset_fingerprint(
+        name,
+        target=DATASETS[name]["target"],
+        data_dir=DATA_DIR,
+        repo_root=REPO_ROOT,
+        source=DataSource(
+            url=data_source_url(f"{name}.csv"),
+            repo=DATA_REPO,
+            ref=DATA_REF,
+            ref_is_pinned=DATA_REF != "main",
+        ),
+    )
 
 
 def _checkpoints():
@@ -685,40 +680,6 @@ def effective_config(arm, config):
         "legacy_config_keys_ignored": unused,
         "source_config": dict(config),
     }
-
-
-def inference_context_rows(arm, n_train):
-    """Effective inference context for an arm, and the mechanism behind it.
-
-    This is what the historic study got wrong: the fine-tuned arm there was
-    evaluated with SUBSAMPLE_SAMPLES=64/128 while the raw arm used the whole
-    training split. In the shipped trainer the inference model is refit on the
-    full training data (`_setup_inference_model` -> `fit(self.X_, self.y_)`), so
-    both arms carry the full training split as context.
-    """
-    if arm == BASELINE_TABPFN_ARM:
-        return n_train, "TabPFNClassifier.fit(X_train) -- full training split"
-    if arm in FT_ARMS:
-        return n_train, "FinetunedTabPFNClassifier refits inference on full X_ (shipped trainer)"
-    return None, "not a TabPFN context-carrying arm"
-
-
-def assert_matched_context(per_arm):
-    """Refuse to compare TabPFN arms whose inference contexts differ (PR-4)."""
-    a = per_arm.get(BASELINE_TABPFN_ARM)
-    if a is None or a[0] is None:
-        return True
-    ft = {k: v for k, v in per_arm.items() if k in FT_ARMS and v[0] is not None}
-    if not ft:
-        return True
-    mismatched = {k: v[0] for k, v in ft.items() if v[0] != a[0]}
-    if mismatched:
-        raise AssertionError(
-            "MATCHED-CONTEXT VIOLATION: raw arm context="
-            f"{a[0]} but {mismatched} differ. The historic comparison was invalidated "
-            "by exactly this; fix the context before reporting any delta."
-        )
-    return True
 
 
 # ---------------------------------------------------------------------------
