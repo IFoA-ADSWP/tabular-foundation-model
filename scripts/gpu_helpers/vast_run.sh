@@ -217,7 +217,10 @@ esac
 export TFM_DRY_RUN="$DRY_RUN"
 # One id for the whole run: it is interpolated into the onstart environment so the
 # box-written manifest and this runner's cost record share a join key.
-TFM_COMMIT_SHA="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo unknown)"
+# Overridable so a zero-cost mock run can state a commit the box could actually check
+# out. A real run never sets it: unset, this resolves HEAD exactly as before, and the
+# guard below still refuses anything that is not on the remote branch (#256).
+TFM_COMMIT_SHA="${TFM_COMMIT_SHA:-$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo unknown)}"
 # The box clones THIS branch; the launcher states it rather than leaving the bootstrap to
 # its own default, so both ends agree on which branch is being run.
 BRANCH="${BRANCH:-main}"
