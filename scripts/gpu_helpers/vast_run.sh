@@ -212,12 +212,29 @@ RECORDED=0
 VASTAI_BIN="$(command -v vastai 2>/dev/null || true)"
 case "$VASTAI_BIN" in
     *mock*) DRY_RUN=1 ;;
-    *)      DRY_RUN=0 ;;
+    # The path test alone misses a mock copied to a neutral name, which is how the tests
+    # install it -- and a mock left undetected records `dry_run: false`, making a zero-cost
+    # run indistinguishable from a paid one. Ask the file what it is.
+    *) if [ -n "$VASTAI_BIN" ] && head -3 "$VASTAI_BIN" 2>/dev/null | grep -q "Test double for the vastai CLI"
+       then DRY_RUN=1
+       else DRY_RUN=0
+       fi ;;
 esac
 export TFM_DRY_RUN="$DRY_RUN"
 # One id for the whole run: it is interpolated into the onstart environment so the
 # box-written manifest and this runner's cost record share a join key.
-TFM_COMMIT_SHA="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo unknown)"
+# A mocked run may state the commit the box could check out (#256), because the test
+# checkout is neither HEAD-on-remote nor a PR merge ref. It is honoured ONLY when the
+# provider is the mock: on a real run an ambient export would silently pin the box to an
+# older commit while the local tree is something else, which is the class of mistake the
+# guard exists to refuse.
+HEAD_SHA="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo unknown)"
+if [ "$DRY_RUN" = 1 ] && [ -n "${TFM_COMMIT_SHA:-}" ]; then
+    TFM_COMMIT_SHA_IS_FROM_ENV=1
+else
+    TFM_COMMIT_SHA="$HEAD_SHA"
+    TFM_COMMIT_SHA_IS_FROM_ENV=0
+fi
 # The box clones THIS branch; the launcher states it rather than leaving the bootstrap to
 # its own default, so both ends agree on which branch is being run.
 BRANCH="${BRANCH:-main}"
@@ -489,6 +506,9 @@ fi
 git -C "$REPO_DIR" fetch -q origin "$BRANCH" 2>/dev/null || true
 if ! git -C "$REPO_DIR" merge-base --is-ancestor "$TFM_COMMIT_SHA" "origin/$BRANCH" 2>/dev/null; then
     echo "REFUSING: this checkout is at $TFM_COMMIT_SHA, which is not on origin/$BRANCH." >&2
+    # Say so when the sha did not come from the checkout, or the first line is a lie.
+    [ "$TFM_COMMIT_SHA_IS_FROM_ENV" = 1 ] && \
+        echo "  (that commit was supplied by TFM_COMMIT_SHA; this checkout is at $HEAD_SHA)" >&2
     echo "The box clones $BRANCH, so it could not run this commit -- refusing before provisioning." >&2
     exit 2
 fi
