@@ -173,6 +173,22 @@ def test_fingerprint_of_a_frame_with_no_file_states_it_cannot_hash(tmp_path):
     assert fp["n_rows"] == 2
 
 
+def test_fingerprint_states_a_missing_table(tmp_path):
+    """A table that is not on disk is STATE, not an error -- the original behaviour."""
+    missing = dataset_fingerprint(
+        "absent",
+        target="y",
+        path=tmp_path / "absent.csv",
+        repo_root=tmp_path,
+        source=_source(),
+    )
+    assert missing == {
+        "name": "absent",
+        "path": str(tmp_path / "absent.csv"),
+        "exists": False,
+    }
+
+
 # --------------------------------------------------------------------------
 # Matched-inference-context evidence
 # --------------------------------------------------------------------------

@@ -27,17 +27,25 @@ One writer in `src/provenance.py`, so a runner supplies values and never restate
 | --- | --- | --- |
 | `dataset` | the dataset-fingerprint object: `name`, `file`, `target`, `drop`, `sha256`, `n_rows`, `n_cols`, source pinning | `dataset_fingerprint`, now called with a frame |
 | `split` | `n_folds`, `seed`, `sha256` (train-index hash), `rule` (constructor + parameters, as a mapping) | `make_split` |
-| `model` | `version` (resolved label), `weights_sha256`, `client_version` | `src/model_version.resolve_model_path()` + `_weights_provenance` |
+| `model` | `version` (resolved label), `version_source`, `weights_sha256`, `client_version` | `src/model_version.resolve_model_path()` + `_weights_provenance` |
 | `code` | `git_sha`, `dirty`, `runtime`, `image` | `_git_info`, `_runtime_versions`, `_container_provenance` |
 
 `dataset_fingerprint` stops taking a dataset name and a data directory: it takes the frame, the
-target column and the drop columns, plus the file whose bytes are hashed. The pilot keeps a
-four-line adapter that binds its own registry (`DATASETS`, `DATA_DIR`, `DATA_REF`) to the shared
-helper — that binding is the runner's declaration, not a fact `src/` can know.
+target column and the drop columns, plus the file whose bytes are hashed. `drop` is what the
+runner applied — the pilot adapter reads an optional `drop` from its dataset declaration, so a
+leak-drop cannot be silently left out of the record. The pilot keeps a four-line adapter that
+binds its own registry (`DATASETS`, `DATA_DIR`, `DATA_REF`) to the shared helper — that binding
+is the runner's declaration, not a fact `src/` can know.
+
+`version_source` says what kind of claim `version` is. The pilot writes `resolver`: it records
+the label the repository resolves to and does not pass it to `TabPFNClassifier`, so the block
+states the gap rather than implying a pin (follow-up #285).
 
 The existing top-level `dataset_fingerprint` and `split_fingerprint` keys stay, pointing at the
 same objects the block holds, so a reader of the old layout keeps working through the transition
-and cannot see two different fingerprints in one record.
+and cannot see two different fingerprints in one record. Inside the dataset object, `target_col`
+becomes `target` and `drop` is added — a rename, not a compatibility promise; the two in-tree
+readers of `target_col` are updated here.
 
 ## The verdict
 
@@ -46,33 +54,46 @@ Computed from the record, never stored in it:
 * **`comparable`** — every dataset carries `sha256`, and `split.sha256`, `model.version` and
   `code.git_sha` are present.
 * **`partial`** — the record names its dataset and its split, and is missing at least one of
-  those four; `missing` lists them as dotted keys (`provenance.model.version`).
-* **`unusable`** — it cannot identify the dataset or the split at all, or carries no
-  provenance block. Not an exception: an old record gets a verdict, not an upgrade.
+  those four; `missing` lists them as dotted keys (`provenance.model.version`). A pilot arm
+  record with no block is read through its documented pre-block top-level fingerprints, so the
+  eight v2 records are `partial` — missing their model version — rather than meaningless.
+* **`unusable`** — it cannot identify the dataset or the split at all (the eleven records that
+  predate fingerprints, and an argv-only manifest). Not an exception: an old record gets a
+  verdict, not an upgrade.
 
-`schema_version` is dispatched on and **fails closed**: absent (the pre-versioned records) reads
-as the legacy layout, a version this module does not know raises rather than guessing.
+Missing keys are addressed by index (`provenance.dataset[1].sha256`) so one form covers both a
+per-dataset object and a run-level list.
+
+`schema_version` is dispatched on **per record kind** and fails closed: an arm record may predate
+the field (read as the legacy layout), a capture or manifest may not; an absent version, an
+explicit `null` and a bool are three different facts, and only the first is ever tolerated. A
+version this layout does not know raises rather than guessing.
 
 ## Schema versions
 
-`ARM_RECORD_SCHEMA_VERSION = 3` for the arm record. The run manifest and the failure record keep
-`RUN_SCHEMA_VERSION = 2`: #241 does not give them a block, and bumping them would claim a shape
-they do not have. That renumbering is the parent spec's, not this slice's.
+`ARM_RECORD_SCHEMA_VERSION = 3` for the arm record, `PILOT_RUN_SCHEMA_VERSION = 2` for the run
+manifest and the failure record (no block, so they keep their own layout), and the reader also
+knows the frontier manifest's and the capture's version spaces so a capture declaring `3` is
+refused rather than accepted because some other kind has a `3`.
 
 ## Evidence untouched
 
 No committed record is rewritten. The legacy records are read through the verdict in a test
-that classifies every one of them with no exception, and the PR states the empty
-`git diff origin/main -- outputs/ results/` as evidence.
+that classifies every committed kind — arm records, invocation manifests, run manifests and
+capture manifests — with no exception, and fails rather than skips when the tree yields none.
+The PR states the empty `git diff origin/main -- outputs/ results/` as evidence.
 
 ## Verification
 
 * `tests/test_record_contract.py` — the record-boundary seam: a record written through the
   pilot's write path (`save_results`) and read back from disk; the verdict rules table-driven;
-  an unknown schema version raising; a committed v2 record yielding `partial` naming
-  `provenance.model.version`; `analyse_pilot.discover` reading a schema-3 record.
+  per-kind version dispatch (absent, null, bool, unknown, wrong kind); a committed v2 record
+  yielding `partial` naming `provenance.model.version`; an unversioned record yielding
+  `unusable`; `analyse_pilot.discover` reading a schema-3 record; a declared leak-drop reaching
+  the fingerprint.
 * The existing pilot suites pass unchanged: metrics, predictions and the refusal-to-overwrite
-  rule are not touched.
+  rule are not touched. The one deliberate exception in a test is the `target_col` → `target`
+  assertion, because the key is renamed by this change.
 * `./scripts/check.sh` (ruff, pytest, shellcheck) green; `git diff origin/main -- outputs/
   results/` empty.
 

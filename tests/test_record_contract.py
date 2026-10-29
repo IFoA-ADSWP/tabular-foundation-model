@@ -1,9 +1,8 @@
 """The record contract: a pilot arm record's `provenance` block, and the verdict it earns.
 
 The seam is the record on disk, because that is the surface a reviewer reads a number
-against. Nothing here reaches into a writer's internals or restates a private key list;
-the assertions are on the JSON the pilot wrote and on the verdict the shared reader
-computes from it.
+against. The section key sets are asserted here on purpose: the vocabulary *is* the contract
+under test, so a test that did not name it would test nothing.
 
 What this covers, one acceptance criterion each (issue #241):
 
@@ -11,12 +10,13 @@ What this covers, one acceptance criterion each (issue #241):
   sections and a non-null model version;
 * that record reads `comparable` with no missing keys;
 * a record with its model version removed reads `partial`, naming exactly that key;
-* a record with no block reads `unusable`, not an exception;
-* a record declaring a higher schema version raises;
+* a record with no block reads `unusable` -- except a pilot arm record whose documented
+  pre-block top-level keys identify its data and split, which reads `partial`;
+* a record declaring a version unknown *for its kind* raises;
 * the fingerprint helper takes a frame plus target and drop columns, with no dataset
-  registry in play;
+  registry in play, and states a missing table;
 * `analyse_pilot.py` reads a schema-3 record unchanged;
-* every committed record is classified, none rewritten.
+* every committed record of every kind is classified, none rewritten.
 
 Run:  python -m pytest tests/test_record_contract.py -v
 """
@@ -36,14 +36,21 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from provenance import (  # noqa: E402
+    ARM_RECORD_KIND,
     ARM_RECORD_SCHEMA_VERSION,
+    CAPTURE_KIND,
+    FRONTIER_MANIFEST_KIND,
+    PILOT_MANIFEST_KIND,
     DataSource,
     dataset_fingerprint,
     read_record,
     verdict,
 )
 
-PILOT_RECORD = REPO_ROOT / "outputs" / "gpu-pilot"
+PILOT_TREE = REPO_ROOT / "outputs" / "gpu-pilot"
+CAPTURE_TREE = REPO_ROOT / "scripts" / "eval" / "insurance_benchmark_v1" / "predictions"
+
+IDENTITY_ITEMS = ("model.version", "code.git_sha", "split.sha256")
 
 
 def _load(name: str, path: Path):
@@ -175,6 +182,9 @@ def test_the_block_names_its_dataset_split_model_and_code(mock_arm_run):
     assert block["split"]["sha256"] == record["split_fingerprint"]["train_index_sha256"]
 
     assert block["model"]["version"], "no pilot record has ever carried a model version"
+    # The pilot declares the version; it does not pass it to the estimator (#285). The block
+    # says which claim it is making rather than implying a pin.
+    assert block["model"]["version_source"] == "resolver"
     assert block["model"]["client_version"]
 
     assert len(block["code"]["git_sha"]) == 40
@@ -216,6 +226,7 @@ def _complete(**over) -> dict:
             },
             "model": {
                 "version": "v3_default",
+                "version_source": "resolver",
                 "weights_sha256": "c" * 64,
                 "client_version": "2.6.0",
             },
@@ -232,7 +243,7 @@ def _complete(**over) -> dict:
 
 
 def test_a_complete_record_reads_comparable(mock_arm_run):
-    result = verdict(mock_arm_run)
+    result = verdict(mock_arm_run, kind=ARM_RECORD_KIND)
 
     assert result.status == "comparable"
     assert result.missing == ()
@@ -247,26 +258,26 @@ def test_the_written_record_without_its_model_version_is_partial(mock_arm_run, t
     stripped.parent.mkdir()
     stripped.write_text(json.dumps(record), encoding="utf-8")
 
-    result = verdict(stripped)
+    result = verdict(stripped, kind=ARM_RECORD_KIND)
 
     assert result.status == "partial"
     assert result.missing == ("provenance.model.version",)
 
 
 @pytest.mark.parametrize(
-    ("drop_key", "missing_key"),
+    ("section", "key", "missing_key"),
     [
-        (("model", "version"), "provenance.model.version"),
-        (("code", "git_sha"), "provenance.code.git_sha"),
-        (("split", "sha256"), "provenance.split.sha256"),
+        ("model", "version", "provenance.model.version"),
+        ("code", "git_sha", "provenance.code.git_sha"),
+        ("split", "sha256", "provenance.split.sha256"),
     ],
 )
-def test_one_missing_identity_item_is_partial_and_named(drop_key, missing_key):
+def test_one_missing_identity_item_is_partial_and_named(section, key, missing_key):
     """The verdict says WHAT is missing, so 'non-comparable' is actionable."""
     record = _complete()
-    record["provenance"][drop_key[0]][drop_key[1]] = None
+    record["provenance"][section][key] = None
 
-    result = verdict(record)
+    result = verdict(record, kind=ARM_RECORD_KIND)
 
     assert result.status == "partial"
     assert result.missing == (missing_key,)
@@ -276,22 +287,22 @@ def test_a_dataset_without_a_content_hash_is_partial_and_named():
     record = _complete()
     record["provenance"]["dataset"]["sha256"] = None
 
-    result = verdict(record)
+    result = verdict(record, kind=ARM_RECORD_KIND)
 
     assert result.status == "partial"
-    assert result.missing == ("provenance.dataset[coil2000].sha256",)
+    assert result.missing == ("provenance.dataset[0].sha256",)
 
 
 def test_a_run_level_record_names_the_dataset_that_is_missing_its_hash():
-    """A run manifest covers N datasets; the verdict must point at the one at fault."""
+    """A run manifest covers N datasets; the verdict points at the one at fault by index."""
     record = _complete()
     second = dict(record["provenance"]["dataset"], name="uslapseagent", sha256=None)
     record["provenance"]["dataset"] = [record["provenance"]["dataset"], second]
 
-    result = verdict(record)
+    result = verdict(record, kind=ARM_RECORD_KIND)
 
     assert result.status == "partial"
-    assert result.missing == ("provenance.dataset[uslapseagent].sha256",)
+    assert result.missing == ("provenance.dataset[1].sha256",)
 
 
 def test_a_complete_run_level_record_reads_comparable():
@@ -299,108 +310,164 @@ def test_a_complete_run_level_record_reads_comparable():
     second = dict(record["provenance"]["dataset"], name="uslapseagent")
     record["provenance"]["dataset"] = [record["provenance"]["dataset"], second]
 
-    assert verdict(record).status == "comparable"
+    assert verdict(record, kind=ARM_RECORD_KIND).status == "comparable"
 
 
 @pytest.mark.parametrize(
-    ("section", "key", "missing_key"),
+    ("fault", "missing_key"),
     [
-        ("split", "seed", "provenance.split.seed"),
-        ("split", "verify", "provenance.split.n_folds"),
+        ("no_seed", "provenance.split.seed"),
+        ("no_count_and_no_rule", "provenance.split.n_folds"),
+        ("unnamed_dataset", "provenance.dataset[0].name"),
+        ("no_dataset", "provenance.dataset"),
     ],
 )
-def test_record_without_a_split_identity_is_unusable(section, key, missing_key):
+def test_a_record_that_cannot_identify_its_data_or_split_is_unusable(fault, missing_key):
     record = _complete()
-    if key == "verify":
-        # No fold count and no construction: the record does not say what the split was.
-        record["provenance"][section]["n_folds"] = None
-        record["provenance"][section]["rule"] = None
+    split = record["provenance"]["split"]
+    if fault == "no_seed":
+        split["seed"] = None
+    elif fault == "no_count_and_no_rule":
+        split["n_folds"] = None
+        split["rule"] = None
+    elif fault == "unnamed_dataset":
+        record["provenance"]["dataset"]["name"] = None
     else:
-        record["provenance"][section][key] = None
+        record["provenance"]["dataset"] = []
 
-    result = verdict(record)
-
-    assert result.status == "unusable"
-    assert result.missing == (missing_key,)
-
-
-def test_record_whose_dataset_cannot_be_identified_is_unusable():
-    record = _complete()
-    record["provenance"]["dataset"]["name"] = None
-
-    result = verdict(record)
+    result = verdict(record, kind=ARM_RECORD_KIND)
 
     assert result.status == "unusable"
-    assert result.missing == ("provenance.dataset[0].name",)
+    assert missing_key in result.missing
 
 
-def test_record_with_no_dataset_at_all_is_unusable():
-    record = _complete()
-    record["provenance"]["dataset"] = []
+def test_a_record_with_no_provenance_block_is_unusable_not_an_exception():
+    """A capture manifest carries no block, and is not read as if it had one."""
+    record = {"schema_version": 1, "dataset": {"name": "coil2000"}, "n_folds": 5, "seed": 42}
 
-    result = verdict(record)
-
-    assert result.status == "unusable"
-    assert result.missing == ("provenance.dataset",)
-
-
-def test_record_with_no_provenance_block_is_unusable_not_an_exception():
-    record = {"schema_version": 2, "run_id": "coil2000_A_raw_seed42", "roc_auc": 0.7}
-
-    result = verdict(record)
+    result = verdict(record, kind=CAPTURE_KIND)
 
     assert result.status == "unusable"
     assert result.missing == ("provenance",)
 
 
 # --------------------------------------------------------------------------
-# Version dispatch: fail closed, and never upgrade a legacy record
+# The pre-block layout: a v2 arm record is partial, not indistinguishable
 # --------------------------------------------------------------------------
-@pytest.mark.parametrize("declared", [4, 99, 0, "3"])
-def test_a_schema_version_this_reader_does_not_know_raises(declared):
-    record = _complete(schema_version=declared)
+def test_a_committed_v2_arm_record_reads_partial_and_is_not_rewritten():
+    """#240: v2 records carry a weights hash and no version, so they are `partial`.
 
-    with pytest.raises(ValueError, match="schema_version"):
-        verdict(record)
-
-
-def test_reading_a_file_with_an_unknown_schema_version_raises(tmp_path):
-    path = tmp_path / "meta.json"
-    path.write_text(json.dumps(_complete(schema_version=99)), encoding="utf-8")
-
-    with pytest.raises(ValueError, match="schema_version"):
-        read_record(path)
-
-
-def test_a_committed_v2_record_reads_unusable_and_is_not_rewritten():
-    """Read, never upgraded.
-
-    A v2 pilot record carries fingerprints at the top level but no `provenance` block, so the
-    block contract cannot read it -- and it is not the reader's job to reinterpret an old file
-    into the new shape. It gets a stated verdict, and its bytes stay the evidence.
+    The block is absent, but the record's documented top-level fingerprints still name its
+    data and its split, which is exactly the difference between this record and an
+    argv-only manifest. Its bytes are the evidence, so nothing is written back.
     """
-    path = PILOT_RECORD / "uslapseagent" / "A_raw" / "meta.json"
+    path = PILOT_TREE / "uslapseagent" / "A_raw" / "meta.json"
     if not path.exists():
         pytest.skip("the committed v2 pilot record is not present in this checkout")
     before = path.read_bytes()
 
-    result = verdict(path)
+    result = verdict(path, kind=ARM_RECORD_KIND)
 
-    assert result.status == "unusable"
-    assert result.missing == ("provenance",)
+    assert result.status == "partial"
+    assert result.missing == ("provenance.model.version", "provenance.code.git_sha")
     assert result.schema_version == 2
     assert path.read_bytes() == before
 
 
-def test_no_committed_record_is_left_unclassified():
-    """Legacy records get a verdict -- including the unversioned ones -- never a raise."""
-    records = sorted(PILOT_RECORD.glob("**/meta.json"))
-    records += sorted((REPO_ROOT / "results").glob("*/manifest.json"))
-    if not records:
-        pytest.skip("no committed records in this checkout")
+def test_a_committed_unversioned_arm_record_reads_unusable():
+    """The 11 records that predate fingerprints identify neither data nor split."""
+    path = PILOT_TREE / "coil2000" / "E_glm" / "meta.json"
+    if not path.exists():
+        pytest.skip("the committed unversioned pilot record is not present in this checkout")
+    before = path.read_bytes()
 
-    statuses = {path: verdict(path).status for path in records}
-    assert set(statuses.values()) <= {"comparable", "partial", "unusable"}
+    result = verdict(path, kind=ARM_RECORD_KIND)
+
+    assert result.status == "unusable"
+    assert "provenance.dataset" in result.missing
+    assert result.schema_version == 1
+    assert path.read_bytes() == before
+
+
+# --------------------------------------------------------------------------
+# Version dispatch: per kind, and fail closed
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("declared", [4, 99, 0, "3", True, None])
+def test_an_arm_record_with_a_version_this_reader_does_not_know_raises(declared):
+    record = _complete(schema_version=declared)
+
+    with pytest.raises(ValueError, match="schema_version"):
+        verdict(record, kind=ARM_RECORD_KIND)
+
+
+def test_an_absent_version_is_read_as_the_legacy_layout_only_where_documented():
+    """An arm record may predate the field; a capture manifest may not."""
+    arm_without_version = _complete()
+    del arm_without_version["schema_version"]
+    assert verdict(arm_without_version, kind=ARM_RECORD_KIND).schema_version == 1
+
+    for kind, with_version in (
+        (CAPTURE_KIND, {"schema_version": 1}),
+        (PILOT_MANIFEST_KIND, {"schema_version": 2}),
+    ):
+        without_version = dict(with_version)
+        without_version.pop("schema_version")
+        with pytest.raises(ValueError, match="schema_version"):
+            verdict(without_version, kind=kind)
+
+
+def test_a_version_known_to_one_kind_is_not_known_to_another():
+    """A capture declaring 3 must not pass because arm records have a 3."""
+    capture = {"schema_version": ARM_RECORD_SCHEMA_VERSION}
+    with pytest.raises(ValueError, match="capture"):
+        verdict(capture, kind=CAPTURE_KIND)
+    # ...while an arm record declaring 3 is exactly what the writer emits.
+    assert verdict(_complete(), kind=ARM_RECORD_KIND).schema_version == 3
+
+
+def test_a_committed_frontier_manifest_is_read_as_its_unversioned_layout():
+    path = sorted((REPO_ROOT / "results").glob("*/manifest.json"))
+    if not path:
+        pytest.skip("no committed frontier run manifest in this checkout")
+
+    result = verdict(path[0], kind=FRONTIER_MANIFEST_KIND)
+
+    assert result.schema_version == 1
+    assert result.status == "unusable"
+
+
+def test_reading_a_file_with_a_version_wrong_for_its_kind_raises(mock_arm_run):
+    with pytest.raises(ValueError, match="capture"):
+        read_record(mock_arm_run, kind=CAPTURE_KIND)
+
+
+def test_an_unknown_record_kind_raises():
+    with pytest.raises(ValueError, match="unknown record kind"):
+        verdict(_complete(), kind="not_a_kind")
+
+
+# --------------------------------------------------------------------------
+# The committed tree, every kind, classified
+# --------------------------------------------------------------------------
+def test_every_committed_record_of_every_kind_is_classified():
+    """All 19 arm records, 11 invocation manifests, 4 run manifests and 4 captures.
+
+    No `skip`: if the tree stops yielding records, the guard has stopped guarding and the
+    test must say so rather than pass on nothing.
+    """
+    kinds = {
+        ARM_RECORD_KIND: sorted(PILOT_TREE.glob("**/meta.json")),
+        PILOT_MANIFEST_KIND: sorted(PILOT_TREE.glob("manifest_*.json")),
+        FRONTIER_MANIFEST_KIND: sorted((REPO_ROOT / "results").glob("*/manifest.json")),
+        CAPTURE_KIND: sorted(CAPTURE_TREE.glob("*.manifest.json")),
+    }
+    for kind, paths in kinds.items():
+        assert paths, f"no {kind} records found -- the committed tree moved or empties"
+
+    for kind, paths in kinds.items():
+        for path in paths:
+            result = verdict(path, kind=kind)
+            assert result.status in {"comparable", "partial", "unusable"}, (kind, path, result)
 
 
 # --------------------------------------------------------------------------
@@ -446,7 +513,7 @@ def test_fingerprint_of_a_frame_with_no_file_says_it_cannot_hash(tmp_path):
 
 
 def test_the_pilot_adapter_states_a_missing_table(rp, tmp_path, monkeypatch):
-    """The pilot's binding keeps the one state the shared helper no longer has: no file."""
+    """The shared helper's missing-table state, through the pilot's binding."""
     monkeypatch.setitem(rp.DATASETS, "toy", {"file": "toy.csv", "target": "y"})
     monkeypatch.setattr(rp, "DATA_DIR", tmp_path)
 
@@ -455,6 +522,22 @@ def test_the_pilot_adapter_states_a_missing_table(rp, tmp_path, monkeypatch):
         "path": str(tmp_path / "toy.csv"),
         "exists": False,
     }
+
+
+def test_the_pilot_adapter_records_a_declared_drop(rp, tmp_path, monkeypatch):
+    """A declared leak-drop must reach the record, or it is silently unrecorded."""
+    (tmp_path / "toy.csv").write_text(
+        "y,a,leaky\n0,1,9\n1,2,9\n0,3,9\n1,4,9\n0,5,9\n1,6,9\n", encoding="utf-8"
+    )
+    monkeypatch.setitem(
+        rp.DATASETS, "toy", {"file": "toy.csv", "target": "y", "drop": ("leaky",)}
+    )
+    monkeypatch.setattr(rp, "DATA_DIR", tmp_path)
+
+    fp = rp.dataset_fingerprint("toy")
+
+    assert fp["drop"] == ["leaky"]
+    assert fp["sha256"] == hashlib.sha256((tmp_path / "toy.csv").read_bytes()).hexdigest()
 
 
 # --------------------------------------------------------------------------

@@ -57,6 +57,7 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 from provenance import (  # noqa: E402  (same-dir module, after the src path insert above)
     ARM_RECORD_SCHEMA_VERSION,
     BASELINE_TABPFN_ARM,
+    PILOT_RUN_SCHEMA_VERSION,
     FT_ARMS,
     DataSource,
     assert_matched_context,
@@ -71,12 +72,11 @@ from provenance import (  # noqa: E402  (same-dir module, after the src path ins
 )
 from model_version import resolve_model_path  # noqa: E402
 
-# The arm record's layout is `provenance.ARM_RECORD_SCHEMA_VERSION` (3 since #241): one
-# definition, read by the verdict in `src/provenance.py`, so a writer cannot bump a version a
-# reader has not been taught. The invocation manifest and `meta.FAILED.json` are different
-# shapes -- #241 gives them no provenance block -- so they keep the version they were written
-# with rather than inheriting the arm record's.
-RUN_SCHEMA_VERSION = 2
+# The arm record's layout is `provenance.ARM_RECORD_SCHEMA_VERSION` (3 since #241) and the
+# invocation manifest's is `provenance.PILOT_RUN_SCHEMA_VERSION` (2): one definition each, in
+# the module whose reader dispatches on them, so a writer cannot bump a version the reader has
+# not been taught. The manifest and `meta.FAILED.json` carry no provenance block, so they keep
+# their own version rather than inheriting the arm record's.
 
 # ---------------------------------------------------------------------------
 # Config
@@ -216,7 +216,7 @@ def _host_info():
     return info
 
 
-def dataset_fingerprint(name, *, frame=None, drop=(), source=None):
+def dataset_fingerprint(name, *, frame=None, drop=None, source=None):
     """Pilot adapter over `provenance.dataset_fingerprint` (PR-6, moved by #211).
 
     Which file and which target a dataset *name* means, and which ref this run pinned, are
@@ -226,15 +226,18 @@ def dataset_fingerprint(name, *, frame=None, drop=(), source=None):
     columns, so this adapter reads the file (or takes the frame the caller already loaded) and
     passes it on.
 
-    A table that is not on disk is STATE, not an error: the record says `exists: false` rather
-    than omitting the dataset, so a run that could not find its data is legible.
+    `drop` comes from the dataset declaration unless the caller names its own, so the leak-drops
+    a run actually applied are recorded by the runner that applied them. A dataset with no
+    declaration drop records `[]`.
+
+    A table that is not on disk is STATE, not an error: the shared helper returns
+    `exists: false` rather than omitting the dataset, so a run that could not find its data is
+    legible.
     """
     info = DATASETS[name]
     path = DATA_DIR / info["file"]
-    if frame is None:
-        if not path.exists():
-            return {"name": name, "path": str(path), "exists": False}
-        frame = pd.read_csv(path)
+    if drop is None:
+        drop = tuple(info.get("drop") or ())
     return _shared_dataset_fingerprint(
         name,
         frame=frame,
@@ -365,6 +368,11 @@ def _model_provenance(weights=None, versions=None):
     """
     return model_section(
         version=resolve_model_path(),
+        # The pilot DECLARES the version and does not pass it to `TabPFNClassifier`, which is
+        # constructed at run_arm_a_raw with no `model_path` (#285). Saying where the label
+        # comes from is the difference between "the model we pinned" and "the label this
+        # repository resolves to" -- and the record must not imply the first.
+        version_source="resolver",
         weights_sha256=(weights or {}).get("sha256"),
         client_version=(versions or {}).get("tabpfn"),
     )
@@ -1266,7 +1274,7 @@ def save_failure_record(output_dir, dataset, arm, seed, fold, config, error, ela
         run_dir = run_dir / f"seed{seed}_fold{fold}"
     run_dir.mkdir(parents=True, exist_ok=True)
     rec = {
-        "schema_version": RUN_SCHEMA_VERSION,
+        "schema_version": PILOT_RUN_SCHEMA_VERSION,
         "status": "failed",
         "dataset": dataset,
         "arm": arm,
@@ -1536,7 +1544,7 @@ def main():
         print(f"[LODO] target '{target}' asserted absent from pool {pool_names}")
 
     manifest = {
-        "schema_version": RUN_SCHEMA_VERSION,
+        "schema_version": PILOT_RUN_SCHEMA_VERSION,
         "run_id": run_id,
         "started_at": started.isoformat(),
         "status": "running",
