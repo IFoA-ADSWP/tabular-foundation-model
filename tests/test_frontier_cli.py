@@ -173,6 +173,82 @@ def test_the_run_manifest_records_the_model_version_actually_used(tmp_path, monk
     assert "reused" in manifest["model_version_scope"] and "#233" in manifest["model_version_scope"]
 
 
+# ---- declared vs resolved model version (#239) ------------------------------
+
+def _run_manifest(tmp_path, monkeypatch, *, resolved, declared, experiment_id):
+    """Write a run manifest with the module globals a run would have set, and read it back."""
+    import argparse
+    import json
+
+    monkeypatch.setattr(mod, "_model_path", lambda: resolved)
+    mod.SEED, mod.PR_AUC_MODE = 42, False
+    mod.EXPERIMENT_ID, mod.DECLARED_MODEL_VERSION = experiment_id, declared
+    mod.write_manifest(tmp_path, argparse.Namespace(out_dir=str(tmp_path)))
+    return json.loads((tmp_path / "manifest.json").read_text())
+
+
+def test_the_run_manifest_records_both_versions_when_they_agree(tmp_path, monkeypatch):
+    manifest = _run_manifest(tmp_path, monkeypatch, resolved="v3_default",
+                             declared="v3_default", experiment_id="coil2000")
+
+    assert manifest["model_version_declared"] == "v3_default"
+    assert manifest["model_version"] == "v3_default"
+    assert manifest["model_version_mismatch"] is False
+
+
+def test_the_run_manifest_flags_a_mismatch_and_names_both_values(tmp_path, monkeypatch):
+    # The exact failure ADR 0001 exists to prevent: the box resolved a different model
+    # than the experiment declared. The artifact says so instead of looking consistent.
+    manifest = _run_manifest(tmp_path, monkeypatch, resolved="v3.5_default",
+                             declared="v3_default", experiment_id="coil2000")
+
+    assert manifest["model_version_declared"] == "v3_default"
+    assert manifest["model_version"] == "v3.5_default"
+    assert manifest["model_version_mismatch"] is True
+
+
+def test_an_ad_hoc_run_records_an_absent_declaration_not_a_pass(tmp_path, monkeypatch):
+    # Absent is not false: no experiment declared a version, so nothing was verified.
+    manifest = _run_manifest(tmp_path, monkeypatch, resolved="v3_default",
+                             declared=None, experiment_id=None)
+
+    assert manifest["model_version_declared"] is None
+    assert "model_version_mismatch" in manifest  # present, so absent ≠ predates-schema
+    assert manifest["model_version_mismatch"] is None
+    assert manifest["model_version_mismatch"] is not False
+
+
+def test_an_experiment_run_wires_its_declared_version_into_the_manifest(monkeypatch, tmp_path):
+    # Proves main() sets the global from the registry, not just that write_manifest can
+    # record one it is handed.
+    import json
+
+    refuse_to_run(monkeypatch)
+    monkeypatch.setattr(sys, "argv",
+                        ["prog", "--experiment", "coil2000", "--out-dir", str(tmp_path)])
+    with pytest.raises(AssertionError, match="reached the dataset runner"):
+        mod.main()
+
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    assert manifest["experiment_id"] == "coil2000"
+    assert manifest["model_version_declared"] == "v3_default"
+
+
+def test_an_ad_hoc_run_through_main_declares_nothing(monkeypatch, tmp_path):
+    import json
+
+    refuse_to_run(monkeypatch)
+    monkeypatch.setattr(sys, "argv",
+                        ["prog", "--data", "X.csv", "--target", "y", "--out-dir", str(tmp_path)])
+    with pytest.raises(AssertionError, match="reached the dataset runner"):
+        mod.main()
+
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    assert manifest["experiment_id"] is None
+    assert manifest["model_version_declared"] is None
+    assert manifest["model_version_mismatch"] is None
+
+
 def test_an_experiment_refuses_a_seed_that_contradicts_its_declaration(monkeypatch, tmp_path):
     # coil2000 is declared at seed 42. Stamping that id on a seed-7 run would make the
     # artifact contradict the declaration it cites — the bug class this ticket exists for.
@@ -242,6 +318,46 @@ def test_the_capture_manifest_records_the_experiment_id(tmp_path, monkeypatch):
     manifest = json.loads(npz_path.with_suffix(".manifest.json").read_text())
     assert manifest["experiment_id"] == "toy"
     assert npz_path.name == "toy__seed42__v3_default.npz"  # capture discovery unchanged
+
+
+def test_the_capture_manifest_carries_the_same_declared_resolved_fact(tmp_path, monkeypatch):
+    # A capture is what a later rescore reuses, so it must not be the one artifact that
+    # cannot state the run drifted (#239).
+    import json
+
+    monkeypatch.setattr(mod, "PREDICTIONS_DIR", tmp_path)
+    monkeypatch.setattr(mod, "_model_path", lambda: "v3.5_default")
+    mod.DECLARED_MODEL_VERSION = "v3_default"
+    n_folds, methods = 1, ["lgbm"]
+    ds = dict(name="toy", file="toy.csv", target="y", drop=[])
+
+    npz_path = mod.write_predictions_npz(ds, _toy_pred_store(n_folds=n_folds, methods=methods),
+                                          methods, n_folds, problem_type="classification",
+                                          metric_name="log_loss", seed=42,
+                                          experiment_id="toy")
+    manifest = json.loads(npz_path.with_suffix(".manifest.json").read_text())
+
+    assert manifest["model_version_declared"] == "v3_default"
+    assert manifest["model_version"] == "v3.5_default"
+    assert manifest["model_version_mismatch"] is True
+
+
+def test_an_ad_hoc_capture_records_an_absent_declaration(tmp_path, monkeypatch):
+    import json
+
+    monkeypatch.setattr(mod, "PREDICTIONS_DIR", tmp_path)
+    mod.DECLARED_MODEL_VERSION = None
+    n_folds, methods = 1, ["lgbm"]
+    ds = dict(name="toy_adhoc", file="toy.csv", target="y", drop=[])
+
+    npz_path = mod.write_predictions_npz(ds, _toy_pred_store(n_folds=n_folds, methods=methods),
+                                          methods, n_folds, problem_type="classification",
+                                          metric_name="log_loss", seed=42)
+    manifest = json.loads(npz_path.with_suffix(".manifest.json").read_text())
+
+    assert manifest["model_version_declared"] is None
+    assert manifest["model_version_mismatch"] is None
+    assert manifest["model_version_mismatch"] is not False
 
 
 def test_parse_drop_splits():

@@ -7,7 +7,7 @@
 
 > **Do not trust a metric on a new TabPFN version until it is re-run.** Note the `Tested:` line on every report/table, and check this timeline for what changed.
 
-New runs must record: model version (`tabpfn` / `tabpfn-client` + weights ID e.g. `v2.6` / `v3_default`), date, seed, dataset SHA. Pattern to copy: this repo's `results/<run-dir>/manifest.json` + Version-Drift Re-Test Policy (trigger → scope → diff → addendum, master report §15, issue #55).
+New runs must record: model version (`tabpfn` / `tabpfn-client` + weights ID e.g. `v2.6` / `v3_default`), date, seed, dataset SHA. A registered experiment also records the version it **declared** beside the version execution **resolved**, plus `model_version_mismatch` (`true`/`false`/`null`) — a drifted run is flagged rather than silently re-labelled, and `null` means no experiment declared one, which is not a pass (#239). Pattern to copy: this repo's `results/<run-dir>/manifest.json` + Version-Drift Re-Test Policy (trigger → scope → diff → addendum, master report §15, issue #55).
 
 ## Timeline — when we used what (with evidence)
 

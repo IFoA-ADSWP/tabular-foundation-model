@@ -119,7 +119,10 @@ from src.experiment_spec import (  # noqa: E402
     as_runner_dataset,
     load_registry,
 )
-from src.model_version import resolve_model_path as _model_path  # noqa: E402
+from src.model_version import (  # noqa: E402
+    resolve_model_path as _model_path,
+    version_mismatch,
+)
 DATA_RAW = REPO / "data" / "raw"
 EXPERIMENTS_TOML = HERE / "experiments.toml"  # the committed registry (#230)
 
@@ -181,6 +184,11 @@ SAVE_PREDICTIONS = False
 # produces states it; ad-hoc runs (--data, positional filters) belong to no experiment
 # and stamp an empty value rather than borrowing one.
 EXPERIMENT_ID: str | None = None
+# --experiment N: the model version that experiment DECLARED, as the literal in
+# experiments.toml (#239). None on an ad-hoc run, which declares nothing; that is not
+# the same fact as "the declared and resolved versions agree", so the manifest records
+# absent rather than a pass.
+DECLARED_MODEL_VERSION: str | None = None
 
 # TabPFN parameter count — settled non-decision (spec §5): constant per dataset, orders of
 # magnitude above the GBDTs, so its precise value never changes frontier membership.
@@ -798,7 +806,8 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
     import subprocess
 
     PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
-    stem = f"{ds['name']}__seed{seed}__{_model_path()}"
+    resolved = _model_path()
+    stem = f"{ds['name']}__seed{seed}__{resolved}"
     npz_path = PREDICTIONS_DIR / f"{stem}.npz"
     manifest_path = PREDICTIONS_DIR / f"{stem}.manifest.json"
 
@@ -851,7 +860,11 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
         "seed": seed,
         "split": split_desc,
         "methods": methods,
-        "model_version": _model_path(),
+        "model_version": resolved,
+        # #239: a capture is what a future rescore reuses, so it must state the same
+        # declared/resolved pair as the run that produced it; None is absent, not a pass.
+        "model_version_declared": DECLARED_MODEL_VERSION,
+        "model_version_mismatch": version_mismatch(DECLARED_MODEL_VERSION, resolved),
         "tabpfn_client_version": tabpfn_client_version,
         "script_git_sha": git_sha,
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -1165,13 +1178,20 @@ def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
         ).stdout.strip()
     except Exception:
         git_sha = "unknown"  # shallow/tarball checkouts
+    resolved = _model_path()
     manifest = {
         "run_id": out_dir.name,
         "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "git_sha": git_sha,
         "seed": SEED,
         "experiment_id": EXPERIMENT_ID,
-        "model_version": _model_path(),  # what the run resolved, so the registry's pin is checkable
+        "model_version": resolved,  # what the run resolved, so the registry's pin is checkable
+        # #239: the registry's literal beside the value execution actually used. A mismatch
+        # is recorded, not enforced -- #233 owns the reuse rule and needs this to be exactly
+        # False, not None, before it may reuse a row. None (no experiment declared a
+        # version) is an absence, never a pass.
+        "model_version_declared": DECLARED_MODEL_VERSION,
+        "model_version_mismatch": version_mismatch(DECLARED_MODEL_VERSION, resolved),
         "model_version_scope": (
             "resolved and used for every fresh fit; a row reused from the sweep table "
             "carries no recorded provenance, so its version is assumed rather than "
@@ -1189,7 +1209,7 @@ def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    global SEED, PR_AUC_MODE, SAVE_PREDICTIONS, EXPERIMENT_ID
+    global SEED, PR_AUC_MODE, SAVE_PREDICTIONS, EXPERIMENT_ID, DECLARED_MODEL_VERSION
     t0 = time.time()
     parser = make_parser()
     args = parser.parse_args()
@@ -1233,9 +1253,16 @@ def main() -> None:
             )
         regression = experiment.mode == REGRESSION
         EXPERIMENT_ID = experiment.id
+        # What the experiment declared. Recorded, not applied: execution below still
+        # resolves env-first, and the manifest states both (#239).
+        DECLARED_MODEL_VERSION = experiment.model_version
         wanted = None
     else:
         datasets, wanted = select_datasets(args)
+        # An ad-hoc run belongs to no experiment, so it declares nothing. Clearing these
+        # matters because main() is re-entered by tests in one process.
+        EXPERIMENT_ID = None
+        DECLARED_MODEL_VERSION = None
 
     # Output layout: results/<dir> (default) keeps run artifacts out of the code tree.
     # 'legacy' preserves the old beside-script paths for exact reproduction of
