@@ -4,6 +4,16 @@
 # it configures nothing but ruff. `extend-exclude` rather than `exclude` keeps
 # ruff's built-in defaults in force.
 
+target-version = "py312"
+
+# An explicit rule set, not whatever the installed version defaults to. Ruff's default
+# set grows between releases: 0.15.8 flagged 64 findings in this tree and 0.17.3 flagged
+# 255 in the same tree, so a gate relying on defaults fails on a machine or a CI image
+# that resolved a newer ruff -- the exact drift this gate exists to prevent. Pinning the
+# families makes the verdict stable across versions. Widening it is a deliberate change
+# to this file, with the debt cleared first.
+select = ["E4", "E7", "E9", "F"]
+
 extend-exclude = [
   # scripts/legacy_finetuning/ is not on the live path. Its entrypoints need the
   # upstream `tabpfn` package and a GPU, GLOSSARY.md records the fine-tuning pilot

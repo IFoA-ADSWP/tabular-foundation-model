@@ -115,9 +115,19 @@ def mock_env(tmp_path):
     run_id = build_box_output_tree(tree)
 
     outdir = tmp_path / "returned"
+    # A token FILE, not an exported token: the runner prefers the file and warns when an
+    # exported value differs from it. Written here so the test is hermetic -- it used to
+    # depend on the developer's real ~/.config/tfm/keys.env, which CI does not have, so
+    # the suite was green locally and red on every pull request.
+    keys = tmp_path / "keys.env"
+    keys.write_text("TABPFN_TOKEN=dummy-token-for-a-mock-run\n")
     env = {
         **os.environ,
         "PATH": f"{bindir}:{os.environ['PATH']}",
+        "TABPFN_FILE": str(keys),
+        # The mock provisions no GPU, so there is no rental for the licence gate to
+        # protect -- and that gate makes a live API call, which a hermetic test cannot.
+        "SKIP_LICENSE_CHECK": "1",
         "MOCK_STATUS": "running",
         "MOCK_OFFERS": str(offers),
         "MOCK_STATE_DIR": str(state),

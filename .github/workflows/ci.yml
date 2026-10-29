@@ -37,7 +37,9 @@ jobs:
           cache: pip
 
       - name: Install
-        run: pip install ruff
+        # Pinned, not floating: a ruff upgrade changes the verdict, so it is a deliberate
+        # change to this line and to the rule set in ruff.toml, not something CI resolves.
+        run: pip install "ruff==0.15.8"
 
       - name: check
         run: ./scripts/check.sh ruff

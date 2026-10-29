@@ -113,6 +113,30 @@ backlog is addressed, and #260 corrects the instructions to say three.
 lint error and a deliberate shellcheck violation; the recorded outcome of that run is the
 evidence that the gate is wired, not merely configured.
 
+### Three gaps CI found that local runs could not
+
+The first CI run failed, and every failure was a real defect rather than a wiring mistake.
+This is the argument for landing the gate made in its own evidence.
+
+1. **Ruff's default rule set is version-dependent.** 0.15.8 flagged 64 findings in this
+   tree; 0.17.3, which `pip install ruff` resolved on the runner, flagged **255**. A gate
+   that changes verdict when a tool upgrades is exactly the drift a single entry point is
+   supposed to prevent. Fixed both ways: `select` pins the rule families explicitly in
+   `ruff.toml`, and the workflow pins the version, so widening either is a deliberate
+   change rather than something CI resolves.
+2. **`test_pilot2_mock_run` was not hermetic.** It deliberately did not export a token and
+   relied on the developer's `~/.config/tfm/keys.env`, so it passed on a workstation and
+   aborted on a runner with `No TABPFN_TOKEN`. Fixed by writing a dummy token file into the
+   test's tmp dir and pointing the launcher at it — the file path is still what is
+   exercised, without the machine dependency.
+3. **The licence preflight made a live API call.** The launcher verifies licence acceptance
+   before renting, which is right for a rental and meaningless for a mock that provisions
+   nothing. The test now sets the launcher's existing `SKIP_LICENSE_CHECK` escape hatch.
+
+None of the three could fail locally, because the machine had a token, a licence and an
+older ruff. Landing CI is what surfaced them.
+
+
 ## Not in this slice
 
 The corrected instructions (#260) and retiring the duplicate workflow still living on the
