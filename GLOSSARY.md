@@ -1,9 +1,9 @@
 # tabular-foundation-model
 
-TabPFN against actuarial baselines on insurance datasets. This glossary covers the
-analysis pipeline — the suite under `scripts/eval/insurance_benchmark_v1/` and the
-committed evidence it produces. The fine-tuning pilot at the bottom is a separate
-context that happens to share a word.
+TabPFN against actuarial baselines on insurance datasets. This glossary covers three
+contexts that share words: the analysis pipeline — the suite under
+`scripts/eval/insurance_benchmark_v1/` and the committed evidence it produces; the
+fine-tuning pilot; and the paid-run path that rents the machines both of them run on.
 
 ## Analysis pipeline
 
@@ -92,21 +92,23 @@ _method_; _arm_ stays where it already means a training configuration.
 **Launch**:
 One rent of a remote machine for one purpose, from the decision to spend until the
 machine is gone. It owns one cost record and one identity, and contains zero or
-more runs.
+more runs. Committed `run_*.json` files and the ledger predate this word: they call a
+launch a run and are not renamed.
 _Avoid_: job, session, attempt
 
 **Launch id**:
-The name a launch is known by everywhere — its cost record, its artifacts, and the
-provider's own label for the machine. Minted before anything is rented, so a launch
-that never got a machine still has one.
+The name a launch is known by everywhere it is recorded or referred to. Minted before
+anything is rented, so a launch that never got a machine still has one; a run that
+never had a launcher is marked as local.
 _Avoid_: run id, job id
 
 **Arrival**:
-The moment the artifacts a run produced are present locally and verified. A marker
-in a log is not arrival; verification is.
+The moment the artifacts a run produced are present locally and verified. A claim of
+completion is not arrival; verification is.
 _Avoid_: download, transfer, pull
 
 **Spend gate**:
-The decision that a launch may rent a machine, taken before anything is created:
-checks that either all pass or all fail together, and are reported together.
+The decision that a launch may rent a machine, taken before anything is created. It
+either allows the launch or refuses it, listing every failed check at once, and the
+decision is recorded. A refusal is not a crash and not a transport failure.
 _Avoid_: gate, preflight, guard
