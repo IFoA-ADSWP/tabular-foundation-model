@@ -1,3 +1,3 @@
 #!/bin/sh
-# deliberate SC2086: unquoted expansion
-echo $UNSET_VARIABLE
+# deliberate SC2046 (warning): unquoted command substitution
+echo $(echo hi)
