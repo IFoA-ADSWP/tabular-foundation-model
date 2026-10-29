@@ -22,7 +22,7 @@ for _path in (_REPO, _SRC):
 
 from tests.run_artifact_guard import (  # noqa: E402  (path set up immediately above)
     assert_no_new_run_artifacts,
-    run_artifact_names,
+    run_artifacts,
 )
 
 
@@ -32,6 +32,6 @@ def _no_run_artifacts_left_behind():
 
     Cheaper to discover here than from `git status` after a two-minute benchmark.
     """
-    before = run_artifact_names()
+    before = run_artifacts()
     yield
     assert_no_new_run_artifacts(before)

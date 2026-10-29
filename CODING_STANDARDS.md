@@ -1,8 +1,8 @@
 # Coding standards
 
-What **review** enforces that a machine cannot. `AGENTS.md` carries the commands; this file
-carries the judgement calls. It is read during review, not while writing, so it stays out of
-an implementer's context.
+What **review** enforces that a machine cannot. `AGENTS.md` carries the process rules and the
+commands; this file carries only the judgement calls, and says so in one place rather than two.
+It is read during review, not while writing, so it stays out of an implementer's context.
 
 A rule earns its place by having been raised in review. Each cites the finding that motivated
 it, so a rule with no finding behind it can be retired rather than inherited.
@@ -21,13 +21,6 @@ is the rule that prevents it.
 **Reviewer's test:** for every field the change adds to a declaration or an artifact, name the
 code path that reads it, or the scope note that limits it. "It is only a record" is the
 answer that should fail.
-
-## Plans are committed with the work they describe
-
-*Stated in `AGENTS.md`; repeated here because review has to check it.*
-
-`docs/plans/<task>.md` is written before the first code change and lands in the same change.
-A plan written afterwards is a report on the work, and reads like one.
 
 ## Tests sit at a named seam
 

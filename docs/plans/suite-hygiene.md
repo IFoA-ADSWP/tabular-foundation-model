@@ -23,8 +23,16 @@ guardrail at all.
 `tests/test_suite_hygiene.py` pin the guard itself: a new directory fails it, an unchanged
 tree passes it, and the roots it watches are the ones a real run writes.
 
-**Limit, stated rather than hidden.** `--out-dir legacy` writes beside the script and is not
-watched. The guard covers the default path — the one a mis-fired guard actually takes.
+**Limits, stated rather than hidden.** The guard watches the roots a default run writes:
+`results/`, `.../predictions/`, and `catboost_info/` — CatBoost's own dump during a GBDT fit,
+which `AGENTS.md` lists as an experiment output and `.gitignore` hides from `git status`, so
+it was the one artifact the old detector could not see. It does **not** watch `outputs/` (the
+pilot mock tests legitimately log there) or `--out-dir legacy` (writes beside the script).
+
+It fingerprints immediate children only, so a write *inside* an existing run directory is not
+seen; the default path creates a new one. And the fingerprint is `(mtime, size)` rather than a
+hash: an overwritten capture is caught because a rewrite moves the mtime, without hashing tens
+of megabytes every session.
 
 ## 2. The documented entry path never reached `docs/plans/`
 
@@ -41,7 +49,7 @@ build.
 
 ## Verification
 
-- `pytest tests/ -q` — green, with the three new tests.
+- `pytest tests/ -q` — green, with the five new tests.
 - Deliberately proving the guard: create a directory under `results/`, run any test, and the
   session fails naming it.
 - `ruff check scripts/ src/ tests/` — unchanged from `origin/main` (64 pre-existing).

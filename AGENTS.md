@@ -46,7 +46,8 @@ so trust it before `git status`.
 
 ## Review
 
-Every change is reviewed before merge, in a fresh context, against the plan.
+Every change is reviewed before merge, in a fresh context, against the plan and the
+judgement calls in `CODING_STANDARDS.md`.
 
 ## Issue tracker
 
