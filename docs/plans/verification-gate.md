@@ -138,7 +138,7 @@ absence.
 
 
 
-### Three gaps CI found that local runs could not
+### Four gaps CI found that local runs could not
 
 The first CI run failed, and every failure was a real defect rather than a wiring mistake.
 This is the argument for landing the gate made in its own evidence.
@@ -157,9 +157,15 @@ This is the argument for landing the gate made in its own evidence.
 3. **The licence preflight made a live API call.** The launcher verifies licence acceptance
    before renting, which is right for a rental and meaningless for a mock that provisions
    nothing. The test now sets the launcher's existing `SKIP_LICENSE_CHECK` escape hatch.
+4. **The checkout was shallow.** After #271 landed, the mock-run fixture asks whether an
+   injected commit is an ancestor of `origin/main`. `actions/checkout@v4` fetches one commit
+   and creates no remote-tracking branch, so the ref a developer always has did not exist on
+   the runner. The pytest job now fetches full history (`fetch-depth: 0`); the fix belongs in
+   the workflow because it is the test's question, not the code under test, that needs it.
 
-None of the three could fail locally, because the machine had a token, a licence and an
-older ruff. Landing CI is what surfaced them.
+None of the first three could fail locally, because the machine had a token, a licence and
+an older ruff. The fourth needs a ref a developer has and a shallow runner does not. Landing
+CI is what surfaced them.
 
 
 ## Not in this slice
