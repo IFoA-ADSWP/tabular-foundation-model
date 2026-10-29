@@ -53,6 +53,19 @@ The identity a number was produced under: dataset, seed, fold construction, mode
 version, and git sha. When an artifact's recorded provenance contradicts itself, that
 is a bug in the artifact, not a stale comment.
 
+**Record**:
+The file a run writes to describe itself: one top-level `provenance` block with the same
+four sections — dataset, split, model, code — whatever produced it. A per-dataset record
+(an arm run, a capture) holds one dataset; a run-level record holds a list of them, and
+that is the only structural difference allowed.
+_Avoid_: metadata, sidecar, output
+
+**Verdict**:
+What a record can prove: `comparable`, `partial` or `unusable`, with the missing keys
+named. Computed from the record, never written into it by the writer — a record cannot
+claim to be comparable while missing the field that makes a comparison meaningful.
+_Avoid_: status, score, pass/fail
+
 **Frontier**:
 The set of methods on a dataset that are not dominated. A is dominated iff some B with
 strictly fewer parameters has `mean_B + SE_B < mean_A − SE_A` (the D3 rule). Within-SE

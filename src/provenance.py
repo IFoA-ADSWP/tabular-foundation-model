@@ -26,9 +26,19 @@ schema wrote, so a stale header cannot survive a field change. An existing recor
 rather than replaced: its timestamp and git sha describe the run that produced it, and a second
 run is a second record.
 
-What is *not* here yet: the pilot's own `provenance` block, a verdict reader, and pilot schema 3.
-Those are #240/#241's, and they extend this module rather than replace it. The pilot's record
-shape is untouched by this change (`SCHEMA_VERSION` stays 2).
+#241 adds the record contract to the same module, so the block's vocabulary has one definition:
+
+* `dataset_fingerprint` now takes the frame the caller loaded, plus the target and drop
+  columns, instead of resolving a dataset name against a runner's registry;
+* `split_section`, `model_section` and `code_section` are the sections' single field
+  definitions, and `provenance_block` assembles them into the one top-level key a record
+  carries -- a runner supplies values and never restates a key name;
+* `read_record` and `verdict` turn any record into a stated verdict -- `comparable`,
+  `partial` or `unusable` -- naming the keys that are missing, and raising on a
+  `schema_version` this module does not know rather than guessing.
+
+A verdict is computed from the record, never stored in it: a record that claims to be
+comparable while lacking a content hash is exactly the failure the verdict exists to catch.
 """
 
 from __future__ import annotations
@@ -41,8 +51,6 @@ from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, Mapping
-
-import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -81,37 +89,50 @@ class DataSource:
     ref_is_pinned: bool
 
 
-def dataset_fingerprint(name, *, target, data_dir, repo_root, source):
-    """Content hash + shape + class balance for a dataset (PR-6).
+def dataset_fingerprint(name, *, frame, target, drop=(), path=None, repo_root=REPO_ROOT, source=None):
+    """Content hash + shape + class balance for a dataset, from the frame the caller loaded.
 
-    Moved from `scripts/run_pilot.py` unchanged in behaviour. Only the inputs the pilot used to
-    read off its own module globals are explicit, because a diagnostic needs the same
-    fingerprint without inheriting the pilot's dataset registry. #241 narrows this further to a
-    frame plus target, when the pilot's record gains its `provenance` block.
+    Moved from `scripts/run_pilot.py` by #211; #241 replaces the `name`-plus-`data_dir`
+    signature with the frame itself, so a second runner can fingerprint what it actually
+    loaded without inheriting the pilot's dataset registry. `target` and `drop` are recorded
+    because they define the feature matrix: the same bytes with a different leak-drop is a
+    different experiment, and a reader comparing two records has to be able to see that.
+
+    `sha256` is over the bytes on disk, which is what `path` is for. A frame that never came
+    from a file records `sha256: None` -- the absence stated, because a hash this helper
+    invented from the in-memory rows would not be checkable against a re-download.
     """
-    path = Path(data_dir) / f"{name}.csv"
-    if not path.exists():
-        return {"name": name, "path": str(path), "exists": False}
-    df = pd.read_csv(path)
-    y = df[target].astype(int)
+    y = frame[target].astype(int)
+    drop = list(drop)
+    file_path = Path(path) if path is not None else None
+    if file_path is not None and file_path.exists():
+        try:
+            recorded_path = str(file_path.resolve().relative_to(Path(repo_root).resolve()))
+        except ValueError:  # a file outside the repo is recorded where it is
+            recorded_path = str(file_path)
+        content_sha256 = sha256_file(file_path)
+    else:
+        recorded_path = None if file_path is None else str(file_path)
+        content_sha256 = None
     return {
         "name": name,
-        "path": str(path.relative_to(repo_root)),
-        "file": f"{name}.csv",
-        "sha256": sha256_file(path),
-        "n_rows": int(len(df)),
-        "n_cols": int(df.shape[1]),
-        "columns": list(df.columns),
-        "target_col": target,
+        "path": recorded_path,
+        "file": file_path.name if file_path is not None else None,
+        "target": target,
+        "drop": drop,
+        "sha256": content_sha256,
+        "n_rows": int(len(frame)),
+        "n_cols": int(frame.shape[1]),
+        "columns": list(frame.columns),
         "positive_rate": round(float(y.mean()), 6),
         "n_positive": int(y.sum()),
         # Provenance of the bytes: a content hash alone tells you a file CHANGED, not
         # where to get the original back. DATA_REF pins the source; default `main` is a
         # moving branch and is recorded as such so the gap is visible rather than implied.
-        "source_url": source.url,
-        "source_repo": source.repo,
-        "source_ref": source.ref,
-        "source_ref_is_pinned": source.ref_is_pinned,
+        "source_url": source.url if source else None,
+        "source_repo": source.repo if source else None,
+        "source_ref": source.ref if source else None,
+        "source_ref_is_pinned": source.ref_is_pinned if source else None,
     }
 
 
@@ -374,3 +395,190 @@ def read_diagnostic_record(path):
             f"({DIAGNOSTIC_RECORD_SCHEMA_VERSION})"
         )
     return record
+
+
+# ---------------------------------------------------------------------------
+# The record contract: a provenance block, and the verdict it earns  (#241)
+# ---------------------------------------------------------------------------
+# The pilot's arm record declares the layout it was written with. 2 is the layout that
+# carried fingerprints and no model version; 3 adds the `provenance` block. A record written
+# before the field existed -- the 11 unversioned pilot records in the tree -- carries no
+# version at all and reads as 1. Bumping is load-bearing: `verdict` dispatches on this and
+# raises on a version it does not know rather than guessing what the record meant.
+ARM_RECORD_SCHEMA_VERSION = 3
+KNOWN_RECORD_SCHEMA_VERSIONS = (1, 2, ARM_RECORD_SCHEMA_VERSION)
+
+COMPARABLE = "comparable"
+PARTIAL = "partial"
+UNUSABLE = "unusable"
+
+_PROVENANCE = "provenance"
+
+
+def split_rule(constructor, **params):
+    """The fold construction as a RULE, not a sentence.
+
+    `KFold(5, shuffle=True, random_state=42)` in a description string is prose: two records
+    carrying it can differ in construction and still compare equal as text. A constructor
+    name plus its parameters can be compared field by field, which is what makes a fold
+    change visible as a rule change rather than as a metric change.
+    """
+    return {"constructor": constructor, "params": dict(sorted(params.items()))}
+
+
+def split_section(*, n_folds=None, seed=None, sha256=None, rule=None):
+    """The split section. `sha256` is the existing train-index hash; `rule` is `split_rule`."""
+    return {"n_folds": n_folds, "seed": seed, "sha256": sha256, "rule": rule}
+
+
+def model_section(*, version=None, weights_sha256=None, client_version=None):
+    """The model section.
+
+    `version` is the **resolved** label (`v3_default`, never a weights filename), per
+    docs/MODEL_VERSIONS.md. `weights_sha256` corroborates it; it never substitutes, because a
+    hash cannot be mapped back to a version label without reading that document and guessing.
+    `client_version` is the package that served the model -- `tabpfn` for a local run,
+    `tabpfn-client` for the API -- recorded so "which stack produced this" is one lookup.
+    """
+    return {"version": version, "weights_sha256": weights_sha256, "client_version": client_version}
+
+
+def code_section(*, git_sha=None, dirty=None, runtime=None, image=None):
+    """The code section: what ran, and where."""
+    return {"git_sha": git_sha, "dirty": dirty, "runtime": runtime, "image": image}
+
+
+def provenance_block(*, dataset, split=None, model=None, code=None):
+    """The one top-level `provenance` key a record carries.
+
+    Every section is emitted with its full key set even when a value is unknown, so a reader
+    sees the same vocabulary in every record and a null states the absence. `dataset` is an
+    object for a per-dataset record and a non-empty list of those objects for a run-level
+    record -- the one structural asymmetry the reader normalises.
+
+    A runner supplies values; the key names live here. That is what stops a second producer
+    from spelling the same fact differently and calling it a new shape.
+    """
+    def section(given, empty):
+        return dict(given) if given is not None else empty()
+
+    return {
+        "dataset": dataset,
+        "split": section(split, split_section),
+        "model": section(model, model_section),
+        "code": section(code, code_section),
+    }
+
+
+@dataclass(frozen=True)
+class Verdict:
+    """What a record can prove about itself. Computed from the record, never stored in it."""
+
+    status: str
+    missing: tuple[str, ...] = ()
+    schema_version: int | None = None
+
+    def __str__(self):  # a verdict is read in a log or a table, so it reads as one line
+        if not self.missing:
+            return self.status
+        return f"{self.status}: missing {', '.join(self.missing)}"
+
+
+def _present(value):
+    """A value that identifies something. Empty string and null do not."""
+    return value is not None and value != ""
+
+
+def _declared_schema_version(record, where):
+    """The layout the record was written with, refusing one this module cannot know."""
+    version = record.get("schema_version")
+    if version is None:
+        return 1
+    if version not in KNOWN_RECORD_SCHEMA_VERSIONS:
+        raise ValueError(
+            f"{where}: schema_version {version!r} is not one this reader understands "
+            f"({', '.join(str(v) for v in KNOWN_RECORD_SCHEMA_VERSIONS)})"
+        )
+    return version
+
+
+def _dataset_entries(dataset):
+    """Normalise the one documented asymmetry: a per-dataset object, or a run-level list."""
+    if isinstance(dataset, Mapping):
+        return [dataset]
+    if isinstance(dataset, (list, tuple)):
+        return [dict(d) if isinstance(d, Mapping) else {} for d in dataset]
+    return []
+
+
+def read_record(path):
+    """Load a record from a file or a record directory, failing closed on the version.
+
+    A directory is read as `<dir>/meta.json`, which is where the pilot writes its arm record.
+    Nothing is written back: a record written before this contract existed gets a verdict,
+    not an upgrade, because its bytes are the evidence.
+    """
+    p = Path(path)
+    if p.is_dir():
+        p = p / "meta.json"
+    record = json.loads(p.read_text(encoding="utf-8"))
+    _declared_schema_version(record, p)
+    return record
+
+
+def verdict(record):
+    """The verdict a record earns, and the keys that are missing.
+
+    * `comparable` -- every dataset carries a content hash, and the split hash, the model
+      version and the git sha are all present. These are the items that make "same data,
+      same split, same model, same code" checkable rather than asserted.
+    * `partial` -- the record identifies its dataset and its split (a name, a seed, and a
+      construction) but is missing at least one of those four.
+    * `unusable` -- it cannot identify the dataset or the split at all, including a record
+      with no `provenance` block. That is a verdict, not an exception: an old record is a
+      historical fact, not a failure.
+
+    Accepts the record as a mapping or as a path to one.
+    """
+    if isinstance(record, (str, Path)):
+        record = read_record(record)
+    schema_version = _declared_schema_version(record, "record")
+
+    block = record.get(_PROVENANCE)
+    if not isinstance(block, Mapping):
+        return Verdict(UNUSABLE, (_PROVENANCE,), schema_version)
+
+    datasets = _dataset_entries(block.get("dataset"))
+    split = block.get("split") or {}
+    model = block.get("model") or {}
+    code = block.get("code") or {}
+
+    # First: can it identify the dataset and the split at all? Without that there is nothing
+    # to be partial about, and "missing a content hash" would overstate what the record says.
+    missing: list[str] = []
+    if not datasets:
+        missing.append(f"{_PROVENANCE}.dataset")
+    for index, entry in enumerate(datasets):
+        if not _present(entry.get("name")):
+            missing.append(f"{_PROVENANCE}.dataset[{index}].name")
+    # A split is identified by its seed and its construction. `n_folds` counts folds where
+    # there are folds; the pilot's holdout path has one train/test partition and records it as
+    # a rule (`train_test_split` and its sizes), so a fold count alone cannot be the test.
+    if not _present(split.get("seed")):
+        missing.append(f"{_PROVENANCE}.split.seed")
+    elif not _present(split.get("n_folds")) and not _present(split.get("rule")):
+        missing.append(f"{_PROVENANCE}.split.n_folds")
+    if missing:
+        return Verdict(UNUSABLE, tuple(missing), schema_version)
+
+    for entry in datasets:
+        if not _present(entry.get("sha256")):
+            missing.append(f"{_PROVENANCE}.dataset[{entry['name']}].sha256")
+    if not _present(split.get("sha256")):
+        missing.append(f"{_PROVENANCE}.split.sha256")
+    if not _present(model.get("version")):
+        missing.append(f"{_PROVENANCE}.model.version")
+    if not _present(code.get("git_sha")):
+        missing.append(f"{_PROVENANCE}.code.git_sha")
+
+    return Verdict(PARTIAL if missing else COMPARABLE, tuple(missing), schema_version)
