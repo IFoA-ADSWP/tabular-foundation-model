@@ -8,8 +8,8 @@ extend-exclude = [
   # scripts/legacy_finetuning/ is not on the live path. Its entrypoints need the
   # upstream `tabpfn` package and a GPU, GLOSSARY.md records the fine-tuning pilot
   # as "a separate context that happens to share a word", and nothing in the current
-  # suite imports it. It carries 25 pre-existing findings (E402, E731, F401, F541,
-  # F841) in code nobody is going to run.
+  # suite imports it. It carries 26 pre-existing findings (E402, E702, E731, F401,
+  # F541, F841) in code nobody is going to run.
   #
   # Excluded deliberately, with the reason beside the exclusion, so that a future
   # reader can disagree with the judgement rather than discover the behaviour by

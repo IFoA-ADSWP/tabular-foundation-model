@@ -47,11 +47,11 @@ The gate reported 64 errors. They divide cleanly:
 
 | Where | Count | Disposition |
 |---|---|---|
-| `scripts/legacy_finetuning/` | 25 | excluded, with the reason in `ruff.toml` |
-| live code | 39 | all fixed |
+| `scripts/legacy_finetuning/` | 26 | excluded, with the reason in `ruff.toml` |
+| live code | 38 | all fixed |
 
-Of the 39: 14 were mechanical and applied by `ruff --fix` (unused imports, unused
-variables, placeholder-less f-strings, one redefinition); 25 were done by hand —
+Of the 38: 14 were mechanical and applied by `ruff --fix` (unused imports, unused
+variables, placeholder-less f-strings, one redefinition); 24 were done by hand —
 16 semicolon statements split into one per line, 4 `import sys as _sys` aliases
 normalised to a module-level `import sys` placed after `from __future__`, 3 dead
 assignments deleted, and one further unused import.
@@ -73,13 +73,14 @@ assignments deleted, and one further unused import.
 
 ### Evidence
 
-Ruff reports **0 errors** where it reported 64, with 25 of those accounted for by the
-cited exclusion and 39 fixed in live code. The behaviour-preserving claim was checked
+Ruff reports **0 errors** where it reported 64, with 26 of those accounted for by the
+cited exclusion and 38 fixed in live code. The behaviour-preserving claim was checked
 rather than assumed: the four files whose imports were reorganised still parse, and each
 removed name (`os`, `bin_centers`, `args`, the inner `numpy` redefinition) has no
 remaining reference.
 
-`./scripts/check.sh` exits **0**: ruff clean, **249 passed**, shellcheck clean.
+`./scripts/check.sh` exits **0**: ruff clean, **256 passed**, shellcheck clean (the count rose from 249 when `main`'s
+later #271 and #277 tests were merged in).
 
 ### A blocker the gate found immediately
 
