@@ -96,24 +96,71 @@ def build_box_output_tree(root: Path, run_id="20260912T230000Z"):
     return run_id
 
 
+REMOTE_BRANCH = "main"
+
+
+def _run_launcher(env, *args):
+    """Run the real launcher through the mock, returning (completed process, output)."""
+    result = subprocess.run(
+        ["bash", str(VAST_RUN), *args],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
+        cwd=str(REPO_ROOT),
+    )
+    return result, result.stdout + result.stderr
+
+
 def _commit_on_remote_main() -> str:
     """A commit the box could actually check out, so the launcher's guard can pass.
 
-    The guard asks whether the commit it would send is an ancestor of `origin/main`. In a
-    test run that is usually false -- pre-push the local branch is ahead, and PR CI checks
-    out a merge ref -- so it refuses before provisioning (#256). Inject the real answer
-    rather than weakening the guard: fail loudly if the remote branch is unavailable,
-    because a silent fallback to HEAD would restore the bug invisibly.
+    The guard asks whether the commit it would send is an ancestor of `origin/$BRANCH`.
+    In a test run that is usually false -- pre-push the local branch is ahead, and PR CI
+    checks out a merge ref -- so it refuses before provisioning (#256). Inject the real
+    answer rather than weakening the guard: fail loudly if the remote branch is
+    unavailable, because a silent fallback to HEAD would restore the bug invisibly.
     """
     try:
         proc = subprocess.run(
-            ["git", "-C", str(REPO_ROOT), "rev-parse", "--verify", "origin/main^{commit}"],
+            ["git", "-C", str(REPO_ROOT), "rev-parse", "--verify",
+             f"origin/{REMOTE_BRANCH}^{{commit}}"],
             capture_output=True,
             text=True,
             check=True,
         )
     except (subprocess.CalledProcessError, FileNotFoundError) as exc:
-        pytest.fail(f"cannot resolve origin/main, so the commit guard cannot be satisfied: {exc}")
+        pytest.fail(
+            f"cannot resolve origin/{REMOTE_BRANCH}, so the commit guard cannot be "
+            f"satisfied: {exc}"
+        )
+    return proc.stdout.strip()
+
+
+def _local_head() -> str:
+    return subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
+def _commit_nowhere_near_the_remote() -> str:
+    """A real commit object that no remote branch contains.
+
+    Not a fabricated sha: `merge-base --is-ancestor` returns 128 for a bad object and 1 for
+    "real commit, not an ancestor", so a fake sha would pass the refusal test without
+    exercising the case it names.
+    """
+    tree = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "write-tree"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    proc = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "commit-tree", tree, "-m", "unreachable test commit"],
+        capture_output=True, text=True, check=True,
+    )
     return proc.stdout.strip()
 
 
@@ -151,6 +198,9 @@ def mock_env(tmp_path):
         # it legitimately is not, so the guard would stop the mock before it ran. Answer
         # its question truthfully with a commit the box could check out; do not weaken it.
         "TFM_COMMIT_SHA": _commit_on_remote_main(),
+        # Pin the branch the guard consults, so an ambient BRANCH in the caller's shell
+        # cannot make the injected commit and the compared ref disagree.
+        "BRANCH": REMOTE_BRANCH,
     }
     # Deliberately NOT exporting TABPFN_TOKEN: the runner reads it from
     # ~/.config/tfm/keys.env and warns when an exported value differs from the file.
@@ -164,19 +214,15 @@ def test_mock_run_completes_verifies_and_tears_down(mock_env):
     """The whole path, once: provision -> emit -> return -> verify -> destroy."""
     env, state, outdir = mock_env["env"], mock_env["state"], mock_env["outdir"]
 
-    result = subprocess.run(
-        ["bash", str(VAST_RUN), "--yes", "--arms", "A_raw,B_in_domain", "--max-attempts", "1"],
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=300,
-        cwd=str(REPO_ROOT),
+    result, combined = _run_launcher(
+        env, "--yes", "--arms", "A_raw,B_in_domain", "--max-attempts", "1"
     )
-    combined = result.stdout + result.stderr
 
-    # 0. The remote-commit guard ran and was satisfied with the commit we injected (#256).
-    #    Without this, a future weakening of the guard would go unnoticed.
-    assert "is on origin/main" in combined, combined
+    # 0. The remote-commit guard ran and was satisfied with the commit we injected (#256),
+    #    and it named that commit rather than some other one. Without this, a future
+    #    weakening of the guard would go unnoticed.
+    injected = env["TFM_COMMIT_SHA"]
+    assert f"commit {injected} is on origin/{REMOTE_BRANCH}" in combined, combined
 
     # 1. The instance was created and -- critically -- destroyed.
     assert (state / "created.txt").exists(), f"no create recorded:\n{combined}"
@@ -260,19 +306,34 @@ def test_mock_models_the_execute_constraint(mock_env):
 def test_guard_still_refuses_a_commit_that_is_not_on_the_remote(mock_env):
     """The override answers the guard's question; it does not bypass it (#256).
 
-    A commit that no remote branch contains must be refused exactly as before, so the
+    A real commit that no remote branch contains must be refused exactly as before, so the
     safety that stopped a $0.0039 mistake still holds for every real run.
     """
-    env = {**mock_env["env"], "TFM_COMMIT_SHA": "0" * 40}
-    result = subprocess.run(
-        ["bash", str(VAST_RUN), "--yes", "--arms", "A_raw", "--max-attempts", "1"],
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=300,
-        cwd=str(REPO_ROOT),
+    unreachable = _commit_nowhere_near_the_remote()
+    env = {**mock_env["env"], "TFM_COMMIT_SHA": unreachable}
+
+    result, combined = _run_launcher(
+        env, "--yes", "--arms", "A_raw", "--max-attempts", "1"
     )
-    combined = result.stdout + result.stderr
-    assert result.returncode != 0, combined
+
+    assert result.returncode == 2, combined
+    assert unreachable in combined, combined
     assert "REFUSING" in combined, combined
     assert not (mock_env["state"] / "created.txt").exists(), "guard let a create through"
+
+
+def test_guard_resolves_head_when_the_override_is_absent(mock_env):
+    """Unset, the launcher resolves HEAD and says so (#256, AC1).
+
+    Whether HEAD is on the remote decides only which branch this takes -- refusal or the
+    mock run -- and both name the resolved commit.
+    """
+    env = {k: v for k, v in mock_env["env"].items() if k != "TFM_COMMIT_SHA"}
+    head = _local_head()
+
+    result, combined = _run_launcher(
+        env, "--yes", "--arms", "A_raw", "--max-attempts", "1"
+    )
+
+    assert result.returncode in (0, 2), combined
+    assert head in combined, f"launcher did not resolve HEAD ({head}):\n{combined}"
