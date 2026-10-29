@@ -47,15 +47,27 @@ Computed from the record, never stored in it:
   record, per-dataset or run-level.
 - **`unusable`** — it cannot identify the dataset or the split at all.
 
-**The pre-block layout.** A pilot arm record written before this decision carries
-`dataset_fingerprint` and `split_fingerprint` at the top level, not under `provenance`. It is
-read through those documented keys rather than declared unreadable, because they *do* identify
-its data and its split: the eight v2 records are therefore `partial`, missing their model
-version (and their git sha), which is exactly what #240 says they are. The eleven records that
-predate fingerprints identify neither, and stay `unusable`. Nothing is written back or upgraded;
-the lens is over bytes that stay as they were produced. Other record kinds have no documented
-pre-block layout that identifies a split, so for them an absent block is `unusable` — #243 owns
-the frontier's own shape.
+**The pre-block layouts, and what each one is worth.** A record written before this decision
+still says something, and the verdict has to read what it says rather than treat every
+pre-block file as the same. Two kinds have a documented pre-block layout that identifies a
+dataset and a split, and are read through it:
+
+| Committed shape | What it states without a block | Verdict | Missing, on the committed files |
+| --- | --- | --- | --- |
+| pilot arm, `schema_version` 2 | `dataset_fingerprint`, `split_fingerprint` | **partial** | `provenance.model.version`, `provenance.code.git_sha` — a v2 record never carried either |
+| capture, `schema_version` 1 | `dataset` name, `data_file`, `target`, `drop`, `n_folds`, `seed`, `model_version`, `tabpfn_client_version`, `script_git_sha` | **partial** | `provenance.dataset[0].sha256`, `provenance.split.sha256` — a capture pins predictions, not the CSV's bytes, and has no split fingerprint |
+| pilot arm, unversioned | neither fingerprints nor a model version | **unusable** | `provenance.dataset`, `provenance.split.seed` |
+| pilot invocation manifest, `schema_version` 2 | per-dataset fingerprints, no split | **unusable** | `provenance` |
+| frontier run manifest, unversioned | `argv`, `seed`, `git_sha` | **unusable** | `provenance` |
+
+The distinction is the whole point of the rule: `unusable` means the record cannot identify its
+dataset or its split *at all*, and a capture manifest can, so calling it `unusable` would
+overstate its silence. A capture's `split` is a description string, and it is deliberately not
+parsed into a rule — turning prose into `{constructor, params}` would be a guess, so the rule
+is absent from the block while the fold count and seed still identify the split.
+
+Nothing is written back or upgraded in any of these cases; the lens is over bytes that stay as
+they were produced. #243 owns the frontier runner's own block.
 
 **Per-kind version dispatch.** `schema_version` is checked against the layout of the kind the
 caller says it is reading. A capture manifest declaring `3` is refused even though an arm

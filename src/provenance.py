@@ -36,8 +36,9 @@ run is a second record.
 * `read_record` and `verdict` turn any record into a stated verdict -- `comparable`,
   `partial` or `unusable` -- naming the keys that are missing, dispatching on a
   `schema_version` per record kind and raising on one it does not know rather than
-  guessing. A pilot arm record written before the block is read through its documented
-  top-level fingerprints, so it is `partial` rather than unreadable.
+  guessing. A pilot arm record and a capture manifest written before the block are read
+  through their documented top-level keys, so they are `partial` rather than unreadable;
+  an argv-only manifest identifies nothing and is `unusable`.
 
 A verdict is computed from the record, never stored in it: a record that claims to be
 comparable while lacking a content hash is exactly the failure the verdict exists to catch.
@@ -475,22 +476,21 @@ class RecordLayout:
     is 1 only where an unversioned layout is documented: the pilot arm records written before
     `schema_version` existed, and the frontier run manifests #240 describes as unversioned.
 
-    `reads_legacy_sections` marks the kind whose pre-block layout is recorded well enough to
-    read: a pilot arm record carries `dataset_fingerprint` and `split_fingerprint` at the top
-    level. The other kinds' pre-block layouts cannot identify a split, so they stay `unusable`
-    rather than being reinterpreted here (#243 owns the frontier's own layout).
+    A kind whose pre-block layout is recorded well enough to read has a reader in
+    `_LEGACY_SECTION_READERS`: the pilot arm record carries `dataset_fingerprint` and
+    `split_fingerprint` at the top level, and a capture manifest carries its dataset name,
+    fold count, seed, model version and script sha. The kinds with no such reader (the
+    invocation manifests) cannot identify a split at all, so they stay `unusable` rather than
+    being reinterpreted here -- #243 owns the frontier's own block.
     """
 
     kind: str
     known_versions: tuple[int, ...]
     absent_means: int | None
-    reads_legacy_sections: bool = False
 
 
 RECORD_LAYOUTS = {
-    ARM_RECORD_KIND: RecordLayout(
-        ARM_RECORD_KIND, (1, 2, ARM_RECORD_SCHEMA_VERSION), 1, reads_legacy_sections=True
-    ),
+    ARM_RECORD_KIND: RecordLayout(ARM_RECORD_KIND, (1, 2, ARM_RECORD_SCHEMA_VERSION), 1),
     PILOT_MANIFEST_KIND: RecordLayout(PILOT_MANIFEST_KIND, (1, PILOT_RUN_SCHEMA_VERSION), None),
     FRONTIER_MANIFEST_KIND: RecordLayout(
         FRONTIER_MANIFEST_KIND, (FRONTIER_MANIFEST_SCHEMA_VERSION,), 1
@@ -657,7 +657,7 @@ def _dataset_entries(dataset):
     return []
 
 
-def _legacy_sections(record):
+def _legacy_arm_sections(record):
     """A pre-block pilot arm record's top-level keys, read as the block's sections.
 
     The 8 v2 records in the tree carry `dataset_fingerprint` and `split_fingerprint` at the
@@ -695,6 +695,67 @@ def _legacy_sections(record):
             image=(record.get("container") or {}).get("image_ref"),
         ),
     }
+
+
+def _legacy_capture_sections(record):
+    """A v1 capture manifest's documented keys, read as the block's sections.
+
+    A capture pins predictions, not the bytes of the CSV: it carries the dataset's *name*,
+    file, target and drop, the fold count and seed, the model version and client version, and
+    the script's git sha (#240's capture-manifest table). It does not carry a dataset content
+    hash or a split fingerprint, so those are the items a verdict must name as missing -- which
+    is the difference between a capture and an argv-only run manifest: this record identifies
+    its dataset and its split, so it is `partial`, not `unusable`.
+
+    `split` is recorded as a description string (`KFold(5, shuffle=True, random_state=42)`).
+    It is deliberately NOT parsed into a rule: turning prose into `{constructor, params}` would
+    be a guess, and a guessed rule is worse than an absent one. The fold count and seed still
+    identify the split; the rule is missing and a future capture writer records it properly.
+    """
+    # A null `dataset` means the file names no dataset at all, so there is no entry to
+    # describe; a present-but-empty name is still an entry, and is named as the missing key.
+    datasets = (
+        [
+            {
+                DATASET_NAME: record.get("dataset"),
+                "file": record.get("data_file"),
+                "target": record.get("target"),
+                "drop": record.get("drop") or [],
+                DATASET_SHA256: None,
+            }
+        ]
+        if record.get("dataset") is not None
+        else []
+    )
+    return {
+        _DATASET: datasets,
+        _SPLIT: split_section(
+            n_folds=record.get("n_folds"),
+            seed=record.get("seed"),
+            sha256=None,
+            rule=None,
+        ),
+        _MODEL: model_section(
+            version=record.get("model_version"),
+            weights_sha256=None,
+            client_version=record.get("tabpfn_client_version"),
+            version_source="legacy" if record.get("model_version") else None,
+        ),
+        _CODE: code_section(
+            git_sha=record.get("script_git_sha"),
+            dirty=None,
+            runtime=None,
+            image=None,
+        ),
+    }
+
+
+# The two kinds whose pre-block layout can still identify a dataset and a split. Everything
+# else must carry the block to say anything; an argv-only manifest identifies neither.
+_LEGACY_SECTION_READERS = {
+    ARM_RECORD_KIND: _legacy_arm_sections,
+    CAPTURE_KIND: _legacy_capture_sections,
+}
 
 
 def read_record(path, *, kind):
@@ -735,9 +796,10 @@ def verdict(record, *, kind):
 
     `kind` is required because a record does not carry one: the caller knows whether it is
     reading an arm record or a capture manifest, and guessing from shape is how a reader ends
-    up confidently misreading the wrong layout. A pilot arm record with no block is read
-    through its documented pre-block top-level keys (see `_legacy_sections`); other kinds
-    must carry the block to say anything.
+    up confidently misreading the wrong layout. A record of a kind with a documented
+    pre-block layout -- a pilot arm record or a capture manifest -- is read through those keys
+    when the block is absent (`_LEGACY_SECTION_READERS`); the invocation manifests must carry
+    the block to identify a split at all.
 
     Accepts the record as a mapping or as a path to one. Missing keys are named by index --
     `provenance.dataset[1].sha256` -- so one form addresses every record, per-dataset or
@@ -749,13 +811,14 @@ def verdict(record, *, kind):
     schema_version = _declared_schema_version(record, layout, "record")
 
     block = record.get(_PROVENANCE)
+    legacy_reader = _LEGACY_SECTION_READERS.get(kind)
     if isinstance(block, Mapping):
         datasets = _dataset_entries(block.get(_DATASET))
         split = block.get(_SPLIT) or {}
         model = block.get(_MODEL) or {}
         code = block.get(_CODE) or {}
-    elif layout.reads_legacy_sections:
-        legacy = _legacy_sections(record)
+    elif legacy_reader is not None:
+        legacy = legacy_reader(record)
         datasets = _dataset_entries(legacy[_DATASET])
         split, model, code = legacy[_SPLIT], legacy[_MODEL], legacy[_CODE]
     else:

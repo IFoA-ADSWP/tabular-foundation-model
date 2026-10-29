@@ -341,14 +341,20 @@ def test_a_record_that_cannot_identify_its_data_or_split_is_unusable(fault, miss
     assert missing_key in result.missing
 
 
-def test_a_record_with_no_provenance_block_is_unusable_not_an_exception():
-    """A capture manifest carries no block, and is not read as if it had one."""
-    record = {"schema_version": 1, "dataset": {"name": "coil2000"}, "n_folds": 5, "seed": 42}
-
-    result = verdict(record, kind=CAPTURE_KIND)
+def test_a_manifest_with_no_provenance_block_is_unusable_not_an_exception():
+    """A pilot invocation manifest has no block, and none of the keys that could stand in."""
+    result = verdict({"schema_version": 2, "run_id": "20260914T010247Z"}, kind=PILOT_MANIFEST_KIND)
 
     assert result.status == "unusable"
     assert result.missing == ("provenance",)
+
+
+def test_a_capture_without_a_dataset_or_seed_is_unusable():
+    """The fallback reads what the file states; it does not invent identity from nothing."""
+    result = verdict({"schema_version": 1, "n_folds": 5}, kind=CAPTURE_KIND)
+
+    assert result.status == "unusable"
+    assert result.missing == ("provenance.dataset", "provenance.split.seed")
 
 
 # --------------------------------------------------------------------------
@@ -426,14 +432,36 @@ def test_a_version_known_to_one_kind_is_not_known_to_another():
 
 
 def test_a_committed_frontier_manifest_is_read_as_its_unversioned_layout():
+    """Pinned on the real artifact: argv and a seed identify no dataset and no split."""
     path = sorted((REPO_ROOT / "results").glob("*/manifest.json"))
-    if not path:
-        pytest.skip("no committed frontier run manifest in this checkout")
+    assert path, "no committed frontier run manifest found -- the tree moved"
 
     result = verdict(path[0], kind=FRONTIER_MANIFEST_KIND)
 
     assert result.schema_version == 1
     assert result.status == "unusable"
+    assert result.missing == ("provenance",)
+
+
+def test_a_committed_capture_identifies_its_data_and_split():
+    """Pinned on the real artifact: a capture is `partial`, not `unusable`.
+
+    Its v1 keys name the dataset, the fold count, the seed, the model version and the script
+    sha. What it cannot supply is a content hash for the CSV and a split fingerprint -- so the
+    verdict names exactly those, which is the distinction #240 draws between "missing a
+    fingerprint" and "cannot identify the data or the split at all".
+    """
+    captures = sorted(CAPTURE_TREE.glob("*.manifest.json"))
+    assert captures, "no committed capture manifest found -- the tree moved"
+
+    for path in captures:
+        result = verdict(path, kind=CAPTURE_KIND)
+        assert result.status == "partial", (path, result)
+        assert result.missing == (
+            "provenance.dataset[0].sha256",
+            "provenance.split.sha256",
+        ), (path, result)
+        assert result.schema_version == 1
 
 
 def test_reading_a_file_with_a_version_wrong_for_its_kind_raises(mock_arm_run):

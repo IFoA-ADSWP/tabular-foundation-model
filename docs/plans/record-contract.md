@@ -54,12 +54,14 @@ Computed from the record, never stored in it:
 * **`comparable`** — every dataset carries `sha256`, and `split.sha256`, `model.version` and
   `code.git_sha` are present.
 * **`partial`** — the record names its dataset and its split, and is missing at least one of
-  those four; `missing` lists them as dotted keys (`provenance.model.version`). A pilot arm
-  record with no block is read through its documented pre-block top-level fingerprints, so the
-  eight v2 records are `partial` — missing their model version — rather than meaningless.
-* **`unusable`** — it cannot identify the dataset or the split at all (the eleven records that
-  predate fingerprints, and an argv-only manifest). Not an exception: an old record gets a
-  verdict, not an upgrade.
+  those four; `missing` lists them as dotted keys (`provenance.model.version`). Two pre-block
+  layouts are still read: a v2 pilot arm record through its top-level fingerprints (missing its
+  model version and git sha), and a v1 capture manifest through its dataset name, fold count,
+  seed, model version and script sha (missing the dataset and split fingerprints). Both are
+  `partial`, not meaningless.
+* **`unusable`** — it cannot identify the dataset or the split at all: the eleven pilot records
+  that predate fingerprints, the pilot invocation manifests, and the frontier run manifests
+  (argv and a seed only). Not an exception: an old record gets a verdict, not an upgrade.
 
 Missing keys are addressed by index (`provenance.dataset[1].sha256`) so one form covers both a
 per-dataset object and a run-level list.
