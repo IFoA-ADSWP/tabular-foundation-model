@@ -5,14 +5,24 @@ version, and git sha", and `docs/adr/0001-experiment-spec-pins-version-and-guard
 adds that a model version is recorded, never inferred. This module is the one place the pilot
 and the diagnostics compute those facts, so that D1-D5 cannot each spell them differently.
 
-Two things live here:
+Three things live here:
 
 * the dataset fingerprint and the matched-inference-context assertion, moved out of
   `scripts/run_pilot.py` (PR-4, PR-6) and imported back by it -- same behaviour, same words;
 * the constants that give those helpers their meaning: which arms carry an inference context,
-  and which arm is the baseline.
+  and which arm is the baseline;
+* `write_diagnostic_record`, the single writer every diagnostic emits through.
 
-`write_diagnostic_record`, the single writer every diagnostic emits through, lands next.
+The writer exists because `outputs/gpu-pilot/README.md` records two failures this repository has
+already paid for: a `csv.DictWriter` header written against an older schema shifted **every**
+ledger column, and a record split across two clones made **three runs** invisible. Both were
+caught once, by hand, on one dataset. Five producers make the same class of error undetectable,
+because the point of the diagnostics is that their outputs are comparable.
+
+So there is exactly one field definition here -- the `DiagnosticRecord` dataclass -- and the CSV
+header is derived from it at write time. Each record gets its own
+`<root>/<diagnostic>/<run_id>/` directory and is never appended to a file whose header an older
+schema wrote, so a stale header cannot survive a field change.
 
 What is *not* here yet: the pilot's own `provenance` block, a verdict reader, and pilot schema 3.
 Those are #240/#241's, and they extend this module rather than replace it. The pilot's record
@@ -21,9 +31,14 @@ shape is untouched by this change (`SCHEMA_VERSION` stays 2).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import csv
+import json
+import subprocess
+from dataclasses import asdict, dataclass, field, fields, replace
+from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
+from typing import Any, Mapping
 
 import pandas as pd
 
@@ -133,3 +148,159 @@ def assert_matched_context(per_arm):
             "by exactly this; fix the context before reporting any delta."
         )
     return True
+
+
+# ---------------------------------------------------------------------------
+# Diagnostic records  (#211)
+# ---------------------------------------------------------------------------
+DIAGNOSTIC_RECORD_SCHEMA_VERSION = 1
+DIAGNOSTICS_ROOT = REPO_ROOT / "outputs" / "diagnostics"
+
+_UTC_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+_CSV = "record.csv"
+_JSON = "record.json"
+
+
+@dataclass(frozen=True, kw_only=True)
+class DiagnosticRecord:
+    """One diagnostic's record. The field set below **is** the contract.
+
+    A diagnostic supplies the values it measured and nothing else. `schema_version`,
+    `created_utc`, `git_sha` and `git_dirty` are stamped by `write_diagnostic_record`, so two
+    diagnostics cannot stamp them differently -- and a change to the shape of a record is a
+    version bump here rather than an archaeology exercise later.
+
+    `measurements` is the one free-form field: each diagnostic brings its own numbers, but they
+    live under one fixed key. That is what keeps the keys comparable between D1 and D2 while
+    their contents differ.
+
+    `model_version` is the resolved label (`v3_default`, not a weights filename), per
+    docs/MODEL_VERSIONS.md. `None` is the honest value for a diagnostic that ran no model --
+    D1 profiles data -- and it states the absence rather than guessing.
+    """
+
+    schema_version: int = DIAGNOSTIC_RECORD_SCHEMA_VERSION
+    diagnostic: str
+    run_id: str
+    created_utc: str | None = None
+    git_sha: str | None = None
+    git_dirty: bool | None = None
+    model_version: str | None
+    dataset_name: str
+    dataset_sha256: str | None
+    measurements: Mapping[str, Any] = field(default_factory=dict)
+
+
+# The single field definition. The JSON keys and the CSV header are both taken from it, so
+# there is no per-call field list that could drift out of step with the dataclass.
+DIAGNOSTIC_RECORD_FIELDS = tuple(f.name for f in fields(DiagnosticRecord))
+
+
+def git_revision(repo_root=None):
+    """`(sha, dirty)` of the code that ran.
+
+    `dirty` counts changed **tracked** files only. Untracked files are excluded on purpose: a
+    run's own outputs are untracked by design, and counting them would mark every record dirty,
+    which would make the flag say nothing.
+    """
+
+    def run(*args):
+        try:
+            return subprocess.run(
+                ["git", *args],
+                cwd=repo_root or REPO_ROOT,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            ).stdout.strip()
+        except Exception:
+            return ""
+
+    porcelain = run("status", "--porcelain")
+    dirty = any(
+        ln[:2].strip() and not ln.startswith("??") for ln in porcelain.splitlines()
+    )
+    return run("rev-parse", "HEAD") or None, dirty
+
+
+def _csv_cell(value):
+    """One CSV cell, spelled so two writers cannot disagree about a type.
+
+    `measurements` is JSON with sorted keys, so the same numbers serialise to the same bytes.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, Mapping):
+        return json.dumps(value, sort_keys=True, separators=(",", ":"))
+    return str(value)
+
+
+def _record_path(record, root):
+    """`<root>/<diagnostic>/<run_id>` -- derived, never chosen by the caller."""
+    for part in (record.diagnostic, record.run_id):
+        if not part or part in (".", "..") or "/" in part or "\\" in part:
+            raise ValueError(f"a record path component must be a plain name, got {part!r}")
+    return Path(root or DIAGNOSTICS_ROOT) / record.diagnostic / record.run_id
+
+
+def write_diagnostic_record(record, *, root=None, overwrite=False):
+    """Write one diagnostic's record under ``<root>/<diagnostic>/<run_id>/``.
+
+    This is the only writer D1-D5 may use, and it makes the two failures recorded in
+    `outputs/gpu-pilot/README.md` impossible rather than merely unlikely:
+
+    * **a stale header.** The CSV header is `DIAGNOSTIC_RECORD_FIELDS`, derived from
+      `DiagnosticRecord`. It is written into a *new* directory, never appended to a file an
+      older schema wrote, so no header can outlive the field set that produced it.
+    * **a split record.** One call writes `record.json` (the source of truth) and `record.csv`
+      (the one-row view of it) into one directory whose path is derived from the diagnostic
+      and the run id -- there is no second location a record could half-exist in.
+
+    An existing record is refused unless ``overwrite=True``, which rewrites both files in full
+    rather than appending a row under the old header.
+
+    Returns the directory written.
+    """
+    if record.git_sha is None or record.git_dirty is None:
+        sha, dirty = git_revision()
+        record = replace(
+            record,
+            git_sha=record.git_sha if record.git_sha is not None else sha,
+            git_dirty=record.git_dirty if record.git_dirty is not None else dirty,
+        )
+    if not record.created_utc:
+        record = replace(record, created_utc=datetime.now(timezone.utc).strftime(_UTC_FORMAT))
+
+    target = _record_path(record, root)
+    if target.exists() and any(target.iterdir()) and not overwrite:
+        raise FileExistsError(
+            f"{target} already holds a record; pass overwrite=True to replace it in full"
+        )
+    target.mkdir(parents=True, exist_ok=True)
+
+    payload = asdict(record)
+    if tuple(payload) != DIAGNOSTIC_RECORD_FIELDS:
+        # Cannot happen through the dataclass; kept so a hand-built dict can never become a
+        # second field definition in the future.
+        raise RuntimeError("record fields and the dataclass have diverged")
+
+    (target / _JSON).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    with open(target / _CSV, "w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=list(DIAGNOSTIC_RECORD_FIELDS), lineterminator="\n")
+        writer.writeheader()
+        writer.writerow({k: _csv_cell(v) for k, v in payload.items()})
+    return target
+
+
+def read_diagnostic_record(path):
+    """Read a record back as the dict it was written from. Fail-closed on the version."""
+    record = json.loads((Path(path) / _JSON).read_text(encoding="utf-8"))
+    version = record.get("schema_version")
+    if version != DIAGNOSTIC_RECORD_SCHEMA_VERSION:
+        raise ValueError(
+            f"{path}: schema_version {version!r} is not one this reader understands "
+            f"({DIAGNOSTIC_RECORD_SCHEMA_VERSION})"
+        )
+    return record
