@@ -13,6 +13,8 @@ Output: scripts/eval/insurance_benchmark_v1/home_turf_sweep_results.csv
 """
 from __future__ import annotations
 
+import sys
+
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutTimeout
@@ -22,8 +24,7 @@ import numpy as np
 import pandas as pd
 
 HERE = Path(__file__).resolve().parent
-import sys as _sys
-_sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 from src.api_key import load_api_key as _load_api_key  # noqa: E402
 REPO = HERE.parent.parent
 DATA_RAW = REPO / "data" / "raw"

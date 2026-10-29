@@ -110,8 +110,7 @@ import pandas as pd
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent.parent
-import sys as _sys
-_sys.path.insert(0, str(REPO))  # repo root
+sys.path.insert(0, str(REPO))  # repo root
 from src.api_key import load_api_key as _load_api_key  # noqa: E402
 from src.experiment_spec import (  # noqa: E402
     REGRESSION,

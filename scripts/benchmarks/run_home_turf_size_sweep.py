@@ -21,15 +21,13 @@ from __future__ import annotations
 import os
 import sys
 import time
-import traceback
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 HERE = Path(__file__).resolve().parent
-import sys as _sys
-_sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 from src.api_key import load_api_key as _load_api_key  # noqa: E402
 from src.model_version import resolve_model_path as _model_path  # noqa: E402
 REPO = HERE.parent.parent

@@ -39,7 +39,6 @@ from sklearn.metrics import (
     brier_score_loss,
     average_precision_score,
     log_loss,
-    f1_score,
 )
 
 # Ensure repo imports work (handle both __file__ and piped execution)

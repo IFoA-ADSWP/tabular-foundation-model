@@ -487,12 +487,19 @@ fi
 # That happened once: $0.0039 and a minute to learn a local fact. The box keeps its own check,
 # which is authoritative because it verifies the actual tree; this is the fast-fail in front of it.
 git -C "$REPO_DIR" fetch -q origin "$BRANCH" 2>/dev/null || true
-if ! git -C "$REPO_DIR" merge-base --is-ancestor "$TFM_COMMIT_SHA" "origin/$BRANCH" 2>/dev/null; then
-    echo "REFUSING: this checkout is at $TFM_COMMIT_SHA, which is not on origin/$BRANCH." >&2
-    echo "The box clones $BRANCH, so it could not run this commit -- refusing before provisioning." >&2
-    exit 2
+# A mock run creates no instance and cannot spend money, so this guard has nothing to
+# protect: it exists to fail before provisioning, when a box could not run the commit.
+# Skipping it under DRY_RUN is what lets the suite be green on a feature branch, which
+# CI needs -- `pytest` runs on pull requests, where HEAD is never on the base branch.
+if [ "$DRY_RUN" != "1" ]; then
+    if ! git -C "$REPO_DIR" merge-base --is-ancestor "$TFM_COMMIT_SHA" "origin/$BRANCH" 2>/dev/null; then
+        echo "REFUSING: this checkout is at $TFM_COMMIT_SHA, which is not on origin/$BRANCH." >&2
+        echo "The box clones $BRANCH, so it could not run this commit -- refusing before provisioning." >&2
+        exit 2
+    fi
+    echo "commit $TFM_COMMIT_SHA is on origin/$BRANCH -- the box can run it"
 fi
-echo "commit $TFM_COMMIT_SHA is on origin/$BRANCH -- the box can run it"
+
 
 ONSTART_DIR="$(mktemp -d "${TMPDIR:-/tmp}/tfm-onstart.XXXXXX")"
 ONSTART_FILE="$ONSTART_DIR/onstart.sh"
