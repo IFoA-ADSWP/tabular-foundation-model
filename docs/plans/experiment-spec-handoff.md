@@ -1,6 +1,6 @@
 # Handoff — experiment spec (architecture candidate 1)
 
-**Status:** grilling complete (rounds 1–5). Ready for `/to-spec`.
+**Status:** Historical — grilling complete (rounds 1–5); the spec it fed is `docs/plans/experiment-spec.md`.
 **Subject:** deepen the analysis pipeline so one module owns what an experiment *is*.
 **Survey:** issue #227. Visual review was written to the session temp dir and is not durable; #227 is the record.
 
@@ -26,7 +26,7 @@ An experiment's identity is declared in six code sites:
 | Attribute | Declared in |
 |---|---|
 | dataset + target | `run_frontier_benchmark.py:122-129, 141-148` · `run_home_turf_size_sweep.py:46-51` · `plot_money_chart.py:39-52` · `rescore_altmetrics.py:64-71` · `rescore_focused_imbalance_logloss.py:27` |
-| arms | `run_frontier_benchmark.py:159-160, 284-368` · `run_tuned_baselines.py:65-68, 178-278` · `run_reframe_frequency.py:95-102` · `run_tabfm.py:48` · three analysis scripts |
+| methods | `run_frontier_benchmark.py:159-160, 284-368` · `run_tuned_baselines.py:65-68, 178-278` · `run_reframe_frequency.py:95-102` · `run_tabfm.py:48` · three analysis scripts |
 | seed / folds | `run_frontier_benchmark.py:155, 171, 907` · `run_tuned_baselines.py:62-63` · `run_reframe_frequency.py:94, 205` · `run_tabfm.py:43-44` · `rescore_altmetrics.py:47, 329` · `analyze_pr_auc.py:141` |
 | model version | `_model_path()` at `:589, 787, 839, 960` — but hardcoded `"v3_default"` at `run_reframe_frequency.py:166`, and **absent from the run manifest** (`:1121-1133`) |
 | metrics | five vocabularies across six files |

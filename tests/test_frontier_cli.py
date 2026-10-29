@@ -169,6 +169,8 @@ def test_the_run_manifest_records_the_model_version_actually_used(tmp_path, monk
     manifest = json.loads((tmp_path / "manifest.json").read_text())
     assert manifest["model_version"] == "v3.5_default"
     assert manifest["experiment_id"] == "coil2000"
+    # and it does not claim more than it can: reused rows are unattested until #233
+    assert "reused" in manifest["model_version_scope"] and "#233" in manifest["model_version_scope"]
 
 
 def test_an_experiment_refuses_a_seed_that_contradicts_its_declaration(monkeypatch, tmp_path):
@@ -190,6 +192,21 @@ def test_an_experiment_accepts_its_declared_seed(monkeypatch, tmp_path):
                          "--out-dir", str(tmp_path)])
     with pytest.raises(AssertionError, match="reached the dataset runner"):
         mod.main()  # selection and seed both accepted; it stops at the runner stub
+
+
+def test_an_experiment_refuses_a_fold_count_the_runner_cannot_honour(monkeypatch, tmp_path):
+    # n_folds is declared and validated. Until the runner folds from the registry (#231),
+    # a declared count it ignores would be a stamp the artifact cannot back.
+    import dataclasses
+
+    datasets, experiment = mod.experiment_selection("coil2000")
+    monkeypatch.setattr(mod, "experiment_selection",
+                        lambda _id: (datasets, dataclasses.replace(experiment, n_folds=10)))
+    refuse_to_run(monkeypatch)
+    monkeypatch.setattr(sys, "argv",
+                        ["prog", "--experiment", "coil2000", "--out-dir", str(tmp_path)])
+    with pytest.raises(SystemExit):
+        mod.main()
 
 
 def test_every_results_row_states_its_experiment_id():
