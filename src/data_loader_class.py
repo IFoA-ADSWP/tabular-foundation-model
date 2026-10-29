@@ -5,7 +5,6 @@ Provides a unified interface for loading, preprocessing, and managing datasets
 across all baseline experiments.
 """
 
-from pathlib import Path
 from typing import Tuple, Optional, Dict
 import pandas as pd
 import numpy as np
@@ -213,7 +212,7 @@ class DataLoader:
             random_state=self.random_state
         )
         
-        print(f"Train/test split:")
+        print("Train/test split:")
         print(f"  Training set: {self.X_train.shape[0]} samples")
         print(f"  Test set: {self.X_test.shape[0]} samples")
         

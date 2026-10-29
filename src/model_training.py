@@ -162,7 +162,6 @@ def cross_validate_models(models: Union[Dict[str, object], Iterable[object]],
     - cv: number of folds (uses StratifiedKFold when possible)
     - scoring: list or dict of sklearn scoring names (defaults to accuracy, f1, roc_auc)
     """
-    import numpy as np
     from sklearn.model_selection import cross_validate, StratifiedKFold, KFold
 
     if scoring is None:
@@ -170,7 +169,6 @@ def cross_validate_models(models: Union[Dict[str, object], Iterable[object]],
 
     # use StratifiedKFold for classification-like targets when possible
     try:
-        y_vals = getattr(y, "values", y)
         cv_split = StratifiedKFold(n_splits=cv, shuffle=True, random_state=random_state)
     except Exception:
         cv_split = KFold(n_splits=cv, shuffle=True, random_state=random_state)

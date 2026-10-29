@@ -109,7 +109,7 @@ def poly_features(Xtr: np.ndarray, Xte: np.ndarray, ytr: np.ndarray):
 
 def tune_lgbm(Xtr, ytr, Xva, yva, cap_s: float):
     """Best (lr, num_leaves) by early-stopped AUC on the 10% slice."""
-    from lightgbm import LGBMClassifier, early_stopping, log_evaluation
+    from lightgbm import LGBMClassifier, early_stopping
 
     best, best_score, capped = None, -np.inf, False
     t0 = time.time()

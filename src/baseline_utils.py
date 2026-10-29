@@ -231,7 +231,6 @@ def calibration_error(y_true: np.ndarray, y_pred_proba: np.ndarray) -> float:
     """
     n_bins = 10
     bin_edges = np.linspace(0, 1, n_bins + 1)
-    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
     
     ece = 0
     for i in range(n_bins):
