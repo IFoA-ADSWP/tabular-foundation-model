@@ -9,6 +9,8 @@
 # or the two drift and "passes locally" stops meaning anything.
 #
 # Exit codes: 0 all passed · 1 a check failed · 2 usage · 3 a tool is missing.
+# With no argument every check runs, even when a tool is missing: one absent binary
+# must not hide the checks after it. A real failure (1) outranks a missing tool (3).
 #
 # issue #257, spec #252.
 set -uo pipefail
@@ -58,16 +60,32 @@ usage() {
   exit 2
 }
 
+run_check() { # run_check <ruff|pytest|shellcheck>
+  case "$1" in
+    ruff)       run_ruff ;;
+    pytest)     run_pytest ;;
+    shellcheck) run_shellcheck ;;
+  esac
+}
+
 case "${1:-all}" in
-  ruff)       run_ruff ;;
-  pytest)     run_pytest ;;
-  shellcheck) run_shellcheck ;;
+  ruff|pytest|shellcheck) run_check "$1" ;;
   all)
     status=0
-    run_ruff       || status=1
-    run_pytest     || status=1
-    run_shellcheck || status=1
-    exit "$status"
+    missing=0
+    for check in ruff pytest shellcheck; do
+      # The subshell is load-bearing: need() exits 3 when a tool is absent, and without
+      # it that exit would end the script and hide every check after this one.
+      ( run_check "$check" )
+      case $? in
+        0) ;;
+        3) missing=1 ;;
+        *) status=1 ;;
+      esac
+    done
+    [ "$status" -eq 0 ] || exit 1
+    [ "$missing" -eq 0 ] || exit 3
+    exit 0
     ;;
   *) usage ;;
 esac
