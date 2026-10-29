@@ -1,0 +1,227 @@
+# Experiments for the v1 insurance frontier suite (#230).
+#
+# One experiment is declared once: a dataset (which owns its metric), the methods
+# compared, the seed and fold count, and the TabPFN model version as a literal.
+# Read by src/experiment_spec.py, which refuses anything it cannot account for.
+#
+# Method ids resolve inside the experiment's own mode, because the runner reports
+# `poissonglm`, `tweedieglm`, `rf`, `cat`, `lgbm` and `xgb` in both modes from
+# different constructors. Hyperparameters stay in the constructors until #231
+# dispatches through this file; TOML has no null, and make_logisticglm passes
+# penalty=None deliberately.
+
+schema_version = 1
+
+# ---- datasets ---------------------------------------------------------------
+
+[datasets.bemtl97]
+file = "bemtl97.csv"
+target = "claim"
+drop = ["nclaims", "amount"]
+metric = "log_loss"
+
+[datasets.coil2000]
+file = "coil2000.csv"
+target = "CARAVAN"
+drop = []
+metric = "log_loss"
+
+[datasets.uslapseagent]
+file = "uslapseagent.csv"
+target = "surrender"
+drop = []
+metric = "log_loss"
+
+[datasets.norauto]
+file = "norauto.csv"
+target = "NbClaim"
+drop = []
+metric = "log_loss"
+
+[datasets.ausprivauto0405]
+file = "ausprivauto0405.csv"
+target = "ClaimOcc"
+drop = []
+metric = "log_loss"
+
+[datasets.bemtl16]
+file = "bemtl16.csv"
+target = "number_of_liability_claims"
+drop = []
+metric = "log_loss"
+
+[datasets.ausautoBI8999]
+file = "ausautoBI8999.csv"
+target = "AggClaim"
+drop = []
+metric = "rmse"
+
+[datasets.ausprivauto0405_vehvalue]
+file = "ausprivauto0405.csv"
+target = "VehValue"
+drop = []
+metric = "rmse"
+
+[datasets.bemtl97_amount]
+file = "bemtl97.csv"
+target = "amount"
+drop = ["claim"]
+metric = "rmse"
+
+[datasets.freMTPL2freq]
+file = "freMTPL2freq.csv"
+target = "ClaimNb"
+drop = ["IDpol"]
+metric = "poisson_deviance"
+transform = "log_exposure"
+
+[datasets.spanish_motor_freq]
+file = "spanish_motor_freq.csv"
+target = "N_claims_year"
+drop = []
+metric = "poisson_deviance"
+
+[datasets.spanish_motor_severity]
+file = "spanish_motor_severity.csv"
+target = "Cost_claims_year"
+drop = []
+metric = "rmse"
+
+# ---- methods ----------------------------------------------------------------
+
+[methods.classification.cat]
+n_params = "trees"
+
+[methods.classification.lgbm]
+n_params = "trees"
+
+[methods.classification.xgb]
+n_params = "trees"
+
+[methods.classification.lr]
+n_params = "glm"
+
+[methods.classification.logisticglm]
+n_params = "glm"
+
+[methods.classification.tweedieglm]
+n_params = "glm"
+
+[methods.classification.poissonglm]
+n_params = "glm"
+
+[methods.classification.rf]
+n_params = "trees"
+
+[methods.classification.tabpfn]
+n_params = "tabpfn"
+
+[methods.regression.ols]
+n_params = "glm"
+
+[methods.regression.poissonglm]
+n_params = "glm"
+
+[methods.regression.tweedieglm]
+n_params = "glm"
+
+[methods.regression.rf]
+n_params = "trees"
+
+[methods.regression.cat]
+n_params = "trees"
+
+[methods.regression.lgbm]
+n_params = "trees"
+
+[methods.regression.xgb]
+n_params = "trees"
+
+[methods.regression.tabpfn]
+n_params = "tabpfn"
+
+# ---- experiments ------------------------------------------------------------
+
+[experiments.bemtl97]
+dataset = "bemtl97"
+methods = ["cat", "lgbm", "xgb", "lr", "logisticglm", "tweedieglm", "poissonglm", "rf", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+[experiments.coil2000]
+dataset = "coil2000"
+methods = ["cat", "lgbm", "xgb", "lr", "logisticglm", "tweedieglm", "poissonglm", "rf", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+[experiments.uslapseagent]
+dataset = "uslapseagent"
+methods = ["cat", "lgbm", "xgb", "lr", "logisticglm", "tweedieglm", "poissonglm", "rf", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+[experiments.norauto]
+dataset = "norauto"
+methods = ["cat", "lgbm", "xgb", "lr", "logisticglm", "tweedieglm", "poissonglm", "rf", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+[experiments.ausprivauto0405]
+dataset = "ausprivauto0405"
+methods = ["cat", "lgbm", "xgb", "lr", "logisticglm", "tweedieglm", "poissonglm", "rf", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+[experiments.bemtl16]
+dataset = "bemtl16"
+methods = ["cat", "lgbm", "xgb", "lr", "logisticglm", "tweedieglm", "poissonglm", "rf", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+[experiments.ausautoBI8999]
+dataset = "ausautoBI8999"
+methods = ["ols", "poissonglm", "tweedieglm", "rf", "cat", "lgbm", "xgb", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+[experiments.ausprivauto0405_vehvalue]
+dataset = "ausprivauto0405_vehvalue"
+methods = ["ols", "poissonglm", "tweedieglm", "rf", "cat", "lgbm", "xgb", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+[experiments.bemtl97_amount]
+dataset = "bemtl97_amount"
+methods = ["ols", "poissonglm", "tweedieglm", "rf", "cat", "lgbm", "xgb", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+[experiments.freMTPL2freq]
+dataset = "freMTPL2freq"
+methods = ["ols", "poissonglm", "tweedieglm", "rf", "cat", "lgbm", "xgb", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+[experiments.spanish_motor_freq]
+dataset = "spanish_motor_freq"
+methods = ["ols", "poissonglm", "tweedieglm", "rf", "cat", "lgbm", "xgb", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+[experiments.spanish_motor_severity]
+dataset = "spanish_motor_severity"
+methods = ["ols", "poissonglm", "tweedieglm", "rf", "cat", "lgbm", "xgb", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"

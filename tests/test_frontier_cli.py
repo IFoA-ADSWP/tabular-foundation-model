@@ -83,6 +83,167 @@ def test_parse_legacy_filter_regression():
     assert args.data is None
 
 
+# ---- e. --experiment (#230) -------------------------------------------------
+
+def test_parse_experiment_flag():
+    assert parse([]).experiment is None
+    assert parse(["--experiment", "coil2000"]).experiment == "coil2000"
+
+
+def test_an_experiment_supplies_its_own_dataset_entry():
+    datasets, experiment = mod.experiment_selection("coil2000")
+
+    assert experiment.id == "coil2000"
+    assert experiment.mode == "classification"
+    assert len(datasets) == 1
+    ds = datasets[0]
+    assert ds["name"] == "coil2000"  # filenames and sweep joins stay keyed to the dataset
+    assert ds["file"] == "coil2000.csv"
+    assert ds["target"] == "CARAVAN"
+    assert ds["drop"] == []
+    assert ds["metric"] == "log_loss"
+
+
+def test_a_regression_experiment_selects_regression_mode_and_its_transform():
+    datasets, experiment = mod.experiment_selection("freMTPL2freq")
+
+    assert experiment.mode == "regression"
+    ds = datasets[0]
+    assert ds["metric"] == "poisson_deviance"
+    assert ds["transform"] == "log_exposure"
+
+
+def test_an_unknown_experiment_names_itself():
+    from src.experiment_spec import RegistryError
+
+    with pytest.raises(RegistryError, match="'nope'"):
+        mod.experiment_selection("nope")
+
+
+def refuse_to_run(monkeypatch):
+    """Fail loudly if a guard lets main() reach the dataset runner.
+
+    Without this, a guard that stops firing would quietly fit a real dataset for minutes
+    and leave a run directory in the repo — which is how the seed-7 run got loose once.
+    """
+    def boom(*args, **kwargs):
+        raise AssertionError("a guard failed: main() reached the dataset runner")
+
+    monkeypatch.setattr(mod, "run_dataset", boom)
+    monkeypatch.setattr(mod, "run_dataset_regression", boom)
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--experiment", "coil2000", "--data", "X", "--target", "Y"],
+        ["coil2000", "--experiment", "coil2000"],
+        ["--experiment", "coil2000", "--regression"],
+    ],
+)
+def test_an_experiment_refuses_conflicting_selection(monkeypatch, tmp_path, argv):
+    refuse_to_run(monkeypatch)
+    monkeypatch.setattr(sys, "argv", ["prog", *argv, "--out-dir", str(tmp_path)])
+    with pytest.raises(SystemExit):
+        mod.main()
+
+
+def test_the_run_manifest_records_the_experiment_id(tmp_path):
+    import argparse
+    import json
+
+    mod.SEED, mod.PR_AUC_MODE, mod.EXPERIMENT_ID = 42, False, "coil2000"
+    mod.write_manifest(tmp_path, argparse.Namespace(out_dir=str(tmp_path)))
+    assert json.loads((tmp_path / "manifest.json").read_text())["experiment_id"] == "coil2000"
+
+
+def test_the_run_manifest_records_the_model_version_actually_used(tmp_path, monkeypatch):
+    # The registry pins a literal; the manifest must say what the run really resolved,
+    # or the pin is an unverifiable claim (ADR 0001).
+    import argparse
+    import json
+
+    monkeypatch.setattr(mod, "_model_path", lambda: "v3.5_default")
+    mod.SEED, mod.EXPERIMENT_ID = 42, "coil2000"
+    mod.write_manifest(tmp_path, argparse.Namespace(out_dir=str(tmp_path)))
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    assert manifest["model_version"] == "v3.5_default"
+    assert manifest["experiment_id"] == "coil2000"
+    # and it does not claim more than it can: reused rows are unattested until #233
+    assert "reused" in manifest["model_version_scope"] and "#233" in manifest["model_version_scope"]
+
+
+def test_an_experiment_refuses_a_seed_that_contradicts_its_declaration(monkeypatch, tmp_path):
+    # coil2000 is declared at seed 42. Stamping that id on a seed-7 run would make the
+    # artifact contradict the declaration it cites — the bug class this ticket exists for.
+    refuse_to_run(monkeypatch)
+    monkeypatch.setattr(sys, "argv",
+                        ["prog", "--experiment", "coil2000", "--seed", "7",
+                         "--out-dir", str(tmp_path)])
+    with pytest.raises(SystemExit):
+        mod.main()
+
+
+def test_an_experiment_accepts_its_declared_seed(monkeypatch, tmp_path):
+    # The guard must not refuse the seed the registry actually declares.
+    refuse_to_run(monkeypatch)
+    monkeypatch.setattr(sys, "argv",
+                        ["prog", "--experiment", "coil2000", "--seed", "42",
+                         "--out-dir", str(tmp_path)])
+    with pytest.raises(AssertionError, match="reached the dataset runner"):
+        mod.main()  # selection and seed both accepted; it stops at the runner stub
+
+
+def test_an_experiment_refuses_a_fold_count_the_runner_cannot_honour(monkeypatch, tmp_path):
+    # n_folds is declared and validated. Until the runner folds from the registry (#231),
+    # a declared count it ignores would be a stamp the artifact cannot back.
+    import dataclasses
+
+    datasets, experiment = mod.experiment_selection("coil2000")
+    monkeypatch.setattr(mod, "experiment_selection",
+                        lambda _id: (datasets, dataclasses.replace(experiment, n_folds=10)))
+    refuse_to_run(monkeypatch)
+    monkeypatch.setattr(sys, "argv",
+                        ["prog", "--experiment", "coil2000", "--out-dir", str(tmp_path)])
+    with pytest.raises(SystemExit):
+        mod.main()
+
+
+def test_every_results_row_states_its_experiment_id():
+    table = pd.DataFrame({"method": ["lr", "rf"], "mean": [0.2, 0.4]})
+    stamped = mod.with_experiment_id(table, "coil2000")
+
+    assert list(stamped.columns)[0] == "experiment_id"
+    assert list(stamped["experiment_id"]) == ["coil2000", "coil2000"]
+    # the existing columns keep their values and row order
+    assert list(stamped["method"]) == ["lr", "rf"]
+    assert list(stamped["mean"]) == [0.2, 0.4]
+    # the input is not mutated
+    assert "experiment_id" not in table.columns
+
+
+def test_an_ad_hoc_run_stamps_an_empty_experiment_id():
+    table = pd.DataFrame({"method": ["lr"], "mean": [0.2]})
+    assert list(mod.with_experiment_id(table, None)["experiment_id"]) == [""]
+
+
+def test_the_capture_manifest_records_the_experiment_id(tmp_path, monkeypatch):
+    import json
+
+    monkeypatch.setattr(mod, "PREDICTIONS_DIR", tmp_path)
+    n_folds, methods = 1, ["lgbm"]
+    pred_store = _toy_pred_store(n_folds=n_folds, methods=methods)
+    ds = dict(name="toy", file="toy.csv", target="y", drop=[])
+
+    npz_path = mod.write_predictions_npz(ds, pred_store, methods, n_folds,
+                                          problem_type="classification",
+                                          metric_name="log_loss", seed=42,
+                                          experiment_id="toy")
+    manifest = json.loads(npz_path.with_suffix(".manifest.json").read_text())
+    assert manifest["experiment_id"] == "toy"
+    assert npz_path.name == "toy__seed42__v3_default.npz"  # capture discovery unchanged
+
+
 def test_parse_drop_splits():
     args = parse(["--data", "X", "--target", "Y", "--drop", "a,b"])
     datasets, wanted = mod.select_datasets(args)

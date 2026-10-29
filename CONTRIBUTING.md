@@ -59,6 +59,8 @@ docs/
   analyses/             # Methodology notes (lighter than reports)
   papers/               # Paper content and LaTeX style files
   status/               # Project status and security record
+  plans/                # One plan per task, written before non-trivial work
+  adr/                  # Architecture decision records (accepted decisions)
 tests/                  # Smoke tests
 ```
 

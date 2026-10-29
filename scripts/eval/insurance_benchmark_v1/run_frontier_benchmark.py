@@ -113,8 +113,16 @@ REPO = HERE.parent.parent.parent
 import sys as _sys
 _sys.path.insert(0, str(REPO))  # repo root
 from src.api_key import load_api_key as _load_api_key  # noqa: E402
+from src.experiment_spec import (  # noqa: E402
+    REGRESSION,
+    Experiment,
+    RegistryError,
+    as_runner_dataset,
+    load_registry,
+)
 from src.model_version import resolve_model_path as _model_path  # noqa: E402
 DATA_RAW = REPO / "data" / "raw"
+EXPERIMENTS_TOML = HERE / "experiments.toml"  # the committed registry (#230)
 
 # D5 Option A: the home-turf sweep datasets plus norauto. Load configs identical to
 # scripts/benchmarks/run_home_turf_size_sweep.py (target + drops); norauto.csv was leak-fixed
@@ -170,6 +178,10 @@ FAST_METHODS = ["lr", "logisticglm", "tweedieglm", "poissonglm", "rf"]  # D1 Opt
 PR_AUC_MODE = False
 SEED = 42
 SAVE_PREDICTIONS = False
+# --experiment N: the registry id this run belongs to (#230). Every artifact the run
+# produces states it; ad-hoc runs (--data, positional filters) belong to no experiment
+# and stamp an empty value rather than borrowing one.
+EXPERIMENT_ID: str | None = None
 
 # TabPFN parameter count — settled non-decision (spec §5): constant per dataset, orders of
 # magnitude above the GBDTs, so its precise value never changes frontier membership.
@@ -663,11 +675,13 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
         methods = [r["method"] for r in rows]
         npz_path = write_predictions_npz(ds, pred_store, methods, N_FOLDS,
                                           problem_type="classification",
-                                          metric_name=ds.get("metric", "log_loss"), seed=SEED)
+                                          metric_name=ds.get("metric", "log_loss"), seed=SEED,
+                                          experiment_id=EXPERIMENT_ID)
         verify_predictions_readback(npz_path, methods, metric, rows, N_FOLDS,
                                      problem_type="classification")
 
     table = table.drop(columns=[c for c in table.columns if c.startswith("_fold")])
+    table = with_experiment_id(table, EXPERIMENT_ID)
     table.to_csv(out_csv, index=False)
     print(table.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
     return table
@@ -771,7 +785,8 @@ def verify_predictions_dir(pred_dir: Path) -> int:
 
 
 def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: list[str],
-                           n_folds: int, problem_type: str, metric_name: str, seed: int) -> Path:
+                           n_folds: int, problem_type: str, metric_name: str, seed: int,
+                           experiment_id: str | None = None) -> Path:
     """Write predictions/<dataset>__seed<seed>__<model_path>.npz + sibling .manifest.json
     (schema v1, docs/analyses/prediction_capture_rescore_spec.md §4). Asserts every
     fold/method array is present, length-matched to its test split, and finite before
@@ -820,6 +835,7 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
                   f"KFold({n_folds}, shuffle=True, random_state=42)")
     manifest = {
         "schema_version": 1,
+        "experiment_id": experiment_id,
         "dataset": ds["name"],
         "data_file": ds["file"],
         "target": ds["target"],
@@ -995,6 +1011,7 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFra
     table = pd.DataFrame(rows)[["method", "mean", "se", "n_params", "on_frontier"]].sort_values(
         "mean", ignore_index=True
     )
+    table = with_experiment_id(table, EXPERIMENT_ID)
     table.to_csv(out_csv, index=False)
     print(table.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
 
@@ -1027,7 +1044,7 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFra
         methods = [r["method"] for r in rows]
         npz_path = write_predictions_npz(ds, pred_store, methods, N_FOLDS,
                                           problem_type="regression", metric_name=ds["metric"],
-                                          seed=SEED)
+                                          seed=SEED, experiment_id=EXPERIMENT_ID)
         verify_predictions_readback(npz_path, methods, metric, rows, N_FOLDS,
                                      problem_type="regression")
 
@@ -1078,6 +1095,11 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=42, metavar="N",
                         help="StratifiedKFold random_state (default 42; seed != 42 writes "
                              "frontier_results_<ds>_seed<N>.csv/.png so canonical seed-42 files are not clobbered)")
+    parser.add_argument("--experiment", metavar="ID",
+                        help="run the experiment registered under ID in experiments.toml "
+                             "(selects its dataset, metric and mode, and stamps the id into "
+                             "every artifact); cannot be combined with DATASET filters, "
+                             "--data or --regression")
     parser.add_argument("--data", metavar="CSV",
                         help="run a single arbitrary dataset CSV (absolute path, or relative to repo root)")
     parser.add_argument("--target", metavar="COL",
@@ -1108,6 +1130,32 @@ def select_datasets(args: argparse.Namespace) -> tuple[list[dict], set[str] | No
     return datasets, wanted
 
 
+def experiment_selection(experiment_id: str) -> tuple[list[dict], Experiment]:
+    """Resolve an --experiment id to (dataset entries, the experiment itself).
+
+    Split out from main() so the selection is testable without fitting anything: the
+    registry decides which dataset and which mode, and a bad id raises RegistryError
+    naming it rather than silently running nothing.
+    """
+    registry = load_registry(EXPERIMENTS_TOML)
+    experiment = registry.experiment(experiment_id)
+    return [as_runner_dataset(registry, experiment)], experiment
+
+
+def with_experiment_id(table: pd.DataFrame, experiment_id: str | None) -> pd.DataFrame:
+    """Stamp the experiment id as the first column of every results row (#230).
+
+    The copy is deliberate: the caller keeps the table it built, and the stamp is a
+    presentation concern rather than part of the computed result.
+
+    An ad-hoc run belongs to no experiment, so it stamps the empty string — CSV's way of
+    saying absent, as the manifests' JSON says `null`.
+    """
+    stamped = table.copy()
+    stamped.insert(0, "experiment_id", experiment_id or "")
+    return stamped
+
+
 def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
     """Per-run provenance manifest — pins git state, seed, and command for this output dir."""
     import json
@@ -1123,6 +1171,13 @@ def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
         "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "git_sha": git_sha,
         "seed": SEED,
+        "experiment_id": EXPERIMENT_ID,
+        "model_version": _model_path(),  # what the run resolved, so the registry's pin is checkable
+        "model_version_scope": (
+            "resolved and used for every fresh fit; a row reused from the sweep table "
+            "carries no recorded provenance, so its version is assumed rather than "
+            "attested until #233"
+        ),
         "pr_auc_mode": PR_AUC_MODE,
         "argv": sys.argv,
         "note": (
@@ -1135,7 +1190,7 @@ def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    global SEED, PR_AUC_MODE, SAVE_PREDICTIONS
+    global SEED, PR_AUC_MODE, SAVE_PREDICTIONS, EXPERIMENT_ID
     t0 = time.time()
     parser = make_parser()
     args = parser.parse_args()
@@ -1146,7 +1201,43 @@ def main() -> None:
     SEED = args.seed
     PR_AUC_MODE = args.pr_auc and args.data is None  # --pr-auc is a registry-run mode
     SAVE_PREDICTIONS = args.save_predictions
-    datasets, wanted = select_datasets(args)
+
+    regression = args.regression
+    if args.experiment is not None:
+        # The registry knows which dataset and which mode; the CLI must not also claim to.
+        if args.data is not None:
+            parser.error("--experiment cannot be combined with --data")
+        if args.filters:
+            parser.error("--experiment cannot be combined with DATASET filters")
+        if args.regression:
+            parser.error("--experiment selects its own mode; drop --regression")
+        try:
+            datasets, experiment = experiment_selection(args.experiment)
+        except RegistryError as exc:
+            parser.error(str(exc))
+        # The experiment's identity includes its seed. Running it at another seed and
+        # stamping the same id would produce an artifact that contradicts the declaration
+        # it cites, which is the bug class this registry exists to prevent.
+        if args.seed != experiment.seed:
+            parser.error(
+                f"experiment {experiment.id!r} is declared at seed {experiment.seed}, "
+                f"not {args.seed}; drop --seed, or run the dataset ad-hoc at this seed "
+                f"without --experiment"
+            )
+        # Same reasoning for the fold count: until the runner folds from the registry
+        # (#231/#232), a declared count the runner ignores is a stamp it cannot honour.
+        if experiment.n_folds != N_FOLDS:
+            parser.error(
+                f"experiment {experiment.id!r} is declared with {experiment.n_folds} "
+                f"folds but this runner folds {N_FOLDS}; folding from the registry "
+                f"arrives in #231"
+            )
+        regression = experiment.mode == REGRESSION
+        EXPERIMENT_ID = experiment.id
+        wanted = None
+    else:
+        datasets, wanted = select_datasets(args)
+
     # Output layout: results/<dir> (default) keeps run artifacts out of the code tree.
     # 'legacy' preserves the old beside-script paths for exact reproduction of
     # committed frontier_results_*.csv files mapped in docs/REPRODUCIBILITY_RUNBOOK.md.
@@ -1160,7 +1251,7 @@ def main() -> None:
     out_base.mkdir(parents=True, exist_ok=True)
     write_manifest(out_base, args)
     print(f"outputs -> {out_base}", flush=True)
-    runner = run_dataset_regression if args.regression else run_dataset
+    runner = run_dataset_regression if regression else run_dataset
     for ds in datasets:
         name = ds["name"]
         if wanted is not None and name.lower() not in wanted:
