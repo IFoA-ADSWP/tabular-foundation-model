@@ -98,7 +98,22 @@ This is exactly what the gate is for: it surfaced a structural problem on its fi
 run, before it was wired into CI.
 
 
+## Slice 3 — CI invokes the gate and lands (#259)
+
+The workflow is extracted from the pull request that has been carrying it since October,
+and rewired so that each job runs `./scripts/check.sh <check>` rather than restating the
+command. Jobs stay separate so a failure names which check broke and each keeps its own
+timeout. Triggers and concurrency are kept as they were: pull requests, pushes to `main`,
+manual dispatch, and cancelled superseded runs.
+
+Three jobs, not four: ruff, pytest, shellcheck. The doc checks stay out until their own
+backlog is addressed, and #260 corrects the instructions to say three.
+
+**The proof is a red run, not a green one.** A branch is pushed with a deliberately planted
+lint error and a deliberate shellcheck violation; the recorded outcome of that run is the
+evidence that the gate is wired, not merely configured.
+
 ## Not in this slice
 
-CI wiring and landing (#259), the corrected instructions (#260), and retiring the
-duplicate workflow (#261).
+The corrected instructions (#260) and retiring the duplicate workflow still living on the
+old pull request (#261).
