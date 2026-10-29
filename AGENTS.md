@@ -39,7 +39,10 @@ dashboard. Treat those as tracked artifacts — if a change makes one stale, upd
 **Data hygiene.** `data/`, `outputs/`, `catboost_info/`, `legacy/` and `notebooks/` hold
 experiment outputs. Do not treat them as source; do not regenerate or delete them casually.
 
-<!-- Replace this block with gotchas as you find them. -->
+**Tests can reach the real runner.** Some tests call `main()` to prove a guard fires. When
+one stops firing, the test does not fail: it fits a dataset for minutes and writes
+`results/<timestamp>/`. `tests/conftest.py` now fails the session when run artifacts appear,
+so trust it before `git status`.
 
 ## Review
 
