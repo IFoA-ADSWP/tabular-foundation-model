@@ -93,9 +93,13 @@ The consequence is larger than two tests: **the suite could only ever be green o
 so CI running `pytest` on a pull request — where HEAD is never on the base branch — would
 fail on every pull request. Landing the gate (#259) would have hit this on its first run.
 
-Fixed by scoping the guard to non-dry-run execution, and the reason is written beside it.
-This is exactly what the gate is for: it surfaced a structural problem on its first honest
-run, before it was wired into CI.
+On this branch the guard was scoped to non-dry-run execution. While the stack waited, #271
+landed the better fix on `main`: the guard now takes its commit from `TFM_COMMIT_SHA`,
+defaulting to `HEAD` and honouring an override only when the provider is detected as the
+mock. The guard still runs in a mock; it is simply answerable. That is why this branch's
+skip was dropped when `main` was merged in, and why the tests set `TFM_COMMIT_SHA` rather
+than bypassing the check. This is exactly what the gate is for: it surfaced a structural
+problem on its first honest run, before it was wired into CI.
 
 
 ## Not in this slice
