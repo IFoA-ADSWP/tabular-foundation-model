@@ -55,16 +55,28 @@ sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from provenance import (  # noqa: E402  (same-dir module, after the src path insert above)
+    ARM_RECORD_SCHEMA_VERSION,
     BASELINE_TABPFN_ARM,
+    PILOT_RUN_SCHEMA_VERSION,
     FT_ARMS,
     DataSource,
     assert_matched_context,
+    code_section,
     dataset_fingerprint as _shared_dataset_fingerprint,
     inference_context_rows,
+    model_section,
+    provenance_block,
     sha256_file as _sha256_file,
+    split_rule,
+    split_section,
 )
+from model_version import resolve_model_path  # noqa: E402
 
-SCHEMA_VERSION = 2
+# The arm record's layout is `provenance.ARM_RECORD_SCHEMA_VERSION` (3 since #241) and the
+# invocation manifest's is `provenance.PILOT_RUN_SCHEMA_VERSION` (2): one definition each, in
+# the module whose reader dispatches on them, so a writer cannot bump a version the reader has
+# not been taught. The manifest and `meta.FAILED.json` carry no provenance block, so they keep
+# their own version rather than inheriting the arm record's.
 
 # ---------------------------------------------------------------------------
 # Config
@@ -204,22 +216,38 @@ def _host_info():
     return info
 
 
-def dataset_fingerprint(name):
+def dataset_fingerprint(name, *, frame=None, drop=None, source=None):
     """Pilot adapter over `provenance.dataset_fingerprint` (PR-6, moved by #211).
 
     Which file and which target a dataset *name* means, and which ref this run pinned, are
     this runner's declarations -- not facts `src/provenance.py` can know. The mechanics of the
     fingerprint (hash, shape, balance, recorded source) are shared with the diagnostics; the
-    binding is four lines here. #241 replaces it with a frame-plus-target call when the pilot's
-    record gains its `provenance` block.
+    binding is six lines here. #241 narrowed the shared helper to a frame plus target and drop
+    columns, so this adapter reads the file (or takes the frame the caller already loaded) and
+    passes it on.
+
+    `drop` comes from the dataset declaration unless the caller names its own, so the leak-drops
+    a run actually applied are recorded by the runner that applied them. A dataset with no
+    declaration drop records `[]`.
+
+    A table that is not on disk is STATE, not an error: the shared helper returns
+    `exists: false` rather than omitting the dataset, so a run that could not find its data is
+    legible.
     """
+    info = DATASETS[name]
+    path = DATA_DIR / info["file"]
+    if drop is None:
+        drop = tuple(info.get("drop") or ())
     return _shared_dataset_fingerprint(
         name,
-        target=DATASETS[name]["target"],
-        data_dir=DATA_DIR,
+        frame=frame,
+        target=info["target"],
+        drop=drop,
+        path=path,
         repo_root=REPO_ROOT,
-        source=DataSource(
-            url=data_source_url(f"{name}.csv"),
+        source=source
+        or DataSource(
+            url=data_source_url(info["file"]),
             repo=DATA_REPO,
             ref=DATA_REF,
             ref_is_pinned=DATA_REF != "main",
@@ -327,6 +355,38 @@ def _runtime_versions():
         except Exception:
             versions[key] = None
     return versions
+
+
+def _model_provenance(weights=None, versions=None):
+    """The model the record is about: the RESOLVED version, and the hash that corroborates it.
+
+    No pilot record has ever carried a version, so two pilot numbers from different model eras
+    are indistinguishable today. `weights_sha256` alone cannot fix it: a hash cannot be mapped
+    back to a version label without reading docs/MODEL_VERSIONS.md and guessing. The resolver
+    is env-first (src/model_version.py), so a re-test under TABPFN_MODEL_PATH is recorded as
+    the version it actually used rather than the one the baseline assumes.
+    """
+    return model_section(
+        version=resolve_model_path(),
+        # The pilot DECLARES the version and does not pass it to `TabPFNClassifier`, which is
+        # constructed at run_arm_a_raw with no `model_path` (#285). Saying where the label
+        # comes from is the difference between "the model we pinned" and "the label this
+        # repository resolves to" -- and the record must not imply the first.
+        version_source="resolver",
+        weights_sha256=(weights or {}).get("sha256"),
+        client_version=(versions or {}).get("tabpfn"),
+    )
+
+
+def _code_provenance(git=None, versions=None):
+    """The code that ran: commit, whether that commit describes it, the stack, the image."""
+    git = _git_info() if git is None else git
+    return code_section(
+        git_sha=git.get("commit_sha") or None,
+        dirty=bool(git.get("dirty")),
+        runtime=versions,
+        image=_container_provenance().get("image_ref"),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -573,6 +633,20 @@ def make_split(X, y, *, seed, train_size, test_size, fold=None, n_folds=None):
         "seed": seed,
         "fold": fold,
         "n_folds": n_folds,
+        # #241: the fold construction recorded as a RULE. A description string is prose that
+        # two different constructions can share; a constructor plus its parameters is
+        # comparable, so a fold change shows up as a rule change rather than as a metric move.
+        "rule": (
+            split_rule("StratifiedKFold", n_splits=n_folds, shuffle=True, random_state=seed)
+            if fold is not None
+            else split_rule(
+                "train_test_split",
+                test_size=n_test,
+                train_size=train_size,
+                random_state=seed,
+                stratify="y",
+            )
+        ),
         "n_train": int(len(train_idx)),
         "n_test": int(len(test_idx)),
         "pos_train": int(y[train_idx].sum()),
@@ -950,8 +1024,14 @@ def save_results(
 
     run_id = f"{dataset}_{arm}_seed{seed}" + (f"_fold{fold}" if fold is not None else "")
 
+    # Collected once so the legacy top-level keys and the provenance block cannot disagree:
+    # they hold the same objects, not two readings of the environment.
+    versions = _runtime_versions()
+    weights = _weights_provenance()
+    git = _git_info()
+
     meta = {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": ARM_RECORD_SCHEMA_VERSION,
         "run_id": run_id,
         "dataset": dataset,
         "arm": arm,
@@ -968,18 +1048,33 @@ def save_results(
         "run_time_seconds": run_time,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "status": "success",
-        "versions": _runtime_versions(),
+        "versions": versions,
         "checkpoints": _checkpoints(),
         # PR-1 provenance: WHICH weights (hash, not just filename) and WHICH container
         # (image, machine) -- both are moving parts a re-run has to be able to pin.
-        "weights": _weights_provenance(),
+        "weights": weights,
         "container": _container_provenance(),
         # The estimator that ACTUALLY ran. Arm F silently falls back to a RandomForest
         # when catboost is unavailable, so the label alone is not evidence.
         "estimator_class": estimator_class,
         # PR-4: effective inference context, per arm
         "inference_context": {"rows": context_rows, "mechanism": context_note},
-        # PR-6
+        # #241: the record contract. One block, four sections, key names defined once in
+        # `src/provenance.py`, so the pilot states its provenance in the vocabulary the
+        # diagnostics and the frontier runner are meant to share.
+        "provenance": provenance_block(
+            dataset=dataset_fp,
+            split=split_section(
+                n_folds=split_fp.get("n_folds", n_folds),
+                seed=split_fp.get("seed"),
+                sha256=split_fp.get("train_index_sha256"),
+                rule=split_fp.get("rule"),
+            ),
+            model=_model_provenance(weights, versions),
+            code=_code_provenance(git, versions),
+        ),
+        # PR-6. Retained alongside the block, pointing at the same objects: a reader of the
+        # old layout keeps working, and cannot see two fingerprints that disagree.
         "dataset_fingerprint": dataset_fp,
         "split_fingerprint": split_fp,
         "predictions_sha256": _sha256_array(y_prob),
@@ -1179,7 +1274,7 @@ def save_failure_record(output_dir, dataset, arm, seed, fold, config, error, ela
         run_dir = run_dir / f"seed{seed}_fold{fold}"
     run_dir.mkdir(parents=True, exist_ok=True)
     rec = {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": PILOT_RUN_SCHEMA_VERSION,
         "status": "failed",
         "dataset": dataset,
         "arm": arm,
@@ -1283,7 +1378,9 @@ def aggregate_results(output_dir=None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Fine-tuning pilot (Pilot 2 schema v2)")
+    parser = argparse.ArgumentParser(
+        description=f"Fine-tuning pilot (arm record schema v{ARM_RECORD_SCHEMA_VERSION})"
+    )
     parser.add_argument("--dataset", type=str, help="Run one dataset")
     parser.add_argument(
         "--outdir",
@@ -1412,7 +1509,7 @@ def main():
     run_id = started.strftime("%Y%m%dT%H%M%SZ")
 
     print("=" * 70)
-    print("FINE-TUNING PILOT — Pilot 2 schema v%d" % SCHEMA_VERSION)
+    print("FINE-TUNING PILOT — arm record schema v%d" % ARM_RECORD_SCHEMA_VERSION)
     print("=" * 70)
     print(f"Run id:   {run_id}")
     print(f"Config:   {config}")
@@ -1447,7 +1544,7 @@ def main():
         print(f"[LODO] target '{target}' asserted absent from pool {pool_names}")
 
     manifest = {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": PILOT_RUN_SCHEMA_VERSION,
         "run_id": run_id,
         "started_at": started.isoformat(),
         "status": "running",
