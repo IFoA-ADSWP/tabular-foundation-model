@@ -265,6 +265,31 @@ def test_mock_run_completes_verifies_and_tears_down(mock_env):
     )
 
 
+def test_a_mock_run_keeps_its_log_out_of_the_working_tree(mock_env):
+    """#280: the saved log belongs beside the run's records, not in the real log directory.
+
+    `outputs/gpu-pilot/logs/` is the recorded narrative of paid runs and `.gitignore` keeps
+    it on purpose. A mock that wrote there left a fake box log indistinguishable from a real
+    one and dirtied the tree on every `pytest tests/ -q`. The launcher already honoured
+    VAST_OUTDIR for the record, the ledger and the artifacts; the log was the one path that
+    escaped it.
+    """
+    repo_logs = REPO_ROOT / "outputs" / "gpu-pilot" / "logs"
+    before = {path.name for path in repo_logs.glob("*")}
+    outdir = mock_env["outdir"]
+
+    _result, combined = _run_launcher(
+        mock_env["env"], "--yes", "--arms", "A_raw", "--max-attempts", "1"
+    )
+
+    written = sorted((outdir / "logs").glob("*.log"))
+    assert len(written) == 1, f"expected one log beside the run's records:\n{combined}"
+    assert f"-> {outdir}/logs/" in combined, combined
+    assert {path.name for path in repo_logs.glob("*")} == before, (
+        "the mock run wrote a log into the real outputs/gpu-pilot/logs"
+    )
+
+
 def test_mock_run_reports_the_artifact_verification(mock_env):
     """The runner must surface the verification result, not just restore silently."""
     result = subprocess.run(

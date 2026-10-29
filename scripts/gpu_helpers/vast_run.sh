@@ -341,7 +341,11 @@ cleanup() {
     # bootstrap did, which arms ran, and how each of them failed. It is written beside the run's
     # other records, before the record itself, so the record can read it.
     if [ -n "$INSTANCE_ID" ]; then
-        LOG_DIR="$REPO_DIR/outputs/gpu-pilot/logs"
+        # Under $OUTDIR, like every other record of the run. That is what VAST_OUTDIR exists
+        # for (#280): a mock or dry run must not dress up as a paid one by leaving a log in
+        # the directory the runbook treats as the box's narrative. A real run's default
+        # still resolves to outputs/gpu-pilot/logs.
+        LOG_DIR="$OUTDIR/logs"
         LOG_FILE="$LOG_DIR/${RUN_STAMP:-run}.log"
         mkdir -p "$LOG_DIR" 2>/dev/null
         if vastai logs "$INSTANCE_ID" > "$LOG_FILE" 2>&1; then
