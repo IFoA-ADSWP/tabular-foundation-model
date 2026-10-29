@@ -157,8 +157,12 @@ def _commit_nowhere_near_the_remote() -> str:
         ["git", "-C", str(REPO_ROOT), "write-tree"],
         capture_output=True, text=True, check=True,
     ).stdout.strip()
+    # A runner has no user.name/user.email, and commit-tree refuses without one. Pass an
+    # explicit identity rather than depending on the machine's git config.
     proc = subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "commit-tree", tree, "-m", "unreachable test commit"],
+        ["git", "-C", str(REPO_ROOT),
+         "-c", "user.name=gate test", "-c", "user.email=gate@example.invalid",
+         "commit-tree", tree, "-m", "unreachable test commit"],
         capture_output=True, text=True, check=True,
     )
     return proc.stdout.strip()

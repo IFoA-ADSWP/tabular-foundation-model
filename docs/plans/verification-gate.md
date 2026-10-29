@@ -138,7 +138,7 @@ absence.
 
 
 
-### Four gaps CI found that local runs could not
+### Five gaps CI found that local runs could not
 
 The first CI run failed, and every failure was a real defect rather than a wiring mistake.
 This is the argument for landing the gate made in its own evidence.
@@ -162,10 +162,15 @@ This is the argument for landing the gate made in its own evidence.
    and creates no remote-tracking branch, so the ref a developer always has did not exist on
    the runner. The pytest job now fetches full history (`fetch-depth: 0`); the fix belongs in
    the workflow because it is the test's question, not the code under test, that needs it.
+5. **The runner had no git identity.** The refusal test builds a real commit with
+   `git commit-tree`, so the commit it rejects is genuinely absent from the remote rather
+   than a fake sha. `commit-tree` refuses without `user.name`/`user.email`, which every
+   development machine has and a fresh runner does not. The test now passes an explicit
+   identity instead of depending on the machine's git config.
 
 None of the first three could fail locally, because the machine had a token, a licence and
-an older ruff. The fourth needs a ref a developer has and a shallow runner does not. Landing
-CI is what surfaced them.
+an older ruff. The last two need git state a developer has and a fresh runner does not.
+Landing CI is what surfaced them.
 
 
 ## Not in this slice
