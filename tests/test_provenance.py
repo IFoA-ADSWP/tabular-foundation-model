@@ -22,7 +22,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from provenance import (  # noqa: E402
+from provenance import (  # noqa: E402  (importable after the src path insert above)
     DIAGNOSTIC_RECORD_FIELDS,
     DIAGNOSTIC_RECORD_SCHEMA_VERSION,
     DataSource,

@@ -35,7 +35,7 @@ import numpy as np
 _REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO / "src"))
 
-from paired_analysis import (  # noqa: E402
+from paired_analysis import (  # noqa: E402  (importable after the src path insert above)
     holm_adjust,
     inverse_variance_summary,
     nested_paired_bootstrap,
