@@ -25,7 +25,6 @@ import sys
 import time
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score

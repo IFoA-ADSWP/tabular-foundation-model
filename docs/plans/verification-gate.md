@@ -41,7 +41,69 @@ the workflow (next slice) has something to invoke instead of restating commands.
   it is what #258 clears.
 - `pytest tests/test_check_script.py -q` passes, including the planted-failure cases.
 
+## Slice 2 — clearing the debt (#258)
+
+The gate reported 64 errors. They divide cleanly:
+
+| Where | Count | Disposition |
+|---|---|---|
+| `scripts/legacy_finetuning/` | 26 | excluded, with the reason in `ruff.toml` |
+| live code | 38 | all fixed |
+
+Of the 38: 14 were mechanical and applied by `ruff --fix` (unused imports, unused
+variables, placeholder-less f-strings, one redefinition); 24 were done by hand —
+16 semicolon statements split into one per line, 4 `import sys as _sys` aliases
+normalised to a module-level `import sys` placed after `from __future__`, 3 dead
+assignments deleted, and one further unused import.
+
+### Decisions
+
+- **A dedicated `ruff.toml`, not a new `pyproject.toml`.** The repo has neither, so a
+  `pyproject.toml` would silently become packaging and pytest configuration as well as
+  ruff configuration. `ruff.toml` configures one tool.
+- **`extend-exclude`, not `exclude`.** Ruff's built-in exclusions stay in force; only the
+  legacy tree is added.
+- **The exclusion states what a green gate no longer proves.** `scripts/legacy_finetuning/`
+  is not on the live path — its entrypoints need upstream `tabpfn` and a GPU, and
+  `GLOSSARY.md` records the fine-tuning pilot as a separate context. The comment says so
+  and says to re-include the tree when it is next touched, so the next reader can disagree
+  rather than be surprised.
+- **No blanket suppression.** No new `# noqa` was added; every remaining suppression in
+  the tree predates this change and carries its own reason.
+
+### Evidence
+
+Ruff reports **0 errors** where it reported 64, with 26 of those accounted for by the
+cited exclusion and 38 fixed in live code. The behaviour-preserving claim was checked
+rather than assumed: the four files whose imports were reorganised still parse, and each
+removed name (`os`, `bin_centers`, `args`, the inner `numpy` redefinition) has no
+remaining reference.
+
+`./scripts/check.sh` exits **0**: ruff clean, **256 passed**, shellcheck clean (the count rose from 249 when `main`'s
+later #271 and #277 tests were merged in).
+
+### A blocker the gate found immediately
+
+The first full run failed two tests in `test_pilot2_mock_run.py`, and neither failure had
+anything to do with lint. The paid-run launcher refuses any commit that is not an ancestor
+of `origin/main`, because the remote box clones `main` and could not run it. That check is
+correct for a real run and meaningless for a mock one: a mock creates no instance and
+cannot spend money.
+
+The consequence is larger than two tests: **the suite could only ever be green on `main`**,
+so CI running `pytest` on a pull request — where HEAD is never on the base branch — would
+fail on every pull request. Landing the gate (#259) would have hit this on its first run.
+
+On this branch the guard was scoped to non-dry-run execution. While the stack waited, #271
+landed the better fix on `main`: the guard now takes its commit from `TFM_COMMIT_SHA`,
+defaulting to `HEAD` and honouring an override only when the provider is detected as the
+mock. The guard still runs in a mock; it is simply answerable. That is why this branch's
+skip was dropped when `main` was merged in, and why the tests set `TFM_COMMIT_SHA` rather
+than bypassing the check. This is exactly what the gate is for: it surfaced a structural
+problem on its first honest run, before it was wired into CI.
+
+
 ## Not in this slice
 
-CI wiring and landing (#259), the lint debt and the legacy exclusion (#258), the
-corrected instructions (#260), and retiring the duplicate workflow (#261).
+CI wiring and landing (#259), the corrected instructions (#260), and retiring the
+duplicate workflow (#261).
