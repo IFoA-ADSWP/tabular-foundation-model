@@ -22,6 +22,11 @@ the document is worth to you now.
 
 **The rule for adding a document:** it enters as **current** only if it carries content nothing else carries; otherwise it is `reference` from the start. When a current document stops being current it is amended with a dated note and its tier changes — never deleted, because the trail is the point.
 
+**Two folders are not tiered reports**, because they are read *before* a build rather than after one. Read them when the question is "should we build this, and how", not "what did we measure":
+
+- `docs/plans/` — one plan per task, written before non-trivial work and committed with it. **A plan outranks a fresh ticket**: check here before speccing or building, because the ticket you are about to write may already be covered.
+- `docs/adr/` — accepted decisions that constrain the code, one per decision, cited by the plans that rely on them.
+
 **Enforcement.** `scripts/check_doc_status.py` asserts that every report in the three tiers declares a status in its first fifteen lines. It currently **fails**, and its output is the backfill list. The count lives in that output rather than in this sentence: a number nobody re-runs is a claim waiting to be false.
 
 ## Start here — the current line of work (fine-tuning on lapse data)
