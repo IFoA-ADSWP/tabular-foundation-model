@@ -27,6 +27,10 @@ ARMS="${ARMS:-A_raw,B_in_domain,E_glm,F_catboost}"
 DATASET="${DATASET:-}"   # empty = every registered dataset
 TRAIN_SIZE="${TRAIN_SIZE:-}"   # empty = the runner's own default
 TEST_SIZE="${TEST_SIZE:-}"
+# Empty = the runner's own DEFAULT_SEED. Forwarded, never defaulted here: the record must
+# state the seed that actually ran, and the runner is the only thing that knows it. Accepts
+# the runner's own format -- a comma-separated list -- so a two-seed replication is one run.
+SEEDS="${SEEDS:-}"
 
 # A real run must record a commit_sha that describes the code that ran. The tree is a
 # fresh clone here, so any modification is a genuine provenance problem. Untracked files
@@ -300,7 +304,8 @@ for arm in ${ARMS//,/ }; do
     echo "########## ARM $arm ##########"
     # shellcheck disable=SC2086  # DATASET is a dataset name, not unquoted input
     python3 scripts/run_pilot.py --arms "$arm" ${DATASET:+--dataset "$DATASET"} \
-        ${TRAIN_SIZE:+--train-size "$TRAIN_SIZE"} ${TEST_SIZE:+--test-size "$TEST_SIZE"}
+        ${TRAIN_SIZE:+--train-size "$TRAIN_SIZE"} ${TEST_SIZE:+--test-size "$TEST_SIZE"} \
+        ${SEEDS:+--seeds "$SEEDS"}
     rc=$?
     if [ "$rc" -ne 0 ]; then
         # 137 => 128+9 SIGKILL, i.e. the OOM killer. Reported, not fatal.
