@@ -125,16 +125,10 @@ OUTPUT_DIR = REPO_ROOT / "outputs" / "finetune" / "pilot"
 DATA_REPO = os.environ.get("TFM_DATA_REPO", "IFoA-ADSWP/tabular-foundation-model")
 DATA_REF = os.environ.get("TFM_DATA_REF", "main")
 
-# `FT_ARMS` and `BASELINE_TABPFN_ARM` are imported from `src/provenance.py` (#211): the
-# matched-context assertion and the arm set it tests have to be one definition.
-
 
 # ---------------------------------------------------------------------------
 # Fingerprints, versions, hashes  (PR-6, PR-1)
 # ---------------------------------------------------------------------------
-# `_sha256_file` is `provenance.sha256_file`, imported above.
-
-
 def _sha256_array(arr):
     a = np.ascontiguousarray(arr)
     return hashlib.sha256(a.tobytes()).hexdigest()
@@ -687,11 +681,6 @@ def effective_config(arm, config):
         "legacy_config_keys_ignored": unused,
         "source_config": dict(config),
     }
-
-
-# `inference_context_rows` and `assert_matched_context` moved to `src/provenance.py` (#211)
-# and are imported above, so the pilot and the diagnostics assert matched context with one
-# implementation. The PR-4 docstrings live with the code there.
 
 
 # ---------------------------------------------------------------------------

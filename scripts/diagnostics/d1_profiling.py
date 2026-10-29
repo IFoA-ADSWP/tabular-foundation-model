@@ -5,7 +5,7 @@ Usage:
     python scripts/diagnostics/d1_profiling.py --csv data/raw/coil2000.csv --target CARAVAN
     python scripts/diagnostics/d1_profiling.py --csv data/raw/coil2000.csv \\
         --target CARAVAN --name coil2000
-    python scripts/diagnostics/d1_profiling.py ... --out /tmp/records --run-id 20261029T120000Z
+    python scripts/diagnostics/d1_profiling.py ... --run-id 20261029T120000Z
 
 D1's *content* belongs to `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md` (#208): class balance,
 feature type mix, missingness, target shape, correlation and the feature:row ratio. What this
@@ -15,10 +15,14 @@ inherit one record shape instead of inventing five.
 Every run writes one record through `src/provenance.write_diagnostic_record`, landing under
 `outputs/diagnostics/d1_profiling/<run_id>/` as `record.json` (source of truth) and
 `record.csv` (the one-row view of it). The diagnostic supplies measurements and nothing else:
-the schema version, timestamp and code revision are stamped by the writer.
+the schema version, timestamp, code revision and runtime are stamped by the writer.
 
-A record is refused rather than overwritten -- two D1 runs are two runs, and a silent
-overwrite is how a record stops describing what happened.
+Where the record goes is not a choice this script offers. There is no `--out`: #211 says records
+land under `outputs/diagnostics/` and deliberately **not** in `scripts/eval/insurance_benchmark_v1/`,
+which is the frontier tree with its own lineage, so the location is enforced rather than promised.
+
+A record is refused rather than replaced -- two D1 runs are two runs, and an overwritten record
+would carry the second run's timestamp while claiming the first run's profile.
 """
 
 from __future__ import annotations
@@ -35,9 +39,11 @@ import pandas as pd
 _REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO / "src"))
 
+from model_version import resolve_model_path  # noqa: E402
 from provenance import (  # noqa: E402
     DIAGNOSTICS_ROOT,
     DiagnosticRecord,
+    matched_context_evidence,
     sha256_file,
     write_diagnostic_record,
 )
@@ -117,23 +123,17 @@ def _run_id():
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
-def main(argv=None):
+def main(argv=None, *, root=None):
+    """Run D1 and write one record.
+
+    ``root`` is a test seam, not a command-line option: the CLI cannot name a location, so no
+    invocation of this script can put a diagnostic record outside `outputs/diagnostics/`.
+    """
     parser = argparse.ArgumentParser(description="D1 -- profile one dataset into one record.")
     parser.add_argument("--csv", type=Path, required=True, help="the table to profile")
     parser.add_argument("--target", required=True, help="target column in the table")
     parser.add_argument("--name", default=None, help="dataset name recorded (default: file stem)")
     parser.add_argument("--run-id", default=None, help="record directory name (default: UTC now)")
-    parser.add_argument(
-        "--out",
-        type=Path,
-        default=DIAGNOSTICS_ROOT,
-        help=f"records root (default: {DIAGNOSTICS_ROOT})",
-    )
-    parser.add_argument(
-        "--overwrite",
-        action="store_true",
-        help="replace an existing record for this run id instead of refusing",
-    )
     args = parser.parse_args(argv)
 
     if not args.csv.exists():
@@ -147,12 +147,17 @@ def main(argv=None):
         run_id=args.run_id or _run_id(),
         dataset_name=args.name or args.csv.stem,
         dataset_sha256=sha256_file(args.csv),
-        # D1 runs no model: profiling is an analysis of the data. Stating that is the honest
-        # record, per docs/MODEL_VERSIONS.md -- a version inferred here would be a guess.
-        model_version=None,
+        # D1 runs no model, so this is the version this environment RESOLVES to, not one it
+        # used -- recorded because a diagnostic's output is read against model runs and #241's
+        # `provenance` block carries the same field. `matched_context.checked` is False below,
+        # which is where the absence of a model is stated.
+        model_version=resolve_model_path(),
+        # No split, so no seed: profiling reads the whole table.
+        seed=None,
+        matched_context=matched_context_evidence(),
         measurements=measurements,
     )
-    written = write_diagnostic_record(record, root=args.out, overwrite=args.overwrite)
+    written = write_diagnostic_record(record, root=root or DIAGNOSTICS_ROOT)
 
     print(f"{DIAGNOSTIC} {record.dataset_name}: {written}")
     for key, value in measurements.items():

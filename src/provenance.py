@@ -22,7 +22,9 @@ because the point of the diagnostics is that their outputs are comparable.
 So there is exactly one field definition here -- the `DiagnosticRecord` dataclass -- and the CSV
 header is derived from it at write time. Each record gets its own
 `<root>/<diagnostic>/<run_id>/` directory and is never appended to a file whose header an older
-schema wrote, so a stale header cannot survive a field change.
+schema wrote, so a stale header cannot survive a field change. An existing record is refused
+rather than replaced: its timestamp and git sha describe the run that produced it, and a second
+run is a second record.
 
 What is *not* here yet: the pilot's own `provenance` block, a verdict reader, and pilot schema 3.
 Those are #240/#241's, and they extend this module rather than replace it. The pilot's record
@@ -95,7 +97,7 @@ def dataset_fingerprint(name, *, target, data_dir, repo_root, source):
     return {
         "name": name,
         "path": str(path.relative_to(repo_root)),
-        "file": path.name,
+        "file": f"{name}.csv",
         "sha256": sha256_file(path),
         "n_rows": int(len(df)),
         "n_cols": int(df.shape[1]),
@@ -150,6 +152,57 @@ def assert_matched_context(per_arm):
     return True
 
 
+def matched_context_evidence(per_arm=None):
+    """The matched-context assertion, as evidence a record can carry.
+
+    Runs the assertion rather than restating its verdict, so a record cannot claim a pass the
+    assertion did not give. `checked` is False when no arm carried an inference context: a
+    diagnostic that ran no model states that, instead of a pass nobody earned.
+    """
+    per_arm = dict(per_arm or {})
+    assert_matched_context(per_arm)
+    return {
+        "checked": any(rows is not None for rows, _ in per_arm.values()),
+        "baseline_arm": BASELINE_TABPFN_ARM,
+        "arms": {
+            arm: {"rows": rows, "mechanism": mechanism}
+            for arm, (rows, mechanism) in per_arm.items()
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Runtime  (#211)
+# ---------------------------------------------------------------------------
+def runtime_versions():
+    """The stack that produced a result, recorded rather than assumed.
+
+    TabPFN changes its default checkpoint and fine-tuning API across majors, so a number
+    without the producing version is not reproducible. The keys match the pilot's own record
+    (`run_pilot._runtime_versions`), so #241 can merge both into one `provenance.code.runtime`
+    block without renaming anything.
+
+    Imported lazily: `torch` and `catboost` are heavy, and a diagnostic that only reads a CSV
+    should not pay for them unless the writer stamps the environment.
+    """
+    import platform
+
+    versions = {"python": platform.python_version()}
+    for mod_name, key in (
+        ("numpy", "numpy"),
+        ("pandas", "pandas"),
+        ("sklearn", "scikit-learn"),
+        ("torch", "torch"),
+        ("tabpfn", "tabpfn"),
+        ("catboost", "catboost"),
+    ):
+        try:
+            versions[key] = getattr(__import__(mod_name), "__version__", "unknown")
+        except Exception:
+            versions[key] = None
+    return versions
+
+
 # ---------------------------------------------------------------------------
 # Diagnostic records  (#211)
 # ---------------------------------------------------------------------------
@@ -166,17 +219,24 @@ class DiagnosticRecord:
     """One diagnostic's record. The field set below **is** the contract.
 
     A diagnostic supplies the values it measured and nothing else. `schema_version`,
-    `created_utc`, `git_sha` and `git_dirty` are stamped by `write_diagnostic_record`, so two
-    diagnostics cannot stamp them differently -- and a change to the shape of a record is a
-    version bump here rather than an archaeology exercise later.
+    `created_utc`, `git_sha`, `git_dirty` and `runtime` are stamped by
+    `write_diagnostic_record`, so two diagnostics cannot stamp them differently -- and a change
+    to the shape of a record is a version bump here rather than an archaeology exercise later.
 
     `measurements` is the one free-form field: each diagnostic brings its own numbers, but they
     live under one fixed key. That is what keeps the keys comparable between D1 and D2 while
     their contents differ.
 
-    `model_version` is the resolved label (`v3_default`, not a weights filename), per
-    docs/MODEL_VERSIONS.md. `None` is the honest value for a diagnostic that ran no model --
-    D1 profiles data -- and it states the absence rather than guessing.
+    `model_version` is the **resolved** label (`v3_default`, never a weights filename), per
+    docs/MODEL_VERSIONS.md. A diagnostic that runs no model still records the label this
+    environment resolves to, because its output is read against model runs; `matched_context`
+    says whether any arm was actually compared.
+
+    `seed` is the run's split seed. D1 profiles a whole table and has no split, so it records
+    `None` -- the absence stated rather than a seed borrowed from elsewhere.
+
+    `matched_context` is the evidence behind the PR-4 assertion, built by
+    `matched_context_evidence`, so a record carries the verdict *and* the numbers compared.
     """
 
     schema_version: int = DIAGNOSTIC_RECORD_SCHEMA_VERSION
@@ -186,8 +246,11 @@ class DiagnosticRecord:
     git_sha: str | None = None
     git_dirty: bool | None = None
     model_version: str | None
+    seed: int | None
     dataset_name: str
     dataset_sha256: str | None
+    matched_context: Mapping[str, Any]
+    runtime: Mapping[str, Any] | None = None
     measurements: Mapping[str, Any] = field(default_factory=dict)
 
 
@@ -245,7 +308,7 @@ def _record_path(record, root):
     return Path(root or DIAGNOSTICS_ROOT) / record.diagnostic / record.run_id
 
 
-def write_diagnostic_record(record, *, root=None, overwrite=False):
+def write_diagnostic_record(record, *, root=None):
     """Write one diagnostic's record under ``<root>/<diagnostic>/<run_id>/``.
 
     This is the only writer D1-D5 may use, and it makes the two failures recorded in
@@ -258,8 +321,10 @@ def write_diagnostic_record(record, *, root=None, overwrite=False):
       (the one-row view of it) into one directory whose path is derived from the diagnostic
       and the run id -- there is no second location a record could half-exist in.
 
-    An existing record is refused unless ``overwrite=True``, which rewrites both files in full
-    rather than appending a row under the old header.
+    **REFUSES to replace an existing record**, with the same rule and the same shape of message
+    `run_pilot.write_arm_run` uses. A record's `created_utc` and `git_sha` describe the run that
+    produced it; replacing the file would re-stamp those fields and leave an old record claiming
+    it was produced now. A second run is a second run: give it its own run id.
 
     Returns the directory written.
     """
@@ -272,11 +337,16 @@ def write_diagnostic_record(record, *, root=None, overwrite=False):
         )
     if not record.created_utc:
         record = replace(record, created_utc=datetime.now(timezone.utc).strftime(_UTC_FORMAT))
+    if record.runtime is None:
+        record = replace(record, runtime=runtime_versions())
 
     target = _record_path(record, root)
-    if target.exists() and any(target.iterdir()) and not overwrite:
+    if target.exists() and any(target.iterdir()):
         raise FileExistsError(
-            f"{target} already holds a record; pass overwrite=True to replace it in full"
+            f"REFUSING TO OVERWRITE: {target} already holds a record. It was produced by an "
+            f"earlier run, and its created_utc and git_sha describe that run -- replacing it "
+            f"would make an old record claim it was produced now. Write this run under a new "
+            f"run id."
         )
     target.mkdir(parents=True, exist_ok=True)
 

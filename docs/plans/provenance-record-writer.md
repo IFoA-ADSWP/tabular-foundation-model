@@ -41,9 +41,12 @@ module.
 ## The writer
 
 `DiagnosticRecord` is a frozen dataclass and is the **only** field definition. `schema_version`,
-`created_utc`, `git_sha` and `git_dirty` are stamped by the writer, not by the diagnostic, so no
-two diagnostics can stamp them differently; `measurements` is the one free-form key, holding
-each diagnostic's own numbers under a fixed spelling.
+`created_utc`, `git_sha`, `git_dirty` and the runtime versions are stamped by the writer, not by
+the diagnostic, so no two diagnostics can stamp them differently; `measurements` is the one
+free-form key, holding each diagnostic's own numbers under a fixed spelling. The pilot's
+provenance vocabulary is carried as values — `seed`, the resolved `model_version`, the
+`matched_context` assertion's own evidence — so #241 can fold them into its `provenance` block
+without the diagnostics having to re-collect anything.
 
 The two recorded failures are made structurally impossible:
 
@@ -52,12 +55,17 @@ The two recorded failures are made structurally impossible:
 | stale CSV header | the header is `DIAGNOSTIC_RECORD_FIELDS`, derived from the dataclass; the CSV is written fresh into a new `<diagnostic>/<run_id>/` directory, never appended to an older file |
 | split record | one call writes `record.json` and `record.csv` into one directory whose path is derived from the diagnostic and the run id, not chosen by the caller |
 
+An **existing record is refused, never replaced** — the same rule and message shape as
+`run_pilot.write_arm_run`. Replacing the file would re-stamp `created_utc` and `git_sha`, so an
+old record would claim it was produced now. A second run is a second record, under its own id.
+
 `record.json` is the source of truth and `record.csv` is the one-row view of it, mirroring the
 `outputs/gpu-pilot/README.md` rule that JSON is authoritative and CSV is derived.
 
-Records land under `outputs/diagnostics/<diagnostic>/<run_id>/`. Deliberately not
-`scripts/eval/insurance_benchmark_v1/`, which is the frontier tree with its own record lineage
-(#208 gap 4).
+Records land under `outputs/diagnostics/<diagnostic>/<run_id>/`, which is git-ignored: a run
+cannot litter tracked status. Deliberately not `scripts/eval/insurance_benchmark_v1/`, which is
+the frontier tree with its own record lineage (#208 gap 4) — D1 exposes no flag that could send
+a record there.
 
 ## D1
 
@@ -78,8 +86,10 @@ committed record under `outputs/` is rewritten.
 ## Verification
 
 - `pytest tests/` unchanged for the pilot's existing suites (pure move).
-- New tests assert the record files on disk: the same field set for two diagnostics writing
-  through one writer (byte-identical header), refusal of an unknown field, and refusal to append
-  to an existing record.
-- A real D1 run over `data/raw/coil2000.csv`, written to a scratch `--out`, for evidence in the
-  PR; no record is committed.
+- `tests/test_provenance.py` asserts the record files on disk: the same field order and
+  byte-identical CSV header for two diagnostics writing through one writer, a record read back,
+  and a refusal to replace an existing record (the original bytes unchanged afterwards).
+- `tests/test_d1_profiling.py` covers the profiling rule on a synthetic frame and the script
+  emitting through the writer, including that the CLI has no flag naming a location.
+- A real D1 run over `data/raw/coil2000.csv`, into the ignored `outputs/diagnostics/` tree, for
+  evidence in the PR; no record is committed.
