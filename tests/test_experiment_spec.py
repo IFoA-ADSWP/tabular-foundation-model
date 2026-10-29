@@ -246,6 +246,14 @@ def test_the_committed_registry_declares_every_dataset_the_runner_uses():
         assert experiment.n_folds == runner.N_FOLDS
         assert experiment.seed == runner.SEED
 
+    # the runner compares the same method list for every dataset in a mode, so the
+    # registry must too — checking only one experiment per mode would let the other ten
+    # drift silently
+    for mode in ("classification", "regression"):
+        lists = {experiment.methods for experiment in registry.experiments.values()
+                 if experiment.mode == mode}
+        assert len(lists) == 1, f"{mode} experiments disagree about which methods: {lists}"
+
 
 def test_the_committed_registry_declares_every_method_in_runner_order():
     runner = _runner()

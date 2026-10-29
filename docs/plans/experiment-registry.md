@@ -62,15 +62,28 @@ The pinned `model_version` is **declared, not enforced**. A run still resolves i
 through `TABPFN_MODEL_PATH`, exactly as before; #233 is where reuse becomes conditional on
 the pin. Because ADR 0001 promises that each run's manifest records the value actually used,
 `write_manifest` now records it — otherwise the pin would be unverifiable and the ADR's
-mitigation would not exist.
+mitigation would not exist. It records `model_version_scope` beside it, because the reuse
+path still takes sweep rows whose provenance is unattested: the resolved version is
+attested for every fresh fit and merely *assumed* for a reused row. ADR 0001's paired
+consequence — "the first post-spec run refits every method once" — is #233's, and the scope
+field says so rather than letting the manifest imply a guarantee it lacks.
 
-### The seed is part of the experiment's identity
+### The seed and fold count are part of the experiment's identity
 
-`--experiment <id>` refuses a `--seed` that disagrees with the experiment's declared seed.
-Stamping `coil2000` on a seed-7 run would produce an artifact that contradicts the
-declaration it cites — precisely the failure class this registry exists to prevent. Seed
-sweeps remain available ad hoc (positional dataset filters, no `--experiment`), where they
-are honestly unstamped.
+`--experiment <id>` refuses a `--seed` that disagrees with the experiment's declared seed,
+and refuses an experiment whose declared `n_folds` differs from what this runner folds.
+Stamping `coil2000` on a seed-7 run, or on a 10-fold run, would produce an artifact that
+contradicts the declaration it cites — precisely the failure class this registry exists to
+prevent. Today both checks are vacuous for the committed file (every experiment declares
+seed 42 and 5 folds), which is the point: they stop the file and the runner drifting apart
+before the drift can be stamped. Seed sweeps remain available ad hoc (positional dataset
+filters, no `--experiment`), where they are honestly unstamped.
+
+The seed guard is only as sound as the producer honours the seed. Classification folds do
+(`StratifiedKFold(random_state=SEED)`); regression folds still do not (`KFold(...,
+random_state=42)`), so a regression experiment declared at a non-42 seed would pass the
+guard and then fold at 42. #232 closes that. Declaring one now would be a lie the guard
+could not catch, which is why the registry declares seed 42 for all twelve.
 
 ## Generation
 
@@ -104,9 +117,9 @@ Each rejection names the offending entry and the file:
 ## Verification
 
 - Gate, measured after the change: `ruff` findings **identical** to `origin/main` (64, no new,
-  none fixed); `pytest tests/ -q` **237 passed, 2 failed** — the same two pre-existing
+  none fixed); `pytest tests/ -q` **238 passed, 2 failed** — the same two pre-existing
   `test_pilot2_mock_run.py` failures, which assert the commit is an ancestor of
-  `origin/main` and so cannot pass on an unpushed branch; 47 tests added; shellcheck clean;
+  `origin/main` and so cannot pass on an unpushed branch; 49 tests added; shellcheck clean;
   doc links 49 broken over 79 documents (was 78 — the new plan file resolves), doc status
   11 of 38 unchanged.
 - Behaviour, the claim that matters: the same command run against the pre-change tree

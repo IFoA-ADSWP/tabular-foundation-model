@@ -114,6 +114,7 @@ import sys as _sys
 _sys.path.insert(0, str(REPO))  # repo root
 from src.api_key import load_api_key as _load_api_key  # noqa: E402
 from src.experiment_spec import (  # noqa: E402
+    REGRESSION,
     Experiment,
     RegistryError,
     as_runner_dataset,
@@ -1172,6 +1173,11 @@ def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
         "seed": SEED,
         "experiment_id": EXPERIMENT_ID,
         "model_version": _model_path(),  # what the run resolved, so the registry's pin is checkable
+        "model_version_scope": (
+            "resolved and used for every fresh fit; a row reused from the sweep table "
+            "carries no recorded provenance, so its version is assumed rather than "
+            "attested until #233"
+        ),
         "pr_auc_mode": PR_AUC_MODE,
         "argv": sys.argv,
         "note": (
@@ -1218,7 +1224,15 @@ def main() -> None:
                 f"not {args.seed}; drop --seed, or run the dataset ad-hoc at this seed "
                 f"without --experiment"
             )
-        regression = experiment.mode == "regression"
+        # Same reasoning for the fold count: until the runner folds from the registry
+        # (#231/#232), a declared count the runner ignores is a stamp it cannot honour.
+        if experiment.n_folds != N_FOLDS:
+            parser.error(
+                f"experiment {experiment.id!r} is declared with {experiment.n_folds} "
+                f"folds but this runner folds {N_FOLDS}; folding from the registry "
+                f"arrives in #231"
+            )
+        regression = experiment.mode == REGRESSION
         EXPERIMENT_ID = experiment.id
         wanted = None
     else:

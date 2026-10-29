@@ -135,6 +135,13 @@ def _check_keys(loc: str, entry: Mapping[str, Any], allowed: Iterable[str],
         _fail(loc, f"unknown key(s): {detail}")
 
 
+def _table(loc: str, entry: Any) -> Mapping[str, Any]:
+    """A section entry that is not a table declares nothing; say so instead of crashing."""
+    if not isinstance(entry, Mapping):
+        _fail(loc, f"must be a table, got {entry!r}")
+    return entry
+
+
 def _require(loc: str, entry: Mapping[str, Any], key: str) -> Any:
     if key not in entry:
         _fail(loc, f"missing required key {key!r}")
@@ -235,8 +242,7 @@ def load_registry(path: str | Path) -> Registry:
 
 def _dataset(path: Path, name: str, entry: Mapping[str, Any]) -> Dataset:
     loc = _loc(path, f"datasets.{name}")
-    if not isinstance(entry, Mapping):
-        _fail(loc, f"must be a table, got {entry!r}")
+    entry = _table(loc, entry)
     _check_keys(loc, entry, _DATASET_KEYS)
 
     metric = _choice(loc, _require(loc, entry, "metric"), "metric", MODE_BY_METRIC)
@@ -259,8 +265,7 @@ def _dataset(path: Path, name: str, entry: Mapping[str, Any]) -> Dataset:
 
 def _method(path: Path, mode: str, name: str, entry: Mapping[str, Any]) -> Method:
     loc = _loc(path, f"methods.{mode}.{name}")
-    if not isinstance(entry, Mapping):
-        _fail(loc, f"must be a table, got {entry!r}")
+    entry = _table(loc, entry)
     _check_keys(loc, entry, _METHOD_KEYS)
 
     return Method(
@@ -278,8 +283,7 @@ def _experiment(
     methods: Mapping[str, Mapping[str, Method]],
 ) -> Experiment:
     loc = _loc(path, f"experiments.{name}")
-    if not isinstance(entry, Mapping):
-        _fail(loc, f"must be a table, got {entry!r}")
+    entry = _table(loc, entry)
     _check_keys(loc, entry, _EXPERIMENT_KEYS,
                 hints={"metric": "the metric belongs to the dataset it names"})
 
