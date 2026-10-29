@@ -157,8 +157,12 @@ def _commit_nowhere_near_the_remote() -> str:
         ["git", "-C", str(REPO_ROOT), "write-tree"],
         capture_output=True, text=True, check=True,
     ).stdout.strip()
+    # A runner has no user.name/user.email, and commit-tree refuses without one. Pass an
+    # explicit identity rather than depending on the machine's git config.
     proc = subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "commit-tree", tree, "-m", "unreachable test commit"],
+        ["git", "-C", str(REPO_ROOT),
+         "-c", "user.name=gate test", "-c", "user.email=gate@example.invalid",
+         "commit-tree", tree, "-m", "unreachable test commit"],
         capture_output=True, text=True, check=True,
     )
     return proc.stdout.strip()
@@ -183,9 +187,19 @@ def mock_env(tmp_path):
     run_id = build_box_output_tree(tree)
 
     outdir = tmp_path / "returned"
+    # A token FILE, not an exported token: the runner prefers the file and warns when an
+    # exported value differs from it. Written here so the test is hermetic -- it used to
+    # depend on the developer's real ~/.config/tfm/keys.env, which CI does not have, so
+    # the suite was green locally and red on every pull request.
+    keys = tmp_path / "keys.env"
+    keys.write_text("TABPFN_TOKEN=dummy-token-for-a-mock-run\n")
     env = {
         **os.environ,
         "PATH": f"{bindir}:{os.environ['PATH']}",
+        "TABPFN_FILE": str(keys),
+        # The mock provisions no GPU, so there is no rental for the licence gate to
+        # protect -- and that gate makes a live API call, which a hermetic test cannot.
+        "SKIP_LICENSE_CHECK": "1",
         "MOCK_STATUS": "running",
         "MOCK_OFFERS": str(offers),
         "MOCK_STATE_DIR": str(state),
@@ -202,10 +216,9 @@ def mock_env(tmp_path):
         # cannot make the injected commit and the compared ref disagree.
         "BRANCH": REMOTE_BRANCH,
     }
-    # Deliberately NOT exporting TABPFN_TOKEN: the runner reads it from
-    # ~/.config/tfm/keys.env and warns when an exported value differs from the file.
-    # The mock needs no token, and the runner's env-vs-file guard is exercised
-    # separately.
+    # Deliberately NOT exporting TABPFN_TOKEN: the runner prefers the file named by
+    # TABPFN_FILE and warns when an exported value differs from it. The mock needs no
+    # token, and the runner's env-vs-file guard is exercised separately.
     env.pop("TABPFN_TOKEN", None)
     return {"env": env, "state": state, "tree": tree, "outdir": outdir, "run_id": run_id}
 

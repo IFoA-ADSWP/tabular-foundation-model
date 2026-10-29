@@ -103,7 +103,77 @@ than bypassing the check. This is exactly what the gate is for: it surfaced a st
 problem on its first honest run, before it was wired into CI.
 
 
+## Slice 3 — CI invokes the gate and lands (#259)
+
+The workflow is extracted from the pull request that has been carrying it since October,
+and rewired so that each job runs `./scripts/check.sh <check>` rather than restating the
+command. Jobs stay separate so a failure names which check broke and each keeps its own
+timeout. Triggers and concurrency are kept as they were: pull requests, pushes to `main`,
+manual dispatch, and cancelled superseded runs.
+
+Three jobs, not four: ruff, pytest, shellcheck. The doc checks stay out until their own
+backlog is addressed, and #260 corrects the instructions to say three.
+
+**The proof is a red run, not a green one.** A branch is pushed with a deliberately planted
+lint error and a deliberate shellcheck violation; the recorded outcome of that run is the
+evidence that the gate is wired, not merely configured.
+
+### Evidence: the runs
+
+- **Green**, on #274: run `40798566228` — `ruff`, `pytest` and `shellcheck` all succeed.
+- **Red**, on a throwaway branch (#276): run `40799041147` — the run **fails** with
+  `ruff: failure` on `F401 os imported but unused` in the planted file, while `pytest` and
+  `shellcheck` pass. The gate does what it claims: a bad pull request cannot go green.
+
+That first red run also taught something worth keeping. The planted shellcheck violation
+was `SC2086` (unquote this to prevent word splitting), which is **info** severity, and the
+gate runs at `--severity=warning` — so the floor filtered it exactly as its comment says it
+would. A floor that filters what it says it filters is working. The branch was re-planted
+with a warning-level violation to prove the shellcheck half by a failure rather than by its
+absence.
+
+- **Red, both checks**, run `40799854243`: `ruff: failure` and `shellcheck: failure`, with
+  `pytest: success`. The gate reports each check separately, and a bad pull request fails
+  on more than one axis exactly as it should.
+
+
+
+### Five gaps CI found that local runs could not
+
+The first CI run failed, and every failure was a real defect rather than a wiring mistake.
+This is the argument for landing the gate made in its own evidence.
+
+1. **Ruff's default rule set is version-dependent.** 0.15.8 flagged 64 findings in this
+   tree; 0.17.3, which `pip install ruff` resolved on the runner, flagged **255**. A gate
+   that changes verdict when a tool upgrades is exactly the drift a single entry point is
+   supposed to prevent. Fixed both ways: `select` pins the rule families explicitly in
+   `ruff.toml`, and the workflow pins the version, so widening either is a deliberate
+   change rather than something CI resolves.
+2. **`test_pilot2_mock_run` was not hermetic.** It deliberately did not export a token and
+   relied on the developer's `~/.config/tfm/keys.env`, so it passed on a workstation and
+   aborted on a runner with `No TABPFN_TOKEN`. Fixed by writing a dummy token file into the
+   test's tmp dir and pointing the launcher at it — the file path is still what is
+   exercised, without the machine dependency.
+3. **The licence preflight made a live API call.** The launcher verifies licence acceptance
+   before renting, which is right for a rental and meaningless for a mock that provisions
+   nothing. The test now sets the launcher's existing `SKIP_LICENSE_CHECK` escape hatch.
+4. **The checkout was shallow.** After #271 landed, the mock-run fixture asks whether an
+   injected commit is an ancestor of `origin/main`. `actions/checkout@v4` fetches one commit
+   and creates no remote-tracking branch, so the ref a developer always has did not exist on
+   the runner. The pytest job now fetches full history (`fetch-depth: 0`); the fix belongs in
+   the workflow because it is the test's question, not the code under test, that needs it.
+5. **The runner had no git identity.** The refusal test builds a real commit with
+   `git commit-tree`, so the commit it rejects is genuinely absent from the remote rather
+   than a fake sha. `commit-tree` refuses without `user.name`/`user.email`, which every
+   development machine has and a fresh runner does not. The test now passes an explicit
+   identity instead of depending on the machine's git config.
+
+None of the first three could fail locally, because the machine had a token, a licence and
+an older ruff. The last two need git state a developer has and a fresh runner does not.
+Landing CI is what surfaced them.
+
+
 ## Not in this slice
 
-CI wiring and landing (#259), the corrected instructions (#260), and retiring the
-duplicate workflow (#261).
+The corrected instructions (#260) and retiring the duplicate workflow still living on the
+old pull request (#261).
