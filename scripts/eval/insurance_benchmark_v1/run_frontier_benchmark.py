@@ -54,8 +54,9 @@ Metrics dispatch through metric_fn(ds): log_loss (classification, default), rmse
 (sklearn mean_squared_error, sqrt) or poisson_deviance (mean_poisson_deviance) for
 regression. Regression y_pred is clipped to >= 1e-12 before deviance — OLS on count
 targets can predict negatives and sklearn's deviance requires non-negative y_pred.
-Regression folds are 5-fold KFold(shuffle=True, random_state=42) — NOT
-StratifiedKFold (continuous target) — same seed as classification.
+Regression folds are 5-fold KFold(shuffle=True, random_state=SEED) — NOT
+StratifiedKFold (continuous target). SEED is the run's seed: the CLI value, or the
+experiment's declaration under --experiment (#232).
 
 Regression methods (all at defaults): ols (LinearRegression), poissonglm
 (PoissonRegressor(alpha=0, max_iter=500)), tweedieglm (TweedieRegressor(power=1.5)),
@@ -174,7 +175,7 @@ PREDICTIONS_DIR = HERE / "predictions"  # --save-predictions: one .npz + manifes
 #   PR_AUC_MODE:      --pr-auc — forces EVERY method to fresh-fit (the sweep CSV has no
 #                     predictions, so PR AUC / top-decile lift need real fits) and appends
 #                     per-fold rows to PR_AUC_CSV.
-#   SEED:             --seed N — StratifiedKFold(random_state=N), default 42 (unchanged).
+#   SEED:             --seed N — splitter random_state in both modes, default 42.
 #   SAVE_PREDICTIONS: --save-predictions — persist per-fold (y_true, y_pred, test_idx) for
 #                     retrospective re-scoring (#122); forces fresh fits for the same reason
 #                     as PR_AUC_MODE (reused sweep rows carry no predictions).
@@ -897,9 +898,12 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
     except Exception:
         git_sha = "unknown"
 
-    split_desc = (f"StratifiedKFold({n_folds}, shuffle=True, random_state={seed})"
-                  if problem_type == "classification" else
-                  f"KFold({n_folds}, shuffle=True, random_state=42)")
+    # Describe the splitter that actually made the folds, not a second hand-built string.
+    splitter = make_folds(
+        "stratified" if problem_type == "classification" else "kfold", n_folds, seed
+    )
+    split_desc = (f"{type(splitter).__name__}({splitter.n_splits}, shuffle=True, "
+                  f"random_state={splitter.random_state})")
     manifest = {
         "schema_version": 1,
         "experiment_id": experiment_id,
@@ -971,23 +975,32 @@ def verify_predictions_readback(npz_path: Path, methods: list[str], metric, rows
     print(f"READ-BACK OK: {len(methods)} methods match recorded means within {tol:g}")
 
 
-def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
+def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path,
+                           seed: int | None = None,
+                           n_folds: int | None = None) -> pd.DataFrame:
     """Regression-mode frontier (--regression). No sweep reuse — the sweep CSV is
     classification-only, so every regression dataset is FRESH power: all CPU methods
-    first (same 5 folds), TabPFN last via the hosted API (same retry/backoff loop as
-    the classifier path) so a hosted stall never blocks the fast results."""
+    first, TabPFN last via the hosted API (same retry/backoff loop as the classifier
+    path) so a hosted stall never blocks the fast results.
+
+    `seed` and `n_folds` default to the CLI globals; a named experiment passes its
+    declaration, so the folds and the capture describe one split. The filename's `_seedN`
+    suffix is `main()`'s, from the same run seed.
+    """
     def say(msg: str) -> None:
         print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
+    n_folds = n_folds if n_folds is not None else N_FOLDS
+    seed = seed if seed is not None else SEED
     X, y = load_Xy(ds, regression=True)
     n_cols = X.shape[1]
     metric = metric_fn(ds)  # rmse or poisson_deviance, clipped as needed
-    say(f"dataset={ds['name']} shape={X.shape} metric={ds['metric']} y=[{y.min():.4g}, {y.max():.4g}]")
+    say(f"dataset={ds['name']} shape={X.shape} metric={ds['metric']} "
+        f"seed={seed} folds={n_folds} y=[{y.min():.4g}, {y.max():.4g}]")
 
-    # Shared constructor (#231); #232 replaces the hardcoded 42 with the experiment seed.
-    folds = list(make_folds("kfold", N_FOLDS, 42).split(X))
+    folds = list(make_folds("kfold", n_folds, seed).split(X))
 
-    # ---- 1. Fresh power: 7 CPU regressors on the same 5 folds, all at defaults ----
+    # ---- 1. Fresh power: 7 CPU regressors on the same folds, all at defaults ----
     makers = {
         "ols": make_ols,
         "poissonglm": make_poissonglm_reg,
@@ -1094,28 +1107,28 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFra
                     textcoords="offset points", xytext=(7, 5), fontsize=8)
     ax.set_xlabel("log10(n_params)")
     ax.set_ylabel(ylabel)
-    ax.set_title(f"Insurance frontier — {ds['name']} (full, 5 folds, mean ± SE)")
+    ax.set_title(f"Insurance frontier — {ds['name']} (full, {n_folds} folds, mean ± SE)")
     ax.grid(alpha=0.3)
     fig.tight_layout()
     fig.savefig(out_png, dpi=150)
     plt.close(fig)
 
     # ---- 5. Self-check ----
-    sanity_check_regression(ds, folds, table, on_frontier, y, metric)
+    sanity_check_regression(ds, folds, table, on_frontier, y, metric, n_folds=n_folds)
 
     # ---- 5b. Persist predictions + read-back verification (--save-predictions, #122) ----
     if SAVE_PREDICTIONS:
         methods = [r["method"] for r in rows]
-        npz_path = write_predictions_npz(ds, pred_store, methods, N_FOLDS,
+        npz_path = write_predictions_npz(ds, pred_store, methods, n_folds,
                                           problem_type="regression", metric_name=ds["metric"],
-                                          seed=SEED, experiment_id=EXPERIMENT_ID)
-        verify_predictions_readback(npz_path, methods, metric, rows, N_FOLDS,
+                                          seed=seed, experiment_id=EXPERIMENT_ID)
+        verify_predictions_readback(npz_path, methods, metric, rows, n_folds,
                                      problem_type="regression")
 
     return table
 
 
-def sanity_check_regression(ds: dict, folds: list[tuple[np.ndarray, np.ndarray]], table: pd.DataFrame, on_frontier: set, y: np.ndarray, metric) -> None:
+def sanity_check_regression(ds: dict, folds: list[tuple[np.ndarray, np.ndarray]], table: pd.DataFrame, on_frontier: set, y: np.ndarray, metric, n_folds: int = N_FOLDS) -> None:
     """Regression-mode self-checks: the shared fold/table/frontier checks (sweep checks
     skipped — regression never reuses the classification sweep) plus target
     non-negativity and the deviance clip guard."""
@@ -1125,7 +1138,7 @@ def sanity_check_regression(ds: dict, folds: list[tuple[np.ndarray, np.ndarray]]
         # >= 1e-12 before deviance (sklearn raises on negative y_pred). Verify the
         # guard end-to-end with a negative prediction.
         assert np.isfinite(metric(np.array([0.0, 2.0, 5.0]), np.array([-3.0, 1.0, 4.5]))), "deviance clip guard broken"
-    sanity_check(pd.DataFrame(), folds, table, on_frontier)
+    sanity_check(pd.DataFrame(), folds, table, on_frontier, n_folds=n_folds)
 
 
 # ---------------------------------------------------------------------------
@@ -1157,8 +1170,9 @@ def make_parser() -> argparse.ArgumentParser:
                         help="check every predictions/*.npz against its manifest's "
                              "predictions_sha256 and exit (no fitting; exit 1 on any mismatch)")
     parser.add_argument("--seed", type=int, default=42, metavar="N",
-                        help="StratifiedKFold random_state (default 42; seed != 42 writes "
-                             "frontier_results_<ds>_seed<N>.csv/.png so canonical seed-42 files are not clobbered)")
+                        help="splitter random_state in both modes (default 42; seed != 42 "
+                             "writes frontier_results_<ds>_seed<N>.csv/.png so canonical "
+                             "seed-42 files are not clobbered)")
     parser.add_argument("--experiment", metavar="ID",
                         help="run the experiment registered under ID in experiments.toml "
                              "(selects its dataset, metric and mode, and stamps the id into "
@@ -1351,7 +1365,11 @@ def main() -> None:
         out_png = out_base / f"frontier_plot_{name}{suffix}.png"
         print(f"\n{'=' * 70}\nDATASET {name}\n{'=' * 70}", flush=True)
         if regression:
-            runner(ds, out_csv, out_png)
+            if args.experiment is not None:
+                runner(ds, out_csv, out_png, seed=experiment.seed,
+                       n_folds=experiment.n_folds)
+            else:
+                runner(ds, out_csv, out_png, seed=SEED, n_folds=N_FOLDS)
         elif args.experiment is not None:
             runner(ds, out_csv, out_png, experiment=experiment,
                    seed=experiment.seed, n_folds=experiment.n_folds)
