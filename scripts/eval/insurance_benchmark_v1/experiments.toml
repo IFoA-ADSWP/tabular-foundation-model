@@ -87,21 +87,18 @@ target = "Cost_claims_year"
 drop = []
 metric = "rmse"
 
-# ---- pilot-only datasets (#238) ---------------------------------------------
-# The pilot scores log loss/Brier and drops no columns; the metric is the dataset's
-# owned fact, so it is declared here rather than assumed.
+# ---- pilot datasets (#238) ---------------------------------------------------
+# Their own section: the pilot drops no columns and scores through its arm runner, so a
+# frontier dataset's metric would be a claim the pilot never uses. Keeping them out of
+# [datasets] also keeps #235's rule true -- every frontier dataset has one experiment.
 
-[datasets.eudirectlapse]
+[pilot_datasets.eudirectlapse]
 file = "eudirectlapse.csv"
 target = "lapse"
-drop = []
-metric = "log_loss"
 
-[datasets.spanish_motor_lapse]
+[pilot_datasets.spanish_motor_lapse]
 file = "spanish_motor_lapse.csv"
 target = "LapseB"
-drop = []
-metric = "log_loss"
 
 # ---- methods ----------------------------------------------------------------
 

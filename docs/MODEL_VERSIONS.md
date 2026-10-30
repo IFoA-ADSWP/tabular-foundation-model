@@ -19,6 +19,18 @@ New runs must record: model version (`tabpfn` / `tabpfn-client` + weights ID e.g
 | **1–7 Aug 2026: successor frontier + benchmark suite** | **v3 (`v3_default`)** | `tabpfn-client 0.3.3`, `model_path="v3_default"` pinned post-hoc (runs used auto-selection resolving to v3) | 1M rows / 200M cells / 160 classes / 2,000 cols (live-verified 2026-08-04 via `/tabpfn/get_model_limits`) | Master report `docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md` (dated 2026-08-01, updated Aug 2/3/7; §12 correction 2026-08-04; §14.9 version note; §15 re-test policy); tags `paper-snapshot-2026-08-22`, `v8.2.0` | **Current for classification + the `eudirectlapse` loss.** The regression/count tier is superseded by the v3.5 row below. |
 | **16 Sep 2026: version-drift re-test — regression/count tier only** | **v3.5 (`v3.5_default`)** | `tabpfn-client 0.6.0`, `model_path="v3.5_default"` resolved via `src/model_version.py` (`TABPFN_MODEL_PATH`, defaults to `v3_default`); the **server default is now v3.5**, so an unpinned call no longer resolves to v3 | 1M rows / 200M cells / 160 classes / **20,000 cols** — 10× the v3 column cap (live-verified 2026-09-16 via `/tabpfn/get_settings`) | Master report **§16** (issue [#186](https://github.com/IFoA-ADSWP/tabular-foundation-model/issues/186)); 4 datasets × 5 folds, seed 42; per-fold predictions + manifests persisted under `predictions/` | **Current for `freMTPL2freq`, `spanish_motor_freq`, `bemtl97_amount`, `spanish_motor_severity` only.** Classification tiers and `eudirectlapse` are still v3 — do not cite v3.5 for those. Caveat: `scikit-learn` drifted 1.6.1 → 1.9.0, so the `ols` rows are **not** comparable to v3 (§16.4). |
 
+**Pilot runs before #285 are not pinned.** Until 2026-10-30 the pilot constructed
+`TabPFNClassifier` (the **local package**, not the hosted client) without `model_path`, so it took the
+package's own `auto` resolution. What `auto` resolves to is *not recorded anywhere* in those runs: the
+record states the repository's resolver label, which is intent, not observation. The v3.5 row below
+records that the **hosted server** default moved to v3.5; whether a given local package's `auto`
+followed that move depends on the package version, and nothing in the pilot's records establishes it.
+
+From #285 the pilot passes `model_path` explicitly, resolves it once per run, and records
+`version_source: pinned`. Treat earlier pilot labels as attribution by declaration rather than
+measurement; the anchor (D9) re-baselines every run, so it is the first pilot whose numbers carry a
+version it can defend.
+
 ```mermaid
 timeline
     Mar-Apr 2026 : v2.0 via API (our runs: reports, replication, benchmarks)

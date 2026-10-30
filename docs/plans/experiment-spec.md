@@ -65,7 +65,8 @@ Ordered; each is a ticket. `/to-tickets` should encode the blocking links.
 ## Out of scope — follow-up tickets
 
 - Migrating the other four producers (`run_tuned_baselines`, `run_reframe_frequency`,
-  `run_tabfm`, and the analysis/rescore/plot scripts) — filed as #235.
+  `run_tabfm`, and the analysis/rescore/plot scripts) — implemented in #235
+  (`docs/plans/registry-producers.md`).
 - Retiring `src/baseline_config.py`, which serves the notebook-era `data_loader_class` —
   filed as #234.
 - Re-stamping or attributing the 220 legacy sweep rows, and the pre-spec CSVs generally.

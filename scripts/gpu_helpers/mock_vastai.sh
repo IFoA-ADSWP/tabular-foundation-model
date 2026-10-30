@@ -45,6 +45,19 @@ case "${1:-} ${2:-}" in
       # something happened.
       echo '{"success": true, "new_contract": 12345678}'
       printf '%s\n' "${MOCK_INSTANCE_ID:-12345678}" >> "$MOCK_STATE_DIR/created.txt"
+      # Capture the generated onstart payload as well. vast_run.sh deletes it on
+      # every exit path (it carries the licence token), so `create` is the only
+      # moment it exists -- which made "what environment does the box actually
+      # get?" unassertable at $0 until #263. The token line is REDACTED, so a test
+      # run cannot leave a live secret behind in the state directory.
+      _prev=""
+      for _a in "$@"; do
+          if [ "$_prev" = "--onstart" ] && [ -f "$_a" ]; then
+              sed 's/^export TABPFN_TOKEN=.*/export TABPFN_TOKEN=REDACTED/' "$_a" \
+                  > "$MOCK_STATE_DIR/onstart.sh"
+          fi
+          _prev="$_a"
+      done
       ;;
   "show instance")
       # MOCK_SEQUENCE: comma-separated statuses consumed one per call, so a test

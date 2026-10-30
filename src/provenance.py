@@ -549,9 +549,10 @@ def model_section(*, version=None, weights_sha256=None, client_version=None, ver
     `tabpfn-client` for the API -- recorded so "which stack produced this" is one lookup.
 
     `version_source` says what kind of claim `version` is. `resolver` means "the label this
-    repository resolves to"; it is not evidence that the estimator was constructed with it.
-    The pilot declares the version and does not pass it to `TabPFNClassifier`, so the block
-    states which claim it is making rather than implying a pin (#285).
+    repository resolves to". Since #285 the pilot *passes* that value to every estimator it
+    constructs, so `version_source` reads `pinned`: the label is then a statement about what was
+    asked for, and `weights_sha256` is the field that would contradict it. A record that predates
+    the pin says `resolver`, and states that weaker claim rather than implying a pin (#285).
     """
     return _check_section(
         _MODEL,

@@ -25,14 +25,24 @@ import pandas as pd
 from scipy import stats
 
 HERE = Path(__file__).resolve().parent
+REPO = HERE.parent.parent.parent
+sys.path.insert(0, str(REPO))  # repo root
+from src.experiment_spec import (  # noqa: E402
+    CLASSIFICATION,
+    datasets_by_mode,
+    load_registry,
+    mode_methods,
+)
+
+_REGISTRY = load_registry(HERE / "experiments.toml")
 TUNED_CSV = HERE / "frontier_tuned_baseline_results.csv"
 CANON_CSV = HERE / "frontier_pr_auc_results.csv"
 SUMMARY_CSV = HERE / "frontier_tuned_baseline_summary.csv"
 
-CANON_METHODS = ["cat", "lgbm", "xgb", "lr", "logisticglm", "tweedieglm",
-                 "poissonglm", "rf", "tabpfn"]
+CANON_METHODS = [m.name for m in mode_methods(_REGISTRY, CLASSIFICATION)]
+# Tuned variants are a method study, not a registry experiment (#235).
 TUNED_METHODS = ["lr_tuned", "glm_eng", "lgbm_tuned", "cat_tuned", "rf_tuned", "tabfm"]
-DATASETS = ["bemtl97", "coil2000", "uslapseagent", "norauto", "ausprivauto0405", "bemtl16"]
+DATASETS = [d.name for d in datasets_by_mode(_REGISTRY, CLASSIFICATION)]
 METRICS = ["auc", "pr_auc", "lift10", "log_loss", "brier"]
 DIRECTION = {"auc": "max", "pr_auc": "max", "lift10": "max",
              "log_loss": "min", "brier": "min"}  # better =

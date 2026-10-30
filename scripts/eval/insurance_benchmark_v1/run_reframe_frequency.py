@@ -6,11 +6,9 @@ classification task on ranking (AUC/PR-AUC). Reframing the count target as
 binary claim/no-claim (or ordinal 0/1/2+) may move TabPFN onto its strongest
 axis (probability ranking).
 
-Dataset: spanish_motor_freq (data/raw/spanish_motor_freq.csv, 53,502 rows,
-target N_claims_year, drop=[], no log_exposure transform) — loaded EXACTLY via
-run_frontier_benchmark.load_Xy() (the canonical regression-registry entry:
-cat.codes encoding for object/category cols, fillna(0), float32, no leak cols
-— N_claims_history/R_Claims_history/Cost_claims_year were dropped at prep
+Dataset: spanish_motor_freq, declared in experiments.toml (#235) and loaded
+EXACTLY through run_frontier_benchmark.load_Xy() (cat.codes encoding for
+object/category columns, fillna(0), float32; leak columns dropped at prep
 time).
 
 Reframed targets:
@@ -66,6 +64,7 @@ Usage:
 """
 from __future__ import annotations
 
+import sys
 import time
 from pathlib import Path
 
@@ -73,7 +72,6 @@ import numpy as np
 import pandas as pd
 
 from run_frontier_benchmark import (  # noqa: E402 — same-dir import, UNMODIFIED helpers
-    REG_DATASETS,
     _load_api_key,
     fold_scores,
     make_cat,
@@ -92,9 +90,24 @@ HERE = Path(__file__).resolve().parent
 OUT_CSV = HERE / "reframe_frequency_results.csv"
 
 N_FOLDS = 5
-BINARY_METHODS = ["cat", "lgbm", "xgb", "lr", "logisticglm", "tweedieglm",
-                  "poissonglm", "rf", "tabpfn"]  # canonical 9
-ORDINAL_METHODS = ["cat", "lgbm", "xgb", "lr", "rf", "tabpfn"]  # multiclass subset
+
+_REPO = HERE.parent.parent.parent
+if str(_REPO) not in sys.path:
+    sys.path.insert(0, str(_REPO))
+from src.experiment_spec import (  # noqa: E402
+    CLASSIFICATION,
+    dataset_entry,
+    load_registry,
+    mode_methods,
+)
+
+_REGISTRY = load_registry(HERE / "experiments.toml")
+# The canonical 9, as every classification experiment declares them (#235).
+BINARY_METHODS = [method.name for method in mode_methods(_REGISTRY, CLASSIFICATION)]
+
+
+# The ordinal task is a multiclass subset; it is a study selection, not an experiment.
+ORDINAL_METHODS = ["cat", "lgbm", "xgb", "lr", "rf", "tabpfn"]
 CPU_MAKERS = {
     "cat": make_cat, "lgbm": make_lgbm, "xgb": make_xgb,
     "lr": make_lr, "logisticglm": make_logisticglm,
@@ -194,7 +207,7 @@ def run_task(X: np.ndarray, y_task: np.ndarray, task: str, seed: int,
 
 def main() -> None:
     t0 = time.time()
-    ds = next(d for d in REG_DATASETS if d["name"] == "spanish_motor_freq")
+    ds = dataset_entry(_REGISTRY.datasets["spanish_motor_freq"])
     X, y_raw = load_xy(ds)
     say(f"loaded {ds['name']} X={X.shape} pos_rate={(y_raw > 0).mean():.4f}")
 

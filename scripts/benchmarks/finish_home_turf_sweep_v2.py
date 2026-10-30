@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 from src.api_key import load_api_key as _load_api_key  # noqa: E402  (src import after the repo-root path insert)
 from src.row_sizes import slice_data  # noqa: E402
 from src.model_version import resolve_model_path as _model_path  # noqa: E402
+from run_home_turf_size_sweep import declared_sizes, sweep_datasets  # noqa: E402
 REPO = HERE.parent.parent
 DATA_RAW = REPO / "data" / "raw"
 EVAL_DIR = REPO / "scripts" / "eval" / "insurance_benchmark_v1"
@@ -41,12 +42,16 @@ os.environ["TABPFN_CLIENT_TIMEOUT"] = "300"
 
 _load_api_key()
 
-SPEC = {
-    "coil2000": ("coil2000.csv", "CARAVAN", []),
-    "uslapseagent": ("uslapseagent.csv", "surrender", []),
-    "bemtl97": ("bemtl97.csv", "claim", ["nclaims", "amount"]),
-}
-SIZES = [1000, 5000, None]
+_ENTRIES = {entry["name"]: entry for entry in sweep_datasets()}
+SPEC = {name: (entry["file"], entry["target"], entry["drop"])
+        for name, entry in _ENTRIES.items()}
+
+# The sweep's size axis is declared once, in the registry (#264/#235). If the trio ever
+# disagrees, filling a different cell set than the canonical writer would be silent.
+_AXES = {name: declared_sizes(name) for name in SPEC}
+if len(set(_AXES.values())) != 1:
+    raise RuntimeError(f"sweep datasets disagree about their size axis: {_AXES}")
+SIZES = list(next(iter(_AXES.values())))
 T0 = time.time()
 
 

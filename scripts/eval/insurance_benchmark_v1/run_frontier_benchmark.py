@@ -4,12 +4,9 @@ Generalizes the validated pilot (run_frontier_pilot_bemtl97.py) to all three
 home-turf sweep datasets per docs/analyses/insurance_frontier_benchmark_spec.md
 (commit 037d215, branch feat/tabarena-benchmark), D5 Option A:
 
-  bemtl97       target=claim,    drop=["nclaims","amount"]  (leak-fixed)
-  coil2000      target=CARAVAN,  drop=[]
-  uslapseagent  target=surrender, drop=[]
-  norauto       target=NbClaim,  drop=[]                    (no sweep rows — fresh power)
-  ausprivauto0405 target=ClaimOcc, drop=[]                  (no sweep rows — fresh power)
-  bemtl16       target=number_of_liability_claims, drop=[]  (no sweep rows — fresh power)
+  The six datasets are declared in experiments.toml, with their targets and leak-drops;
+  they are not restated here (#235). norauto/ausprivauto0405/bemtl16 have no sweep rows
+  and therefore use fresh power.
 
 Each dataset is an INDEPENDENT frontier (separate table + plot, no cross-dataset
 Pareto comparison).
@@ -39,10 +36,8 @@ Regression mode (--regression flag): the same frontier machinery on continuous/c
 targets, 4 independent frontiers, always FRESH power (the sweep CSV is
 classification-only — regression never reuses it):
 
-  ausautoBI8999         target=AggClaim (already log-scale),  drop=[], metric=rmse
-  ausprivauto0405_vehvalue target=VehValue (raw),             drop=[], metric=rmse
-  bemtl97_amount        target=amount (log1p),                drop=["claim"], metric=rmse
-  freMTPL2freq          target=ClaimNb,                       drop=["IDpol"], metric=poisson_deviance
+  The six datasets, their stored scale, targets, drops and metrics are declared in
+  experiments.toml (#235); this docstring no longer restates them.
 
 bemtl97_amount drops `claim` because claim == (amount > 0) at 100% — a deterministic
 leak of the target (verified). freMTPL2freq drops IDpol (unique ids) and replaces the
@@ -120,7 +115,8 @@ from src.experiment_spec import (  # noqa: E402  (src import after the path inse
     REGRESSION,
     Experiment,
     RegistryError,
-    as_runner_dataset,
+    dataset_entry,
+    datasets_by_mode,
     load_registry,
     make_folds,
     resolve_row_size,
@@ -132,40 +128,6 @@ from src.model_version import (  # noqa: E402  (src import after the path insert
 from src.row_sizes import slice_data  # noqa: E402  (src import after the path insert above)
 DATA_RAW = REPO / "data" / "raw"
 EXPERIMENTS_TOML = HERE / "experiments.toml"  # the committed registry (#230)
-
-# Deprecated for the frontier classification path: #231 selects datasets from the loaded
-# registry. Kept because run_tuned_baselines.py imports it until #235 migrates the other
-# producers; nothing in the classification frontier reads it.
-# D5 Option A: the home-turf sweep datasets plus norauto. Load configs identical to
-# scripts/benchmarks/run_home_turf_size_sweep.py (target + drops); norauto.csv was leak-fixed
-# in d170afc (ClaimAmount dropped — do not re-derive) and has no sweep rows.
-DATASETS = [
-    dict(name="bemtl97", file="bemtl97.csv", target="claim", drop=["nclaims", "amount"]),
-    dict(name="coil2000", file="coil2000.csv", target="CARAVAN", drop=[]),
-    dict(name="uslapseagent", file="uslapseagent.csv", target="surrender", drop=[]),
-    dict(name="norauto", file="norauto.csv", target="NbClaim", drop=[]),
-    dict(name="ausprivauto0405", file="ausprivauto0405.csv", target="ClaimOcc", drop=[]),
-    dict(name="bemtl16", file="bemtl16.csv", target="number_of_liability_claims", drop=[]),
-]
-
-# Regression-mode datasets (--regression flag) — always FRESH power, no sweep reuse.
-# Targets are used AS STORED (AggClaim is already log-scale, amount is log1p — no
-# re-transform; RMSE/deviance computed on the stored scale). bemtl97_amount drops
-# `claim`: verified claim == (amount > 0) at 100% — a deterministic leak of the target.
-# freMTPL2freq drops IDpol (unique ids) and replaces Exposure with log(Exposure)
-# (natural Poisson offset; verified no Exposure=0 rows) via transform="log_exposure".
-# spanish_motor_freq: last policy-year per ID (53,502 rows), target N_claims_year;
-# NO log_exposure transform — per-row exposure is uniform ~1 year (verified in step
-# 1), and leak columns (N_claims_history/R_Claims_history/Cost_claims_year) were
-# dropped at prep time (scripts/infra/prepare_insurance_datasets.py).
-REG_DATASETS = [
-    dict(name="ausautoBI8999", file="ausautoBI8999.csv", target="AggClaim", drop=[], metric="rmse"),
-    dict(name="ausprivauto0405_vehvalue", file="ausprivauto0405.csv", target="VehValue", drop=[], metric="rmse"),
-    dict(name="bemtl97_amount", file="bemtl97.csv", target="amount", drop=["claim"], metric="rmse"),
-    dict(name="freMTPL2freq", file="freMTPL2freq.csv", target="ClaimNb", drop=["IDpol"], metric="poisson_deviance", transform="log_exposure"),
-    dict(name="spanish_motor_freq", file="spanish_motor_freq.csv", target="N_claims_year", drop=[], metric="poisson_deviance"),
-    dict(name="spanish_motor_severity", file="spanish_motor_severity.csv", target="Cost_claims_year", drop=[], metric="rmse"),
-]
 
 METRIC_LABELS = {  # plot y-axis per metric (metric_fn dispatch)
     "log_loss": "mean log loss",
@@ -1322,21 +1284,9 @@ def select_datasets(args: argparse.Namespace) -> tuple[list[dict], set[str] | No
                   metric="rmse" if args.regression else "log_loss",
                   drop=[c.strip() for c in args.drop.split(",")] if args.drop else [])
         return [ds], None  # --data wins; filters ignored
-    if args.regression:
-        datasets = REG_DATASETS
-    else:
-        registry = load_registry(EXPERIMENTS_TOML)
-        classification = [experiment for experiment in registry.experiments.values()
-                          if experiment.mode == CLASSIFICATION]
-        names = [experiment.dataset for experiment in classification]
-        duplicates = sorted({name for name in names if names.count(name) > 1})
-        if duplicates:
-            raise RegistryError(
-                f"dataset {duplicates[0]!r} is claimed by more than one classification "
-                f"experiment; the output filename is keyed to the dataset, so two "
-                f"experiments would overwrite each other"
-            )
-        datasets = [as_runner_dataset(registry, experiment) for experiment in classification]
+    registry = load_registry(EXPERIMENTS_TOML)
+    mode = REGRESSION if args.regression else CLASSIFICATION
+    datasets = [dataset_entry(dataset) for dataset in datasets_by_mode(registry, mode)]
     wanted = {f.lower() for f in args.filters} if args.filters else None
     return datasets, wanted
 
@@ -1353,7 +1303,7 @@ def experiment_selection(experiment_id: str) -> tuple[list[dict], Experiment]:
     if experiment.mode == CLASSIFICATION:
         # A method the file names but the code cannot build fails here, before any fit.
         planned_classification_methods(experiment.methods)
-    return [as_runner_dataset(registry, experiment)], experiment
+    return [dataset_entry(registry.dataset_of(experiment))], experiment
 
 
 def selected(name: str, wanted: set[str] | None) -> bool:
@@ -1518,6 +1468,18 @@ def main() -> None:
         # the last experiment must cost seconds, not five completed datasets.
         for declared in classification:
             planned_classification_methods(declared.methods)
+        if args.experiment is None:
+            # The all-datasets run writes one frontier_results_<dataset>.csv per dataset;
+            # two experiments on one dataset would overwrite each other. A named
+            # --experiment is unambiguous and skips this check.
+            names = [declared.dataset for declared in classification]
+            duplicates = sorted({name for name in names if names.count(name) > 1})
+            if duplicates:
+                raise RegistryError(
+                    f"dataset {duplicates[0]!r} is claimed by more than one classification "
+                    f"experiment; the output filename is keyed to the dataset, so two "
+                    f"experiments would overwrite each other"
+                )
         experiments_by_dataset = {experiment.dataset: experiment for experiment in classification}
         if args.experiment is None:
             # This run is a sweep of several experiments, and the manifest is one artifact

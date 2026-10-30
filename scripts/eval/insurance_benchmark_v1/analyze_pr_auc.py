@@ -21,11 +21,21 @@ import pandas as pd
 from scipy import stats
 
 HERE = Path(__file__).resolve().parent
+REPO = HERE.parent.parent.parent
+sys.path.insert(0, str(REPO))  # repo root
+from src.experiment_spec import (  # noqa: E402
+    CLASSIFICATION,
+    datasets_by_mode,
+    load_registry,
+    mode_methods,
+)
+
+_REGISTRY = load_registry(HERE / "experiments.toml")
 PER_FOLD_CSV = HERE / "frontier_pr_auc_results.csv"
 SUMMARY_CSV = HERE / "frontier_pr_auc_summary.csv"
 GLM_FAMILY = ["lr", "logisticglm", "tweedieglm", "poissonglm"]
-METHODS = ["cat", "lgbm", "xgb", "lr", "logisticglm", "tweedieglm", "poissonglm", "rf", "tabpfn"]
-DATASETS = ["bemtl97", "coil2000", "uslapseagent", "norauto", "ausprivauto0405", "bemtl16"]
+METHODS = [m.name for m in mode_methods(_REGISTRY, CLASSIFICATION)]
+DATASETS = [d.name for d in datasets_by_mode(_REGISTRY, CLASSIFICATION)]
 SEED_DATASETS = ["ausprivauto0405", "bemtl97", "norauto"]  # runs B/C scope
 METRICS = ["log_loss", "auc", "pr_auc", "lift10"]
 DIRECTION = {"log_loss": "min", "auc": "max", "pr_auc": "max", "lift10": "max"}  # better =

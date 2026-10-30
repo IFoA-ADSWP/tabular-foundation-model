@@ -194,12 +194,10 @@ def test_the_experiments_methods_resolve_in_its_own_mode_in_declared_order(tmp_p
     assert registry.dataset_of(experiment).name == "toy"
 
 
-# ---- the committed file vs the code it was generated from --------------------
+# ---- the committed file vs the code it declares -----------------------------
 #
-# DATASETS is deprecated for the classification frontier (#231 reads the registry) but
-# run_tuned_baselines still imports it until #235; REG_DATASETS serves regression until
-# #232/#235. This test keeps the committed file and those remaining code lists from
-# drifting apart.
+# The dataset constants are gone (#235); this keeps the method table and the committed
+# experiments from drifting apart.
 
 REGISTRY = (
     Path(__file__).resolve().parents[1]
@@ -240,41 +238,6 @@ def _runner():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
-
-def test_the_committed_registry_covers_the_remaining_code_dataset_lists():
-    runner = _runner()
-    registry = load_registry(REGISTRY)
-
-    expected = {d["name"]: d for d in runner.DATASETS + runner.REG_DATASETS}
-    # The registry also serves the pilot (#238), whose datasets the frontier does not
-    # hold; the frontier's datasets must all be there, and the extras are the pilot's.
-    assert set(expected) <= set(registry.datasets)
-    pilot = _pilot()
-    assert set(registry.datasets) - set(expected) == set(pilot.DATASETS) - set(expected)
-
-    for name, declared in expected.items():
-        dataset = registry.datasets[name]
-        assert dataset.file == declared["file"], name
-        assert dataset.target == declared["target"], name
-        assert dataset.drop == tuple(declared["drop"]), name
-        assert dataset.metric == declared.get("metric", "log_loss"), name
-        assert dataset.transform == declared.get("transform"), name
-
-    # every dataset has exactly one experiment, at the runner's fold count and seed
-    assert set(registry.experiments) == set(expected)
-    for name, experiment in registry.experiments.items():
-        assert experiment.dataset == name
-        assert experiment.n_folds == runner.N_FOLDS
-        assert experiment.seed == runner.SEED
-
-    # the runner compares the same method list for every dataset in a mode, so the
-    # registry must too — checking only one experiment per mode would let the other ten
-    # drift silently
-    for mode in ("classification", "regression"):
-        lists = {experiment.methods for experiment in registry.experiments.values()
-                 if experiment.mode == mode}
-        assert len(lists) == 1, f"{mode} experiments disagree about which methods: {lists}"
 
 
 def test_the_committed_registry_declares_every_method_in_runner_order():
@@ -456,13 +419,17 @@ def test_the_declared_sizes_are_the_points_the_committed_sweep_holds():
 # ---- the pilot's experiment kind (#238) -------------------------------------
 
 PILOT_MINIMAL = MINIMAL + """
+[pilot_datasets.toy_p]
+file = "toy.csv"
+target = "y"
+
 [pilot_methods.A_raw]
 
 [pilot_methods.B_ft10]
 epochs = 10
 
 [pilot_experiments.toy_p1a]
-dataset = "toy"
+dataset = "toy_p"
 arms = ["A_raw", "B_ft10"]
 seed = 42
 train_size = 2000
@@ -483,7 +450,7 @@ def test_a_pilot_experiment_loads_with_its_arms_and_base_config(tmp_path):
     registry = load_registry(write(tmp_path, PILOT_MINIMAL))
     experiment = registry.pilot_experiment("toy_p1a")
 
-    assert (experiment.dataset, experiment.arms) == ("toy", ("A_raw", "B_ft10"))
+    assert (experiment.dataset, experiment.arms) == ("toy_p", ("A_raw", "B_ft10"))
     assert experiment.seed == 42
     assert experiment.folds is None  # absent means one split, not a default fold count
     assert (experiment.train_size, experiment.test_size) == (2000, 1000)
@@ -502,7 +469,7 @@ def test_an_unknown_pilot_experiment_names_it_and_lists_the_known_ones(tmp_path)
 
 
 @pytest.mark.parametrize("old, new, message", [
-    ('dataset = "toy"\narms', 'dataset = "ghost"\narms', "unknown dataset 'ghost'"),
+    ('dataset = "toy_p"\narms', 'dataset = "ghost"\narms', "unknown dataset 'ghost'"),
     ('arms = ["A_raw", "B_ft10"]', 'arms = ["A_raw", "nope"]', "unknown pilot arm 'nope'"),
     ('arms = ["A_raw", "B_ft10"]', 'arms = ["A_raw", "A_raw"]', "more than once"),
     ("seed = 42", "seed = -1", "must be at least 0"),

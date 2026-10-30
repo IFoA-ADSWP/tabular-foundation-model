@@ -157,3 +157,20 @@ def test_resolved_config_applies_the_arms_own_budget(monkeypatch):
     assert mod.resolved_config("B_ft30", base)["epochs"] == 30
     assert mod.resolved_config("A_raw", base)["epochs"] == 3
     assert base["epochs"] == 3  # the caller's config is not mutated
+
+
+def test_the_registry_declares_the_pilots_datasets_and_experiments():
+    # The frontier no longer keeps a code dataset list (#235), so this is the one place
+    # that checks the pilot's datasets and its four declarations are in the registry.
+    from experiment_spec import load_registry
+
+    registry = load_registry(mod.REGISTRY_TOML)
+
+    # A pilot dataset resolves in its own section, or in [datasets] when the frontier runs
+    # it too; the file and target must match the pilot's own list either way.
+    for name, declared in mod.DATASETS.items():
+        entry = registry.pilot_datasets.get(name) or registry.datasets.get(name)
+        assert entry is not None, name
+        assert entry.file == declared["file"], name
+        assert entry.target == declared["target"], name
+    assert set(registry.pilot_experiments) == {f"{name}_p1a" for name in mod.DATASETS}

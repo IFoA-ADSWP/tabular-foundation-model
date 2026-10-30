@@ -68,6 +68,10 @@ An experiment's identity is declared in six code sites:
 | Reuse predicate | Guard on recorded provenance — reuse only rows whose `seed` and `model_version` match the experiment. The sweep writer gains both columns; the 220 legacy rows become ineligible, so the first post-spec run refits once |
 | Metrics | Closed name→implementation table lives in code; experiments select names; unknown name is a load error |
 | Module | `experiment_spec.py` in `src/` — loader, dataclasses, `evaluate`, `make_folds` |
+
+**Update 2026-10-30:** `src/baseline_config.py` is retired (#234). Its paths, seed and
+seed helper now live in `src/baseline_utils.py`, which the notebook-era code already
+imported.
 | Authoring the file | Generate once from the current `DATASETS`/`REGR_DATASETS`/method lists with a throwaway script, commit the output, drop the script |
 | Hazard 2 timing | Fixed inside this change, as a consequence of `make_folds`; not a separate PR |
 

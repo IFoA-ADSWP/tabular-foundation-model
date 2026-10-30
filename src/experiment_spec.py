@@ -48,6 +48,7 @@ _EXPERIMENT_KEYS = ("dataset", "methods", "n_folds", "seed", "model_version", "r
 # The pilot's experiment kind (#238). A pilot experiment shares the dataset and the model
 # version with a frontier experiment and nothing else, so it is its own section rather
 # than a discriminator every frontier reader would have to branch on.
+_PILOT_DATASET_KEYS = ("file", "target")
 _PILOT_METHOD_KEYS = ("epochs",)
 _PILOT_EXPERIMENT_KEYS = ("dataset", "arms", "seed", "folds", "train_size", "test_size",
                           "model_version", "config")
@@ -124,6 +125,21 @@ def resolve_row_size(experiment: Experiment, requested: int | None) -> int | Non
 
 
 @dataclass(frozen=True)
+class PilotDataset:
+    """A table the pilot measures (#238).
+
+    Its own section, not `[datasets]`: a frontier dataset carries a metric and has exactly
+    one experiment (#235 asserts that), while the pilot's datasets are scored by the arm
+    runner and some are pilot-only. Sharing the section would make the frontier claim
+    datasets it cannot run.
+    """
+
+    name: str
+    file: str
+    target: str
+
+
+@dataclass(frozen=True)
 class PilotMethod:
     """One arm the pilot can run. `epochs` is the arm's own budget; None inherits (#238)."""
 
@@ -176,6 +192,7 @@ class Registry:
     datasets: Mapping[str, Dataset]
     methods: Mapping[str, Mapping[str, Method]]
     experiments: Mapping[str, Experiment]
+    pilot_datasets: Mapping[str, PilotDataset]
     pilot_methods: Mapping[str, PilotMethod]
     pilot_experiments: Mapping[str, PilotExperiment]
 
@@ -308,8 +325,8 @@ def load_registry(path: str | Path) -> Registry:
         )
 
     sections = {}
-    for section in ("datasets", "methods", "experiments", "pilot_methods",
-                    "pilot_experiments"):
+    for section in ("datasets", "methods", "experiments", "pilot_datasets",
+                    "pilot_methods", "pilot_experiments"):
         value = raw.pop(section, {})
         if not isinstance(value, Mapping):
             raise RegistryError(f"{_loc(path, section)} must be a table, got {value!r}")
@@ -333,12 +350,16 @@ def load_registry(path: str | Path) -> Registry:
         for name, entry in sections["experiments"].items()
     }
 
+    pilot_datasets = {
+        name: _pilot_dataset(path, name, entry)
+        for name, entry in sections["pilot_datasets"].items()
+    }
     pilot_methods = {
         name: _pilot_method(path, name, entry)
         for name, entry in sections["pilot_methods"].items()
     }
     pilot_experiments = {
-        name: _pilot_experiment(path, name, entry, datasets, pilot_methods)
+        name: _pilot_experiment(path, name, entry, datasets, pilot_datasets, pilot_methods)
         for name, entry in sections["pilot_experiments"].items()
     }
 
@@ -347,6 +368,7 @@ def load_registry(path: str | Path) -> Registry:
         datasets=MappingProxyType(datasets),
         methods=MappingProxyType({m: MappingProxyType(t) for m, t in methods.items()}),
         experiments=MappingProxyType(experiments),
+        pilot_datasets=MappingProxyType(pilot_datasets),
         pilot_methods=MappingProxyType(pilot_methods),
         pilot_experiments=MappingProxyType(pilot_experiments),
     )
@@ -455,6 +477,17 @@ def _number(loc: str, entry: Mapping[str, Any], key: str, minimum: float) -> flo
     return float(value)
 
 
+def _pilot_dataset(path: Path, name: str, entry: Mapping[str, Any]) -> PilotDataset:
+    loc = _loc(path, f"pilot_datasets.{name}")
+    entry = _table(loc, entry)
+    _check_keys(loc, entry, _PILOT_DATASET_KEYS)
+    return PilotDataset(
+        name=name,
+        file=_text(loc, entry, "file"),
+        target=_text(loc, entry, "target"),
+    )
+
+
 def _pilot_method(path: Path, name: str, entry: Mapping[str, Any]) -> PilotMethod:
     loc = _loc(path, f"pilot_methods.{name}")
     entry = _table(loc, entry)
@@ -481,6 +514,7 @@ def _pilot_experiment(
     name: str,
     entry: Mapping[str, Any],
     datasets: Mapping[str, Dataset],
+    pilot_datasets: Mapping[str, PilotDataset],
     pilot_methods: Mapping[str, PilotMethod],
 ) -> PilotExperiment:
     loc = _loc(path, f"pilot_experiments.{name}")
@@ -488,8 +522,9 @@ def _pilot_experiment(
     _check_keys(loc, entry, _PILOT_EXPERIMENT_KEYS)
 
     dataset_name = _text(loc, entry, "dataset")
-    if dataset_name not in datasets:
-        _fail(loc, f"references unknown dataset {dataset_name!r}")
+    if dataset_name not in pilot_datasets and dataset_name not in datasets:
+        known = ", ".join(sorted(set(pilot_datasets) | set(datasets)))
+        _fail(loc, f"references unknown dataset {dataset_name!r} (declared: {known})")
 
     names = _require(loc, entry, "arms")
     if (not isinstance(names, list) or not names
@@ -540,19 +575,24 @@ def make_folds(kind: str, n_folds: int, seed: int):
     )
 
 
-def as_runner_dataset(registry: Registry, experiment: Experiment) -> dict[str, Any]:
-    """The dataset entry the v1 runner's `run_dataset*` functions already take.
+def datasets_by_mode(registry: Registry, mode: str) -> tuple[Dataset, ...]:
+    """Every Dataset of one mode, in the registry's declared order.
 
-    `name` is the *dataset's*, not the experiment's: output filenames, the sweep join and
-    the capture stem are keyed to the data being measured, and the acceptance criterion for
-    #230 is that discovery by `{dataset}__seed{s}__*` still resolves. An experiment that
-    renamed its dataset would rename its artifacts, so it does not.
-
-    #231 keeps this adapter: the runner takes methods, folds and metric from the
-    experiment, while `load_Xy` and the capture writer still take the dict shape this
-    returns. The dataset name is the one field that must not move.
+    Scripts that loop over datasets use this instead of a private list. An unknown mode is
+    refused rather than returning an empty tuple that would silently run nothing.
     """
-    dataset = registry.dataset_of(experiment)
+    if mode not in MODES:
+        raise RegistryError(f"unknown mode {mode!r}; expected one of: {', '.join(MODES)}")
+    return tuple(dataset for dataset in registry.datasets.values() if dataset.mode == mode)
+
+
+def dataset_entry(dataset: Dataset) -> dict[str, Any]:
+    """The dataset entry the v1 runners' `load_Xy`/capture functions already take.
+
+    `name` is the *dataset's*: output filenames, the sweep join and the capture stem are
+    keyed to the data being measured, and discovery by `{dataset}__seed{s}__*` must keep
+    resolving. The dict shape is the seam `load_Xy` takes; the registry owns the values.
+    """
     entry: dict[str, Any] = {
         "name": dataset.name,
         "file": dataset.file,
@@ -563,3 +603,28 @@ def as_runner_dataset(registry: Registry, experiment: Experiment) -> dict[str, A
     if dataset.transform:
         entry["transform"] = dataset.transform
     return entry
+
+
+def load_dataset_entries(path: str | Path, mode: str) -> list[dict[str, Any]]:
+    """Every Dataset entry of one mode, for a producer that only needs the entries."""
+    return [dataset_entry(dataset) for dataset in datasets_by_mode(load_registry(path), mode)]
+
+
+def mode_methods(registry: Registry, mode: str) -> tuple[Method, ...]:
+    """The method list every experiment of one mode declares, refusing disagreement.
+
+    Producers that are not themselves experiments (the reframe study, the rescore) lift
+    the mode's method set from the registry instead of picking an arbitrary anchor
+    experiment. If two experiments in a mode ever declare different methods, those
+    scripts can no longer claim one canonical set, so the load fails loudly.
+    """
+    experiments = [e for e in registry.experiments.values() if e.mode == mode]
+    if not experiments:
+        raise RegistryError(f"no experiments for mode {mode!r}")
+    lists = {experiment.methods for experiment in experiments}
+    if len(lists) != 1:
+        raise RegistryError(
+            f"{mode} experiments disagree about which methods they compare: "
+            f"{sorted(lists)}"
+        )
+    return registry.methods_of(experiments[0])
