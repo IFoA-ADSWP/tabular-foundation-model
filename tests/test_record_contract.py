@@ -182,9 +182,10 @@ def test_the_block_names_its_dataset_split_model_and_code(mock_arm_run):
     assert block["split"]["sha256"] == record["split_fingerprint"]["train_index_sha256"]
 
     assert block["model"]["version"], "no pilot record has ever carried a model version"
-    # The pilot declares the version; it does not pass it to the estimator (#285). The block
+    # Since #285 the pilot passes the resolved version to the estimator, so the block's claim is
+    # a pin rather than a declaration. The block
     # says which claim it is making rather than implying a pin.
-    assert block["model"]["version_source"] == "resolver"
+    assert block["model"]["version_source"] == "pinned"
     assert block["model"]["client_version"]
 
     assert len(block["code"]["git_sha"]) == 40
@@ -226,7 +227,7 @@ def _complete(**over) -> dict:
             },
             "model": {
                 "version": "v3_default",
-                "version_source": "resolver",
+                "version_source": "pinned",
                 "weights_sha256": "c" * 64,
                 "client_version": "2.6.0",
             },
