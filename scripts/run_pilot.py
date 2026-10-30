@@ -70,7 +70,11 @@ from provenance import (  # noqa: E402  (same-dir module, after the src path ins
     split_rule,
     split_section,
 )
-from experiment_spec import RegistryError, load_registry  # noqa: E402
+from experiment_spec import (  # noqa: E402
+    RegistryError,
+    arm_epoch_budget,
+    load_registry,
+)
 from model_version import resolve_model_path  # noqa: E402
 
 # The arm record's layout is `provenance.ARM_RECORD_SCHEMA_VERSION` (3 since #241) and the
@@ -903,8 +907,16 @@ ARM_EPOCH_OVERRIDES = {"B_ft3": 3, "B_ft10": 10, "B_ft30": 30}
 LADDER_ARMS = ("B_ft3", "B_ft10", "B_ft30")
 
 
+# Set when the run named a declared experiment: its arms' budgets, from the registry,
+# replace the module's ladder table. None means "no declaration" and the table stands,
+# which is what keeps an invocation without an id behaving as it did before (#238).
+ARM_BUDGETS: dict[str, int] | None = None
+
+
 def arm_epochs(arm, config):
     """The epoch budget an arm will actually run."""
+    if ARM_BUDGETS is not None and arm in ARM_BUDGETS:
+        return ARM_BUDGETS[arm]
     return ARM_EPOCH_OVERRIDES.get(arm, config["epochs"])
 
 
@@ -1448,9 +1460,10 @@ def resolve_invocation(args):
             if value is not None:
                 config[key] = value
         return (args.dataset, arms or list(ARMS), seeds or [DEFAULT_SEED], train_size,
-                test_size, args.folds, config)
+                test_size, args.folds, config, None)
 
-    declared = load_registry(REGISTRY_TOML).pilot_experiment(args.experiment)
+    registry = load_registry(REGISTRY_TOML)
+    declared = registry.pilot_experiment(args.experiment)
 
     if args.dataset is not None:
         _refuse(declared.id, "--dataset", declared.dataset, args.dataset)
@@ -1475,9 +1488,13 @@ def resolve_invocation(args):
         if given is not None:
             _refuse(declared.id, flag, getattr(declared.config, key), given)
 
+    budgets = {
+        method.name: arm_epoch_budget(declared, method)
+        for method in registry.pilot_methods_of(declared)
+    }
     return (declared.dataset, list(declared.arms), [declared.seed],
             declared.train_size, declared.test_size, declared.folds,
-            _config_dict(declared.config))
+            _config_dict(declared.config), budgets)
 
 
 def make_parser():
@@ -1545,8 +1562,10 @@ def main():
     parser = make_parser()
     args = parser.parse_args()
 
+    global ARM_BUDGETS
     try:
-        dataset, arms, seeds, train_size, test_size, folds, config = resolve_invocation(args)
+        dataset, arms, seeds, train_size, test_size, folds, config, ARM_BUDGETS = \
+            resolve_invocation(args)
     except (InvocationError, RegistryError) as exc:
         parser.error(str(exc))
     rung_name = args.rung

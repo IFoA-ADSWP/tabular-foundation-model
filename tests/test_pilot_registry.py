@@ -33,7 +33,7 @@ def resolve(*argv):
 # ---- without an id: exactly the pre-#238 behaviour ---------------------------
 
 def test_without_an_experiment_the_module_defaults_are_unchanged():
-    dataset, arms, seeds, train_size, test_size, folds, config = resolve()
+    dataset, arms, seeds, train_size, test_size, folds, config, budgets = resolve()
 
     assert dataset is None  # every dataset
     assert arms == list(mod.ARMS)
@@ -41,10 +41,11 @@ def test_without_an_experiment_the_module_defaults_are_unchanged():
     assert (train_size, test_size) == (mod.TRAIN_SIZE, mod.TEST_SIZE)
     assert folds is None
     assert config == mod.DEFAULT_CONFIG
+    assert budgets is None  # no declaration, so the module's ladder table stands
 
 
 def test_without_an_experiment_flags_still_override_the_defaults():
-    _dataset, _arms, seeds, train_size, test_size, folds, config = resolve(
+    _dataset, _arms, seeds, train_size, test_size, folds, config, _budgets = resolve(
         "--seeds", "42,43", "--rung", "P1b", "--folds", "5",
         "--epochs", "10", "--learning-rate", "1e-4", "--n-estimators", "4",
     )
@@ -64,7 +65,7 @@ def test_without_an_experiment_an_unknown_arm_is_refused():
 # ---- with an id: the registry owns the values -------------------------------
 
 def test_an_experiment_supplies_every_value_without_a_flag():
-    dataset, arms, seeds, train_size, test_size, folds, config = resolve(
+    dataset, arms, seeds, train_size, test_size, folds, config, budgets = resolve(
         "--experiment", "coil2000_p1a")
 
     assert dataset == "coil2000"
@@ -74,10 +75,12 @@ def test_an_experiment_supplies_every_value_without_a_flag():
     assert folds is None
     assert config["epochs"] == 3
     assert config["context_samples"] == 64
+    # the declaration owns the arm budgets; the module's ladder table is not consulted
+    assert budgets == {"A_raw": 3, "B_in_domain": 3, "E_glm": 3, "F_catboost": 3}
 
 
 def test_a_flag_that_repeats_the_declaration_is_accepted():
-    _dataset, _arms, seeds, train_size, test_size, _folds, config = resolve(
+    _dataset, _arms, seeds, train_size, test_size, _folds, config, _budgets = resolve(
         "--experiment", "coil2000_p1a", "--seeds", "42", "--epochs", "3",
         "--train-size", "2000", "--test-size", "1000", "--rung", "P1a",
         "--dataset", "coil2000", "--arms", "A_raw,B_in_domain,E_glm,F_catboost",
@@ -115,3 +118,14 @@ def test_an_unknown_experiment_id_names_it_and_lists_the_known_ones():
 
     assert "unknown pilot experiment 'nope'" in str(raised.value)
     assert "coil2000_p1a" in str(raised.value)
+
+
+def test_the_declared_budgets_replace_the_module_ladder_table(monkeypatch):
+    # With an experiment, the registry owns the ladder; without one, the table is the
+    # fallback that keeps every pre-#238 invocation identical.
+    monkeypatch.setattr(mod, "ARM_BUDGETS", {"B_ft10": 7})
+    assert mod.arm_epochs("B_ft10", {"epochs": 3}) == 7
+
+    monkeypatch.setattr(mod, "ARM_BUDGETS", None)
+    assert mod.arm_epochs("B_ft10", {"epochs": 3}) == 10  # ARM_EPOCH_OVERRIDES
+    assert mod.arm_epochs("A_raw", {"epochs": 3}) == 3
