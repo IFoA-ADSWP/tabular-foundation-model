@@ -81,9 +81,13 @@ Each is $0 or near-$0. All can run on CPU. All produce evidence that changes the
 - If they use **different features** → the gap is a feature-coverage problem, not a model-adaptation problem
 - If LGBM uses **interaction features** that neither TabPFN nor GLM see → feature engineering is the lever
 
-**Where the evidence lives:** The canonical folds and models are already committed in `scripts/eval/insurance_benchmark_v1/`.
+**Where the evidence lives:** The canonical folds and their **prediction** arrays are committed in
+`scripts/eval/insurance_benchmark_v1/`. The **fitted models are not** — only `.npz` predictions and their
+manifests are in the tree — so permutation importance has nothing to load.
 
-**Effort:** One script, ~300 lines. Reuse the benchmark's model objects, compute permutation importance on the test set.
+**Effort:** One script, ~300 lines. **Refit** the three model families locally with the open checkpoint on a
+fixed **2,000-row subsample**, then compute permutation importance. Record the cap in the evidence: importance
+from a subsample is a stated approximation, not a property of the full dataset. Local refit keeps this at $0.
 
 ### D3 — Target Reframing Ablation (analysis only, $0)
 
@@ -97,7 +101,9 @@ Each is $0 or near-$0. All can run on CPU. All produce evidence that changes the
 3. Run the benchmark on the reframed target
 4. Compare TabPFN's rank before and after
 
-**Datasets:** freMTPL2freq (678K rows), spanish_motor_freq (53.5K rows), norauto (184K rows — NbClaim), bemtl16 (58.7K — liability_claims count).
+**Datasets:** freMTPL2freq (678K rows), norauto (184K rows — NbClaim), bemtl16 (58.7K — liability_claims count).
+`spanish_motor_freq` (53.5K) was **already reframed in §14.14**, binary and ordinal, with verdicts — cite that
+result rather than re-running it. The open question here is "does it work on freMTPL2freq?", not "does it work".
 
 **What it answers:** If reframing flips 2+ datasets, the "frequency loss" is a framing artefact, not a model limitation. This would be a $0 finding that changes the adoption rule.
 
@@ -133,7 +139,7 @@ The comparison must also record raw TabPFN at matched row counts. A fine-tuning 
 
 **What it answers:** If the LR advantage is explained by specific features or interactions, we can either engineer those features for TabPFN or accept that GLM is the right model for this dataset. Either way, we understand the result instead of fine-tuning blind.
 
-**Effort:** Part of D1–D4, plus ~1 hour of directed analysis.
+**Effort:** Part of D1–D4, plus ~1 hour of directed analysis. **Blocked by D1, D2 and D4**, which it consumes.
 
 ---
 

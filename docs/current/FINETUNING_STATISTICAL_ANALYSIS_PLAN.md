@@ -167,6 +167,21 @@ Any departure from this plan is recorded as a **dated deviation** stating what c
 result computed **both ways** where that is possible. Deviations are listed in the report itself; they
 are never resolved silently. A deviation agreed after seeing the result is stated as such.
 
+### D-1 (2026-10-30) — §12.1's resolution figure contradicts the measured half-widths
+
+**Stated:** §12.1 says `uslapseagent` "can resolve >= 0.009 ROC", computed from "R1's own paired 95%
+intervals on 1,000 test rows".
+
+**Observed:** `FINETUNING_PROBE_RESULTS.md` records the paired 95% half-widths actually achieved on
+that dataset at 2,000 training rows as **0.0022 / 0.0023 / 0.0043** — four times tighter than the
+figure §12.1 attributes to the same source.
+
+**Consequence:** the anchor's acceptance rests on the interval rule in
+`FINETUNING_EXECUTION_RUNBOOK.md` and on decision **D9**, not on the 0.009 figure. Nothing is
+recomputed here; the discrepancy is recorded so the figure cannot be quoted as settled, and the
+reconciliation is owed before the breadth phase. If §12.1 turns out to describe between-seed resolution
+rather than within-run interval width, that will be stated when it is reconciled.
+
 ## 11. Reproducibility linkage
 
 Seeds, splits, data ref, container image and package versions are recorded per run by the pipeline's

@@ -320,3 +320,36 @@ def test_make_folds_refuses_an_unknown_kind_and_names_it():
 
     with pytest.raises(RegistryError, match=r"unknown fold kind 'nope'"):
         make_folds("nope", 5, 42)
+
+
+def test_make_folds_kfold_matches_the_pre_change_seed_42_split():
+    # Stored pin, not a re-derivation: sha256 over the concatenated test indices from
+    # KFold(n_splits=5, shuffle=True, random_state=42).split(np.zeros((120, 3))),
+    # captured from the pre-#232 call site. A constructor change that moved the split
+    # would fail here even if the new call still looked like a KFold.
+    import hashlib
+
+    import numpy as np
+
+    from src.experiment_spec import make_folds
+
+    X = np.zeros((120, 3))
+    digest = hashlib.sha256()
+    for _, te in make_folds("kfold", 5, 42).split(X):
+        digest.update(np.asarray(te, dtype=np.int64).tobytes())
+
+    assert digest.hexdigest() == (
+        "00fe19c76ccec896226199505d3032d06bfd50c7aef1e61b0c727ee686dbbe5a"
+    )
+
+
+def test_make_folds_kfold_honours_a_changed_seed():
+    import numpy as np
+
+    from src.experiment_spec import make_folds
+
+    X = np.zeros((120, 3))
+    first = list(make_folds("kfold", 5, 42).split(X))
+    second = list(make_folds("kfold", 5, 7).split(X))
+
+    assert any(not np.array_equal(a[1], b[1]) for a, b in zip(first, second))
