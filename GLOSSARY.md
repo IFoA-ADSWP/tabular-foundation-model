@@ -1,9 +1,9 @@
 # tabular-foundation-model
 
-TabPFN against actuarial baselines on insurance datasets. This glossary covers the
-analysis pipeline — the suite under `scripts/eval/insurance_benchmark_v1/` and the
-committed evidence it produces. The fine-tuning pilot at the bottom is a separate
-context that happens to share a word.
+TabPFN against actuarial baselines on insurance datasets. This glossary covers three
+contexts that share words: the analysis pipeline — the suite under
+`scripts/eval/insurance_benchmark_v1/` and the committed evidence it produces; the
+fine-tuning pilot; and the paid-run path that rents the machines both of them run on.
 
 ## Analysis pipeline
 
@@ -53,6 +53,19 @@ The identity a number was produced under: dataset, seed, fold construction, mode
 version, and git sha. When an artifact's recorded provenance contradicts itself, that
 is a bug in the artifact, not a stale comment.
 
+**Record**:
+The file a run writes to describe itself: one top-level `provenance` block with the same
+four sections — dataset, split, model, code — whatever produced it. A per-dataset record
+(an arm run, a capture) holds one dataset; a run-level record holds a list of them, and
+that is the only structural difference allowed.
+_Avoid_: metadata, sidecar, output
+
+**Verdict**:
+What a record can prove: `comparable`, `partial` or `unusable`, with the missing keys
+named. Computed from the record, never written into it by the writer — a record cannot
+claim to be comparable while missing the field that makes a comparison meaningful.
+_Avoid_: status, score, pass/fail
+
 **Frontier**:
 The set of methods on a dataset that are not dominated. A is dominated iff some B with
 strictly fewer parameters has `mean_B + SE_B < mean_A − SE_A` (the D3 rule). Within-SE
@@ -73,3 +86,29 @@ _Avoid_: method
 
 The pilot's prose predates this glossary. New text in the analysis pipeline uses
 _method_; _arm_ stays where it already means a training configuration.
+
+## Paid-run path
+
+**Launch**:
+One rent of a remote machine for one purpose, from the decision to spend until the
+machine is gone. It owns one cost record and one identity, and contains zero or
+more runs. Committed `run_*.json` files and the ledger predate this word: they call a
+launch a run and are not renamed.
+_Avoid_: job, session, attempt
+
+**Launch id**:
+The name a launch is known by everywhere it is recorded or referred to. Minted before
+anything is rented, so a launch that never got a machine still has one; a run that
+never had a launcher is marked as local.
+_Avoid_: run id, job id
+
+**Arrival**:
+The moment the artifacts a run produced are present locally and verified. A claim of
+completion is not arrival; verification is.
+_Avoid_: download, transfer, pull
+
+**Spend gate**:
+The decision that a launch may rent a machine, taken before anything is created. It
+either allows the launch or refuses it, listing every failed check at once, and the
+decision is recorded. A refusal is not a crash and not a transport failure.
+_Avoid_: gate, preflight, guard

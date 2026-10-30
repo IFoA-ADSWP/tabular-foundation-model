@@ -104,6 +104,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Callable, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -111,21 +112,26 @@ import pandas as pd
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent.parent
 sys.path.insert(0, str(REPO))  # repo root
-from src.api_key import load_api_key as _load_api_key  # noqa: E402
-from src.experiment_spec import (  # noqa: E402
+from src.api_key import load_api_key as _load_api_key  # noqa: E402  (src import after the path insert above)
+from src.experiment_spec import (  # noqa: E402  (src import after the path insert above)
+    CLASSIFICATION,
     REGRESSION,
     Experiment,
     RegistryError,
     as_runner_dataset,
     load_registry,
+    make_folds,
 )
-from src.model_version import (  # noqa: E402
+from src.model_version import (  # noqa: E402  (src import after the path insert above)
     resolve_model_path as _model_path,
     version_mismatch,
 )
 DATA_RAW = REPO / "data" / "raw"
 EXPERIMENTS_TOML = HERE / "experiments.toml"  # the committed registry (#230)
 
+# Deprecated for the frontier classification path: #231 selects datasets from the loaded
+# registry. Kept because run_tuned_baselines.py imports it until #235 migrates the other
+# producers; nothing in the classification frontier reads it.
 # D5 Option A: the home-turf sweep datasets plus norauto. Load configs identical to
 # scripts/benchmarks/run_home_turf_size_sweep.py (target + drops); norauto.csv was leak-fixed
 # in d170afc (ClaimAmount dropped — do not re-derive) and has no sweep rows.
@@ -166,8 +172,6 @@ N_FOLDS = 5
 SWEEP_CSV = HERE / "home_turf_sweep_results.csv"
 PR_AUC_CSV = HERE / "frontier_pr_auc_results.csv"  # per-fold PR-AUC/lift10 rows (append mode, --pr-auc only)
 PREDICTIONS_DIR = HERE / "predictions"  # --save-predictions: one .npz + manifest per dataset (#122)
-REUSED_METHODS = ["cat", "lgbm", "xgb", "tabpfn"]  # log loss reused as-is from the sweep
-FAST_METHODS = ["lr", "logisticglm", "tweedieglm", "poissonglm", "rf"]  # D1 Option B, new compute
 
 # CLI flags, set by main() before the dataset loop:
 #   PR_AUC_MODE:      --pr-auc — forces EVERY method to fresh-fit (the sweep CSV has no
@@ -220,28 +224,57 @@ def load_Xy(ds: dict, regression: bool = False) -> tuple[np.ndarray, np.ndarray]
     return X.to_numpy(dtype=np.float32), y
 
 
-def metric_fn(ds: dict):
-    """Metric dispatch (metrics.py-style, inline): returns metric(y_true, y_pred) -> float.
-    Classification (default): log_loss. Regression: rmse (sqrt of sklearn
-    mean_squared_error) or poisson_deviance (sklearn mean_poisson_deviance). Regression
-    y_pred is clipped to >= 1e-12 before deviance — OLS on count targets can predict
-    negatives, and sklearn's deviance requires non-negative y_pred."""
-    from sklearn.metrics import log_loss, mean_poisson_deviance, mean_squared_error
-
-    if ds.get("metric") == "rmse":
-        def rmse(y_true, y_pred):
-            return float(np.sqrt(mean_squared_error(y_true, y_pred)))
-        return rmse
-    if ds.get("metric") == "poisson_deviance":
-        def poisson_deviance(y_true, y_pred):
-            y_pred = np.clip(y_pred, 1e-12, None)  # non-negative y_pred guard (OLS on counts)
-            return float(mean_poisson_deviance(y_true, y_pred))
-        return poisson_deviance
+def _log_loss_metric():
+    from sklearn.metrics import log_loss
 
     def cross_entropy(y_true, y_pred):
         return float(log_loss(y_true, y_pred))
 
     return cross_entropy
+
+
+def _rmse_metric():
+    from sklearn.metrics import mean_squared_error
+
+    def rmse(y_true, y_pred):
+        return float(np.sqrt(mean_squared_error(y_true, y_pred)))
+
+    return rmse
+
+
+def _poisson_deviance_metric():
+    from sklearn.metrics import mean_poisson_deviance
+
+    def poisson_deviance(y_true, y_pred):
+        y_pred = np.clip(y_pred, 1e-12, None)  # non-negative y_pred guard (OLS on counts)
+        return float(mean_poisson_deviance(y_true, y_pred))
+
+    return poisson_deviance
+
+
+# The closed metric vocabulary. The registry loader refuses a dataset metric outside
+# this set; metric_fn refuses it again for the ad-hoc --data path, where no registry ran.
+METRIC_FACTORIES = {
+    "log_loss": _log_loss_metric,
+    "rmse": _rmse_metric,
+    "poisson_deviance": _poisson_deviance_metric,
+}
+
+
+def metric_fn(ds: dict):
+    """Metric dispatch from one closed vocabulary, refusing a name it cannot build.
+
+    An absent metric still means log_loss for the ad-hoc --data path, which has no
+    experiment. A present but unknown name is a load error (#231), not a silent fallback.
+    """
+    name = ds.get("metric") or "log_loss"
+    try:
+        factory = METRIC_FACTORIES[name]
+    except KeyError:
+        raise ValueError(
+            f"unknown metric {name!r}; expected one of: {', '.join(METRIC_FACTORIES)}"
+        ) from None
+    return factory()
 
 
 def top_decile_lift(y_true: np.ndarray, p1: np.ndarray) -> float:
@@ -388,6 +421,52 @@ def make_lgbm_reg():
 
 
 # ---------------------------------------------------------------------------
+# Code-side classification method registry (#231)
+#
+# The registry file names a method id; this table owns how that id becomes a model and
+# how it produces a probability. `n_params` mirrors the file's counting rule, and
+# tests/test_experiment_spec.py checks the two agree, so they cannot drift.
+# ---------------------------------------------------------------------------
+class ClassificationPredictor(NamedTuple):
+    build: Callable[[], object] | None   # None means the hosted TabPFN client
+    predict: str                          # "proba" or "mean_to_proba"
+    n_params: str                         # "glm", "trees" or "tabpfn"
+    reuse_sweep: bool = False
+
+
+CLASSIFICATION_METHODS: dict[str, ClassificationPredictor] = {
+    # Canonical order is the old runner order; the hosted method is deferred to last.
+    "cat": ClassificationPredictor(make_cat, "proba", "trees", reuse_sweep=True),
+    "lgbm": ClassificationPredictor(make_lgbm, "proba", "trees", reuse_sweep=True),
+    "xgb": ClassificationPredictor(make_xgb, "proba", "trees", reuse_sweep=True),
+    "lr": ClassificationPredictor(make_lr, "proba", "glm"),
+    "logisticglm": ClassificationPredictor(make_logisticglm, "proba", "glm"),
+    "tweedieglm": ClassificationPredictor(make_tweedieglm, "mean_to_proba", "glm"),
+    "poissonglm": ClassificationPredictor(make_poissonglm, "mean_to_proba", "glm"),
+    "rf": ClassificationPredictor(make_rf, "proba", "trees"),
+    "tabpfn": ClassificationPredictor(None, "proba", "tabpfn", reuse_sweep=True),
+}
+
+
+def planned_classification_methods(methods: tuple[str, ...] | None) -> list[str]:
+    """The methods to compare, in run order, refusing an id the code cannot build.
+
+    `methods is None` means an ad-hoc run with no experiment: use the full table. A
+    method the file names but the code does not know is a load error, named here rather
+    than skipped silently. The hosted method always runs last.
+    """
+    names = list(CLASSIFICATION_METHODS) if methods is None else list(methods)
+    unknown = [name for name in names if name not in CLASSIFICATION_METHODS]
+    if unknown:
+        known = ", ".join(CLASSIFICATION_METHODS)
+        raise RegistryError(
+            f"unknown classification method {unknown[0]!r}; "
+            f"the code registry builds: {known}"
+        )
+    return sorted(names, key=lambda name: CLASSIFICATION_METHODS[name].build is None)
+
+
+# ---------------------------------------------------------------------------
 # Parameter counting (spec §5 rule table)
 # ---------------------------------------------------------------------------
 def count_lgbm_leaves(model) -> int:
@@ -448,19 +527,35 @@ def pareto_frontier(rows: list[dict]) -> list[str]:
 # ---------------------------------------------------------------------------
 # One dataset
 # ---------------------------------------------------------------------------
-def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
-    from sklearn.model_selection import StratifiedKFold
+def run_dataset(ds: dict, out_csv: Path, out_png: Path,
+                experiment: Experiment | None = None,
+                seed: int | None = None, n_folds: int | None = None) -> pd.DataFrame:
+    """Classification frontier for one dataset.
 
+    `experiment` supplies the compared methods. `seed` and `n_folds` default to the
+    experiment's declaration, but the all-datasets path passes the CLI values so a
+    `--seed 7` sweep still folds at 7 — the experiment's seed only governs a run that
+    named it with `--experiment`. An ad-hoc run (`--data`) has no experiment and keeps
+    the full code-side method table. The dataset entry always comes from the registry
+    (#231) or from `--data`; this function reads no dataset list.
+    """
     def say(msg: str) -> None:
         print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
     X, y = load_Xy(ds)
     n_cols = X.shape[1]
-    metric = metric_fn(ds)  # metric dispatch: log_loss for classification (default)
-    say(f"dataset={ds['name']} shape={X.shape} pos_rate={y.mean():.4f} seed={SEED}")
+    metric = metric_fn(ds)
+    n_folds = (n_folds if n_folds is not None
+               else experiment.n_folds if experiment is not None else N_FOLDS)
+    seed = seed if seed is not None else experiment.seed if experiment is not None else SEED
+    methods = planned_classification_methods(
+        experiment.methods if experiment is not None else None
+    )
+    say(f"dataset={ds['name']} shape={X.shape} pos_rate={y.mean():.4f} seed={seed}")
+    if experiment is not None:
+        say(f"experiment={experiment.id} methods={','.join(methods)} folds={n_folds}")
 
-    skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
-    folds = list(skf.split(X, y))
+    folds = list(make_folds("stratified", n_folds, seed).split(X, y))
 
     # Per-fold PR-AUC/lift10 rows for the append-mode CSV (--pr-auc only).
     pr_fold_rows: list[dict] = []
@@ -470,118 +565,32 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
     def record_fold(method: str, fold: int, s: dict, y_true: np.ndarray | None = None,
                      y_pred: np.ndarray | None = None, te: np.ndarray | None = None) -> None:
         if PR_AUC_MODE:
-            pr_fold_rows.append({"dataset": ds["name"], "seed": SEED, "method": method,
+            pr_fold_rows.append({"dataset": ds["name"], "seed": seed, "method": method,
                                  "fold": fold, **s})
         if SAVE_PREDICTIONS:
             pred_store.setdefault(f"y_true__fold{fold}", y_true.astype(np.float32))
             pred_store.setdefault(f"test_idx__fold{fold}", te.astype(np.int32))
             pred_store[f"{method}__fold{fold}"] = y_pred.astype(np.float32)
 
-    # ---- 1. Power: reuse sweep CSV rows for <dataset>@full, default config only ----
-    # Datasets with NO sweep rows (norauto) fall back to FRESH CPU fits on the same
-    # 5 folds, same pattern as the D1 fast-method loop below. TabPFN is deferred to
-    # step 4a so a hosted-API stall never blocks the fast CPU results.
-    # --pr-auc forces fresh power for EVERYTHING: the sweep CSV has no per-fold
-    # predictions, so PR AUC / top-decile lift cannot be computed from reused rows.
-    # --save-predictions forces fresh power for the same reason: reused rows carry no
-    # predictions to persist.
+    # ---- 1. Sweep rows: reusable only for a method that declares it, and only when
+    # the run is not forcing fresh fits (--pr-auc / --save-predictions need predictions).
+    # Provenance (seed, model version) is still unchecked here; #233 closes that.
     sweep = pd.read_csv(SWEEP_CSV)
     sweep_full = sweep[(sweep.dataset == ds["name"]) & (sweep.n_rows == len(X)) & (sweep.n_estimators.isna())]
-    fresh = sweep_full.empty or PR_AUC_MODE or SAVE_PREDICTIONS
-    rows: list[dict] = []
+    fresh = PR_AUC_MODE or SAVE_PREDICTIONS
+    reused_any = False
 
-    def reuse_or_fresh(m: str) -> dict:
+    def reused_row(m: str) -> dict | None:
+        nonlocal reused_any
         r = sweep_full[sweep_full.method == m].sort_values("fold")
-        if (not PR_AUC_MODE) and (not SAVE_PREDICTIONS) and len(r) == N_FOLDS:
-            ll = r["log_loss"].to_numpy(dtype=float)
-            auc = r["roc_auc"].to_numpy(dtype=float)
-            brier = r["brier"].to_numpy(dtype=float)
-            return {
-                "method": m,
-                "mean": ll.mean(),
-                "se": ll.std(ddof=1) / np.sqrt(len(ll)),
-                "mean_auc": auc.mean(),
-                "se_auc": auc.std(ddof=1) / np.sqrt(len(auc)),
-                "mean_brier": brier.mean(),
-                "se_brier": brier.std(ddof=1) / np.sqrt(len(brier)),
-                "_fold_auc": auc,
-                "_fold_brier": brier,
-            }
-        assert fresh, f"sweep missing fold rows for {m}"
-        maker = {"cat": make_cat, "lgbm": make_lgbm, "xgb": make_xgb}[m]
-        scores = []
-        t1 = time.time()
-        for fold, (tr, te) in enumerate(folds):
-            model = maker()
-            model.fit(X[tr], y[tr])
-            pp = model.predict_proba(X[te])
-            s = fold_scores(metric, y[te], pp)
-            scores.append(s)
-            record_fold(m, fold, s, y_true=y[te], y_pred=pp[:, 1], te=te)
-            say(f"  {m} f{fold} ll={s['log_loss']:.4f} ({time.time() - t1:.0f}s)")
-        return row_for(m, scores)
-
-    for m in ("cat", "lgbm", "xgb"):
-        rows.append(reuse_or_fresh(m))
-
-    # ---- 2. D1: fit GLMs/LR/RF on the same 5 folds (new compute) ----
-    d1_makers = {
-        "lr": make_lr,
-        "logisticglm": make_logisticglm,
-        "tweedieglm": make_tweedieglm,
-        "poissonglm": make_poissonglm,
-        "rf": make_rf,
-    }
-    for m in FAST_METHODS:
-        maker = d1_makers[m]
-        scores = []
-        t1 = time.time()
-        for fold, (tr, te) in enumerate(folds):
-            Xtr, Xte, ytr, yte = X[tr], X[te], y[tr], y[te]
-            model = maker()
-            model.fit(Xtr, ytr)
-            if m in ("tweedieglm", "poissonglm"):
-                # regressor on a binary target: predicted mean treated as P(y=1), clipped
-                mu_raw = model.predict(Xte)  # raw model output; capture pre-clip (#122 spec §3)
-                mu = np.clip(mu_raw, 1e-6, 1 - 1e-6)
-                pp = np.column_stack([1 - mu, mu])
-                y_pred_raw = mu_raw
-            else:
-                pp = model.predict_proba(Xte)
-                y_pred_raw = pp[:, 1]
-            s = fold_scores(metric, yte, pp)
-            scores.append(s)
-            record_fold(m, fold, s, y_true=yte, y_pred=y_pred_raw, te=te)
-            say(f"  {m} f{fold} ll={s['log_loss']:.4f} ({time.time() - t1:.0f}s)")
-        rows.append(row_for(m, scores))
-
-    # ---- 3. D2: refit GBDTs + RF on fold-0 train purely to count leaves ----
-    # (tree structure is seed-insensitive for counting, spec §5 D2 — one fold suffices)
-    tr0, _ = folds[0]
-    d2_counts: dict[str, int] = {}
-    for m, maker in {"cat": make_cat, "xgb": make_xgb, "lgbm": make_lgbm}.items():
-        t1 = time.time()
-        model = maker()
-        model.fit(X[tr0], y[tr0])
-        counter = {"cat": count_cat_leaves, "xgb": count_xgb_leaves, "lgbm": count_lgbm_leaves}[m]
-        d2_counts[m] = counter(model)
-        say(f"  count {m}: {d2_counts[m]} params ({time.time() - t1:.0f}s)")
-    t1 = time.time()
-    rf = make_rf()
-    rf.fit(X[tr0], y[tr0])
-    d2_counts["rf"] = count_rf_leaves(rf)
-    say(f"  count rf: {d2_counts['rf']} params ({time.time() - t1:.0f}s)")
-
-    # ---- 4a. TabPFN power: reuse the sweep row when present; otherwise FRESH hosted
-    # run — LAST, after every CPU method above has flushed, so a hosted stall never
-    # blocks the fast results from the run log ----
-    r = sweep_full[sweep_full.method == "tabpfn"].sort_values("fold")
-    if (not PR_AUC_MODE) and (not SAVE_PREDICTIONS) and len(r) == N_FOLDS:
+        if fresh or len(r) != n_folds:
+            return None
+        reused_any = True
         ll = r["log_loss"].to_numpy(dtype=float)
         auc = r["roc_auc"].to_numpy(dtype=float)
         brier = r["brier"].to_numpy(dtype=float)
-        rows.append({
-            "method": "tabpfn",
+        return {
+            "method": m,
             "mean": ll.mean(),
             "se": ll.std(ddof=1) / np.sqrt(len(ll)),
             "mean_auc": auc.mean(),
@@ -590,9 +599,39 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
             "se_brier": brier.std(ddof=1) / np.sqrt(len(brier)),
             "_fold_auc": auc,
             "_fold_brier": brier,
-        })
-    else:
-        assert fresh, "sweep missing fold rows for tabpfn"
+        }
+
+    fold0_models: dict[str, object] = {}
+
+    def fit_fresh(m: str, spec: ClassificationPredictor) -> dict:
+        assert spec.build is not None, f"{m} has no constructor; it is hosted"
+        scores = []
+        t1 = time.time()
+        for fold, (tr, te) in enumerate(folds):
+            model = spec.build()
+            model.fit(X[tr], y[tr])
+            if fold == 0:
+                fold0_models[m] = model
+            if spec.predict == "mean_to_proba":
+                # regressor on a binary target: predicted mean treated as P(y=1), clipped
+                mu_raw = model.predict(X[te])  # raw model output; capture pre-clip (#122 spec §3)
+                mu = np.clip(mu_raw, 1e-6, 1 - 1e-6)
+                pp = np.column_stack([1 - mu, mu])
+                y_pred_raw = mu_raw
+            elif spec.predict == "proba":
+                pp = model.predict_proba(X[te])
+                y_pred_raw = pp[:, 1]
+            else:
+                raise RegistryError(
+                    f"method {m!r} declares unknown predict kind {spec.predict!r}"
+                )
+            s = fold_scores(metric, y[te], pp)
+            scores.append(s)
+            record_fold(m, fold, s, y_true=y[te], y_pred=y_pred_raw, te=te)
+            say(f"  {m} f{fold} ll={s['log_loss']:.4f} ({time.time() - t1:.0f}s)")
+        return row_for(m, scores)
+
+    def fit_hosted(m: str) -> dict:
         from tabpfn_client import TabPFNClassifier
 
         _load_api_key()  # env or .env candidates, same as the sweep
@@ -611,7 +650,7 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
                     break
                 except Exception as e:
                     wait = [10, 60, 300][attempt - 1]
-                    say(f"  tabpfn f{fold} attempt {attempt}/3 failed: {e!r}; retrying in {wait}s")
+                    say(f"  {m} f{fold} attempt {attempt}/3 failed: {e!r}; retrying in {wait}s")
                     time.sleep(wait)
                     if attempt == 3:
                         raise
@@ -619,20 +658,48 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
                 pp = np.column_stack([1 - pp, pp]) if pp.ndim == 1 else np.column_stack([1 - pp[:, 0], pp[:, 0]])
             s = fold_scores(metric, y[te], pp)
             scores.append(s)
-            record_fold("tabpfn", fold, s, y_true=y[te], y_pred=pp[:, 1], te=te)
-            say(f"  tabpfn f{fold} ll={s['log_loss']:.4f} ({time.time() - t1:.0f}s)")
-        rows.append(row_for("tabpfn", scores))
+            record_fold(m, fold, s, y_true=y[te], y_pred=pp[:, 1], te=te)
+            say(f"  {m} f{fold} ll={s['log_loss']:.4f} ({time.time() - t1:.0f}s)")
+        return row_for(m, scores)
 
-    # ---- 5. n_params for every method ----
+    # ---- 2. Power: every method in the experiment, in its declared order except the
+    # hosted one, which runs last so a stall never blocks the CPU results.
+    rows: list[dict] = []
+    for m in methods:
+        spec = CLASSIFICATION_METHODS[m]
+        if spec.build is None:
+            continue
+        row = reused_row(m) if spec.reuse_sweep else None
+        rows.append(row if row is not None else fit_fresh(m, spec))
+
+    for m in methods:
+        spec = CLASSIFICATION_METHODS[m]
+        if spec.build is not None:
+            continue
+        row = reused_row(m) if spec.reuse_sweep else None
+        rows.append(row if row is not None else fit_hosted(m))
+
+    # ---- 3. n_params from the code-side counting rule. A reused tree row has no fitted
+    # model, so fit fold 0 once purely to count, exactly as before (spec §5 D2).
     glm_n = n_cols + 1  # post-encoding column count + 1 intercept (harness uses cat.codes)
+    counters = {"rf": count_rf_leaves, "cat": count_cat_leaves,
+                "lgbm": count_lgbm_leaves, "xgb": count_xgb_leaves}
+    tr0, _ = folds[0]
     for r in rows:
         m = r["method"]
-        if m in ("lr", "logisticglm", "tweedieglm", "poissonglm"):
+        rule = CLASSIFICATION_METHODS[m].n_params
+        if rule == "glm":
             r["n_params"] = glm_n
-        elif m == "tabpfn":
+        elif rule == "tabpfn":
             r["n_params"] = TABPFN_N_PARAMS
         else:
-            r["n_params"] = d2_counts[m]
+            model = fold0_models.get(m)
+            if model is None:
+                build = CLASSIFICATION_METHODS[m].build
+                assert build is not None, f"{m} has no constructor; it is hosted"
+                model = build()
+                model.fit(X[tr0], y[tr0])
+            r["n_params"] = counters[m](model)
     for r in rows:
         assert isinstance(r["n_params"], int) and r["n_params"] > 0
 
@@ -647,14 +714,14 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
         cols += ["_fold_pr_auc", "_fold_lift10"]
     table = pd.DataFrame(rows)[cols].sort_values("mean", ignore_index=True)
 
-    # ---- 5b. Persist per-fold PR-AUC/lift10 rows (append mode, --pr-auc only) ----
+    # ---- 3b. Persist per-fold PR-AUC/lift10 rows (append mode, --pr-auc only) ----
     if PR_AUC_MODE:
         pd.DataFrame(pr_fold_rows).to_csv(
             PR_AUC_CSV, mode="a", header=not PR_AUC_CSV.exists(), index=False
         )
         say(f"  appended {len(pr_fold_rows)} per-fold rows -> {PR_AUC_CSV.name}")
 
-    # ---- 6. Plot ----
+    # ---- 4. Plot ----
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -668,23 +735,24 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
                     textcoords="offset points", xytext=(7, 5), fontsize=8)
     ax.set_xlabel("log10(n_params)")
     ax.set_ylabel("mean log loss")
-    ax.set_title(f"Insurance frontier — {ds['name']} (full, 5 folds, mean ± SE)")
+    ax.set_title(f"Insurance frontier — {ds['name']} (full, {n_folds} folds, mean ± SE)")
     ax.grid(alpha=0.3)
     fig.tight_layout()
     fig.savefig(out_png, dpi=150)
     plt.close(fig)
 
-    # ---- 7. Self-check (repo assert convention) ----
-    sanity_check(sweep_full, folds, table, on_frontier)
+    # ---- 5. Self-check (repo assert convention) ----
+    sanity_check(sweep_full, folds, table, on_frontier, n_folds=n_folds,
+                  check_sweep=reused_any)
 
-    # ---- 7b. Persist predictions + read-back verification (--save-predictions, #122) ----
+    # ---- 5b. Persist predictions + read-back verification (--save-predictions, #122) ----
     if SAVE_PREDICTIONS:
-        methods = [r["method"] for r in rows]
-        npz_path = write_predictions_npz(ds, pred_store, methods, N_FOLDS,
+        written = [r["method"] for r in rows]
+        npz_path = write_predictions_npz(ds, pred_store, written, n_folds,
                                           problem_type="classification",
-                                          metric_name=ds.get("metric", "log_loss"), seed=SEED,
+                                          metric_name=ds.get("metric", "log_loss"), seed=seed,
                                           experiment_id=EXPERIMENT_ID)
-        verify_predictions_readback(npz_path, methods, metric, rows, N_FOLDS,
+        verify_predictions_readback(npz_path, written, metric, rows, n_folds,
                                      problem_type="classification")
 
     table = table.drop(columns=[c for c in table.columns if c.startswith("_fold")])
@@ -694,13 +762,13 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
     return table
 
 
-def sanity_check(sweep_full: pd.DataFrame, folds: list[tuple[np.ndarray, np.ndarray]], table: pd.DataFrame, on_frontier: set) -> None:
+def sanity_check(sweep_full: pd.DataFrame, folds: list[tuple[np.ndarray, np.ndarray]], table: pd.DataFrame, on_frontier: set, n_folds: int = N_FOLDS, check_sweep: bool = True) -> None:
     """Assert-based sanity checks, per repo convention (run at end of main)."""
     # (a) when the sweep HAS rows for this dataset: exactly 5 non-NaN fold rows per
     # reused method (skipped for fresh datasets like norauto, which have none).
-    if not sweep_full.empty:
+    if check_sweep and not sweep_full.empty:
         n = sweep_full[sweep_full.method == "lgbm"]["fold"].nunique()
-        assert n == N_FOLDS, f"expected {N_FOLDS} sweep folds, got {n}"
+        assert n == n_folds, f"expected {n_folds} sweep folds, got {n}"
         assert sweep_full["log_loss"].notna().all(), "sweep reused log-loss has NaNs"
         assert sweep_full["brier"].notna().all(), "sweep reused brier has NaNs"
         assert sweep_full["roc_auc"].notna().all(), "sweep reused roc_auc has NaNs"
@@ -731,7 +799,7 @@ def sanity_check(sweep_full: pd.DataFrame, folds: list[tuple[np.ndarray, np.ndar
         assert table["mean_pr_auc"].notna().all() and table["mean_lift10"].notna().all(), "NaN in pr_auc/lift10"
         assert (table["_fold_pr_auc"].explode() >= 0).all(), "negative per-fold pr_auc"
         assert (table["_fold_lift10"].explode() >= 0).all(), "negative per-fold lift10"
-    print(f"SELF-CHECK OK: folds={N_FOLDS}, methods={len(table)}, on-frontier={len(on_frontier)}")
+    print(f"SELF-CHECK OK: folds={n_folds}, methods={len(table)}, on-frontier={len(on_frontier)}")
 
 
 # ---------------------------------------------------------------------------
@@ -921,8 +989,6 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFra
     classification-only, so every regression dataset is FRESH power: all CPU methods
     first (same 5 folds), TabPFN last via the hosted API (same retry/backoff loop as
     the classifier path) so a hosted stall never blocks the fast results."""
-    from sklearn.model_selection import KFold
-
     def say(msg: str) -> None:
         print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
@@ -931,9 +997,8 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFra
     metric = metric_fn(ds)  # rmse or poisson_deviance, clipped as needed
     say(f"dataset={ds['name']} shape={X.shape} metric={ds['metric']} y=[{y.min():.4g}, {y.max():.4g}]")
 
-    # KFold (NOT StratifiedKFold — continuous/count target), same seed as classification
-    kf = KFold(n_splits=N_FOLDS, shuffle=True, random_state=42)
-    folds = list(kf.split(X))
+    # Shared constructor (#231); #232 replaces the hardcoded 42 with the experiment seed.
+    folds = list(make_folds("kfold", N_FOLDS, 42).split(X))
 
     # ---- 1. Fresh power: 7 CPU regressors on the same 5 folds, all at defaults ----
     makers = {
@@ -1129,15 +1194,30 @@ def make_parser() -> argparse.ArgumentParser:
 def select_datasets(args: argparse.Namespace) -> tuple[list[dict], set[str] | None]:
     """Dataset selection: registry (filtered case-insensitively) or a single synthetic
     --data entry. Returns (datasets, wanted_filter) — filter is None for --data."""
-    datasets = REG_DATASETS if args.regression else DATASETS
     if args.data is not None:
         # relative --data paths are repo-root-relative; load_Xy treats non-absolute
-        # paths as data/raw/-relative (registry behavior), so resolve here
+        # paths as data/raw/-relative (registry behavior), so resolve here. No registry
+        # is read: --data is the path that must keep working without one.
         data = args.data if os.path.isabs(args.data) else str(REPO / args.data)
         ds = dict(name=Path(args.data).stem, file=data, target=args.target,
                   metric="rmse" if args.regression else "log_loss",
                   drop=[c.strip() for c in args.drop.split(",")] if args.drop else [])
         return [ds], None  # --data wins; filters ignored
+    if args.regression:
+        datasets = REG_DATASETS
+    else:
+        registry = load_registry(EXPERIMENTS_TOML)
+        classification = [experiment for experiment in registry.experiments.values()
+                          if experiment.mode == CLASSIFICATION]
+        names = [experiment.dataset for experiment in classification]
+        duplicates = sorted({name for name in names if names.count(name) > 1})
+        if duplicates:
+            raise RegistryError(
+                f"dataset {duplicates[0]!r} is claimed by more than one classification "
+                f"experiment; the output filename is keyed to the dataset, so two "
+                f"experiments would overwrite each other"
+            )
+        datasets = [as_runner_dataset(registry, experiment) for experiment in classification]
     wanted = {f.lower() for f in args.filters} if args.filters else None
     return datasets, wanted
 
@@ -1151,6 +1231,9 @@ def experiment_selection(experiment_id: str) -> tuple[list[dict], Experiment]:
     """
     registry = load_registry(EXPERIMENTS_TOML)
     experiment = registry.experiment(experiment_id)
+    if experiment.mode == CLASSIFICATION:
+        # A method the file names but the code cannot build fails here, before any fit.
+        planned_classification_methods(experiment.methods)
     return [as_runner_dataset(registry, experiment)], experiment
 
 
@@ -1243,14 +1326,6 @@ def main() -> None:
                 f"not {args.seed}; drop --seed, or run the dataset ad-hoc at this seed "
                 f"without --experiment"
             )
-        # Same reasoning for the fold count: until the runner folds from the registry
-        # (#231/#232), a declared count the runner ignores is a stamp it cannot honour.
-        if experiment.n_folds != N_FOLDS:
-            parser.error(
-                f"experiment {experiment.id!r} is declared with {experiment.n_folds} "
-                f"folds but this runner folds {N_FOLDS}; folding from the registry "
-                f"arrives in #231"
-            )
         regression = experiment.mode == REGRESSION
         EXPERIMENT_ID = experiment.id
         # What the experiment declared. Recorded, not applied: execution below still
@@ -1263,6 +1338,20 @@ def main() -> None:
         # matters because main() is re-entered by tests in one process.
         EXPERIMENT_ID = None
         DECLARED_MODEL_VERSION = None
+
+    # A classification run reads each dataset's experiment for its methods and folds.
+    # --experiment selected one above; the all-datasets path maps each dataset to its
+    # experiment. Regression still runs its own list until #232/#235.
+    experiments_by_dataset: dict[str, Experiment] = {}
+    if not regression and args.data is None:
+        registry = load_registry(EXPERIMENTS_TOML)
+        classification = [experiment for experiment in registry.experiments.values()
+                          if experiment.mode == CLASSIFICATION]
+        # Validate every experiment before the first fit, not per dataset: a bad id in
+        # the last experiment must cost seconds, not five completed datasets.
+        for declared in classification:
+            planned_classification_methods(declared.methods)
+        experiments_by_dataset = {experiment.dataset: experiment for experiment in classification}
 
     # Output layout: results/<dir> (default) keeps run artifacts out of the code tree.
     # 'legacy' preserves the old beside-script paths for exact reproduction of
@@ -1288,7 +1377,17 @@ def main() -> None:
         out_csv = out_base / f"frontier_results_{name}{suffix}.csv"
         out_png = out_base / f"frontier_plot_{name}{suffix}.png"
         print(f"\n{'=' * 70}\nDATASET {name}\n{'=' * 70}", flush=True)
-        runner(ds, out_csv, out_png)
+        if regression:
+            runner(ds, out_csv, out_png)
+        elif args.experiment is not None:
+            runner(ds, out_csv, out_png, experiment=experiment,
+                   seed=experiment.seed, n_folds=experiment.n_folds)
+        else:
+            # The all-datasets run is a sweep, not one experiment: take its methods from
+            # the registry but keep the CLI seed/folds, so `--seed 7` still folds at 7.
+            runner(ds, out_csv, out_png,
+                   experiment=experiments_by_dataset.get(name),
+                   seed=SEED, n_folds=N_FOLDS)
         print(f"[{time.strftime('%H:%M:%S')}] {name} done -> {out_csv}, {out_png}", flush=True)
     print(f"\nALL DATASETS DONE in {time.time() - t0:.0f}s", flush=True)
 

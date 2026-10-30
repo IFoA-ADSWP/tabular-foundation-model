@@ -97,7 +97,9 @@ is reproducible.
 balance, with the seed recorded. And state in the report what it actually controls — **fine-tuning on
 signal-free data** — which is narrower than "wrong pool data degrades the model".
 
-DECISION: ______  Owner: ______  Date: ______  Section: §6.2
+DECISION: **accepted as recommended (2026-10-30)** — permute within each pool dataset, preserving that
+dataset's marginal class balance, with the seed recorded; the report states that this controls
+fine-tuning on signal-free data, not "wrong pool data degrades the model".  Owner: scotthawes  Date: 2026-10-30  Section: §6.2
 
 ### D7 — The funded envelope
 
@@ -110,7 +112,12 @@ the design as written is **~$31** against **~$9.60** of credit, and the recommen
 Fund the in-domain steps on its result, and take the transfer experiment and any increase in data
 scale as **separate decisions taken on measured numbers rather than modelled ones**.
 
-DECISION: ______  Owner: ______  Date: ______  Section: §4.5.1
+DECISION: **No phase ceiling for the diagnostics-and-anchor phase (2026-10-30).** Spend is
+bounded by the launcher's per-hour price cap and by the stop rule, not by a phase budget; the
+measured anchor cost is $0.0368 a run. This **departs from the recommendation above**: the first
+step is funded and the in-domain steps follow the anchor gate, as recommended, but the phase
+itself carries no envelope. Accepted risk: a runaway retry loop is bounded by the price cap
+only. Recorded with its consequence in the campaign map, #286.  Owner: scotthawes  Date: 2026-10-30  Section: §4.5.1
 
 ### D8 — Label-semantics framing
 
@@ -121,7 +128,9 @@ DECISION: ______  Owner: ______  Date: ______  Section: §4.5.1
 **Recommendation:** confirm that any report frames the pooled arm this way and states the
 heterogeneous-outcome limitation explicitly, rather than describing it as a single "insurance model".
 
-DECISION: ______  Owner: ______  Date: ______  Section: §6.3
+DECISION: **accepted as recommended (2026-10-30)** — pooled arms are reported as a multi-domain prior,
+not a specialist, and the heterogeneous-outcome limitation is stated wherever a pooled number appears.
+Owner: scotthawes  Date: 2026-10-30  Section: §6.3
 
 ---
 
@@ -153,7 +162,9 @@ debatable afterwards. Confirm this mapping, or amend it here rather than later.
 | Transfer positive under the coherent pool, negative under the heterogeneous pool | the pool's **incoherence** cost the gain | report the composition finding; consider schema work |
 | Test-set power unreachable within the envelope | report the **power limit**, not a null | revisit scale or accept the limit |
 
-DECISION (accept as written / amend): ______  Owner: ______  Date: ______
+DECISION (accept as written / amend): **accepted as written** (2026-10-30). Every outcome this design
+can produce already has a stated reading, including the power-limited case, which is the one it is
+most likely to meet.  Owner: scotthawes  Date: 2026-10-30  Section: §3
 
 ---
 

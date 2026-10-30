@@ -39,8 +39,8 @@ import pandas as pd
 _REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO / "src"))
 
-from model_version import resolve_model_path  # noqa: E402
-from provenance import (  # noqa: E402
+from model_version import resolve_model_path  # noqa: E402  (same-dir module, after the path insert)
+from provenance import (  # noqa: E402  (same-dir module, after the path insert)
     DIAGNOSTICS_ROOT,
     DiagnosticRecord,
     matched_context_evidence,

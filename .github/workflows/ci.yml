@@ -1,0 +1,81 @@
+name: ci
+
+# Issue #259, spec #252. Extracted from the pull request that carried it, and rewired:
+# every check below invokes scripts/check.sh with a check name instead of restating the
+# command, so this file and a contributor's local run have one definition and cannot
+# drift. The commands themselves live in the script; this file only schedules them.
+#
+# Three checks, not four. The doc link and doc-status checks are not here: they are red
+# on main against a pre-existing backlog, and a gate that lands red gets disabled within
+# a week. Correcting the instructions to say three is #260; adding the doc checks is
+# their own work against that backlog.
+#
+# The shellcheck severity floor and its reason live in scripts/check.sh, beside the
+# check, so that it is not re-litigated here.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ruff:
+    name: ruff
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install
+        # Pinned, not floating: a ruff upgrade changes the verdict, so it is a deliberate
+        # change to this line and to the rule set in ruff.toml, not something CI resolves.
+        run: pip install "ruff==0.15.8"
+
+      - name: check
+        run: ./scripts/check.sh ruff
+
+  pytest:
+    name: pytest
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      # Full history, not the default single-commit fetch: test_pilot2_mock_run asks the
+      # launcher to check a commit against `origin/main` (#256), and a shallow checkout has
+      # no such ref. That is a property of the test's question, not of the code under test --
+      # fetch-depth: 0 gives the runner the same refs a developer has.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install
+        run: pip install -r requirements.txt pytest
+
+      - name: check
+        run: ./scripts/check.sh pytest
+
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # vast_run.sh and bootstrap_pilot.sh are the paid-run path. A syntax error there
+      # fails on a rented box, mid-run, at cost -- and away from anyone's terminal.
+      - uses: actions/checkout@v4
+
+      - name: check
+        run: ./scripts/check.sh shellcheck

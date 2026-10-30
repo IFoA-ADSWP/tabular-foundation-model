@@ -18,7 +18,7 @@ import pytest
 _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "src"))
 
-from paired_analysis import nested_paired_bootstrap  # noqa: E402
+from paired_analysis import nested_paired_bootstrap  # noqa: E402  (importable after the src path insert above)
 
 
 def auc(y_true, y_score):

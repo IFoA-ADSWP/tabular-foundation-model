@@ -14,6 +14,7 @@ test that only ever asserts success cannot tell a working gate from an inert one
 from __future__ import annotations
 
 import os
+import shutil
 import stat
 import subprocess
 from pathlib import Path
@@ -42,6 +43,22 @@ def shim(bin_dir: Path, name: str, exit_code: int, body: str = "") -> None:
     path.chmod(path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 
 
+def toolchain(tmp_path: Path) -> Path:
+    """A PATH containing git (the script needs it to find the repo root) and nothing else.
+
+    Symlinking git rather than borrowing MINIMAL_PATH makes "the check tools are
+    absent" true on every machine, including one with ruff in /usr/bin.
+    """
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    # bash and basename are the script's own dependencies; git locates the repo root.
+    for name in ("bash", "basename", "git"):
+        found = shutil.which(name)
+        assert found, f"{name} is required to test the script"
+        os.symlink(found, bin_dir / name)
+    return bin_dir
+
+
 # ---- the script itself -----------------------------------------------------
 
 
@@ -50,13 +67,13 @@ def test_script_exists_and_is_executable():
     assert os.access(SCRIPT, os.X_OK), "check.sh is not executable"
 
 
-def test_unknown_check_is_a_usage_error():
-    result = run(["not-a-check"], path=MINIMAL_PATH)
+def test_unknown_check_is_a_usage_error(tmp_path):
+    result = run(["not-a-check"], path=str(toolchain(tmp_path)))
     assert result.returncode == 2
     assert "usage:" in result.stderr
 
 
-# ---- duration: a failing tool must fail the check ---------------------------
+# ---- dispatch: a failing tool must fail the check ---------------------------
 
 
 def test_failing_ruff_fails_the_check(tmp_path):
@@ -81,13 +98,7 @@ def test_failing_shellcheck_fails_the_check(tmp_path):
 
 
 def test_missing_tool_is_named_and_not_a_pass(tmp_path):
-    result = run(["ruff"], path=MINIMAL_PATH)
-    if result.returncode == 0:
-        # The real ruff is on this machine's minimal PATH; skip rather than
-        # assert something untrue about the environment.
-        import pytest
-
-        pytest.skip("ruff is installed on the minimal PATH")
+    result = run(["ruff"], path=str(toolchain(tmp_path)))
     assert result.returncode == 3
     assert "ruff" in result.stderr
     assert "not installed" in result.stderr
@@ -119,3 +130,24 @@ def test_all_runs_every_check_even_after_a_failure(tmp_path):
     result = run([], path=f"{tmp_path}:{MINIMAL_PATH}")
     assert result.returncode == 1
     assert "shellcheck ran" in result.stdout
+
+
+def test_all_runs_every_check_when_a_tool_is_missing(tmp_path):
+    """A missing ruff must not hide pytest and shellcheck behind it."""
+    bin_dir = toolchain(tmp_path)
+    shim(bin_dir, "pytest", 0, body='echo "pytest ran"')
+    shim(bin_dir, "shellcheck", 0, body='echo "shellcheck ran"')
+    result = run([], path=str(bin_dir))
+    assert result.returncode == 3, result.stdout + result.stderr
+    assert "pytest ran" in result.stdout
+    assert "shellcheck ran" in result.stdout
+    assert "ruff" in result.stderr and "not installed" in result.stderr
+
+
+def test_all_reports_failure_ahead_of_a_missing_tool(tmp_path):
+    """A real failure is more useful than the absence of another tool."""
+    bin_dir = toolchain(tmp_path)
+    shim(bin_dir, "pytest", 1)
+    shim(bin_dir, "shellcheck", 0)
+    result = run([], path=str(bin_dir))
+    assert result.returncode == 1, result.stdout + result.stderr

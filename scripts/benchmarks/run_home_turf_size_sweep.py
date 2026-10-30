@@ -28,8 +28,8 @@ import pandas as pd
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
-from src.api_key import load_api_key as _load_api_key  # noqa: E402
-from src.model_version import resolve_model_path as _model_path  # noqa: E402
+from src.api_key import load_api_key as _load_api_key  # noqa: E402  (src import after the repo-root path insert)
+from src.model_version import resolve_model_path as _model_path  # noqa: E402  (src import after the repo-root path insert)
 REPO = HERE.parent.parent
 DATA_RAW = REPO / "data" / "raw"
 EVAL_DIR = REPO / "scripts" / "eval" / "insurance_benchmark_v1"
