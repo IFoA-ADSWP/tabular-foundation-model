@@ -161,6 +161,29 @@ seeds disagree is deliberately left to D10's ticket (#290), not decided here.
 DECISION: **accepted as written above (2026-10-30)** — seeds 43 and 44; all three rungs must clear;
 bounds decide, not markers.  Owner: scotthawes  Date: 2026-10-30  Section: §4.5.2
 
+### D10 — Paid diagnostics are approved per run, on a measured estimate
+
+**Why it matters.** D4 was priced at about 5p when the design was written. D3's three untouched
+datasets have never been priced at all: reframing `freMTPL2freq` means nine methods over five folds
+on 678K rows through the hosted client, and nobody has measured one fold. A standing ceiling for
+"the diagnostics" would therefore be a number invented in this document, which is the failure D7
+already names.
+
+**Decision (2026-10-30).** Each paid diagnostic run is approved on its own, and the approval is
+preceded by a **measured** estimate: run one fold (or one method) on the target dataset, record what
+it cost, and scale. No standing ceiling for the diagnostics phase, and no run that begins with an
+estimate phrased as a guess.
+
+The anchor is **not** covered here. D7 governs it: the phase carries no envelope, and its cost is
+measured ($0.0368 for a four-arm 10,000-row run) rather than modelled.
+
+**What this means in practice.** A paid diagnostic ticket is blocked until its estimate exists, and
+the estimate is recorded on the ticket. If the estimate is large enough to matter, it is a spending
+decision rather than a ticket comment — which is the point of requiring the measurement.
+
+DECISION: **accepted (2026-10-30)** — per-run approval, measured estimate first, no diagnostics
+envelope; D7 continues to govern the anchor.  Owner: scotthawes  Date: 2026-10-30  Section: §4.5.3
+
 ---
 
 ## 2. Settled in the design — confirm, do not re-open
