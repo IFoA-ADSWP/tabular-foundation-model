@@ -393,7 +393,7 @@ def test_pf_manifest_is_written_before_the_arms_run(rp):
     """
     src = Path(rp.__file__).read_text()
     write_at = src.index("manifest[\"pid\"] = os.getpid()")
-    run_at = src.index("    try:\n        if args.dataset:", write_at)
+    run_at = src.index("    try:\n        if dataset:", write_at)
     assert write_at < run_at, "manifest must be written BEFORE the arms are dispatched"
 
 

@@ -70,6 +70,7 @@ from provenance import (  # noqa: E402  (same-dir module, after the src path ins
     split_rule,
     split_section,
 )
+from experiment_spec import RegistryError, load_registry  # noqa: E402
 from model_version import resolve_model_path  # noqa: E402
 
 # The arm record's layout is `provenance.ARM_RECORD_SCHEMA_VERSION` (3 since #241) and the
@@ -114,6 +115,10 @@ DEFAULT_SEED = 42
 SEEDS = [DEFAULT_SEED]
 TRAIN_SIZE = 2000
 TEST_SIZE = 1000
+
+# The registry the pilot reads when it is given an experiment id (#238). One file serves
+# both runners; the pilot reads its own experiment kind from it.
+REGISTRY_TOML = REPO_ROOT / "scripts" / "eval" / "insurance_benchmark_v1" / "experiments.toml"
 
 DATASETS = {
     "coil2000": {"file": "coil2000.csv", "target": "CARAVAN"},
@@ -1377,11 +1382,118 @@ def aggregate_results(output_dir=None):
     print(f"\nSaved: {output_dir / 'pilot_metrics.parquet'}")
 
 
-def main():
+class InvocationError(ValueError):
+    """A command line that contradicts the experiment it names (#238)."""
+
+
+def _parse_seeds(raw: str) -> list[int]:
+    try:
+        seeds = [int(part) for part in raw.split(",") if part.strip()]
+    except ValueError:
+        raise InvocationError(f"--seeds must be integers, got {raw!r}") from None
+    if not seeds:
+        raise InvocationError("--seeds must name at least one seed")
+    return seeds
+
+
+def _config_dict(config) -> dict:
+    """The experiment's base config as the dict the arm runners already take."""
+    return {
+        "epochs": config.epochs,
+        "early_stopping": config.early_stopping,
+        "n_estimators": config.n_estimators,
+        "learning_rate": config.learning_rate,
+        "fit_mode": config.fit_mode,
+        "context_samples": config.context_samples,
+    }
+
+
+def _refuse(experiment_id: str, flag: str, declared, given) -> None:
+    """A flag may repeat the declaration, but not contradict it -- naming both (#238)."""
+    if given != declared:
+        raise InvocationError(
+            f"--experiment {experiment_id!r} declares {flag.replace('--', '').replace('-', '_')}"
+            f" = {declared!r}, but {flag} = {given!r} was given; drop {flag}, or run without "
+            f"--experiment"
+        )
+
+
+def resolve_invocation(args):
+    """(dataset, arms, seeds, train_size, test_size, config) for this command line (#238).
+
+    Without `--experiment` this is exactly the pre-#238 behaviour, from the module
+    constants. With it, the registry owns those values and an explicit flag may repeat the
+    declaration but not contradict it: two sources of truth is worse than a missing one.
+    """
+    seeds = None if args.seeds is None else _parse_seeds(args.seeds)
+    arms = None
+    if args.arms:
+        arms = [arm.strip() for arm in args.arms.split(",") if arm.strip()]
+        unknown = [arm for arm in arms if arm not in ARMS]
+        if unknown:
+            raise InvocationError(f"unknown arm(s) {unknown}; choose from {list(ARMS)}")
+
+    if args.experiment is None:
+        train_size, test_size = TRAIN_SIZE, TEST_SIZE
+        if args.rung:
+            preset = RUNG[args.rung]
+            train_size, test_size = preset["train_size"], preset["test_size"]
+        if args.train_size is not None:
+            train_size = args.train_size
+        if args.test_size is not None:
+            test_size = args.test_size
+        config = dict(DEFAULT_CONFIG)
+        for key in ("epochs", "learning_rate", "n_estimators"):
+            value = getattr(args, key)
+            if value is not None:
+                config[key] = value
+        return (args.dataset, arms or list(ARMS), seeds or [DEFAULT_SEED], train_size,
+                test_size, args.folds, config)
+
+    declared = load_registry(REGISTRY_TOML).pilot_experiment(args.experiment)
+
+    if args.dataset is not None:
+        _refuse(declared.id, "--dataset", declared.dataset, args.dataset)
+    if arms is not None:
+        _refuse(declared.id, "--arms", set(declared.arms), set(arms))
+    if seeds is not None:
+        _refuse(declared.id, "--seeds", [declared.seed], seeds)
+    if args.folds is not None:
+        _refuse(declared.id, "--folds", declared.folds, args.folds)
+    if args.train_size is not None:
+        _refuse(declared.id, "--train-size", declared.train_size, args.train_size)
+    if args.test_size is not None:
+        _refuse(declared.id, "--test-size", declared.test_size, args.test_size)
+    if args.rung:
+        preset = RUNG[args.rung]
+        _refuse(declared.id, "--rung",
+                (declared.train_size, declared.test_size),
+                (preset["train_size"], preset["test_size"]))
+    for flag, key in (("--epochs", "epochs"), ("--learning-rate", "learning_rate"),
+                      ("--n-estimators", "n_estimators")):
+        given = getattr(args, key)
+        if given is not None:
+            _refuse(declared.id, flag, getattr(declared.config, key), given)
+
+    return (declared.dataset, list(declared.arms), [declared.seed],
+            declared.train_size, declared.test_size, declared.folds,
+            _config_dict(declared.config))
+
+
+def make_parser():
     parser = argparse.ArgumentParser(
         description=f"Fine-tuning pilot (arm record schema v{ARM_RECORD_SCHEMA_VERSION})"
     )
     parser.add_argument("--dataset", type=str, help="Run one dataset")
+    parser.add_argument(
+        "--experiment",
+        type=str,
+        default=None,
+        help="Run the pilot experiment registered under this id in experiments.toml "
+             "(#238): it owns the dataset, arms, seed, folds, row sizes and base config. "
+             "A flag that repeats the declaration is accepted; one that contradicts it "
+             "is refused.",
+    )
     parser.add_argument(
         "--outdir",
         type=str,
@@ -1403,16 +1515,17 @@ def main():
     parser.add_argument(
         "--epochs",
         type=int,
-        default=DEFAULT_CONFIG["epochs"],
-        help="Fine-tuning passes (PR-7). Library default is 30; 3 preserves R1 parity.",
+        default=None,
+        help="Fine-tuning passes (PR-7). Default: the experiment's, or 3 without one.",
     )
-    parser.add_argument("--seeds", type=str, default=str(DEFAULT_SEED), help="e.g. 42,43,44")
+    parser.add_argument("--seeds", type=str, default=None,
+                        help=f"e.g. 42,43,44 (default: the experiment's, or {DEFAULT_SEED})")
     parser.add_argument("--folds", type=int, default=None, help="Stratified k-fold count")
     parser.add_argument("--rung", type=str, choices=sorted(RUNG), help="Scale preset (P1a/P1b/P1c)")
     parser.add_argument("--train-size", type=int, default=None)
     parser.add_argument("--test-size", type=int, default=None)
-    parser.add_argument("--learning-rate", type=float, default=DEFAULT_CONFIG["learning_rate"])
-    parser.add_argument("--n-estimators", type=int, default=DEFAULT_CONFIG["n_estimators"])
+    parser.add_argument("--learning-rate", type=float, default=None)
+    parser.add_argument("--n-estimators", type=int, default=None)
     parser.add_argument(
         "--save-models", action="store_true", help="Persist fitted models with hashes (PR-3)"
     )
@@ -1425,32 +1538,18 @@ def main():
     parser.add_argument(
         "--pool", type=str, default=None, help="Comma-separated pool datasets (PR-5)"
     )
+    return parser
+
+
+def main():
+    parser = make_parser()
     args = parser.parse_args()
 
-    arms = None
-    if args.arms:
-        arms = [a.strip() for a in args.arms.split(",") if a.strip()]
-        unknown = [a for a in arms if a not in ARMS]
-        if unknown:
-            parser.error(f"unknown arm(s) {unknown}; choose from {list(ARMS)}")
-
-    seeds = [int(s) for s in args.seeds.split(",") if s.strip()]
-
-    train_size, test_size = TRAIN_SIZE, TEST_SIZE
+    try:
+        dataset, arms, seeds, train_size, test_size, folds, config = resolve_invocation(args)
+    except (InvocationError, RegistryError) as exc:
+        parser.error(str(exc))
     rung_name = args.rung
-    if rung_name:
-        preset = RUNG[rung_name]
-        train_size = preset["train_size"]
-        test_size = preset["test_size"]
-    if args.train_size is not None:
-        train_size = args.train_size
-    if args.test_size is not None:
-        test_size = args.test_size
-
-    config = dict(DEFAULT_CONFIG)
-    config["epochs"] = args.epochs
-    config["learning_rate"] = args.learning_rate
-    config["n_estimators"] = args.n_estimators
 
     # ---------------- Reproducibility gates, before any work runs ----------------
     # 1. Route records elsewhere when asked, so an ad-hoc run cannot land in the tree
@@ -1464,14 +1563,14 @@ def main():
     #    default path overwrote the committed R1 record for coil2000/E_glm and deleted
     #    the aggregate -- damage invisible until somebody opened the file. Refusing is
     #    the only failure mode that cannot lose data quietly.
-    run_datasets = [args.dataset] if args.dataset else DATASETS
+    run_datasets = [dataset] if dataset else DATASETS
     run_arms = arms or list(ARMS)
     clashes = []
     for _ds in run_datasets:
         for _arm in run_arms:
             for _seed in seeds:
                 # Same helper as the writer -- never a second copy of this rule.
-                for _fold in (range(args.folds) if args.folds else [None]):
+                for _fold in (range(folds) if folds else [None]):
                     _slot = record_slot(OUTPUT_DIR, _ds, _arm, _seed, _fold)
                     if (_slot / "meta.json").exists():
                         _rel = _slot.relative_to(OUTPUT_DIR)
@@ -1539,7 +1638,7 @@ def main():
     pool_meta = None
     if args.pool:
         pool_names = [p.strip() for p in args.pool.split(",") if p.strip()]
-        target = args.assert_lodo_for or (args.dataset or "")
+        target = args.assert_lodo_for or (dataset or "")
         pool_meta = build_pool(target, pool_names, fingerprints)
         print(f"[LODO] target '{target}' asserted absent from pool {pool_names}")
 
@@ -1565,12 +1664,12 @@ def main():
         "epochs": config["epochs"],
         "legacy_config_keys_ignored": list(LEGACY_UNUSED_KEYS),
         "seeds": seeds,
-        "folds": args.folds,
+        "folds": folds,
         "rung": rung_name,
         "train_size": train_size,
         "test_size": test_size,
         "arms": arms or list(ARMS),
-        "datasets": [d for d in ([args.dataset] if args.dataset else DATASETS)],
+        "datasets": [d for d in ([dataset] if dataset else DATASETS)],
         "dataset_fingerprints": fingerprints,
         "pool": pool_meta,
         "save_models": bool(args.save_models),
@@ -1589,14 +1688,14 @@ def main():
     write_run_manifest(manifest, OUTPUT_DIR)
 
     try:
-        if args.dataset:
+        if dataset:
             run_single_dataset(
-                args.dataset,
+                dataset,
                 arms,
                 config=config,
                 seeds=seeds,
                 overwrite=args.overwrite,
-                folds=args.folds,
+                folds=folds,
                 train_size=train_size,
                 test_size=test_size,
                 save_models=args.save_models,
@@ -1625,7 +1724,7 @@ def main():
         manifest["finished_at"] = datetime.now(timezone.utc).isoformat()
         write_run_manifest(manifest, OUTPUT_DIR)
 
-    if not args.dataset:
+    if not dataset:
         aggregate_results()
 
 

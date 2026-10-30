@@ -1,7 +1,7 @@
 # Plan — the pilot takes its experiment from the registry (#238)
 
-**Status:** Current — issue #238, sub-issue of spec #236. **Slice 1 built** (loader and
-the committed declaration); slices 2–3 open.
+**Status:** Current — issue #238, sub-issue of spec #236. **Slices 1–2 built** (loader,
+committed declaration, pilot CLI); slice 3 (record + launcher) open.
 **Related:** `docs/plans/experiment-registry.md` (#230), `record-contract.md` (#241),
 `row-size-axis.md` (#264), `docs/adr/0001-…`, `docs/adr/0003-record-contract-and-model-version.md`.
 
