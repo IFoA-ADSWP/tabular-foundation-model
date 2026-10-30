@@ -20,6 +20,7 @@ Run:  python -m pytest tests/test_pilot2_mock_run.py -v
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -27,6 +28,8 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
+from tests import run_artifact_guard
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GH = REPO_ROOT / "scripts" / "gpu_helpers"
@@ -224,8 +227,16 @@ def mock_env(tmp_path):
 
 
 def test_mock_run_completes_verifies_and_tears_down(mock_env):
-    """The whole path, once: provision -> emit -> return -> verify -> destroy."""
+    """The whole path, once: provision -> emit -> return -> verify -> destroy.
+
+    It also covers where the saved container log lands (#280) — the log directory is the
+    one path that used to escape VAST_OUTDIR.
+    """
     env, state, outdir = mock_env["env"], mock_env["state"], mock_env["outdir"]
+    # Fingerprinted, not listed by name: a same-named rewrite inside the real log directory
+    # must fail too, and an absent directory must not pass as "unchanged".
+    repo_logs = REPO_ROOT / "outputs" / "gpu-pilot" / "logs"
+    repo_logs_before = run_artifact_guard.run_artifacts((repo_logs,))
 
     result, combined = _run_launcher(
         env, "--yes", "--arms", "A_raw,B_in_domain", "--max-attempts", "1"
@@ -263,6 +274,46 @@ def test_mock_run_completes_verifies_and_tears_down(mock_env):
     assert returned["run_id"] == mock_env["run_id"], (
         f"wrong manifest returned: {returned.get('run_id')!r} != {mock_env['run_id']!r}"
     )
+
+    # 4. The container log is saved beside the launch's other records, not in the real log
+    #    directory (#280). `outputs/gpu-pilot/logs/**` is kept on purpose, so a mock writing
+    #    there would leave a fake box log a reader could not tell from a paid one.
+    saved = sorted((outdir / "logs").glob("*.log"))
+    assert len(saved) == 1, f"expected one log beside the launch's records:\n{combined}"
+    assert run_artifact_guard.run_artifacts((repo_logs,)) == repo_logs_before, (
+        "the mock launch wrote into the real outputs/gpu-pilot/logs"
+    )
+
+
+def test_a_real_launch_still_logs_beside_the_paid_run_records():
+    """AC2 (#280): with no VAST_OUTDIR, the log belongs in outputs/gpu-pilot/logs.
+
+    Nothing is launched. A mock with VAST_OUTDIR unset would write into the tree this fix
+    exists to keep clean, and a dry run has no instance so it saves no log at all. So this
+    evaluates the launcher's own default lines in a subshell: the answer comes from the
+    file, so re-pointing the default fails here instead of silently moving real logs.
+    """
+    source = VAST_RUN.read_text()
+    outdir_line = re.search(r"^OUTDIR=.*$", source, re.MULTILINE).group(0)
+    log_line = re.search(r"^\s*LOG_DIR=.*$", source, re.MULTILINE).group(0).strip()
+
+    def resolved_log_dir(**overrides):
+        env = {k: v for k, v in os.environ.items() if k != "VAST_OUTDIR"}
+        env["P_REPO"] = str(REPO_ROOT)
+        env.update(overrides)
+        probe = "\n".join([
+            'REPO_DIR="$P_REPO"  # the launcher derives this from its own location',
+            outdir_line,
+            log_line,
+            'printf %s "$LOG_DIR"',
+        ])
+        result = subprocess.run(["bash", "-c", probe], env=env, capture_output=True,
+                                text=True, check=True)
+        return Path(result.stdout)
+
+    assert resolved_log_dir() == REPO_ROOT / "outputs" / "gpu-pilot" / "logs"
+    # ...and the override still wins, which is the half the mock run proves behaviourally.
+    assert resolved_log_dir(VAST_OUTDIR=str(REPO_ROOT / "tmp-out")) == REPO_ROOT / "tmp-out" / "logs"
 
 
 def test_mock_run_reports_the_artifact_verification(mock_env):
