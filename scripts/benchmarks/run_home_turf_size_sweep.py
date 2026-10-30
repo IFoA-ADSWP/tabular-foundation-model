@@ -29,7 +29,7 @@ import pandas as pd
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 from src.api_key import load_api_key as _load_api_key  # noqa: E402  (src import after the repo-root path insert)
-from src.experiment_spec import load_registry  # noqa: E402  (src import after the repo-root path insert)
+from src.experiment_spec import dataset_entry, load_registry  # noqa: E402  (src import after the repo-root path insert)
 from src.model_version import resolve_model_path as _model_path  # noqa: E402  (src import after the repo-root path insert)
 from src.row_sizes import slice_data  # noqa: E402  (src import after the repo-root path insert)
 REPO = HERE.parent.parent
@@ -43,12 +43,15 @@ LOG_FILE = EVAL_DIR / "home_turf_sweep_run.log"
 # ---------------------------------------------------------------------------
 # Dataset registry
 # ---------------------------------------------------------------------------
-DATASETS = [
-    dict(name="coil2000", file="coil2000.csv", target="CARAVAN", drop=[]),
-    dict(name="uslapseagent", file="uslapseagent.csv", target="surrender", drop=[]),
-    # §6 leakage fix: claim == (nclaims>0) == (amount>0) exactly; drop the leak features
-    dict(name="bemtl97", file="bemtl97.csv", target="claim", drop=["nclaims", "amount"]),
-]
+# The same three Datasets the sweep's evidence covers, selected from the registry (#235).
+SWEEP_DATASETS = ("coil2000", "uslapseagent", "bemtl97")
+
+
+def sweep_datasets() -> list[dict]:
+    registry = load_registry(EVAL_DIR / "experiments.toml")
+    return [dataset_entry(registry.datasets[name]) for name in SWEEP_DATASETS]
+
+
 # The sizes come from the registry, one declaration per experiment (#264). Full is the
 # last point, so a dataset declared at [1000, 5000] is measured at 1000, 5000 and its
 # whole table -- exactly the cells the committed sweep table holds.
@@ -156,7 +159,7 @@ def main() -> None:
     # Ensemble probe: is n_estimators=8 (API cap) identical to the server default?
     n8_equals_default: bool | None = None
 
-    for ds in DATASETS:
+    for ds in sweep_datasets():
         X_full, y_full = load_Xy(ds)
         say(f"dataset={ds['name']} full_shape={X_full.shape} pos_rate={y_full.mean():.4f}")
 

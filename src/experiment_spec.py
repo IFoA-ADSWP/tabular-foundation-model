@@ -377,19 +377,24 @@ def make_folds(kind: str, n_folds: int, seed: int):
     )
 
 
-def as_runner_dataset(registry: Registry, experiment: Experiment) -> dict[str, Any]:
-    """The dataset entry the v1 runner's `run_dataset*` functions already take.
+def datasets_by_mode(registry: Registry, mode: str) -> tuple[Dataset, ...]:
+    """Every Dataset of one mode, in the registry's declared order.
 
-    `name` is the *dataset's*, not the experiment's: output filenames, the sweep join and
-    the capture stem are keyed to the data being measured, and the acceptance criterion for
-    #230 is that discovery by `{dataset}__seed{s}__*` still resolves. An experiment that
-    renamed its dataset would rename its artifacts, so it does not.
-
-    #231 keeps this adapter: the runner takes methods, folds and metric from the
-    experiment, while `load_Xy` and the capture writer still take the dict shape this
-    returns. The dataset name is the one field that must not move.
+    Scripts that loop over datasets use this instead of a private list. An unknown mode is
+    refused rather than returning an empty tuple that would silently run nothing.
     """
-    dataset = registry.dataset_of(experiment)
+    if mode not in MODES:
+        raise RegistryError(f"unknown mode {mode!r}; expected one of: {', '.join(MODES)}")
+    return tuple(dataset for dataset in registry.datasets.values() if dataset.mode == mode)
+
+
+def dataset_entry(dataset: Dataset) -> dict[str, Any]:
+    """The dataset entry the v1 runners' `load_Xy`/capture functions already take.
+
+    `name` is the *dataset's*: output filenames, the sweep join and the capture stem are
+    keyed to the data being measured, and discovery by `{dataset}__seed{s}__*` must keep
+    resolving. The dict shape is the seam `load_Xy` takes; the registry owns the values.
+    """
     entry: dict[str, Any] = {
         "name": dataset.name,
         "file": dataset.file,
@@ -400,3 +405,28 @@ def as_runner_dataset(registry: Registry, experiment: Experiment) -> dict[str, A
     if dataset.transform:
         entry["transform"] = dataset.transform
     return entry
+
+
+def load_dataset_entries(path: str | Path, mode: str) -> list[dict[str, Any]]:
+    """Every Dataset entry of one mode, for a producer that only needs the entries."""
+    return [dataset_entry(dataset) for dataset in datasets_by_mode(load_registry(path), mode)]
+
+
+def mode_methods(registry: Registry, mode: str) -> tuple[Method, ...]:
+    """The method list every experiment of one mode declares, refusing disagreement.
+
+    Producers that are not themselves experiments (the reframe study, the rescore) lift
+    the mode's method set from the registry instead of picking an arbitrary anchor
+    experiment. If two experiments in a mode ever declare different methods, those
+    scripts can no longer claim one canonical set, so the load fails loudly.
+    """
+    experiments = [e for e in registry.experiments.values() if e.mode == mode]
+    if not experiments:
+        raise RegistryError(f"no experiments for mode {mode!r}")
+    lists = {experiment.methods for experiment in experiments}
+    if len(lists) != 1:
+        raise RegistryError(
+            f"{mode} experiments disagree about which methods they compare: "
+            f"{sorted(lists)}"
+        )
+    return registry.methods_of(experiments[0])

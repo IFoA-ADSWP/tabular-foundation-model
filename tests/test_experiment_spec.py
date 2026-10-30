@@ -193,12 +193,10 @@ def test_the_experiments_methods_resolve_in_its_own_mode_in_declared_order(tmp_p
     assert registry.dataset_of(experiment).name == "toy"
 
 
-# ---- the committed file vs the code it was generated from --------------------
+# ---- the committed file vs the code it declares -----------------------------
 #
-# DATASETS is deprecated for the classification frontier (#231 reads the registry) but
-# run_tuned_baselines still imports it until #235; REG_DATASETS serves regression until
-# #232/#235. This test keeps the committed file and those remaining code lists from
-# drifting apart.
+# The dataset constants are gone (#235); this keeps the method table and the committed
+# experiments from drifting apart.
 
 REGISTRY = (
     Path(__file__).resolve().parents[1]
@@ -228,37 +226,6 @@ def _runner():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
-
-def test_the_committed_registry_covers_the_remaining_code_dataset_lists():
-    runner = _runner()
-    registry = load_registry(REGISTRY)
-
-    expected = {d["name"]: d for d in runner.DATASETS + runner.REG_DATASETS}
-    assert set(registry.datasets) == set(expected)
-
-    for name, declared in expected.items():
-        dataset = registry.datasets[name]
-        assert dataset.file == declared["file"], name
-        assert dataset.target == declared["target"], name
-        assert dataset.drop == tuple(declared["drop"]), name
-        assert dataset.metric == declared.get("metric", "log_loss"), name
-        assert dataset.transform == declared.get("transform"), name
-
-    # every dataset has exactly one experiment, at the runner's fold count and seed
-    assert set(registry.experiments) == set(expected)
-    for name, experiment in registry.experiments.items():
-        assert experiment.dataset == name
-        assert experiment.n_folds == runner.N_FOLDS
-        assert experiment.seed == runner.SEED
-
-    # the runner compares the same method list for every dataset in a mode, so the
-    # registry must too — checking only one experiment per mode would let the other ten
-    # drift silently
-    for mode in ("classification", "regression"):
-        lists = {experiment.methods for experiment in registry.experiments.values()
-                 if experiment.mode == mode}
-        assert len(lists) == 1, f"{mode} experiments disagree about which methods: {lists}"
 
 
 def test_the_committed_registry_declares_every_method_in_runner_order():
