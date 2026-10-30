@@ -13,8 +13,9 @@ script is for in #211 is narrower -- it is the first consumer of the shared writ
 inherit one record shape instead of inventing five.
 
 Every run writes one record through `src/provenance.write_diagnostic_record`, landing under
-`outputs/diagnostics/d1_profiling/<run_id>/` as `record.json` (source of truth) and
-`record.csv` (the one-row view of it). The diagnostic supplies measurements and nothing else:
+`outputs/diagnostics/d1_profiling/<run_id>-<dataset>/` as `record.json` (source of truth) and
+`record.csv` (the one-row view of it). The dataset name is always in the run id, so the same
+dataset's directory does not depend on how many others were profiled with it. The diagnostic supplies measurements and nothing else:
 the schema version, timestamp, code revision and runtime are stamped by the writer.
 
 Where the record goes is not a choice this script offers. There is no `--out`: #211 says records
@@ -83,7 +84,7 @@ def _target_profile(values):
     }
 
 
-VIF_MAX_FEATURES = 30
+VIF_MAX_FEATURES = 200
 
 
 def _max_vif(numeric):
@@ -137,17 +138,13 @@ def profile_frame(df, target):
             max_corr = round(float(np.nanmax(corr)), 6)
 
     max_vif, vif_reason = _max_vif(numeric)
-    missing_rate = df.isna().mean()
 
     return {
         # Per-column rates, not only the aggregate: a single 40% column and forty 1% columns
         # have the same mean and nothing else in common.
         "missing_by_column": {
-            str(col): round(float(rate), 6) for col, rate in missing_rate.items() if rate > 0
+            str(col): round(float(rate), 6) for col, rate in missing.items() if rate > 0
         },
-        # The design asks for MCAR/MAR/MNAR. That needs a test whose answer depends on
-        # assumptions this profile cannot check, so the gap is stated rather than guessed.
-        "missing_pattern": "untested",
         "n_rows": int(len(df)),
         "n_cols": int(df.shape[1]),
         "n_features": int(features.shape[1]),
@@ -176,7 +173,7 @@ def _run_id():
 
 
 def _anchor_registry():
-    """The pilot's dataset registry: name -> (file, target).
+    """The pilot's dataset registry, as name -> {"file", "target"}.
 
     One source of truth. D1 profiles the datasets the anchor will actually run, so the list
     comes from the runner rather than from a second copy here that can drift.
@@ -218,7 +215,7 @@ def main(argv=None, *, root=None, datasets=None):
     ``root`` is a test seam, not a command-line option: the CLI cannot name a location, so no
     invocation of this script can put a diagnostic record outside `outputs/diagnostics/`.
     """
-    parser = argparse.ArgumentParser(description="D1 -- profile one dataset into one record.")
+    parser = argparse.ArgumentParser(description="D1 -- profile one or more datasets, one record each.")
     parser.add_argument("--csv", type=Path, help="the table to profile (ad-hoc, single file)")
     parser.add_argument("--target", help="target column in --csv")
     parser.add_argument(
@@ -244,18 +241,25 @@ def main(argv=None, *, root=None, datasets=None):
 
     targets = _targets(args, datasets)
     base_run_id = args.run_id or _run_id()
-    # One record per directory, always. A batch is several runs, not one run with a list in it,
-    # so the writer's refusal-to-replace invariant stays intact.
-    multi = len(targets) > 1
+
+    # Pre-flight everything before writing anything: a set of records that fails halfway is not
+    # recoverable, because the writer refuses to replace the ones already written.
+    names = [name for name, _, _ in targets]
+    duplicates = sorted({n for n in names if names.count(n) > 1})
+    if duplicates:
+        raise SystemExit(f"duplicate dataset name(s) {duplicates}: one record per name, per run")
+    missing_files = [str(f) for _, f, _ in targets if not f.exists()]
+    if missing_files:
+        raise SystemExit(f"no such file(s): {missing_files}")
 
     for index, (name, path, target) in enumerate(targets):
-        if not path.exists():
-            raise SystemExit(f"no such file: {path}")
+        # The dataset name is always in the run id, so the directory a dataset lands in does not
+        # depend on how many datasets were profiled with it. D2-D5 copy this convention.
         record = _profile_one(
             path=path,
             target=target,
             name=name,
-            run_id=f"{base_run_id}-{name}" if multi else base_run_id,
+            run_id=f"{base_run_id}-{name}",
         )
         written = write_diagnostic_record(record, root=root or DIAGNOSTICS_ROOT)
         print(f"{DIAGNOSTIC} {record.dataset_name}: {written}")

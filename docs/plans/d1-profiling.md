@@ -14,8 +14,10 @@ Two changes, both inside the existing record contract:
 
 1. **Anchors, not a CSV.** D1 learns to profile the four anchor datasets by name, from the pilot's own
    dataset registry, so the dataset list has one source of truth and a run cannot silently profile a
-   file the anchor will never use. One record per dataset per run; a single `--csv` remains for ad-hoc
-   profiling.
+   file the anchor will never use. One record per dataset, named `<run id>-<dataset>` always, so a
+   dataset's directory does not depend on how many others were profiled with it. All paths are
+   validated before anything is written, because a half-written set is unrecoverable — the writer
+   refuses to replace what already exists. A single `--csv` remains for ad-hoc profiling.
 2. **The rest of the table.** Per-column missingness (with the pattern marked as untested rather than
    guessed), target quantiles for non-binary targets, the numeric-to-categorical ratio, and a bounded
    VIF beside the existing maximum pairwise correlation. The design's "prior-mismatch proxies" row is
@@ -24,9 +26,10 @@ Two changes, both inside the existing record contract:
 
 ## What is deliberately not done
 
-- **No MCAR/MAR/MNAR test.** The design asks for the pattern; deciding it needs a statistical test whose
-  result depends on assumptions the profile cannot check. The record states per-column rates and marks
-  the pattern `untested`, so the gap is visible instead of papered over.
+- **No MCAR/MAR/MNAR test, and no `untested` field.** The design asks for the pattern; deciding it needs a
+  test whose result depends on assumptions the profile cannot check. A constant field saying `untested`
+  would be a measurement that never measures, so the gap is stated here and in the script's docstring,
+  and the record carries the per-column rates it *can* defend.
 - **No histogram.** Quantiles carry the shape a reader needs and stay comparable between datasets; a
   binned histogram would be a second representation of the same numbers.
 - **No change to the row cap or the split** — the cap decision is recorded in the signed plan.

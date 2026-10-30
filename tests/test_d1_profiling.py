@@ -80,7 +80,7 @@ def test_d1_emits_one_record_through_the_shared_writer(tmp_path, csv_path, d1):
         root=out,
     ) == 0
 
-    written = out / "d1_profiling" / "20261029T120000Z"
+    written = out / "d1_profiling" / "20261029T120000Z-synthetic"
     on_disk = read_diagnostic_record(written)
 
     assert list(on_disk) == list(DIAGNOSTIC_RECORD_FIELDS)
@@ -97,12 +97,12 @@ def test_d1_refuses_to_replace_a_record(tmp_path, csv_path, d1):
     argv = ["--csv", str(csv_path), "--target", "target", "--run-id", "20261029T120000Z"]
     out = tmp_path / "records"
     d1.main(argv, root=out)
-    before = (out / "d1_profiling" / "20261029T120000Z" / "record.json").read_bytes()
+    before = (out / "d1_profiling" / "20261029T120000Z-synthetic" / "record.json").read_bytes()
 
     with pytest.raises(FileExistsError, match="REFUSING TO OVERWRITE"):
         d1.main(argv, root=out)
 
-    after = (out / "d1_profiling" / "20261029T120000Z" / "record.json").read_bytes()
+    after = (out / "d1_profiling" / "20261029T120000Z-synthetic" / "record.json").read_bytes()
     assert after == before
 
 
@@ -146,7 +146,7 @@ def _record_for(d1, tmp_path, csv, target, name="synthetic"):
     root = tmp_path / "diagnostics"
     rc = d1.main(["--csv", str(csv), "--target", target, "--name", name, "--run-id", "R1"], root=root)
     assert rc == 0
-    record = json.loads((root / "d1_profiling" / "R1" / "record.json").read_text())
+    record = json.loads((root / "d1_profiling" / f"R1-{name}" / "record.json").read_text())
     return record
 
 
@@ -155,9 +155,9 @@ def test_record_reports_missingness_per_column_and_marks_pattern_untested(d1, tm
 
     assert m["missing_by_column"] == {"amount": 0.25}
     assert m["n_cols_with_missing"] == 1
-    # The design asks for MCAR/MAR/MNAR. Deciding it needs a test the profile cannot run,
-    # so the record says so rather than guessing a label.
-    assert m["missing_pattern"] == "untested"
+    # No pattern label: MCAR/MAR/MNAR needs a test whose answer depends on assumptions the
+    # profile cannot check, so the field would be a constant pretending to be a measurement.
+    assert "missing_pattern" not in m
 
 
 def test_record_reports_target_quantiles_for_a_numeric_target(d1, tmp_path):
@@ -186,7 +186,7 @@ def test_record_reports_vif_only_when_it_can_be_computed(d1, tmp_path, mixed_csv
     pd.DataFrame({"t": [0, 1, 0, 1], "only": [1.0, 2.0, 3.0, 4.0]}).to_csv(single, index=False)
     m2 = _record_for(d1, tmp_path / "two", single, "t")["measurements"]
     assert m2["max_vif"] is None
-    assert m2["vif_reason"]
+    assert m2["vif_reason"] == "fewer than two numeric features"
 
 
 def test_anchors_write_one_record_each_from_the_registry(d1, tmp_path):
@@ -214,3 +214,35 @@ def test_two_runs_with_the_same_inputs_produce_the_same_measurements(d1, tmp_pat
     first = _record_for(d1, tmp_path / "one", mixed_csv, "target")["measurements"]
     second = _record_for(d1, tmp_path / "two", mixed_csv, "target")["measurements"]
     assert first == second
+
+
+def test_record_values_are_recomputable_from_the_csv(d1, tmp_path, mixed_csv):
+    """The ticket's wrongness check: a reader must be able to verify the record from the file."""
+    record = _record_for(d1, tmp_path, mixed_csv, "target")
+    frame = pd.read_csv(mixed_csv)
+
+    assert record["dataset_sha256"] == sha256_file(mixed_csv)
+    assert record["measurements"]["n_rows"] == len(frame)
+    assert record["measurements"]["n_cols"] == frame.shape[1]
+    positive = float((frame["target"] == 1).mean())
+    assert record["measurements"]["target"]["positive_rate"] == pytest.approx(positive, abs=1e-6)
+    per_column = frame.isna().mean()
+    assert record["measurements"]["missing_by_column"] == {
+        "amount": pytest.approx(float(per_column["amount"]), abs=1e-6)
+    }
+
+
+def test_a_missing_file_fails_before_any_record_is_written(d1, tmp_path):
+    """A set that fails halfway is unrecoverable: the writer refuses to replace what exists."""
+    present = tmp_path / "present.csv"
+    pd.DataFrame({"t": [0, 1], "f": [1.0, 2.0]}).to_csv(present, index=False)
+    registry = {
+        "alpha": {"file": str(present), "target": "t"},
+        "beta": {"file": str(tmp_path / "absent.csv"), "target": "t"},
+    }
+    root = tmp_path / "diagnostics"
+
+    with pytest.raises(SystemExit, match="no such file"):
+        d1.main(["--all-anchors", "--run-id", "R3"], root=root, datasets=registry)
+
+    assert not (root / "d1_profiling").exists(), "a record was written before the pre-flight failed"
