@@ -316,6 +316,29 @@ def _experiment(
     )
 
 
+FOLD_KINDS = ("stratified", "kfold")
+
+
+def make_folds(kind: str, n_folds: int, seed: int):
+    """One configured splitter, so two scripts cannot build two different splits.
+
+    `stratified` is for a class target, `kfold` for a continuous or count target. The
+    caller passes the experiment's fold count and seed; a different caller that follows
+    the same rule gets the same indices. An unknown kind is refused rather than guessed.
+    """
+    if kind == "stratified":
+        from sklearn.model_selection import StratifiedKFold
+
+        return StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
+    if kind == "kfold":
+        from sklearn.model_selection import KFold
+
+        return KFold(n_splits=n_folds, shuffle=True, random_state=seed)
+    raise RegistryError(
+        f"unknown fold kind {kind!r}; expected one of: {', '.join(FOLD_KINDS)}"
+    )
+
+
 def as_runner_dataset(registry: Registry, experiment: Experiment) -> dict[str, Any]:
     """The dataset entry the v1 runner's `run_dataset*` functions already take.
 
@@ -324,7 +347,9 @@ def as_runner_dataset(registry: Registry, experiment: Experiment) -> dict[str, A
     #230 is that discovery by `{dataset}__seed{s}__*` still resolves. An experiment that
     renamed its dataset would rename its artifacts, so it does not.
 
-    Adapter only. #231 removes it by teaching the runner to take the dataclasses directly.
+    #231 keeps this adapter: the runner takes methods, folds and metric from the
+    experiment, while `load_Xy` and the capture writer still take the dict shape this
+    returns. The dataset name is the one field that must not move.
     """
     dataset = registry.dataset_of(experiment)
     entry: dict[str, Any] = {
