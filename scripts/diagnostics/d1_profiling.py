@@ -74,7 +74,43 @@ def _target_profile(values):
         "n_distinct": int(values.nunique()),
         "zero_inflation_rate": round(float((numeric == 0).mean()), 6),
         "skew": round(float(numeric.skew()), 6) if len(numeric) > 2 else None,
+        # Quantiles rather than a histogram: the design asks for the shape, and quantiles are
+        # comparable between datasets where bins are not.
+        "quantiles": {
+            label: round(float(numeric.quantile(q)), 6)
+            for label, q in (("p05", 0.05), ("p25", 0.25), ("p50", 0.5), ("p75", 0.75), ("p95", 0.95))
+        },
     }
+
+
+VIF_MAX_FEATURES = 30
+
+
+def _max_vif(numeric):
+    """The largest variance inflation factor, or (None, reason) when it cannot be computed.
+
+    Computed from the inverse correlation matrix (VIF_i = [R^-1]_ii) so no new dependency is
+    added. Bounded on purpose: VIF is a property of the whole numeric block, and a hundred
+    features would make the inverse expensive for a number nobody reads.
+    """
+    if numeric.shape[1] < 2:
+        return None, "fewer than two numeric features"
+    if numeric.shape[1] > VIF_MAX_FEATURES:
+        return None, f"more than {VIF_MAX_FEATURES} numeric features"
+    frame = numeric.dropna()
+    if len(frame) <= numeric.shape[1] + 1:
+        return None, "too few complete rows"
+    corr = frame.corr().to_numpy()
+    if np.isnan(corr).any():
+        return None, "correlation matrix has missing values"
+    try:
+        inverse = np.linalg.inv(corr)
+    except np.linalg.LinAlgError:
+        return None, "correlation matrix is singular"
+    diagonal = np.diag(inverse)
+    if not np.isfinite(diagonal).all() or (diagonal <= 0).any():
+        return None, "non-positive variance"
+    return round(float(diagonal.max()), 6), None
 
 
 def profile_frame(df, target):
@@ -100,12 +136,28 @@ def profile_frame(df, target):
         if not np.isnan(corr).all():
             max_corr = round(float(np.nanmax(corr)), 6)
 
+    max_vif, vif_reason = _max_vif(numeric)
+    missing_rate = df.isna().mean()
+
     return {
+        # Per-column rates, not only the aggregate: a single 40% column and forty 1% columns
+        # have the same mean and nothing else in common.
+        "missing_by_column": {
+            str(col): round(float(rate), 6) for col, rate in missing_rate.items() if rate > 0
+        },
+        # The design asks for MCAR/MAR/MNAR. That needs a test whose answer depends on
+        # assumptions this profile cannot check, so the gap is stated rather than guessed.
+        "missing_pattern": "untested",
         "n_rows": int(len(df)),
         "n_cols": int(df.shape[1]),
         "n_features": int(features.shape[1]),
         "n_numeric_features": int(numeric.shape[1]),
         "n_categorical_features": int(categorical.shape[1]),
+        "numeric_to_categorical_ratio": (
+            round(numeric.shape[1] / categorical.shape[1], 6) if categorical.shape[1] else None
+        ),
+        "max_vif": max_vif,
+        "vif_reason": vif_reason,
         "n_features_after_one_hot": one_hot_width,
         "feature_row_ratio": round(one_hot_width / max(len(df), 1), 6),
         "missing_rate": round(float(missing.mean()), 6) if len(missing) else 0.0,
@@ -123,30 +175,105 @@ def _run_id():
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
-def main(argv=None, *, root=None):
+def _anchor_registry():
+    """The pilot's dataset registry: name -> (file, target).
+
+    One source of truth. D1 profiles the datasets the anchor will actually run, so the list
+    comes from the runner rather than from a second copy here that can drift.
+    """
+    import importlib.util
+
+    script = _REPO / "scripts" / "run_pilot.py"
+    spec = importlib.util.spec_from_file_location("_pilot_registry", script)
+    if spec is None or spec.loader is None:  # pragma: no cover - defensive
+        raise SystemExit(f"cannot load the pilot registry from {script}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["_pilot_registry"] = module
+    spec.loader.exec_module(module)
+    return {
+        name: {"file": module.DATA_DIR / entry["file"], "target": entry["target"]}
+        for name, entry in module.DATASETS.items()
+    }
+
+
+def _targets(args, datasets):
+    """Resolve the invocation into [(name, path, target)] -- one record each."""
+    if args.csv is not None:
+        return [(args.name or args.csv.stem, args.csv, args.target)]
+
+    registry = datasets if datasets is not None else _anchor_registry()
+    if args.all_anchors:
+        names = list(registry)
+    else:
+        names = args.dataset
+    unknown = [n for n in names if n not in registry]
+    if unknown:
+        raise SystemExit(f"unknown dataset(s) {unknown}; the registry holds {sorted(registry)}")
+    return [(n, Path(registry[n]["file"]), registry[n]["target"]) for n in names]
+
+
+def main(argv=None, *, root=None, datasets=None):
     """Run D1 and write one record.
 
     ``root`` is a test seam, not a command-line option: the CLI cannot name a location, so no
     invocation of this script can put a diagnostic record outside `outputs/diagnostics/`.
     """
     parser = argparse.ArgumentParser(description="D1 -- profile one dataset into one record.")
-    parser.add_argument("--csv", type=Path, required=True, help="the table to profile")
-    parser.add_argument("--target", required=True, help="target column in the table")
+    parser.add_argument("--csv", type=Path, help="the table to profile (ad-hoc, single file)")
+    parser.add_argument("--target", help="target column in --csv")
+    parser.add_argument(
+        "--dataset",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="profile a registered pilot dataset by name (repeatable)",
+    )
+    parser.add_argument(
+        "--all-anchors",
+        action="store_true",
+        help="profile every dataset the pilot registry declares",
+    )
     parser.add_argument("--name", default=None, help="dataset name recorded (default: file stem)")
     parser.add_argument("--run-id", default=None, help="record directory name (default: UTC now)")
     args = parser.parse_args(argv)
 
-    if not args.csv.exists():
-        raise SystemExit(f"no such file: {args.csv}")
+    if args.csv is None and not args.dataset and not args.all_anchors:
+        parser.error("give --csv, or --dataset NAME, or --all-anchors")
+    if args.csv is not None and args.target is None:
+        parser.error("--csv needs --target")
 
-    df = pd.read_csv(args.csv)
-    measurements = profile_frame(df, args.target)
+    targets = _targets(args, datasets)
+    base_run_id = args.run_id or _run_id()
+    # One record per directory, always. A batch is several runs, not one run with a list in it,
+    # so the writer's refusal-to-replace invariant stays intact.
+    multi = len(targets) > 1
 
-    record = DiagnosticRecord(
+    for index, (name, path, target) in enumerate(targets):
+        if not path.exists():
+            raise SystemExit(f"no such file: {path}")
+        record = _profile_one(
+            path=path,
+            target=target,
+            name=name,
+            run_id=f"{base_run_id}-{name}" if multi else base_run_id,
+        )
+        written = write_diagnostic_record(record, root=root or DIAGNOSTICS_ROOT)
+        print(f"{DIAGNOSTIC} {record.dataset_name}: {written}")
+        for key, value in record.measurements.items():
+            print(f"  {key:32} {value}")
+        if index + 1 < len(targets):
+            print()
+    return 0
+
+
+def _profile_one(*, path, target, name, run_id):
+    df = pd.read_csv(path)
+    measurements = profile_frame(df, target)
+    return DiagnosticRecord(
         diagnostic=DIAGNOSTIC,
-        run_id=args.run_id or _run_id(),
-        dataset_name=args.name or args.csv.stem,
-        dataset_sha256=sha256_file(args.csv),
+        run_id=run_id,
+        dataset_name=name,
+        dataset_sha256=sha256_file(path),
         # D1 runs no model, so this is the version this environment RESOLVES to, not one it
         # used -- recorded because a diagnostic's output is read against model runs and #241's
         # `provenance` block carries the same field. `matched_context.checked` is False below,
@@ -157,12 +284,6 @@ def main(argv=None, *, root=None):
         matched_context=matched_context_evidence(),
         measurements=measurements,
     )
-    written = write_diagnostic_record(record, root=root or DIAGNOSTICS_ROOT)
-
-    print(f"{DIAGNOSTIC} {record.dataset_name}: {written}")
-    for key, value in measurements.items():
-        print(f"  {key:32} {value}")
-    return 0
 
 
 if __name__ == "__main__":

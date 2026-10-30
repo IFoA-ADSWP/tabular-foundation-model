@@ -10,9 +10,11 @@ Run:  python -m pytest tests/test_d1_profiling.py -v
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -112,3 +114,103 @@ def test_the_cli_cannot_name_a_location(tmp_path, csv_path, d1):
 
     # With no flag to redirect it, the script's only target is the records tree.
     assert d1.DIAGNOSTICS_ROOT == REPO_ROOT / "outputs" / "diagnostics"
+
+
+# --- #302: the rest of the design's table, asserted through the record ------------
+
+
+@pytest.fixture
+def mixed_csv(tmp_path):
+    """Two numeric features (one correlated), one categorical, one with missing values."""
+    path = tmp_path / "mixed.csv"
+    n = 40
+    x = [float(i) for i in range(n)]
+    # Near-duplicate, not exact: an exactly collinear pair makes the correlation matrix
+    # singular, and the point of the test is a computable VIF that is large.
+    noise = np.random.default_rng(7).normal(0.0, 1.5, n)
+    pd.DataFrame(
+        {
+            "target": [i % 2 for i in range(n)],
+            "x": x,
+            "x_copy": [v + float(d) for v, d in zip(x, noise)],
+            # Not proportional to x: an exact linear relation would make the matrix singular
+            # and the test would be asserting the guard rather than a computed VIF.
+            "amount": [None if i < 10 else float((i * 7) % 23) for i in range(n)],
+            "kind": ["a", "b", "c", "d"][:1] * n,
+        }
+    ).to_csv(path, index=False)
+    return path
+
+
+def _record_for(d1, tmp_path, csv, target, name="synthetic"):
+    root = tmp_path / "diagnostics"
+    rc = d1.main(["--csv", str(csv), "--target", target, "--name", name, "--run-id", "R1"], root=root)
+    assert rc == 0
+    record = json.loads((root / "d1_profiling" / "R1" / "record.json").read_text())
+    return record
+
+
+def test_record_reports_missingness_per_column_and_marks_pattern_untested(d1, tmp_path, mixed_csv):
+    m = _record_for(d1, tmp_path, mixed_csv, "target")["measurements"]
+
+    assert m["missing_by_column"] == {"amount": 0.25}
+    assert m["n_cols_with_missing"] == 1
+    # The design asks for MCAR/MAR/MNAR. Deciding it needs a test the profile cannot run,
+    # so the record says so rather than guessing a label.
+    assert m["missing_pattern"] == "untested"
+
+
+def test_record_reports_target_quantiles_for_a_numeric_target(d1, tmp_path):
+    csv = tmp_path / "numeric_target.csv"
+    pd.DataFrame({"t": [float(i) for i in range(20)], "f": [float(i) for i in range(20)]}).to_csv(
+        csv, index=False
+    )
+    m = _record_for(d1, tmp_path, csv, "t")["measurements"]
+
+    q = m["target"]["quantiles"]
+    assert q["p50"] == pytest.approx(9.5)
+    assert q["p05"] < q["p50"] < q["p95"]
+
+
+def test_record_reports_numeric_to_categorical_ratio(d1, tmp_path, mixed_csv):
+    m = _record_for(d1, tmp_path, mixed_csv, "target")["measurements"]
+    assert m["numeric_to_categorical_ratio"] == pytest.approx(3.0)
+
+
+def test_record_reports_vif_only_when_it_can_be_computed(d1, tmp_path, mixed_csv):
+    """Two near-duplicate numeric features: VIF is computable and high. One feature: it is not."""
+    m = _record_for(d1, tmp_path, mixed_csv, "target")["measurements"]
+    assert m["max_vif"] is not None and m["max_vif"] > 5
+
+    single = tmp_path / "single.csv"
+    pd.DataFrame({"t": [0, 1, 0, 1], "only": [1.0, 2.0, 3.0, 4.0]}).to_csv(single, index=False)
+    m2 = _record_for(d1, tmp_path / "two", single, "t")["measurements"]
+    assert m2["max_vif"] is None
+    assert m2["vif_reason"]
+
+
+def test_anchors_write_one_record_each_from_the_registry(d1, tmp_path):
+    a = tmp_path / "a.csv"
+    b = tmp_path / "b.csv"
+    pd.DataFrame({"t": [0, 1] * 10, "f": range(20)}).to_csv(a, index=False)
+    pd.DataFrame({"y": [0, 1] * 10, "g": range(20)}).to_csv(b, index=False)
+
+    root = tmp_path / "diagnostics"
+    registry = {"alpha": {"file": str(a), "target": "t"}, "beta": {"file": str(b), "target": "y"}}
+    rc = d1.main(["--all-anchors", "--run-id", "R2"], root=root, datasets=registry)
+    assert rc == 0
+
+    # A batch is several runs, not one run holding a list: one record per directory, which is
+    # the shared writer's invariant (#211) and is not weakened for convenience.
+    runs = sorted(p.name for p in (root / "d1_profiling").iterdir())
+    assert runs == ["R2-alpha", "R2-beta"]
+    for name, spec in registry.items():
+        record = json.loads((root / "d1_profiling" / f"R2-{name}" / "record.json").read_text())
+        assert record["dataset_name"] == name
+        assert record["dataset_sha256"] == sha256_file(Path(spec["file"]))
+
+
+def test_two_runs_with_the_same_inputs_produce_the_same_measurements(d1, tmp_path, mixed_csv):
+    first = _record_for(d1, tmp_path / "one", mixed_csv, "target")["measurements"]
+    second = _record_for(d1, tmp_path / "two", mixed_csv, "target")["measurements"]
+    assert first == second
