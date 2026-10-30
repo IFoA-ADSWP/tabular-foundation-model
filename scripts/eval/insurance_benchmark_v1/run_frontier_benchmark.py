@@ -186,6 +186,10 @@ SAVE_PREDICTIONS = False
 # produces states it; ad-hoc runs (--data, positional filters) belong to no experiment
 # and stamp an empty value rather than borrowing one.
 EXPERIMENT_ID: str | None = None
+# Per-dataset power source, filled by the runners and written into manifest.json (#233).
+POWER_SOURCES: dict[str, dict[str, list[str]]] = {}
+# The manifest's `utc` is the run start, even when the file is rewritten after each dataset.
+RUN_STARTED_UTC: str | None = None
 
 # TabPFN parameter count — settled non-decision (spec §5): constant per dataset, orders of
 # magnitude above the GBDTs, so its precise value never changes frontier membership.
@@ -518,6 +522,35 @@ def pareto_frontier(rows: list[dict]) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Sweep reuse predicate (#233)
+# ---------------------------------------------------------------------------
+SWEEP_PROVENANCE_COLUMNS = ("dataset", "n_rows", "method", "fold", "n_estimators",
+                             "seed", "model_version")
+SWEEP_VALUE_COLUMNS = ("log_loss", "brier", "roc_auc")
+
+
+def reusable_sweep_rows(sweep: pd.DataFrame, dataset: str, n_rows: int,
+                        seed: int, model_version: str) -> pd.DataFrame:
+    """Sweep rows attributable to this run, or none.
+
+    A row may be reused only when the table records the provenance this run can match:
+    the same seed and the same resolved model version. A table written before those
+    columns existed (the committed 220 rows) attributes nothing and is never reused,
+    which is why the first post-change run refits once.
+    """
+    required = set(SWEEP_PROVENANCE_COLUMNS) | set(SWEEP_VALUE_COLUMNS)
+    if not required.issubset(sweep.columns):
+        return sweep.iloc[0:0]
+    return sweep[
+        (sweep["dataset"] == dataset)
+        & (sweep["n_rows"] == n_rows)
+        & (sweep["n_estimators"].isna())
+        & (sweep["seed"] == seed)
+        & (sweep["model_version"] == model_version)
+    ]
+
+
+# ---------------------------------------------------------------------------
 # One dataset
 # ---------------------------------------------------------------------------
 def run_dataset(ds: dict, out_csv: Path, out_png: Path,
@@ -566,10 +599,13 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path,
             pred_store[f"{method}__fold{fold}"] = y_pred.astype(np.float32)
 
     # ---- 1. Sweep rows: reusable only for a method that declares it, and only when
-    # the run is not forcing fresh fits (--pr-auc / --save-predictions need predictions).
-    # Provenance (seed, model version) is still unchecked here; #233 closes that.
+    # the row records this run's seed and the experiment's declared model version (#233).
+    # An ad-hoc --data run has no declaration, so it compares its resolved version.
     sweep = pd.read_csv(SWEEP_CSV)
-    sweep_full = sweep[(sweep.dataset == ds["name"]) & (sweep.n_rows == len(X)) & (sweep.n_estimators.isna())]
+    reuse_version = experiment.model_version if experiment is not None else _model_path()
+    sweep_full = reusable_sweep_rows(sweep, ds["name"], len(X), seed, reuse_version)
+    if sweep_full.empty and not sweep.empty:
+        say(f"  no sweep row records seed={seed} model_version={reuse_version}; fitting fresh")
     fresh = PR_AUC_MODE or SAVE_PREDICTIONS
     reused_any = False
 
@@ -658,19 +694,32 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path,
     # ---- 2. Power: every method in the experiment, in its declared order except the
     # hosted one, which runs last so a stall never blocks the CPU results.
     rows: list[dict] = []
+    reused_methods: list[str] = []
+    fresh_methods: list[str] = []
     for m in methods:
         spec = CLASSIFICATION_METHODS[m]
         if spec.build is None:
             continue
         row = reused_row(m) if spec.reuse_sweep else None
-        rows.append(row if row is not None else fit_fresh(m, spec))
+        if row is not None:
+            reused_methods.append(m)
+            rows.append(row)
+        else:
+            fresh_methods.append(m)
+            rows.append(fit_fresh(m, spec))
 
     for m in methods:
         spec = CLASSIFICATION_METHODS[m]
         if spec.build is not None:
             continue
         row = reused_row(m) if spec.reuse_sweep else None
-        rows.append(row if row is not None else fit_hosted(m))
+        if row is not None:
+            reused_methods.append(m)
+            rows.append(row)
+        else:
+            fresh_methods.append(m)
+            rows.append(fit_hosted(m))
+    POWER_SOURCES[ds["name"]] = {"reused": reused_methods, "fresh": fresh_methods}
 
     # ---- 3. n_params from the code-side counting rule. A reused tree row has no fitted
     # model, so fit fold 0 once purely to count, exactly as before (spec §5 D2).
@@ -1088,6 +1137,7 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path,
     table = pd.DataFrame(rows)[["method", "mean", "se", "n_params", "on_frontier"]].sort_values(
         "mean", ignore_index=True
     )
+    POWER_SOURCES[ds["name"]] = {"reused": [], "fresh": [r["method"] for r in rows]}
     table = with_experiment_id(table, EXPERIMENT_ID)
     table.to_csv(out_csv, index=False)
     print(table.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
@@ -1264,17 +1314,18 @@ def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
         git_sha = "unknown"  # shallow/tarball checkouts
     manifest = {
         "run_id": out_dir.name,
-        "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "utc": RUN_STARTED_UTC or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "git_sha": git_sha,
         "seed": SEED,
         "experiment_id": EXPERIMENT_ID,
         "model_version": _model_path(),  # what the run resolved, so the registry's pin is checkable
         "model_version_scope": (
-            "resolved and used for every fresh fit; a row reused from the sweep table "
-            "carries no recorded provenance, so its version is assumed rather than "
-            "attested until #233"
+            "resolved and used for every fresh fit; a reused sweep row is attested by "
+            "its recorded model_version, which must match the experiment's declaration "
+            "before reuse (#233)"
         ),
         "pr_auc_mode": PR_AUC_MODE,
+        "power": POWER_SOURCES or None,
         "argv": sys.argv,
         "note": (
             "per-fold PR-AUC rows still append to the cross-run ledger "
@@ -1286,7 +1337,10 @@ def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    global SEED, PR_AUC_MODE, SAVE_PREDICTIONS, EXPERIMENT_ID
+    global SEED, PR_AUC_MODE, SAVE_PREDICTIONS, EXPERIMENT_ID, POWER_SOURCES
+    global RUN_STARTED_UTC
+    POWER_SOURCES = {}
+    RUN_STARTED_UTC = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     t0 = time.time()
     parser = make_parser()
     args = parser.parse_args()
@@ -1380,6 +1434,9 @@ def main() -> None:
                    experiment=experiments_by_dataset.get(name),
                    seed=SEED, n_folds=N_FOLDS)
         print(f"[{time.strftime('%H:%M:%S')}] {name} done -> {out_csv}, {out_png}", flush=True)
+        # Rewrite after each dataset, not only at the end: a crash mid-run must leave the
+        # completed datasets' power source in the record (#233).
+        write_manifest(out_base, args)
     print(f"\nALL DATASETS DONE in {time.time() - t0:.0f}s", flush=True)
 
 
