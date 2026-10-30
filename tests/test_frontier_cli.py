@@ -339,7 +339,8 @@ def test_an_experiment_passes_its_declared_fold_count_to_the_runner(monkeypatch,
                         lambda _id: (datasets, dataclasses.replace(experiment, n_folds=10)))
     seen = {}
 
-    def capture(_ds, _out_csv, _out_png, experiment=None, seed=None, n_folds=None):
+    def capture(_ds, _out_csv, _out_png, experiment=None, seed=None, n_folds=None,
+                row_size=None):
         seen["folds"] = n_folds
         raise AssertionError("stop after capture")
 
@@ -356,7 +357,8 @@ def test_the_all_datasets_path_keeps_the_cli_seed(monkeypatch, tmp_path):
     # methods, but the sweep's own seed and filename must still come from the CLI.
     seen = {}
 
-    def capture(_ds, _out_csv, _out_png, experiment=None, seed=None, n_folds=None):
+    def capture(_ds, _out_csv, _out_png, experiment=None, seed=None, n_folds=None,
+                row_size=None):
         seen.update(seed=seed, folds=n_folds,
                     experiment=experiment.id if experiment else None)
         raise AssertionError("stop after capture")
@@ -526,7 +528,7 @@ def _toy_pred_store(n_folds=2, methods=("lgbm", "tweedieglm"), n_per_fold=5, see
 def test_the_regression_runner_receives_the_cli_seed(monkeypatch, tmp_path):
     seen = {}
 
-    def capture(_ds, out_csv, _out_png, seed=None, n_folds=None):
+    def capture(_ds, out_csv, _out_png, seed=None, n_folds=None, row_size=None):
         seen.update(seed=seed, folds=n_folds, filename=Path(out_csv).name)
         raise AssertionError("stop after capture")
 
@@ -548,7 +550,8 @@ def test_a_regression_experiment_passes_its_declared_seed(monkeypatch, tmp_path)
                         lambda _id: (datasets, dataclasses.replace(experiment, seed=7)))
     seen = {}
 
-    def capture(_ds, _out_csv, _out_png, seed=None, n_folds=None, experiment=None):
+    def capture(_ds, _out_csv, _out_png, seed=None, n_folds=None, experiment=None,
+                row_size=None):
         seen.update(seed=seed, folds=n_folds)
         raise AssertionError("stop after capture")
 
@@ -675,3 +678,84 @@ def test_reconstruct_pp():
     assert pp_glm.dtype == np.float32
     assert pp_glm[:, 1].min() >= np.float32(1e-6)
     assert pp_glm[:, 1].max() <= np.float32(1 - 1e-6)
+
+
+# ---- the row-size point (#264) ----------------------------------------------
+
+def test_parse_size_defaults_to_full():
+    assert parse([]).size == "full"
+    assert parse(["--size", "1000"]).size == "1000"
+
+
+def test_an_experiment_run_stamps_the_row_size_point(monkeypatch, tmp_path):
+    import json
+
+    refuse_to_run(monkeypatch)
+    monkeypatch.setattr(sys, "argv",
+                        ["prog", "--experiment", "coil2000", "--size", "1000",
+                         "--out-dir", str(tmp_path)])
+    with pytest.raises(AssertionError, match="reached the dataset runner"):
+        mod.main()
+
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    assert manifest["row_size"] == 1000
+
+
+def test_an_undeclared_size_is_refused_by_name(monkeypatch, tmp_path):
+    refuse_to_run(monkeypatch)
+    monkeypatch.setattr(sys, "argv",
+                        ["prog", "--experiment", "coil2000", "--size", "2000",
+                         "--out-dir", str(tmp_path)])
+
+    with pytest.raises(SystemExit):
+        mod.main()
+
+
+def test_size_cannot_be_combined_with_data(monkeypatch, tmp_path):
+    refuse_to_run(monkeypatch)
+    monkeypatch.setattr(sys, "argv",
+                        ["prog", "--data", "X.csv", "--target", "y", "--size", "1000",
+                         "--out-dir", str(tmp_path)])
+
+    with pytest.raises(SystemExit):
+        mod.main()
+
+
+def test_the_regression_path_declares_no_row_sizes_yet(monkeypatch, tmp_path):
+    refuse_to_run(monkeypatch)
+    monkeypatch.setattr(sys, "argv",
+                        ["prog", "--regression", "--size", "1000", "--out-dir", str(tmp_path)])
+
+    with pytest.raises(SystemExit):
+        mod.main()
+
+
+def test_a_sweep_size_is_validated_against_every_dataset_it_covers(monkeypatch, tmp_path):
+    # Only three sweep datasets declare 1000/5000; norauto and the rest are full-only, so
+    # an unfiltered run cannot honour --size 1000 for the whole sweep.
+    refuse_to_run(monkeypatch)
+    monkeypatch.setattr(sys, "argv", ["prog", "--size", "1000", "--out-dir", str(tmp_path)])
+
+    with pytest.raises(SystemExit):
+        mod.main()
+
+
+def test_a_filtered_sweep_accepts_a_declared_size(monkeypatch, tmp_path):
+    import json
+
+    refuse_to_run(monkeypatch)
+    monkeypatch.setattr(sys, "argv",
+                        ["prog", "coil2000", "--size", "1000", "--out-dir", str(tmp_path)])
+    with pytest.raises(AssertionError, match="reached the dataset runner"):
+        mod.main()
+
+    assert json.loads((tmp_path / "manifest.json").read_text())["row_size"] == 1000
+
+
+def test_every_results_row_states_the_row_count():
+    table = pd.DataFrame({"method": ["lr"], "mean": [0.2]})
+    stamped = mod.with_row_count(table, 1000)
+
+    assert list(stamped.columns)[0] == "n_rows"
+    assert list(stamped["n_rows"]) == [1000]
+    assert "n_rows" not in table.columns

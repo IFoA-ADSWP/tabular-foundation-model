@@ -10,7 +10,12 @@ from pathlib import Path
 
 import pytest
 
-from src.experiment_spec import Registry, RegistryError, load_registry
+from src.experiment_spec import (
+    Registry,
+    RegistryError,
+    load_registry,
+    resolve_row_size,
+)
 
 MINIMAL = """
 schema_version = 1
@@ -353,3 +358,80 @@ def test_make_folds_kfold_honours_a_changed_seed():
     second = list(make_folds("kfold", 5, 7).split(X))
 
     assert any(not np.array_equal(a[1], b[1]) for a, b in zip(first, second))
+
+
+# ---- the row-size axis (#264) ----------------------------------------------
+
+def _with_sizes(tmp_path, declared="[1000, 5000]"):
+    return load_registry(write(tmp_path, MINIMAL.replace(
+        'model_version = "v3_default"',
+        f'model_version = "v3_default"\nrow_sizes = {declared}',
+    )))
+
+
+def test_an_experiment_declares_row_sizes_and_full_is_always_a_point(tmp_path):
+    experiment = _with_sizes(tmp_path).experiment("toy")
+
+    assert experiment.row_sizes == (1000, 5000)
+    assert experiment.row_size_points == (1000, 5000, None)
+
+
+def test_an_experiment_that_declares_no_sizes_is_measured_at_full(tmp_path):
+    experiment = load_registry(write(tmp_path, MINIMAL)).experiment("toy")
+
+    assert experiment.row_sizes == ()
+    assert experiment.row_size_points == (None,)
+
+
+@pytest.mark.parametrize("declared, message", [
+    ("[1000, 1000]", "declares row size 1000 more than once"),
+    ("[0]", "positive integers"),
+    ("[-5]", "positive integers"),
+    ("[1.5]", "positive integers"),
+    ('["full"]', "positive integers"),
+    ("[true]", "positive integers"),
+    ("1000", "list of positive integers"),
+])
+def test_a_bad_row_size_declaration_is_refused_by_name(tmp_path, declared, message):
+    path = write(tmp_path, MINIMAL.replace(
+        'model_version = "v3_default"',
+        f'model_version = "v3_default"\nrow_sizes = {declared}',
+    ))
+
+    with pytest.raises(RegistryError, match=message):
+        load_registry(path)
+
+
+def test_a_run_selects_a_declared_point_or_full(tmp_path):
+    experiment = _with_sizes(tmp_path).experiment("toy")
+
+    assert resolve_row_size(experiment, None) is None
+    assert resolve_row_size(experiment, 1000) == 1000
+
+
+def test_a_size_the_declaration_does_not_contain_is_refused_by_name(tmp_path):
+    experiment = _with_sizes(tmp_path).experiment("toy")
+
+    with pytest.raises(RegistryError) as raised:
+        resolve_row_size(experiment, 2000)
+
+    message = str(raised.value)
+    assert "'toy'" in message
+    assert "2000" in message
+    assert "full, 1000, 5000" in message
+
+
+def test_the_declared_sizes_are_the_points_the_committed_sweep_holds():
+    # The acceptance criterion is that the declared axis does not move the committed
+    # table: every size it holds for these three experiments is declared, and its largest
+    # point is the full table.
+    import pandas as pd
+
+    registry = load_registry(REGISTRY)
+    table = pd.read_csv(REGISTRY.parent / "home_turf_sweep_results.csv")
+
+    for dataset in ("bemtl97", "coil2000", "uslapseagent"):
+        declared = {n for n in registry.experiment(dataset).row_size_points if n is not None}
+        observed = set(table.loc[table.dataset == dataset, "n_rows"].unique())
+        assert declared <= observed, (dataset, declared, observed)
+        assert observed - declared == {max(observed)}, (dataset, declared, observed)

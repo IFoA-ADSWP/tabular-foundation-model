@@ -123,11 +123,13 @@ from src.experiment_spec import (  # noqa: E402  (src import after the path inse
     as_runner_dataset,
     load_registry,
     make_folds,
+    resolve_row_size,
 )
 from src.model_version import (  # noqa: E402  (src import after the path insert above)
     resolve_model_path as _model_path,
     version_mismatch,
 )
+from src.row_sizes import slice_data  # noqa: E402  (src import after the path insert above)
 DATA_RAW = REPO / "data" / "raw"
 EXPERIMENTS_TOML = HERE / "experiments.toml"  # the committed registry (#230)
 
@@ -200,6 +202,9 @@ RUN_STARTED_UTC: str | None = None
 # rather than a pass. A sweep covers several experiments, so this is a tuple: the manifest
 # names a single literal only when they agree on one.
 RUN_DECLARED_VERSIONS: tuple[str, ...] = ()
+# --size N: the declared row-size point this run measures (#264). None is the full table,
+# which every experiment has; an integer must be one of the experiment's declared sizes.
+ROW_SIZE: int | None = None
 
 # TabPFN parameter count — settled non-decision (spec §5): constant per dataset, orders of
 # magnitude above the GBDTs, so its precise value never changes frontier membership.
@@ -579,7 +584,8 @@ def reusable_sweep_rows(sweep: pd.DataFrame, dataset: str, n_rows: int,
 # ---------------------------------------------------------------------------
 def run_dataset(ds: dict, out_csv: Path, out_png: Path,
                 experiment: Experiment | None = None,
-                seed: int | None = None, n_folds: int | None = None) -> pd.DataFrame:
+                seed: int | None = None, n_folds: int | None = None,
+                row_size: int | None = None) -> pd.DataFrame:
     """Classification frontier for one dataset.
 
     `experiment` supplies the compared methods. `seed` and `n_folds` default to the
@@ -593,6 +599,7 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path,
         print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
     X, y = load_Xy(ds)
+    X, y = slice_data(X, y, row_size)
     n_cols = X.shape[1]
     metric = metric_fn(ds)
     n_folds = (n_folds if n_folds is not None
@@ -826,7 +833,7 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path,
     # ---- 5b. Persist predictions + read-back verification (--save-predictions, #122) ----
     if SAVE_PREDICTIONS:
         written = [r["method"] for r in rows]
-        npz_path = write_predictions_npz(ds, pred_store, written, n_folds,
+        npz_path = write_predictions_npz(ds, pred_store, written, n_folds, n_rows=len(X),
                                           problem_type="classification",
                                           metric_name=ds.get("metric", "log_loss"), seed=seed,
                                           experiment=experiment)
@@ -834,7 +841,7 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path,
                                      problem_type="classification")
 
     table = table.drop(columns=[c for c in table.columns if c.startswith("_fold")])
-    table = with_experiment_id(table, EXPERIMENT_ID)
+    table = with_row_count(with_experiment_id(table, EXPERIMENT_ID), len(X))
     table.to_csv(out_csv, index=False)
     print(table.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
     return table
@@ -939,7 +946,8 @@ def verify_predictions_dir(pred_dir: Path) -> int:
 
 def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: list[str],
                            n_folds: int, problem_type: str, metric_name: str, seed: int,
-                           experiment: Experiment | None = None) -> Path:
+                           experiment: Experiment | None = None,
+                           n_rows: int | None = None) -> Path:
     """Write predictions/<dataset>__seed<seed>__<model_path>.npz + sibling .manifest.json
     (schema v1, docs/analyses/prediction_capture_rescore_spec.md §4). Asserts every
     fold/method array is present, length-matched to its test split, and finite before
@@ -1010,6 +1018,7 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
             "scoring time (run_dataset fold loop); stored arrays are raw, pre-clip"
         ),
         "n_folds": n_folds,
+        "n_rows": n_rows,  # the row-size point actually measured (#264)
         "seed": seed,
         "split": split_desc,
         "methods": methods,
@@ -1071,7 +1080,8 @@ def verify_predictions_readback(npz_path: Path, methods: list[str], metric, rows
 def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path,
                            seed: int | None = None,
                            n_folds: int | None = None,
-                           experiment: Experiment | None = None) -> pd.DataFrame:
+                           experiment: Experiment | None = None,
+                           row_size: int | None = None) -> pd.DataFrame:
     """Regression-mode frontier (--regression). No sweep reuse — the sweep CSV is
     classification-only, so every regression dataset is FRESH power: all CPU methods
     first, TabPFN last via the hosted API (same retry/backoff loop as the classifier
@@ -1088,6 +1098,7 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path,
     n_folds = n_folds if n_folds is not None else N_FOLDS
     seed = seed if seed is not None else SEED
     X, y = load_Xy(ds, regression=True)
+    X, y = slice_data(X, y, row_size)
     n_cols = X.shape[1]
     metric = metric_fn(ds)  # rmse or poisson_deviance, clipped as needed
     say(f"dataset={ds['name']} shape={X.shape} metric={ds['metric']} "
@@ -1184,7 +1195,7 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path,
         "mean", ignore_index=True
     )
     POWER_SOURCES[ds["name"]] = {"reused": [], "fresh": [r["method"] for r in rows]}
-    table = with_experiment_id(table, EXPERIMENT_ID)
+    table = with_row_count(with_experiment_id(table, EXPERIMENT_ID), len(X))
     table.to_csv(out_csv, index=False)
     print(table.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
 
@@ -1215,7 +1226,7 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path,
     # ---- 5b. Persist predictions + read-back verification (--save-predictions, #122) ----
     if SAVE_PREDICTIONS:
         methods = [r["method"] for r in rows]
-        npz_path = write_predictions_npz(ds, pred_store, methods, n_folds,
+        npz_path = write_predictions_npz(ds, pred_store, methods, n_folds, n_rows=len(X),
                                           problem_type="regression", metric_name=ds["metric"],
                                           seed=seed, experiment=experiment)
         verify_predictions_readback(npz_path, methods, metric, rows, n_folds,
@@ -1269,6 +1280,10 @@ def make_parser() -> argparse.ArgumentParser:
                         help="splitter random_state in both modes (default 42; seed != 42 "
                              "writes frontier_results_<ds>_seed<N>.csv/.png so canonical "
                              "seed-42 files are not clobbered)")
+    parser.add_argument("--size", metavar="full|N", default="full",
+                        help="declared row-size point to measure (#264): 'full' (default) or "
+                             "a size the experiment declares in experiments.toml; cannot be "
+                             "combined with --data, and the regression path declares none yet")
     parser.add_argument("--experiment", metavar="ID",
                         help="run the experiment registered under ID in experiments.toml "
                              "(selects its dataset, metric and mode, and stamps the id into "
@@ -1334,6 +1349,17 @@ def experiment_selection(experiment_id: str) -> tuple[list[dict], Experiment]:
     return [as_runner_dataset(registry, experiment)], experiment
 
 
+def with_row_count(table: pd.DataFrame, n_rows: int) -> pd.DataFrame:
+    """Stamp the rows actually measured on every results row (#264).
+
+    The size axis is only checkable if the row states the point it came from; `n_rows` is
+    the sliced length, so `--size 1000` and a 1 000-row table agree by construction.
+    """
+    stamped = table.copy()
+    stamped.insert(0, "n_rows", n_rows)
+    return stamped
+
+
 def with_experiment_id(table: pd.DataFrame, experiment_id: str | None) -> pd.DataFrame:
     """Stamp the experiment id as the first column of every results row (#230).
 
@@ -1386,6 +1412,9 @@ def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
         "git_sha": git_sha,
         "seed": SEED,
         "experiment_id": EXPERIMENT_ID,
+        # #264: which point of the row-size axis this run measured. 'full' is a point,
+        # not the absence of one.
+        "row_size": "full" if ROW_SIZE is None else ROW_SIZE,
         "model_version": resolved,  # what the run resolved, so the registry's pin is checkable
         # #239: the registry's literals beside the value execution actually used. A mismatch
         # is recorded, not enforced -- #233 owns the reuse rule and needs this to be exactly
@@ -1411,7 +1440,7 @@ def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
 
 def main() -> None:
     global SEED, PR_AUC_MODE, SAVE_PREDICTIONS, EXPERIMENT_ID, POWER_SOURCES
-    global RUN_DECLARED_VERSIONS, RUN_STARTED_UTC
+    global RUN_DECLARED_VERSIONS, RUN_STARTED_UTC, ROW_SIZE
     POWER_SOURCES = {}
     RUN_STARTED_UTC = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     t0 = time.time()
@@ -1483,6 +1512,37 @@ def main() -> None:
                 if wanted is None or name.lower() in wanted
             )
 
+    # ---- the row-size point this run measures (#264) ----
+    if args.size == "full":
+        requested_size = None
+    else:
+        try:
+            requested_size = int(args.size)
+        except ValueError:
+            parser.error(f"--size must be 'full' or an integer, got {args.size!r}")
+    if requested_size is not None and args.data is not None:
+        parser.error("--size cannot be combined with --data: an ad-hoc dataset declares no axis")
+    if requested_size is not None and regression:
+        parser.error("--size needs a declared experiment, and the regression path declares "
+                     "no row sizes until #235")
+    if args.experiment is not None:
+        try:
+            ROW_SIZE = resolve_row_size(experiment, requested_size)
+        except RegistryError as exc:
+            parser.error(str(exc))
+    elif not regression:
+        # Every dataset this run will measure, validated before the first fit: a size the
+        # declaration lacks must cost seconds, not five completed datasets.
+        for name, declared in experiments_by_dataset.items():
+            if wanted is None or name.lower() in wanted:
+                try:
+                    resolve_row_size(declared, requested_size)
+                except RegistryError as exc:
+                    parser.error(str(exc))
+        ROW_SIZE = requested_size
+    else:
+        ROW_SIZE = None
+
     # Output layout: results/<dir> (default) keeps run artifacts out of the code tree.
     # 'legacy' preserves the old beside-script paths for exact reproduction of
     # committed frontier_results_*.csv files mapped in docs/REPRODUCIBILITY_RUNBOOK.md.
@@ -1515,13 +1575,13 @@ def main() -> None:
                 runner(ds, out_csv, out_png, seed=SEED, n_folds=N_FOLDS)
         elif args.experiment is not None:
             runner(ds, out_csv, out_png, experiment=experiment,
-                   seed=experiment.seed, n_folds=experiment.n_folds)
+                   seed=experiment.seed, n_folds=experiment.n_folds, row_size=ROW_SIZE)
         else:
             # The all-datasets run is a sweep, not one experiment: take its methods from
             # the registry but keep the CLI seed/folds, so `--seed 7` still folds at 7.
             runner(ds, out_csv, out_png,
                    experiment=experiments_by_dataset.get(name),
-                   seed=SEED, n_folds=N_FOLDS)
+                   seed=SEED, n_folds=N_FOLDS, row_size=ROW_SIZE)
         print(f"[{time.strftime('%H:%M:%S')}] {name} done -> {out_csv}, {out_png}", flush=True)
         # Rewrite after each dataset, not only at the end: a crash mid-run must leave the
         # completed datasets' power source in the record (#233).
