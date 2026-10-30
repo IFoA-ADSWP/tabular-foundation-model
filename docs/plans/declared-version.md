@@ -68,11 +68,22 @@ either is the wrong change.
   it declares, and the comparison happens where execution has already happened.
 - **Both manifests, one definition.** The run manifest and the capture manifest call
   the same function, so they cannot disagree about the same run.
+- **The declared literal is the run's, not the dataset's.** #231 (merged while this
+  branch waited) made the all-datasets classification path run one declared experiment
+  per dataset, but the run manifest names no single experiment on that path —
+  `experiment_id` is `null` there too. So `model_version_declared` is recorded when the
+  run names one experiment (`--experiment <id>`) and is `null` otherwise. Deriving "they
+  all agreed" would be a second eligibility rule invented outside the ticket;
+  per-dataset provenance is #233's.
 
 ## Evidence this works
 
 - The gate, **measured on this worktree rather than inherited** from the plan docs:
   `./scripts/check.sh` before any edit. Baseline recorded in the PR/commit.
+- After merging `main` (which landed #231's classification runner and #241's record
+  contract): `./scripts/check.sh` exit 0, **336 passed**, ruff and shellcheck clean.
+  `scripts/check.sh` runs three commands; the fourth CI check — doc links and doc status
+  — runs inside pytest, so green pytest covers it.
 - A run at `TABPFN_MODEL_PATH=v3.5_default` against an experiment declaring
   `v3_default` writes `model_version_mismatch: true` with both values named.
 - An unexported run against the same experiment writes `false`.
