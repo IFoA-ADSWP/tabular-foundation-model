@@ -87,6 +87,19 @@ target = "Cost_claims_year"
 drop = []
 metric = "rmse"
 
+# ---- pilot datasets (#238) ---------------------------------------------------
+# Their own section: the pilot drops no columns and scores through its arm runner, so a
+# frontier dataset's metric would be a claim the pilot never uses. Keeping them out of
+# [datasets] also keeps #235's rule true -- every frontier dataset has one experiment.
+
+[pilot_datasets.eudirectlapse]
+file = "eudirectlapse.csv"
+target = "lapse"
+
+[pilot_datasets.spanish_motor_lapse]
+file = "spanish_motor_lapse.csv"
+target = "LapseB"
+
 # ---- methods ----------------------------------------------------------------
 
 [methods.classification.cat]
@@ -228,3 +241,95 @@ methods = ["ols", "poissonglm", "tweedieglm", "rf", "cat", "lgbm", "xgb", "tabpf
 n_folds = 5
 seed = 42
 model_version = "v3_default"
+
+
+# ---- pilot arms and experiments (#238) --------------------------------------
+#
+# The pilot's arms are its methods: the file names the id and the arm's own epoch
+# budget, the code owns construction. An arm with no budget inherits the experiment's
+# base config. The ladder arms carry their budget here because a rung that ran 30
+# epochs while its record said 3 is exactly the mismatch the record exists to prevent.
+#
+# These four experiments reproduce the committed pilot metrics: four datasets, seed 42,
+# a single split at train 2 000 / test 1 000 rows, and the base config below.
+
+[pilot_methods.A_raw]
+
+[pilot_methods.B_in_domain]
+
+[pilot_methods.E_glm]
+
+[pilot_methods.F_catboost]
+
+[pilot_methods.B_ft3]
+epochs = 3
+
+[pilot_methods.B_ft10]
+epochs = 10
+
+[pilot_methods.B_ft30]
+epochs = 30
+
+[pilot_experiments.coil2000_p1a]
+dataset = "coil2000"
+arms = ["A_raw", "B_in_domain", "E_glm", "F_catboost"]
+seed = 42
+train_size = 2000
+test_size = 1000
+model_version = "v3_default"
+
+[pilot_experiments.coil2000_p1a.config]
+epochs = 3
+early_stopping = false
+n_estimators = 2
+learning_rate = 1e-5
+fit_mode = "batched"
+context_samples = 64
+
+[pilot_experiments.uslapseagent_p1a]
+dataset = "uslapseagent"
+arms = ["A_raw", "B_in_domain", "E_glm", "F_catboost"]
+seed = 42
+train_size = 2000
+test_size = 1000
+model_version = "v3_default"
+
+[pilot_experiments.uslapseagent_p1a.config]
+epochs = 3
+early_stopping = false
+n_estimators = 2
+learning_rate = 1e-5
+fit_mode = "batched"
+context_samples = 64
+
+[pilot_experiments.eudirectlapse_p1a]
+dataset = "eudirectlapse"
+arms = ["A_raw", "B_in_domain", "E_glm", "F_catboost"]
+seed = 42
+train_size = 2000
+test_size = 1000
+model_version = "v3_default"
+
+[pilot_experiments.eudirectlapse_p1a.config]
+epochs = 3
+early_stopping = false
+n_estimators = 2
+learning_rate = 1e-5
+fit_mode = "batched"
+context_samples = 64
+
+[pilot_experiments.spanish_motor_lapse_p1a]
+dataset = "spanish_motor_lapse"
+arms = ["A_raw", "B_in_domain", "E_glm", "F_catboost"]
+seed = 42
+train_size = 2000
+test_size = 1000
+model_version = "v3_default"
+
+[pilot_experiments.spanish_motor_lapse_p1a.config]
+epochs = 3
+early_stopping = false
+n_estimators = 2
+learning_rate = 1e-5
+fit_mode = "batched"
+context_samples = 64

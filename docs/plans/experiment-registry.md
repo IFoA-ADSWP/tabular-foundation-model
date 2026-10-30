@@ -30,6 +30,11 @@ byte-identical, because the ticket also requires each row to state the id.
 `[methods.classification.<id>]` / `[methods.regression.<id>]` — `n_params`.
 `[experiments.<id>]` — `dataset`, `methods`, `n_folds`, `seed`, `model_version`, optional
 `row_sizes` (#264; full is always a point, so a declaration adds capped points to it).
+`[pilot_methods.<id>]` — optional `epochs`; the arm's own budget (#238).
+`[pilot_experiments.<id>]` — `dataset`, `arms`, `seed`, optional `folds`, `train_size`,
+`test_size`, `model_version`, and a complete `config` table (#238). A pilot experiment is
+its own section because it shares only the dataset and the model version with a frontier
+experiment; every setting is required, so nothing is left to a module default.
 
 Two decisions worth stating:
 

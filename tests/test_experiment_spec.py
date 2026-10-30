@@ -13,6 +13,7 @@ import pytest
 from src.experiment_spec import (
     Registry,
     RegistryError,
+    arm_epoch_budget,
     load_registry,
     resolve_row_size,
 )
@@ -217,6 +218,17 @@ N_PARAMS_BY_METHOD = {
 }
 
 
+def _pilot():
+    import importlib.util
+
+    script = REGISTRY.parents[3] / "scripts" / "run_pilot.py"
+    spec = importlib.util.spec_from_file_location("run_pilot_for_registry_test", script)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _runner():
     import importlib.util
 
@@ -402,3 +414,90 @@ def test_the_declared_sizes_are_the_points_the_committed_sweep_holds():
         observed = set(table.loc[table.dataset == dataset, "n_rows"].unique())
         assert declared <= observed, (dataset, declared, observed)
         assert observed - declared == {max(observed)}, (dataset, declared, observed)
+
+
+# ---- the pilot's experiment kind (#238) -------------------------------------
+
+PILOT_MINIMAL = MINIMAL + """
+[pilot_datasets.toy_p]
+file = "toy.csv"
+target = "y"
+
+[pilot_methods.A_raw]
+
+[pilot_methods.B_ft10]
+epochs = 10
+
+[pilot_experiments.toy_p1a]
+dataset = "toy_p"
+arms = ["A_raw", "B_ft10"]
+seed = 42
+train_size = 2000
+test_size = 1000
+model_version = "v3_default"
+
+[pilot_experiments.toy_p1a.config]
+epochs = 3
+early_stopping = false
+n_estimators = 2
+learning_rate = 1e-5
+fit_mode = "batched"
+context_samples = 64
+"""
+
+
+def test_a_pilot_experiment_loads_with_its_arms_and_base_config(tmp_path):
+    registry = load_registry(write(tmp_path, PILOT_MINIMAL))
+    experiment = registry.pilot_experiment("toy_p1a")
+
+    assert (experiment.dataset, experiment.arms) == ("toy_p", ("A_raw", "B_ft10"))
+    assert experiment.seed == 42
+    assert experiment.folds is None  # absent means one split, not a default fold count
+    assert (experiment.train_size, experiment.test_size) == (2000, 1000)
+    assert experiment.config.context_samples == 64
+
+    # The arm's own budget wins; an arm without one inherits the experiment's base.
+    assert arm_epoch_budget(experiment, registry.pilot_methods["B_ft10"]) == 10
+    assert arm_epoch_budget(experiment, registry.pilot_methods["A_raw"]) == 3
+
+
+def test_an_unknown_pilot_experiment_names_it_and_lists_the_known_ones(tmp_path):
+    registry = load_registry(write(tmp_path, PILOT_MINIMAL))
+
+    with pytest.raises(RegistryError, match="unknown pilot experiment 'nope'"):
+        registry.pilot_experiment("nope")
+
+
+@pytest.mark.parametrize("old, new, message", [
+    ('dataset = "toy_p"\narms', 'dataset = "ghost"\narms', "unknown dataset 'ghost'"),
+    ('arms = ["A_raw", "B_ft10"]', 'arms = ["A_raw", "nope"]', "unknown pilot arm 'nope'"),
+    ('arms = ["A_raw", "B_ft10"]', 'arms = ["A_raw", "A_raw"]', "more than once"),
+    ("seed = 42", "seed = -1", "must be at least 0"),
+    ("train_size = 2000", "train_size = 0", "must be at least 1"),
+    ("learning_rate = 1e-5", "learning_rate = 0", "greater than 0.0"),
+    ("epochs = 3", "epochs = 0", "must be at least 1"),
+    ("early_stopping = false", 'early_stopping = "no"', "must be a boolean"),
+    ('fit_mode = "batched"', "", "missing required key 'fit_mode'"),
+    ("n_estimators = 2", "n_estimators = 2\nextra = 1", "unknown key"),
+])
+def test_a_bad_pilot_declaration_is_refused_by_name(tmp_path, old, new, message):
+    text = PILOT_MINIMAL.replace(old, new, 1)
+    assert text != PILOT_MINIMAL, f"fixture has no {old!r} to replace"
+
+    with pytest.raises(RegistryError, match=message):
+        load_registry(write(tmp_path, text))
+
+
+def test_the_committed_registry_declares_the_pilot_experiments_the_pilot_runs():
+    pilot = _pilot()
+    registry = load_registry(REGISTRY)
+
+    assert set(registry.pilot_experiments) == {f"{name}_p1a" for name in pilot.DATASETS}
+    for name in pilot.DATASETS:
+        experiment = registry.pilot_experiment(f"{name}_p1a")
+        assert experiment.dataset == name
+        assert experiment.seed == pilot.DEFAULT_SEED
+        assert (experiment.train_size, experiment.test_size) == (
+            pilot.TRAIN_SIZE, pilot.TEST_SIZE)
+        assert experiment.config.context_samples == pilot.DEFAULT_CONFIG["context_samples"]
+        assert experiment.model_version == "v3_default"

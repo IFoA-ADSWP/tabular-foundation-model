@@ -23,6 +23,16 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from provenance import (  # noqa: E402  (importable after the src path insert above)
+    ARM_RECORD_KIND,
+    COMPARABLE,
+    RECORD_LAYOUTS,
+    code_section,
+    experiment_section,
+    model_section,
+    provenance_block,
+    split_rule,
+    split_section,
+    verdict,
     DIAGNOSTIC_RECORD_FIELDS,
     DIAGNOSTIC_RECORD_SCHEMA_VERSION,
     DataSource,
@@ -212,3 +222,41 @@ def test_matched_context_evidence_states_when_nothing_was_compared():
 def test_matched_context_evidence_propagates_the_violation():
     with pytest.raises(AssertionError, match="MATCHED-CONTEXT VIOLATION"):
         matched_context_evidence({"A_raw": (2000, "full"), "B_ft3": (64, "subsampled")})
+
+
+# ---- the experiment section (ADR 0004, #238) --------------------------------
+
+def test_an_experiment_section_states_declared_beside_resolved():
+    block = provenance_block(
+        dataset={"name": "coil2000", "sha256": "a" * 64},
+        split=split_section(n_folds=5, seed=42, sha256="b" * 64, rule=split_rule("KFold")),
+        model=model_section(version="v3_default", version_source="resolver"),
+        code=code_section(git_sha="c" * 40),
+        experiment=experiment_section(
+            id="coil2000_p1a",
+            model_version="v3_default",
+            declared={"epochs": 3, "learning_rate": 1e-5},
+            resolved={"epochs": 3, "learning_rate": 1e-5},
+        ),
+    )
+
+    assert block["experiment"] == {
+        "id": "coil2000_p1a",
+        "model_version": "v3_default",
+        "declared": {"epochs": 3, "learning_rate": 1e-5},
+        "resolved": {"epochs": 3, "learning_rate": 1e-5},
+    }
+    # Evidence, not a criterion: it cannot move the verdict.
+    assert verdict({"schema_version": 4, "provenance": block}, kind=ARM_RECORD_KIND).status \
+        == COMPARABLE
+
+
+def test_a_record_without_a_named_experiment_omits_the_section():
+    block = provenance_block(dataset={"name": "coil2000"})
+    assert "experiment" not in block  # absent, not null-filled
+
+
+def test_the_reader_places_both_record_versions():
+    # v3 records predate the section and must keep reading; v4 adds it (#238).
+    assert 3 in RECORD_LAYOUTS[ARM_RECORD_KIND].known_versions
+    assert 4 in RECORD_LAYOUTS[ARM_RECORD_KIND].known_versions

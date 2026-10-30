@@ -393,7 +393,7 @@ def test_pf_manifest_is_written_before_the_arms_run(rp):
     """
     src = Path(rp.__file__).read_text()
     write_at = src.index("manifest[\"pid\"] = os.getpid()")
-    run_at = src.index("    try:\n        if args.dataset:", write_at)
+    run_at = src.index("    try:\n        if dataset:", write_at)
     assert write_at < run_at, "manifest must be written BEFORE the arms are dispatched"
 
 
@@ -526,6 +526,22 @@ def test_cli_outdir_keeps_records_out_of_the_default_tree(rp, tmp_path):
     assert r.returncode == 0, r.stdout + r.stderr
     assert (tmp_path / "coil2000" / "E_glm" / "meta.json").exists()
     assert list(tmp_path.glob("manifest_*.json")), "the manifest must land in --outdir"
+
+
+def test_a_declared_run_records_the_experiment_beside_its_resolution(rp, tmp_path):
+    """#238/ADR 0004: the artifact states which experiment it ran, declared vs resolved."""
+    r = _run_cli(rp, "--experiment", "coil2000_p1a", "--arms", "E_glm",
+                 "--outdir", str(tmp_path))
+    assert r.returncode == 0, r.stdout + r.stderr
+
+    import json
+
+    record = json.loads((tmp_path / "coil2000" / "E_glm" / "meta.json").read_text())
+    assert record["schema_version"] == 4
+    experiment = record["provenance"]["experiment"]
+    assert experiment["id"] == "coil2000_p1a"
+    assert experiment["declared"] == experiment["resolved"]
+    assert experiment["resolved"]["epochs"] == 3
 
 
 def test_cli_overwrite_flag_permits_replacement(rp, tmp_path):

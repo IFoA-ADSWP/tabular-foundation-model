@@ -4,6 +4,7 @@ Tracked from GitHub issues. Updated manually.
 
 | Status | # | Title | Assignee |
 |--------|---|-------|----------|
+| 🔲 | #238 | Pilot runs take their experiment from the registry — `--experiment` owns the dataset, arms, seed, folds, sizes and config; arm records schema 4 carry declared beside resolved; launcher passes the id; branch `feat/238-pilot-registry`, PR pending | — |
 | 🔲 | #264 | The registry declares the row-size axis the size sweep varies — `row_sizes` per experiment, full implicit, `--size` on the frontier, one shared slicer; branch `feat/264-row-size-axis`, PR pending | — |
 | 🔲 | #239 | A run records its declared and resolved model version and flags a mismatch — run + capture manifests carry the registry literal, the resolved value and `model_version_mismatch` (`true`/`false`/`null`); the fact is exposed for #233, which owns reuse; branch `feat/239-declared-version`, PR pending | — |
 | 🔲 | #230 | Experiment registry — datasets, methods and experiments declared once in `experiments.toml`, fail-closed loader, `--experiment` stamps its id into every artifact; branch `feat/230-experiment-registry`, PR pending | — |
