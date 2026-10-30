@@ -103,6 +103,7 @@ import argparse
 import os
 import sys
 import time
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Callable, NamedTuple
 
@@ -188,11 +189,12 @@ SAVE_PREDICTIONS = False
 # produces states it; ad-hoc runs (--data, positional filters) belong to no experiment
 # and stamp an empty value rather than borrowing one.
 EXPERIMENT_ID: str | None = None
-# --experiment N: the model version that experiment DECLARED, as the literal in
-# experiments.toml (#239). None on an ad-hoc run, which declares nothing; that is not
-# the same fact as "the declared and resolved versions agree", so the manifest records
-# absent rather than a pass.
-DECLARED_MODEL_VERSION: str | None = None
+# #239: the model versions the experiments this run will EXECUTE declare, as the literals
+# in experiments.toml. Empty on an ad-hoc run, which declares nothing -- that is not the
+# same fact as "the declared and resolved versions agree", so the manifest records absent
+# rather than a pass. A sweep covers several experiments, so this is a tuple: the manifest
+# names a single literal only when they agree on one.
+RUN_DECLARED_VERSIONS: tuple[str, ...] = ()
 
 # TabPFN parameter count — settled non-decision (spec §5): constant per dataset, orders of
 # magnitude above the GBDTs, so its precise value never changes frontier membership.
@@ -751,7 +753,7 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path,
         npz_path = write_predictions_npz(ds, pred_store, written, n_folds,
                                           problem_type="classification",
                                           metric_name=ds.get("metric", "log_loss"), seed=seed,
-                                          experiment_id=EXPERIMENT_ID)
+                                          experiment=experiment)
         verify_predictions_readback(npz_path, written, metric, rows, n_folds,
                                      problem_type="classification")
 
@@ -861,11 +863,15 @@ def verify_predictions_dir(pred_dir: Path) -> int:
 
 def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: list[str],
                            n_folds: int, problem_type: str, metric_name: str, seed: int,
-                           experiment_id: str | None = None) -> Path:
+                           experiment: Experiment | None = None) -> Path:
     """Write predictions/<dataset>__seed<seed>__<model_path>.npz + sibling .manifest.json
     (schema v1, docs/analyses/prediction_capture_rescore_spec.md §4). Asserts every
     fold/method array is present, length-matched to its test split, and finite before
     writing anything.
+
+    `experiment` is the declaration this capture belongs to, and it is the *dataset's*
+    experiment, not the run's (#239): a sweep covers several, and each capture can state
+    its own literal. None for an ad-hoc run, which declares nothing.
 
     The model_path suffix keeps generations side by side: without it a version re-test
     (§15/§16) silently overwrites the baseline it is being diffed against, since dataset
@@ -911,7 +917,7 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
                   f"KFold({n_folds}, shuffle=True, random_state=42)")
     manifest = {
         "schema_version": 1,
-        "experiment_id": experiment_id,
+        "experiment_id": experiment.id if experiment else None,
         "dataset": ds["name"],
         "data_file": ds["file"],
         "target": ds["target"],
@@ -929,10 +935,9 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
         "split": split_desc,
         "methods": methods,
         "model_version": resolved,
-        # #239: a capture is what a future rescore reuses, so it must state the same
-        # declared/resolved pair as the run that produced it; None is absent, not a pass.
-        "model_version_declared": DECLARED_MODEL_VERSION,
-        "model_version_mismatch": version_mismatch(DECLARED_MODEL_VERSION, resolved),
+        # #239: the dataset's declaration, so a drifted capture says so instead of looking
+        # verified; None is absent, not a pass.
+        **model_version_fields([experiment.model_version] if experiment else [], resolved),
         "tabpfn_client_version": tabpfn_client_version,
         "script_git_sha": git_sha,
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -1121,7 +1126,7 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFra
         methods = [r["method"] for r in rows]
         npz_path = write_predictions_npz(ds, pred_store, methods, N_FOLDS,
                                           problem_type="regression", metric_name=ds["metric"],
-                                          seed=SEED, experiment_id=EXPERIMENT_ID)
+                                          seed=SEED)
         verify_predictions_readback(npz_path, methods, metric, rows, N_FOLDS,
                                      problem_type="regression")
 
@@ -1251,6 +1256,27 @@ def with_experiment_id(table: pd.DataFrame, experiment_id: str | None) -> pd.Dat
     return stamped
 
 
+def model_version_fields(declared: Iterable[str | None], resolved: str) -> dict:
+    """The declared/resolved keys a manifest records, for the declarations it covers (#239).
+
+    A capture covers one experiment, so `declared` is its literal. The run manifest covers
+    every experiment the run will execute, and those need not declare the same version: no
+    single literal is then true, so `model_version_declared` is None — but the flag is
+    still answerable, and answers true when *any* covered declaration differs from what
+    execution resolved. That is the sweep's only chance to notice drift.
+
+    No declaration at all (an ad-hoc run) is None in both keys. That is an absence, never a
+    pass: #233 must require exactly False before it reuses a row.
+    """
+    values = {v for v in declared if v is not None}
+    if not values:
+        return {"model_version_declared": None, "model_version_mismatch": None}
+    return {
+        "model_version_declared": next(iter(values)) if len(values) == 1 else None,
+        "model_version_mismatch": any(version_mismatch(v, resolved) for v in values),
+    }
+
+
 def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
     """Per-run provenance manifest — pins git state, seed, and command for this output dir."""
     import json
@@ -1269,12 +1295,11 @@ def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
         "seed": SEED,
         "experiment_id": EXPERIMENT_ID,
         "model_version": resolved,  # what the run resolved, so the registry's pin is checkable
-        # #239: the registry's literal beside the value execution actually used. A mismatch
+        # #239: the registry's literals beside the value execution actually used. A mismatch
         # is recorded, not enforced -- #233 owns the reuse rule and needs this to be exactly
-        # False, not None, before it may reuse a row. None (no experiment declared a
-        # version) is an absence, never a pass.
-        "model_version_declared": DECLARED_MODEL_VERSION,
-        "model_version_mismatch": version_mismatch(DECLARED_MODEL_VERSION, resolved),
+        # False, not None, before it may reuse a row. None (nothing declared a version) is an
+        # absence, never a pass.
+        **model_version_fields(RUN_DECLARED_VERSIONS, resolved),
         "model_version_scope": (
             "resolved and used for every fresh fit; a row reused from the sweep table "
             "carries no recorded provenance, so its version is assumed rather than "
@@ -1292,7 +1317,7 @@ def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    global SEED, PR_AUC_MODE, SAVE_PREDICTIONS, EXPERIMENT_ID, DECLARED_MODEL_VERSION
+    global SEED, PR_AUC_MODE, SAVE_PREDICTIONS, EXPERIMENT_ID, RUN_DECLARED_VERSIONS
     t0 = time.time()
     parser = make_parser()
     args = parser.parse_args()
@@ -1330,14 +1355,14 @@ def main() -> None:
         EXPERIMENT_ID = experiment.id
         # What the experiment declared. Recorded, not applied: execution below still
         # resolves env-first, and the manifest states both (#239).
-        DECLARED_MODEL_VERSION = experiment.model_version
+        RUN_DECLARED_VERSIONS = (experiment.model_version,)
         wanted = None
     else:
         datasets, wanted = select_datasets(args)
         # An ad-hoc run belongs to no experiment, so it declares nothing. Clearing these
         # matters because main() is re-entered by tests in one process.
         EXPERIMENT_ID = None
-        DECLARED_MODEL_VERSION = None
+        RUN_DECLARED_VERSIONS = ()
 
     # A classification run reads each dataset's experiment for its methods and folds.
     # --experiment selected one above; the all-datasets path maps each dataset to its
@@ -1352,6 +1377,15 @@ def main() -> None:
         for declared in classification:
             planned_classification_methods(declared.methods)
         experiments_by_dataset = {experiment.dataset: experiment for experiment in classification}
+        if args.experiment is None:
+            # This run is a sweep of several experiments, and the manifest is one artifact
+            # for all of them (#239). Record what the datasets that will actually run
+            # declare, not the whole registry: a filter narrows what the run covers.
+            RUN_DECLARED_VERSIONS = tuple(
+                experiment.model_version
+                for name, experiment in experiments_by_dataset.items()
+                if wanted is None or name.lower() in wanted
+            )
 
     # Output layout: results/<dir> (default) keeps run artifacts out of the code tree.
     # 'legacy' preserves the old beside-script paths for exact reproduction of
