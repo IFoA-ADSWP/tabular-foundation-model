@@ -176,11 +176,6 @@ def _require(loc: str, entry: Mapping[str, Any], key: str) -> Any:
     return entry[key]
 
 
-def _require_or_default(entry: Mapping[str, Any], key: str, default: Any) -> Any:
-    """An optional key's value, with the absence spelled out rather than caught."""
-    return entry[key] if key in entry else default
-
-
 def _typed(loc: str, entry: Mapping[str, Any], key: str, kind: type, label: str) -> Any:
     value = _require(loc, entry, key)
     # bool is an int subclass, and `n_folds = true` must not slip through
@@ -338,7 +333,7 @@ def _experiment(
         if method not in table:
             _fail(loc, f"references unknown {dataset.mode} method {method!r}")
 
-    row_sizes = _require_or_default(entry, "row_sizes", [])
+    row_sizes = entry.get("row_sizes", [])
     if not isinstance(row_sizes, list) or not all(
         isinstance(n, int) and not isinstance(n, bool) and n >= 1 for n in row_sizes
     ):

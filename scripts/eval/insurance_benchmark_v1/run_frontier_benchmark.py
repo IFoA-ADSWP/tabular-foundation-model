@@ -600,6 +600,11 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path,
 
     X, y = load_Xy(ds)
     X, y = slice_data(X, y, row_size)
+    if row_size is not None and len(X) < row_size:
+        raise ValueError(
+            f"dataset {ds['name']!r} has {len(X)} rows, fewer than the declared size "
+            f"{row_size}: the declaration cannot be honoured"
+        )
     n_cols = X.shape[1]
     metric = metric_fn(ds)
     n_folds = (n_folds if n_folds is not None
@@ -834,6 +839,7 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path,
     if SAVE_PREDICTIONS:
         written = [r["method"] for r in rows]
         npz_path = write_predictions_npz(ds, pred_store, written, n_folds, n_rows=len(X),
+                                          row_size=row_size,
                                           problem_type="classification",
                                           metric_name=ds.get("metric", "log_loss"), seed=seed,
                                           experiment=experiment)
@@ -947,7 +953,8 @@ def verify_predictions_dir(pred_dir: Path) -> int:
 def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: list[str],
                            n_folds: int, problem_type: str, metric_name: str, seed: int,
                            experiment: Experiment | None = None,
-                           n_rows: int | None = None) -> Path:
+                           n_rows: int | None = None,
+                           row_size: int | None = None) -> Path:
     """Write predictions/<dataset>__seed<seed>__<model_path>.npz + sibling .manifest.json
     (schema v1, docs/analyses/prediction_capture_rescore_spec.md §4). Asserts every
     fold/method array is present, length-matched to its test split, and finite before
@@ -965,7 +972,8 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
 
     PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
     resolved = _model_path()
-    stem = f"{ds['name']}__seed{seed}__{resolved}"
+    size_part = "" if row_size is None else f"__size{row_size}"
+    stem = f"{ds['name']}__seed{seed}{size_part}__{resolved}"
     npz_path = PREDICTIONS_DIR / f"{stem}.npz"
     manifest_path = PREDICTIONS_DIR / f"{stem}.manifest.json"
 
@@ -1018,7 +1026,8 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
             "scoring time (run_dataset fold loop); stored arrays are raw, pre-clip"
         ),
         "n_folds": n_folds,
-        "n_rows": n_rows,  # the row-size point actually measured (#264)
+        "row_size": "full" if row_size is None else row_size,  # the declared point (#264)
+        "n_rows": n_rows,  # the rows actually measured, which may differ if full
         "seed": seed,
         "split": split_desc,
         "methods": methods,
@@ -1080,8 +1089,7 @@ def verify_predictions_readback(npz_path: Path, methods: list[str], metric, rows
 def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path,
                            seed: int | None = None,
                            n_folds: int | None = None,
-                           experiment: Experiment | None = None,
-                           row_size: int | None = None) -> pd.DataFrame:
+                           experiment: Experiment | None = None) -> pd.DataFrame:
     """Regression-mode frontier (--regression). No sweep reuse — the sweep CSV is
     classification-only, so every regression dataset is FRESH power: all CPU methods
     first, TabPFN last via the hosted API (same retry/backoff loop as the classifier
@@ -1098,7 +1106,6 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path,
     n_folds = n_folds if n_folds is not None else N_FOLDS
     seed = seed if seed is not None else SEED
     X, y = load_Xy(ds, regression=True)
-    X, y = slice_data(X, y, row_size)
     n_cols = X.shape[1]
     metric = metric_fn(ds)  # rmse or poisson_deviance, clipped as needed
     say(f"dataset={ds['name']} shape={X.shape} metric={ds['metric']} "
@@ -1349,6 +1356,16 @@ def experiment_selection(experiment_id: str) -> tuple[list[dict], Experiment]:
     return [as_runner_dataset(registry, experiment)], experiment
 
 
+def selected(name: str, wanted: set[str] | None) -> bool:
+    """Whether a dataset is covered by the run's filter (`None` = no filter)."""
+    return wanted is None or name.lower() in wanted
+
+
+def size_label(row_size: int | None) -> str:
+    """How an artifact names the row-size point it measured (#264)."""
+    return "full" if row_size is None else f"{row_size} rows"
+
+
 def with_row_count(table: pd.DataFrame, n_rows: int) -> pd.DataFrame:
     """Stamp the rows actually measured on every results row (#264).
 
@@ -1356,7 +1373,7 @@ def with_row_count(table: pd.DataFrame, n_rows: int) -> pd.DataFrame:
     the sliced length, so `--size 1000` and a 1 000-row table agree by construction.
     """
     stamped = table.copy()
-    stamped.insert(0, "n_rows", n_rows)
+    stamped.insert(1, "n_rows", n_rows)  # beside experiment_id, which stays first (#230)
     return stamped
 
 
@@ -1520,6 +1537,9 @@ def main() -> None:
             requested_size = int(args.size)
         except ValueError:
             parser.error(f"--size must be 'full' or an integer, got {args.size!r}")
+    if requested_size is not None and args.pr_auc:
+        parser.error("--size cannot be combined with --pr-auc: the PR-AUC ledger is one "
+                     "append-only table with no column to say which row-size point a row came from")
     if requested_size is not None and args.data is not None:
         parser.error("--size cannot be combined with --data: an ad-hoc dataset declares no axis")
     if requested_size is not None and regression:
@@ -1534,7 +1554,7 @@ def main() -> None:
         # Every dataset this run will measure, validated before the first fit: a size the
         # declaration lacks must cost seconds, not five completed datasets.
         for name, declared in experiments_by_dataset.items():
-            if wanted is None or name.lower() in wanted:
+            if selected(name, wanted):
                 try:
                     resolve_row_size(declared, requested_size)
                 except RegistryError as exc:
@@ -1564,6 +1584,10 @@ def main() -> None:
         # Seed != 42 gets suffixed outputs so split-seed runs never clobber the
         # canonical seed-42 frontier_results_*.csv / plots.
         suffix = f"_seed{SEED}" if SEED != 42 else ""
+        # A size produces different numbers from the same dataset and seed, so it needs its
+        # own file for the same reason a non-default seed does (#264).
+        if ROW_SIZE is not None:
+            suffix += f"_size{ROW_SIZE}"
         out_csv = out_base / f"frontier_results_{name}{suffix}.csv"
         out_png = out_base / f"frontier_plot_{name}{suffix}.png"
         print(f"\n{'=' * 70}\nDATASET {name}\n{'=' * 70}", flush=True)

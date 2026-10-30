@@ -28,7 +28,8 @@ byte-identical, because the ticket also requires each row to state the id.
 
 `[datasets.<name>]` — `file`, `target`, `drop`, `metric`, optional `transform`.
 `[methods.classification.<id>]` / `[methods.regression.<id>]` — `n_params`.
-`[experiments.<id>]` — `dataset`, `methods`, `n_folds`, `seed`, `model_version`.
+`[experiments.<id>]` — `dataset`, `methods`, `n_folds`, `seed`, `model_version`, optional
+`row_sizes` (#264; full is always a point, so a declaration adds capped points to it).
 
 Two decisions worth stating:
 
@@ -111,6 +112,7 @@ Each rejection names the offending entry and the file:
 | experiment method whose mode disagrees with the dataset's metric | names both |
 | duplicate method in one experiment's list | names it |
 | `n_folds < 2`, negative `seed`, empty `model_version` | names the field |
+| `row_sizes` not a list of positive integers, or a size declared twice | names the entry and the size |
 | a section that is not a table | names the section |
 | `schema_version = true` (a bool is not version 1) | names the field |
 

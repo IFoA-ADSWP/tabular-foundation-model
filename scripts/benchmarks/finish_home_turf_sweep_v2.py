@@ -26,6 +26,7 @@ import pandas as pd
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 from src.api_key import load_api_key as _load_api_key  # noqa: E402  (src import after the repo-root path insert)
+from src.row_sizes import slice_data  # noqa: E402
 from src.model_version import resolve_model_path as _model_path  # noqa: E402
 REPO = HERE.parent.parent
 DATA_RAW = REPO / "data" / "raw"
@@ -57,14 +58,6 @@ def load_Xy(name: str) -> tuple[np.ndarray, np.ndarray]:
     for col in X.select_dtypes(include=["object", "category"]).columns:
         X[col] = X[col].astype("category").cat.codes.replace(-1, np.nan)
     return X.fillna(0.0).astype(np.float32).to_numpy(dtype=np.float32), y
-
-
-def slice_data(X, y, n):
-    if n is None or len(X) <= n:
-        return X, y
-    from sklearn.model_selection import train_test_split
-    Xs, _, ys, _ = train_test_split(X, y, train_size=n, stratify=y, random_state=42)
-    return Xs, ys
 
 
 def fit_predict(mname: str, mkw: dict, Xtr, ytr, Xte):

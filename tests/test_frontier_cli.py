@@ -753,9 +753,38 @@ def test_a_filtered_sweep_accepts_a_declared_size(monkeypatch, tmp_path):
 
 
 def test_every_results_row_states_the_row_count():
-    table = pd.DataFrame({"method": ["lr"], "mean": [0.2]})
+    table = mod.with_experiment_id(pd.DataFrame({"method": ["lr"], "mean": [0.2]}), "coil2000")
     stamped = mod.with_row_count(table, 1000)
 
-    assert list(stamped.columns)[0] == "n_rows"
+    # experiment_id stays the first column (#230); the point sits beside it (#264).
+    assert list(stamped.columns)[:2] == ["experiment_id", "n_rows"]
     assert list(stamped["n_rows"]) == [1000]
     assert "n_rows" not in table.columns
+
+
+def test_a_sized_capture_names_the_point_it_measured(tmp_path, monkeypatch):
+    import json
+
+    monkeypatch.setattr(mod, "PREDICTIONS_DIR", tmp_path)
+    ds = dict(name="toy", file="toy.csv", target="y", drop=[])
+
+    npz_path = mod.write_predictions_npz(
+        ds, _toy_pred_store(n_folds=2, methods=("lgbm",)), ["lgbm"], 2,
+        problem_type="classification", metric_name="log_loss", seed=42,
+        n_rows=1000, row_size=1000,
+    )
+    manifest = json.loads(npz_path.with_suffix(".manifest.json").read_text())
+
+    assert "__size1000__" in npz_path.name
+    assert manifest["row_size"] == 1000
+    assert manifest["n_rows"] == 1000
+
+
+def test_a_pr_auc_sized_run_is_refused_at_the_cli(monkeypatch, tmp_path):
+    refuse_to_run(monkeypatch)
+    monkeypatch.setattr(sys, "argv",
+                        ["prog", "--experiment", "coil2000", "--size", "1000", "--pr-auc",
+                         "--out-dir", str(tmp_path)])
+
+    with pytest.raises(SystemExit):
+        mod.main()

@@ -39,7 +39,10 @@ refused at load, naming the entry — the same fail-closed rule the rest of the 
 - `run_frontier_benchmark.py` — `--size <full|N>`, validated against the experiment it
   runs (refused with `--data`, which declares nothing). The slice is applied after
   `load_Xy` and before the folds. The point is stamped in the run manifest (`row_size`),
-  in every results-CSV row (`n_rows`), and in the capture manifest.
+  in every results-CSV row (`n_rows`, beside `experiment_id`), and in the capture manifest
+  (`row_size` and `n_rows`). The plot title names the point instead of asserting "full",
+  and a non-full size joins the filename suffix, so two points cannot overwrite each other
+  — the same argument the capture stem already makes for a non-default seed.
 - `run_home_turf_size_sweep.py` — `SIZES` is replaced by each dataset's declared points.
   The script keeps its own dataset list until #235.
 - `CHANGELOG.md`, `TASKS.md`, plan.
@@ -58,6 +61,16 @@ refused at load, naming the entry — the same fail-closed rule the rest of the 
 - **The results CSV gains `n_rows`.** #230 already added `experiment_id` to every row for
   the same reason: an artifact that does not state the point it measured cannot be joined
   back to its declaration. Existing columns and row order do not move.
+- **`--size` and `--pr-auc` are refused together.** The PR-AUC ledger is one append-only
+  committed table with no column for the point, so it cannot record one; refusing is
+  cheaper and more honest than mixing two sizes in it.
+- **A declared size larger than the table is a run error.** `slice_data` returns the whole
+  table when `n` exceeds it, so the manifest would claim a point the slice did not apply.
+  The runner refuses instead of writing two artifacts that disagree.
+- **`n_rows` is written, not yet read.** Reuse (#233) matches the *sweep* table's rows;
+  no consumer reads the frontier CSV's `n_rows` yet. It is there so an artifact can state
+  the point, which is this ticket's criterion; a reader that filters on it belongs to the
+  analysis work in #235.
 - **The committed sweep table does not change.** Its distinct `(dataset, n_rows)` pairs are
   exactly `1000 / 5000 / <full>` for the three declared experiments, which is what the
   declaration now says.
