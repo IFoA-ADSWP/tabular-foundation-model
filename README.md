@@ -35,7 +35,6 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup and contribution gui
 │   ├── data_loader_class.py        #   OOP wrapper for notebook use
 │   ├── evaluation_metrics.py       #   AUC, accuracy, F1, RMSE, MAE
 │   ├── model_training.py           #   Baseline models + train/predict pipeline
-│   ├── baseline_config.py          #   Centralised config (seeds, paths, params)
 │   ├── baseline_utils.py           #   Preprocessing, metrics, scaling helpers
 │   └── cleanup_outputs.py          #   Output directory maintenance
 │
