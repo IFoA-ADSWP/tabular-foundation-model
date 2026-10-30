@@ -255,7 +255,7 @@ def test_the_capture_manifest_records_the_experiment_id(tmp_path, monkeypatch):
     import json
 
     monkeypatch.setattr(mod, "PREDICTIONS_DIR", tmp_path)
-    n_folds, methods = 1, ["lgbm"]
+    n_folds, methods = 2, ["lgbm"]
     pred_store = _toy_pred_store(n_folds=n_folds, methods=methods)
     ds = dict(name="toy", file="toy.csv", target="y", drop=[])
 
@@ -339,6 +339,60 @@ def _toy_pred_store(n_folds=2, methods=("lgbm", "tweedieglm"), n_per_fold=5, see
     return store
 
 
+def test_the_regression_runner_receives_the_cli_seed(monkeypatch, tmp_path):
+    seen = {}
+
+    def capture(_ds, out_csv, _out_png, seed=None, n_folds=None):
+        seen.update(seed=seed, folds=n_folds, filename=Path(out_csv).name)
+        raise AssertionError("stop after capture")
+
+    monkeypatch.setattr(mod, "run_dataset_regression", capture)
+    monkeypatch.setattr(sys, "argv",
+                        ["prog", "ausautoBI8999", "--regression", "--seed", "7",
+                         "--out-dir", str(tmp_path)])
+    with pytest.raises(AssertionError, match="stop after capture"):
+        mod.main()
+    assert seen == {"seed": 7, "folds": 5,
+                    "filename": "frontier_results_ausautoBI8999_seed7.csv"}
+
+
+def test_a_regression_experiment_passes_its_declared_seed(monkeypatch, tmp_path):
+    import dataclasses
+
+    datasets, experiment = mod.experiment_selection("freMTPL2freq")
+    monkeypatch.setattr(mod, "experiment_selection",
+                        lambda _id: (datasets, dataclasses.replace(experiment, seed=7)))
+    seen = {}
+
+    def capture(_ds, _out_csv, _out_png, seed=None, n_folds=None):
+        seen.update(seed=seed, folds=n_folds)
+        raise AssertionError("stop after capture")
+
+    monkeypatch.setattr(mod, "run_dataset_regression", capture)
+    monkeypatch.setattr(sys, "argv",
+                        ["prog", "--experiment", "freMTPL2freq", "--seed", "7",
+                         "--out-dir", str(tmp_path)])
+    with pytest.raises(AssertionError, match="stop after capture"):
+        mod.main()
+    assert seen == {"seed": 7, "folds": 5}
+
+
+def test_regression_capture_split_states_the_seed(tmp_path, monkeypatch):
+    import json
+
+    monkeypatch.setattr(mod, "PREDICTIONS_DIR", tmp_path)
+    pred_store = _toy_pred_store(n_folds=2, methods=("lgbm",))
+    ds = dict(name="toyreg", file="toy.csv", target="y", drop=[])
+
+    npz_path = mod.write_predictions_npz(ds, pred_store, ["lgbm"], 2,
+                                          problem_type="regression",
+                                          metric_name="rmse", seed=7,
+                                          experiment_id="toyreg")
+    manifest = json.loads(npz_path.with_suffix(".manifest.json").read_text())
+    assert manifest["seed"] == 7
+    assert manifest["split"] == "KFold(2, shuffle=True, random_state=7)"
+
+
 def test_write_predictions_npz_and_readback(tmp_path, monkeypatch):
     monkeypatch.setattr(mod, "PREDICTIONS_DIR", tmp_path)
     mod.SAVE_PREDICTIONS = True
@@ -380,7 +434,7 @@ def test_write_predictions_npz_and_readback(tmp_path, monkeypatch):
 
 def test_verify_predictions_dir_catches_tampered_npz(tmp_path, monkeypatch):
     monkeypatch.setattr(mod, "PREDICTIONS_DIR", tmp_path)
-    n_folds, methods = 1, ["lgbm"]
+    n_folds, methods = 2, ["lgbm"]
     pred_store = _toy_pred_store(n_folds=n_folds, methods=methods)
     ds = dict(name="toy3", file="toy3.csv", target="y", drop=[])
     npz_path = mod.write_predictions_npz(ds, pred_store, methods, n_folds,
@@ -395,7 +449,7 @@ def test_verify_predictions_dir_catches_tampered_npz(tmp_path, monkeypatch):
 
 def test_verify_predictions_readback_catches_mismatch(tmp_path, monkeypatch):
     monkeypatch.setattr(mod, "PREDICTIONS_DIR", tmp_path)
-    n_folds, methods = 1, ["lgbm"]
+    n_folds, methods = 2, ["lgbm"]
     pred_store = _toy_pred_store(n_folds=n_folds, methods=methods)
     ds = dict(name="toy2", file="toy2.csv", target="y", drop=[])
     metric = mod.metric_fn({})
