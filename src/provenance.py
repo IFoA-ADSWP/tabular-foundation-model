@@ -468,9 +468,11 @@ MODEL_KEYS = (MODEL_VERSION, MODEL_VERSION_SOURCE, MODEL_WEIGHTS_SHA256, MODEL_C
 CODE_KEYS = (CODE_GIT_SHA, CODE_DIRTY, CODE_RUNTIME, CODE_IMAGE)
 
 EXPERIMENT_ID = "id"
+EXPERIMENT_MODEL_VERSION = "model_version"
 EXPERIMENT_DECLARED = "declared"
 EXPERIMENT_RESOLVED = "resolved"
-EXPERIMENT_KEYS = (EXPERIMENT_ID, EXPERIMENT_DECLARED, EXPERIMENT_RESOLVED)
+EXPERIMENT_KEYS = (EXPERIMENT_ID, EXPERIMENT_MODEL_VERSION, EXPERIMENT_DECLARED,
+                   EXPERIMENT_RESOLVED)
 
 
 @dataclass(frozen=True)
@@ -572,7 +574,7 @@ def code_section(*, git_sha=None, dirty=None, runtime=None, image=None):
     )
 
 
-def experiment_section(*, id=None, declared=None, resolved=None):  # noqa: A002 - the key's name
+def experiment_section(*, id=None, model_version=None, declared=None, resolved=None):  # noqa: A002
     """The experiment a run named, its declaration, and what it executed (ADR 0004).
 
     All three keys are emitted together. `declared` is the registry's base config;
@@ -583,7 +585,12 @@ def experiment_section(*, id=None, declared=None, resolved=None):  # noqa: A002 
     return _check_section(
         _EXPERIMENT,
         EXPERIMENT_KEYS,
-        {EXPERIMENT_ID: id, EXPERIMENT_DECLARED: declared, EXPERIMENT_RESOLVED: resolved},
+        {
+            EXPERIMENT_ID: id,
+            EXPERIMENT_MODEL_VERSION: model_version,
+            EXPERIMENT_DECLARED: declared,
+            EXPERIMENT_RESOLVED: resolved,
+        },
     )
 
 

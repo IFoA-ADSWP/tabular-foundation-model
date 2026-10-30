@@ -106,6 +106,13 @@ construction).
 | no experiment setting declared only in the pilot module | 2 (+ `RUNG`/`DEFAULT_CONFIG` reduced to fallbacks) |
 | four CI checks | each slice |
 
+- **`resolved` is the arm's, not the base config's.** The writer recomputes the arm's
+  epoch budget, so a ladder arm's record says 30 when it ran 30 — a copy of `declared`
+  would make ADR 0004's drift detector unable to fire.
+- **The seed is the split seed.** Arms keep their own `random_state` at the module
+  constant, as they did before; the declared seed moves the split, which is what
+  `--seeds` always meant. Changing arm randomness is #285's subject, not this ticket's.
+
 ## Evidence
 
 - Gate measured on this worktree before any edit, and after each slice.

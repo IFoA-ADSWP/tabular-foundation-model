@@ -924,6 +924,15 @@ def arm_epochs(arm, config):
     return ARM_EPOCH_OVERRIDES.get(arm, config["epochs"])
 
 
+def resolved_config(arm, config):
+    """The config an arm executes: the base, with its own budget applied (ADR 0004).
+
+    A record that copied `declared` into `resolved` could never show a drift, which is the
+    one thing the pair exists to show.
+    """
+    return {**config, "epochs": arm_epochs(arm, config)}
+
+
 def _arm_b_at_epochs(epochs):
     """Arm B pinned to one epoch budget, for the ladder."""
     def _run(X_train, X_test, y_train, y_test, config):
@@ -1096,8 +1105,11 @@ def save_results(
             experiment=(
                 experiment_section(
                     id=DECLARED_EXPERIMENT["id"],
+                    model_version=DECLARED_EXPERIMENT["model_version"],
+                    # The arm's budget is its own when one is declared, so `resolved`
+                    # states what executed rather than repeating the base (ADR 0004).
                     declared=DECLARED_EXPERIMENT["config"],
-                    resolved=config,
+                    resolved=resolved_config(arm, config),
                 )
                 if DECLARED_EXPERIMENT else None
             ),
@@ -1472,7 +1484,7 @@ def resolve_invocation(args):
             if value is not None:
                 config[key] = value
         return (args.dataset, arms or list(ARMS), seeds or [DEFAULT_SEED], train_size,
-                test_size, args.folds, config, None, None, None)
+                test_size, args.folds, config, None, None, None, None)
 
     registry = load_registry(REGISTRY_TOML)
     declared = registry.pilot_experiment(args.experiment)
@@ -1511,9 +1523,10 @@ def resolve_invocation(args):
         method.name: arm_epoch_budget(declared, method)
         for method in registry.pilot_methods_of(declared)
     }
+    base_config = _config_dict(declared.config)
     return (declared.dataset, list(arms or declared.arms), [declared.seed],
             declared.train_size, declared.test_size, declared.folds,
-            _config_dict(declared.config), budgets, declared.id, _config_dict(declared.config))
+            base_config, budgets, declared.id, base_config, declared.model_version)
 
 
 def make_parser():
@@ -1584,11 +1597,12 @@ def main():
     global ARM_BUDGETS, DECLARED_EXPERIMENT
     try:
         (dataset, arms, seeds, train_size, test_size, folds, config, ARM_BUDGETS,
-         experiment_id, declared_config) = resolve_invocation(args)
+         experiment_id, declared_config, declared_version) = resolve_invocation(args)
     except (InvocationError, RegistryError) as exc:
         parser.error(str(exc))
     DECLARED_EXPERIMENT = (
-        {"id": experiment_id, "config": declared_config} if experiment_id else None
+        {"id": experiment_id, "config": declared_config, "model_version": declared_version}
+        if experiment_id else None
     )
     rung_name = args.rung
 
@@ -1750,7 +1764,7 @@ def main():
                     config=config,
                     seeds=seeds,
                     overwrite=args.overwrite,
-                    folds=args.folds,
+                    folds=folds,
                     train_size=train_size,
                     test_size=test_size,
                     save_models=args.save_models,

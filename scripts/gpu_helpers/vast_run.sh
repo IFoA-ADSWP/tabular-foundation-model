@@ -68,7 +68,7 @@ MAX_DPH="0.60"
 MIN_VRAM="23"
 GPU_ALLOW="$DEFAULT_ALLOW"
 DISK=60
-ARMS="A_raw,B_in_domain,E_glm,F_catboost"
+ARMS="${ARMS:-}"  # empty: the bootstrap defaults (or the declaration names them, #238)
 # Empty = every registered dataset (the R1 behaviour). A name = that one dataset, which is what a
 # single-dataset experiment needs: without this the flow silently ran all four, at four times the
 # price, and a plan that specifies one dataset could not be executed as written.
@@ -531,6 +531,13 @@ ONSTART_FILE="$ONSTART_DIR/onstart.sh"
 # The comment that used to live here asserted "length is not a concern" because --onstart takes
 # a FILENAME rather than one argument. That belief was never tested; the first real run disproved
 # it. gzip+base64 takes ~16.3 KB to ~9 KB, which fits with room to spare.
+# The experiment owns the dataset, sizes and seed. A launcher that also set them would be
+# two sources of truth, which is the class of failure #238 exists to remove.
+if [ -n "$EXPERIMENT" ] && { [ -n "$DATASET" ] || [ -n "$TRAIN_SIZE" ] || [ -n "$TEST_SIZE" ]; }; then
+    echo "--experiment $EXPERIMENT owns the dataset and row sizes; drop --dataset/--train-size/--test-size" >&2
+    exit 2
+fi
+
 BOOTSTRAP_B64="$(gzip -9c "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh" | base64 | tr -d '\n')"
 
 {
@@ -685,13 +692,6 @@ print('|'.join([g('actual_status') or 'unknown', g('ssh_host'), g('ssh_port'),
     sleep 10
 done
 [ "$STATUS" = "running" ] || retry_or_die "FATAL: instance never reached 'running' (the image pull did not advance within the ceiling)."
-
-# The experiment owns the dataset, sizes and seed. A launcher that also set them would be
-# two sources of truth, which is the class of failure #238 exists to remove.
-if [ -n "$EXPERIMENT" ] && { [ -n "$DATASET" ] || [ -n "$TRAIN_SIZE" ] || [ -n "$TEST_SIZE" ]; }; then
-    echo "--experiment $EXPERIMENT owns the dataset and row sizes; drop --dataset/--train-size/--test-size" >&2
-    exit 2
-fi
 
 # ---- 7. Run the pilot ----
 echo "=== 7/7 running pilot ==="

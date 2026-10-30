@@ -17,10 +17,14 @@ it executed.
 `provenance` gains an **optional** `experiment` section:
 
 ```json
-"experiment": {"id": "coil2000_p1a", "declared": {...}, "resolved": {...}}
+"experiment": {"id": "coil2000_p1a", "model_version": "v3_default",
+               "declared": {...}, "resolved": {...}}
 ```
 
 - `id` is the registry id the run named.
+- `model_version` is the literal the experiment declares. The block's `model` section
+  already states the version execution *resolved*; this key makes the declared half
+  visible, so #285 (the pilot's version pin) can compare the two without a second change.
 - `declared` is that experiment's base config, exactly as the registry states it.
 - `resolved` is the config the arms executed, which may differ if a flag contradicted the
   declaration — except that #238 refuses a contradiction, so today the two agree; the pair

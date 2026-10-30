@@ -234,6 +234,7 @@ def test_an_experiment_section_states_declared_beside_resolved():
         code=code_section(git_sha="c" * 40),
         experiment=experiment_section(
             id="coil2000_p1a",
+            model_version="v3_default",
             declared={"epochs": 3, "learning_rate": 1e-5},
             resolved={"epochs": 3, "learning_rate": 1e-5},
         ),
@@ -241,6 +242,7 @@ def test_an_experiment_section_states_declared_beside_resolved():
 
     assert block["experiment"] == {
         "id": "coil2000_p1a",
+        "model_version": "v3_default",
         "declared": {"epochs": 3, "learning_rate": 1e-5},
         "resolved": {"epochs": 3, "learning_rate": 1e-5},
     }

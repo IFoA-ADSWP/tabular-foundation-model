@@ -24,7 +24,7 @@ BRANCH="${BRANCH:-main}"   # the box must run the reviewed code, not a stale bra
 REPO="https://github.com/IFoA-ADSWP/tabular-foundation-model.git"
 WORKDIR="${WORKDIR:-/workspace/tfm}"
 EXPERIMENT="${EXPERIMENT:-}"   # empty = no declared experiment (#238)
-ARMS="${ARMS:-A_raw,B_in_domain,E_glm,F_catboost}"
+ARMS="${ARMS:-}"   # empty + no experiment: the four committed arms below
 DATASET="${DATASET:-}"   # empty = every registered dataset
 TRAIN_SIZE="${TRAIN_SIZE:-}"   # empty = the runner's own default
 TEST_SIZE="${TEST_SIZE:-}"
@@ -296,6 +296,22 @@ fi
 # the loop is deliberately non-fatal, so rc=0 has always meant "the bootstrap finished",
 # never "the arms worked" -- which is how a run whose arms all died recorded as success.
 ARMS_OK=""; ARMS_FAILED=""
+# No id and no arm list: the four committed arms, as before (#238).
+if [ -z "$EXPERIMENT" ] && [ -z "$ARMS" ]; then
+    ARMS="A_raw,B_in_domain,E_glm,F_catboost"
+fi
+if [ -n "$EXPERIMENT" ] && [ -z "$ARMS" ]; then
+    # No arm list given: let the declaration name them, in one process.
+    echo; echo "########## EXPERIMENT $EXPERIMENT (declared arms) ##########"
+    python3 scripts/run_pilot.py --experiment "$EXPERIMENT"
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+        echo "########## EXPERIMENT EXITED rc=$rc (137 = OOM SIGKILL) ##########"
+        ARMS_FAILED="declared(rc=$rc)"
+    else
+        ARMS_OK="declared"
+    fi
+else
 for arm in ${ARMS//,/ }; do
     echo
     echo "########## ARM $arm ##########"
@@ -314,6 +330,7 @@ for arm in ${ARMS//,/ }; do
         ARMS_OK="$ARMS_OK $arm"
     fi
 done
+fi
 
 # One line, greppable, stated rather than inferred. bootstrap_rc still cannot carry this: the loop
 # is non-fatal by design, so the script exits 0 either way.

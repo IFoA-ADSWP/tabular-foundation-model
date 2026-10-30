@@ -156,8 +156,8 @@ class PilotExperiment:
     arms: tuple[str, ...]
     seed: int
     folds: int | None
-    train_size: int | None
-    test_size: int | None
+    train_size: int
+    test_size: int
     model_version: str
     config: PilotConfig
 
@@ -508,8 +508,10 @@ def _pilot_experiment(
         arms=tuple(names),
         seed=_integer(loc, entry, "seed", minimum=0),
         folds=_optional_integer(loc, entry, "folds", minimum=2),
-        train_size=_optional_integer(loc, entry, "train_size", minimum=1),
-        test_size=_optional_integer(loc, entry, "test_size", minimum=1),
+        # Required: a size left out would fall back to the pilot's module constant, which
+        # is exactly the duplicate declaration #238 removes.
+        train_size=_integer(loc, entry, "train_size", minimum=1),
+        test_size=_integer(loc, entry, "test_size", minimum=1),
         model_version=_text(loc, entry, "model_version"),
         config=_pilot_config(loc, _require(loc, entry, "config")),
     )
