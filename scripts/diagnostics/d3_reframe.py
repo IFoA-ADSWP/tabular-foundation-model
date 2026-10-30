@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 """D3 -- target reframing: the control, and the boundary of what is free.
 
-The diagnostics design asks whether reframing a frequency target as classification moves TabPFN's
-rank. §14.14 already answered that for `spanish_motor_freq` (binary and ordinal, AUC rank #1), so
-that result is this diagnostic's **positive control**: if the reading cannot reproduce a known
-result, a "flip" on a new dataset means nothing.
+The design asks whether reframing a frequency target moves TabPFN's rank. §14.14 answered that for
+`spanish_motor_freq` -- binary and ordinal, AUC rank #1, paired-significant at both seeds -- so that
+result is this diagnostic's **positive control**: if the reading cannot reproduce a known result, a
+flip on a new dataset would mean nothing.
 
-Two modes, and the second exists to refuse rather than to run:
+What "reproduce" means here, precisely: the control reads the committed **summary** (§14.14's own
+record), and checks it against the figures the report states -- rank #1, the documented mean AUC per
+task and seed, and a paired p below 0.05. A control that only checked ordering would still pass with
+every number wrong.
 
-- `--control` reads the committed reframe evidence and writes one record per task. It costs nothing
-  and proves the reading works.
-- `--dataset NAME` **refuses**. Reframing an untouched dataset means fitting every method on it, and
-  the reframe runner uses the hosted TabPFN client, so the "analysis only, $0" line in the design
-  does not hold for new datasets. The refusal prints the reason and the estimate instead of spending.
+Two modes, and the second refuses rather than runs:
 
-Records go through the shared writer into one directory per task, named `<run id>-<dataset>-<task>`.
+- `--control` reads the committed summary and writes one record per task. No spend, no model fits.
+- `--dataset NAME` **refuses**. Reframing an untouched dataset means fitting nine methods through
+  the hosted TabPFN client; the design's "analysis only, $0" holds only for the dataset whose
+  result is already committed.
 """
 
 from __future__ import annotations
@@ -22,14 +24,13 @@ from __future__ import annotations
 import argparse
 import csv
 import sys
-from collections import defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
-from statistics import mean
 
 _REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO / "src"))
 
-from provenance import (  # noqa: E402  (same-dir module, after the path insert)
+from provenance import (  # noqa: E402  (importable after the src path insert above)
     DIAGNOSTICS_ROOT,
     DiagnosticRecord,
     matched_context_evidence,
@@ -38,74 +39,94 @@ from provenance import (  # noqa: E402  (same-dir module, after the path insert)
 )
 
 DIAGNOSTIC = "d3_reframe"
-EVIDENCE = _REPO / "scripts" / "eval" / "insurance_benchmark_v1" / "reframe_frequency_results.csv"
-# §14.14: reframing moved TabPFN to AUC rank #1 on both tasks. That is the claim being reproduced.
-EXPECTED_TABPFN_RANK = 1
-# Measured cost of one four-arm run at 10,000 rows. A reframe fits nine methods over five folds,
-# so this is the floor, not the estimate.
+EVIDENCE = _REPO / "scripts" / "eval" / "insurance_benchmark_v1" / "reframe_frequency_summary.csv"
+DATASET = "spanish_motor_freq"
+
+# What §14.14 states, as independent expected values. Deliberately literals from the report: a
+# control that recomputes them the way the code does can never disagree with the code.
+DOCUMENTED_MEAN_AUC = {
+    ("binary", 42): 0.7170,
+    ("binary", 7): 0.7165,
+    ("ordinal", 42): 0.7167,
+}
+AUC_TOLERANCE = 0.0005
+MAX_P = 0.05
 MEASURED_RUN_USD = 0.0368
 
 
-def read_ranks(rows, dataset, task, metric="auc"):
-    """Per-method mean of `metric` over folds and seeds, ranked high to low.
+def control_rows(rows, dataset, task):
+    """One §14.14 row per seed: AUC only, deduplicated across baseline comparisons.
 
-    Means before ranks: one fold is one noisy estimate, and a rank computed inside a fold cannot
-    be compared with a rank computed across methods.
+    The summary file carries a row per (task, seed, baseline) *and* per metric. Reading it without
+    both filters silently takes a Poisson-deviance row as if it were AUC -- which is how a control
+    can pass on nonsense.
     """
-    by_method = defaultdict(list)
-    for row in _rows_for(rows, dataset, task):
-        by_method[row["method"]].append(float(row[metric]))
-    if not by_method:
-        raise SystemExit(f"no rows for dataset={dataset!r} task={task!r} in the evidence")
-    means = {method: mean(values) for method, values in by_method.items()}
-    ranked = sorted(means.items(), key=lambda item: -item[1])
-    return ranked, means
-
-
-def _rows_for(rows, dataset, task):
-    return [row for row in rows if row["dataset"] == dataset and row["task"] == task]
+    selected = [
+        r
+        for r in rows
+        if r["dataset"] == dataset and r["task"] == task and r["metric"] == "auc"
+    ]
+    if not selected:
+        raise SystemExit(f"no AUC summary rows for dataset={dataset!r} task={task!r}")
+    by_seed = {}
+    for row in selected:
+        seed = int(row["seed"])
+        entry = by_seed.setdefault(seed, {"means": set(), "ranks": set(), "p": []})
+        entry["means"].add(round(float(row["tabpfn_mean"]), 6))
+        entry["ranks"].add(int(row["tabpfn_rank"]))
+        entry["p"].append(float(row["p_paired"]))
+    return [
+        {
+            "seed": seed,
+            "tabpfn_mean": next(iter(entry["means"])),
+            "tabpfn_rank": next(iter(entry["ranks"])),
+            "p_paired": min(entry["p"]),
+            "means_disagree": len(entry["means"]) > 1,
+            "ranks_disagree": len(entry["ranks"]) > 1,
+        }
+        for seed, entry in sorted(by_seed.items())
+    ]
 
 
 def control_measurements(rows, dataset, task):
-    ranked, means = read_ranks(rows, dataset, task)
-    try:
-        rank = next(i for i, (method, _) in enumerate(ranked, 1) if method == "tabpfn")
-    except StopIteration:
-        raise SystemExit(f"tabpfn is absent from the evidence for {dataset!r}/{task!r}") from None
-    selected = _rows_for(rows, dataset, task)
-    seeds = sorted({int(row["seed"]) for row in selected})
-    folds = sorted({row["fold"] for row in selected})
-    leader, leader_mean = ranked[0]
+    """Check the recorded claim against the documented one, and record both."""
+    checks = []
+    for row in control_rows(rows, dataset, task):
+        seed = int(row["seed"])
+        recorded = float(row["tabpfn_mean"])
+        documented = DOCUMENTED_MEAN_AUC.get((task, seed))
+        checks.append(
+            {
+                "seed": seed,
+                "recorded_mean_auc": round(recorded, 6),
+                "documented_mean_auc": documented,
+                "recorded_rank": int(row["tabpfn_rank"]),
+                "p_paired": round(float(row["p_paired"]), 6),
+                "rank_ok": row["tabpfn_rank"] == 1 and not row["ranks_disagree"],
+                "mean_consistent": not row["means_disagree"],
+                "mean_ok": documented is not None and abs(recorded - documented) <= AUC_TOLERANCE,
+                "significant": float(row["p_paired"]) < MAX_P,
+            }
+        )
+    per_seed_ok = all(
+        c["rank_ok"] and c["mean_ok"] and c["significant"] and c["mean_consistent"] for c in checks
+    )
     return {
         "task": task,
         "metric": "auc",
-        "n_methods": len(ranked),
-        "n_folds": len(folds),
-        "seeds": seeds,
-        "tabpfn_mean": round(means["tabpfn"], 6),
-        "tabpfn_rank": rank,
-        "leader": leader,
-        "leader_mean": round(leader_mean, 6),
-        "control": {
-            "expected_tabpfn_rank": EXPECTED_TABPFN_RANK,
-            "reproduced": rank == EXPECTED_TABPFN_RANK,
-        },
+        "dataset": dataset,
+        "seeds": [c["seed"] for c in checks],
+        "checks": checks,
+        "control": {"reproduced": per_seed_ok, "tolerance": AUC_TOLERANCE, "max_p": MAX_P},
     }
-
-
-def _run_id():
-    from datetime import datetime, timezone
-
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
 def _refuse_paid(dataset):
     return (
         f"REFUSING: reframing {dataset!r} means fitting every method on it, and the reframe runner "
-        f"uses the hosted TabPFN client -- the design's 'analysis only, $0' does not hold for a "
-        f"new dataset. Measured floor for one comparable run is ${MEASURED_RUN_USD:.4f}, and a "
-        f"reframe is nine methods over five folds. The ticket says to stop rather than spend; do "
-        f"that, and get an estimate agreed first."
+        f"uses the hosted TabPFN client -- the design's 'analysis only, $0' does not hold for a new "
+        f"dataset. Measured floor for one comparable run is ${MEASURED_RUN_USD:.4f}, and a reframe "
+        f"is nine methods over five folds. The ticket says to stop rather than spend."
     )
 
 
@@ -116,8 +137,8 @@ def main(argv=None, *, root=None, evidence=None):
     parser.add_argument("--run-id", default=None, help="record directory prefix (default: UTC now)")
     args = parser.parse_args(argv)
 
-    if args.dataset:
-        # Accepted with --control, the flag would be read and ignored -- the worst of both.
+    if args.dataset is not None:
+        # `is not None`, not truthiness: `--dataset ""` must not slip through the guard.
         raise SystemExit(_refuse_paid(args.dataset))
     if not args.control:
         parser.error("give --control")
@@ -128,35 +149,31 @@ def main(argv=None, *, root=None, evidence=None):
     with source.open(newline="") as handle:
         rows = list(csv.DictReader(handle))
 
-    dataset = "spanish_motor_freq"
-    base = args.run_id or _run_id()
-    # Compute both tasks before writing either: a control that fails on the second task must not
-    # leave the first record behind, because the writer refuses to replace it on a retry.
-    measurements_by_task = {task: control_measurements(rows, dataset, task) for task in ("binary", "ordinal")}
+    # Both tasks before either write: a failure must not leave half a control set behind.
+    measurements_by_task = {task: control_measurements(rows, DATASET, task) for task in ("binary", "ordinal")}
     if not all(m["control"]["reproduced"] for m in measurements_by_task.values()):
         raise SystemExit(
-            "CONTROL FAILED: the reading did not reproduce §14.14, so no flip on a new dataset "
-            "would be interpretable. Nothing was written."
+            "CONTROL FAILED: the committed evidence does not match §14.14 -- rank, mean AUC or "
+            "significance. Nothing was written; a flip elsewhere would not be interpretable."
         )
 
+    base = args.run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     for task, measurements in measurements_by_task.items():
         record = DiagnosticRecord(
             diagnostic=DIAGNOSTIC,
-            run_id=f"{base}-{dataset}-{task}",
-            # The artifact this record reads is the committed evidence file, not a dataset: the
-            # hash is of that file, and the dataset and task live in the measurements.
-            dataset_name="reframe_frequency_results.csv",
+            run_id=f"{base}-{DATASET}-{task}",
+            # This record reads the summary artifact; it never loads a dataset.
+            dataset_name=source.name,
             dataset_sha256=sha256_file(source),
-            # NOT the resolver: these numbers were produced under v3_default (REPORT_REGISTRY,
-            # §14.14), and stamping the environment's current label on them would mix version
-            # eras in a claim -- the one thing AGENTS.md forbids.
+            # §14.14's numbers were produced under v3_default. Stamping the resolver's current label
+            # would mix version eras in a claim, which AGENTS.md forbids.
             model_version="v3_default",
             seed=None,
             matched_context=matched_context_evidence(),
             measurements=measurements,
         )
         written = write_diagnostic_record(record, root=root or DIAGNOSTICS_ROOT)
-        print(f"{DIAGNOSTIC} {dataset}/{task}: tabpfn rank {measurements['tabpfn_rank']} -> {written}")
+        print(f"{DIAGNOSTIC} {DATASET}/{task}: reproduced -> {written}")
     return 0
 
 

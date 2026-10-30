@@ -1,13 +1,8 @@
 """`scripts/diagnostics/d3_reframe.py`: the §14.14 positive control, and the paid boundary.
 
-Two things are asserted, both through the record the script leaves on disk:
-
-1. The control reproduces §14.14 from committed evidence -- TabPFN at AUC rank #1 on both tasks.
-2. The control can **fail**: a fixture where another method wins must produce `reproduced: false`
-   and a non-zero exit. A check that cannot fail is decoration.
-
-The paid path is asserted too: reframing a new dataset must refuse before writing anything, and say
-why, because the design's "analysis $0" line does not hold for datasets the runner would fit.
+The control is asserted against the **documented** figures, not against a re-derivation: rank #1,
+the mean AUC per task and seed, and a paired p below 0.05. A control that only checked ordering
+would pass with every number wrong.
 
 Run:  python -m pytest tests/test_d3_reframe.py -v
 """
@@ -29,6 +24,11 @@ from provenance import DIAGNOSTIC_RECORD_FIELDS  # noqa: E402
 
 SCRIPT = REPO_ROOT / "scripts" / "diagnostics" / "d3_reframe.py"
 
+HEADER = (
+    "dataset,task,metric,seed,baseline,tabpfn_mean,tabpfn_se,base_mean,base_se,"
+    "delta,t_paired,p_paired,tabpfn_rank,n_folds\n"
+)
+
 
 @pytest.fixture(scope="module")
 def d3():
@@ -43,15 +43,13 @@ def _record(root, name):
     return json.loads((root / "d3_reframe" / name / "record.json").read_text())
 
 
-HEADER = "dataset,task,method,fold,seed,log_loss,auc,brier,pr_auc,lift10,fit_s,infer_s\n"
-
-
-def _write_evidence(path, dataset, tabpfn_aucs, rival_aucs):
+def _summary(path, dataset, rows):
     lines = [HEADER]
-    for fold, (tp, rv) in enumerate(zip(tabpfn_aucs, rival_aucs)):
-        for task in ("binary", "ordinal"):
-            lines.append(f"{dataset},{task},tabpfn,{fold},42,0.3,{tp},0.09,0.2,2.4,1.0,0.01\n")
-            lines.append(f"{dataset},{task},cat,{fold},42,0.3,{rv},0.09,0.2,2.4,1.0,0.01\n")
+    for task, seed, mean, p, rank in rows:
+        base = mean - 0.008
+        lines.append(
+            f"{dataset},{task},auc,{seed},cat,{mean},0.004,{base},0.003,0.008,5.0,{p},{rank},5\n"
+        )
     path.write_text("".join(lines))
     return path
 
@@ -63,46 +61,55 @@ def test_control_reproduces_section_14_14_from_committed_evidence(tmp_path, d3):
     binary = _record(root, "R1-spanish_motor_freq-binary")
     ordinal = _record(root, "R1-spanish_motor_freq-ordinal")
 
-    # The ordinal task has one seed in the committed evidence, the binary task two. Asserting the
-    # actual sets keeps the record honest about what it read rather than what we assumed.
     for record, task, seeds in ((binary, "binary", [7, 42]), (ordinal, "ordinal", [42])):
         assert list(record) == list(DIAGNOSTIC_RECORD_FIELDS)
-        # Independent of the code under test: hash the bytes here, not via provenance's helper.
+        # Independent of the code under test: hash the bytes here.
         assert record["dataset_sha256"] == hashlib.sha256(d3.EVIDENCE.read_bytes()).hexdigest()
+        assert record["model_version"] == "v3_default"
         m = record["measurements"]
-        assert m["task"] == task
-        assert m["tabpfn_rank"] == 1
-        assert m["control"] == {"expected_tabpfn_rank": 1, "reproduced": True}
-        assert m["n_methods"] == (9 if task == "binary" else 6)
-        assert m["n_folds"] == 5 and m["seeds"] == seeds
+        assert m["task"] == task and m["dataset"] == "spanish_motor_freq"
+        assert m["seeds"] == seeds
+        assert m["control"]["reproduced"] is True
+        for check in m["checks"]:
+            assert check["recorded_rank"] == 1
+            assert check["mean_ok"] is True
+            assert check["significant"] is True
 
 
-def test_the_control_can_fail(tmp_path, d3):
-    """A rival that beats TabPFN must be read as rank 2, and must stop the run before any write."""
-    import csv as _csv
-
-    evidence = _write_evidence(tmp_path / "flipped.csv", "spanish_motor_freq",
-                               tabpfn_aucs=[0.60] * 5, rival_aucs=[0.70] * 5)
-    root = tmp_path / "records"
-
+def test_a_wrong_mean_fails_even_when_the_rank_is_right(tmp_path, d3):
+    """The control reads the numbers, not only the ordering: a rank-1 result with a wrong mean fails."""
+    evidence = _summary(
+        tmp_path / "wrong_mean.csv",
+        "spanish_motor_freq",
+        [("binary", 42, 0.7500, 0.001, 1), ("binary", 7, 0.7165, 0.002, 1),
+         ("ordinal", 42, 0.7167, 0.001, 1)],
+    )
     with pytest.raises(SystemExit, match="CONTROL FAILED"):
-        d3.main(["--control", "--run-id", "R2"], root=root, evidence=evidence)
+        d3.main(["--control", "--run-id", "R2"], root=tmp_path / "records", evidence=evidence)
+    assert not (tmp_path / "records" / "d3_reframe").exists()
 
-    with evidence.open(newline="") as handle:
-        rows = list(_csv.DictReader(handle))
-    m = d3.control_measurements(rows, "spanish_motor_freq", "binary")
-    assert m["tabpfn_rank"] == 2
-    assert m["control"]["reproduced"] is False
-    # Both tasks are computed before either is written, so a late failure leaves nothing behind
-    # for the writer to refuse on a retry.
-    assert not (root / "d3_reframe").exists()
+
+def test_a_rank_two_result_fails(tmp_path, d3):
+    evidence = _summary(
+        tmp_path / "rank2.csv",
+        "spanish_motor_freq",
+        [("binary", 42, 0.7170, 0.001, 2), ("binary", 7, 0.7165, 0.002, 1),
+         ("ordinal", 42, 0.7167, 0.001, 1)],
+    )
+    with pytest.raises(SystemExit, match="CONTROL FAILED"):
+        d3.main(["--control", "--run-id", "R3"], root=tmp_path / "records", evidence=evidence)
 
 
 def test_reframing_a_new_dataset_refuses_before_writing(tmp_path, d3):
-    root = tmp_path / "records"
     with pytest.raises(SystemExit, match="REFUSING"):
-        d3.main(["--dataset", "freMTPL2freq"], root=root)
-    assert not (root / "d3_reframe").exists(), "the refusal must not leave a record behind"
+        d3.main(["--dataset", "freMTPL2freq"], root=tmp_path / "records")
+    assert not (tmp_path / "records" / "d3_reframe").exists()
+
+
+def test_an_empty_dataset_name_cannot_bypass_the_refusal(d3):
+    """`is not None`, not truthiness: `--dataset ""` was accepted and ignored before."""
+    with pytest.raises(SystemExit, match="REFUSING"):
+        d3.main(["--dataset", ""], root=Path("/nonexistent"))
 
 
 def test_the_refusal_names_the_measured_cost(d3):
