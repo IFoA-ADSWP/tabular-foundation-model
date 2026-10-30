@@ -110,7 +110,12 @@ the design as written is **~$31** against **~$9.60** of credit, and the recommen
 Fund the in-domain steps on its result, and take the transfer experiment and any increase in data
 scale as **separate decisions taken on measured numbers rather than modelled ones**.
 
-DECISION: ______  Owner: ______  Date: ______  Section: §4.5.1
+DECISION: **No phase ceiling for the diagnostics-and-anchor phase (2026-10-30).** Spend is
+bounded by the launcher's per-hour price cap and by the stop rule, not by a phase budget; the
+measured anchor cost is $0.0368 a run. This **departs from the recommendation above**: the first
+step is funded and the in-domain steps follow the anchor gate, as recommended, but the phase
+itself carries no envelope. Accepted risk: a runaway retry loop is bounded by the price cap
+only. Recorded with its consequence in the campaign map, #286.  Owner: scotthawes  Date: 2026-10-30  Section: §4.5.1
 
 ### D8 — Label-semantics framing
 
