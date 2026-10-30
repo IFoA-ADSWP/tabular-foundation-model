@@ -132,6 +132,35 @@ DECISION: **accepted as recommended (2026-10-30)** — pooled arms are reported 
 not a specialist, and the heterogeneous-outcome limitation is stated wherever a pooled number appears.
 Owner: scotthawes  Date: 2026-10-30  Section: §6.3
 
+### D9 — The anchor's acceptance, pre-registered
+
+**Why it matters.** The anchor is the first paid step of the funded phase, and it decides whether the
+fine-tuning line continues. Its acceptance has to exist before the run, or a result that does not
+replicate can be re-described as a near miss afterwards.
+
+**Decision (2026-10-30).** Two seeds — **43 and 44** — on `uslapseagent`, 10,000 training rows, arms
+`A_raw`, `B_ft3`, `B_ft10`, `B_ft30`, each run carrying its own `A_raw` baseline so no comparison
+crosses a run.
+
+The anchor **passes** for a seed when, for **all three rungs**, the paired 95% interval of ROC AUC
+against that run's in-run `A_raw` excludes zero in the direction seed 42 showed (positive). A rung that
+fails is reported as failing; it is not dropped. The **interval bounds decide** — the `***` display
+marker is not a criterion, because it is currently known to disagree with its own bounds on `B_ft3`
+(filed as a reporting defect). Calibration is judged by the signed plan's tolerance: Brier must not
+increase against in-run `A_raw` by more than 0.001.
+
+**Known conflict, recorded rather than hidden.** §12.1 of the statistical plan says this dataset "can
+resolve >= 0.009 ROC" from R1's paired intervals, while `FINETUNING_PROBE_RESULTS.md` records measured
+paired half-widths of 0.0022 / 0.0023 / 0.0043 in the same data. The acceptance above rests on the
+runbook's interval rule, not on the 0.009 figure. The reconciliation is owed before the breadth phase,
+and the deviation is entered under the plan's §10.
+
+**Outcome reading** is the pre-registered mapping in §3, accepted as written. What to do when the two
+seeds disagree is deliberately left to D10's ticket (#290), not decided here.
+
+DECISION: **accepted as written above (2026-10-30)** — seeds 43 and 44; all three rungs must clear;
+bounds decide, not markers.  Owner: scotthawes  Date: 2026-10-30  Section: §4.5.2
+
 ---
 
 ## 2. Settled in the design — confirm, do not re-open
