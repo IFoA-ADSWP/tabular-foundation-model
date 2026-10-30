@@ -31,6 +31,14 @@ def rp():
     return mod
 
 
+@pytest.fixture(autouse=True)
+def _fresh_pin(rp):
+    """The pin is cached per process, so each test must start from a cold cache."""
+    rp.pinned_model_path.cache_clear()
+    yield
+    rp.pinned_model_path.cache_clear()
+
+
 @pytest.fixture
 def capture(monkeypatch):
     """Replace the two constructors with recorders and hand back what they were given."""
@@ -111,3 +119,24 @@ def test_arm_b_pins_the_model_through_extra_classifier_kwargs(rp, capture, monke
     kind, kwargs = capture[0]
     assert kind == "finetuned"
     assert kwargs["extra_classifier_kwargs"]["model_path"] == "v3.5_default", kwargs
+
+
+def test_the_record_states_the_pinned_version_not_the_resolver(rp, monkeypatch):
+    """The seam that matters: the version in the record is the version handed to the estimator."""
+    monkeypatch.setenv("TABPFN_MODEL_PATH", "v9_test_only")
+    rp.pinned_model_path.cache_clear()
+
+    block = rp._model_provenance()
+    assert block["version"] == "v9_test_only"
+    assert block["version_source"] == "pinned"
+
+
+def test_the_pin_is_resolved_once_per_process(rp, monkeypatch):
+    """One resolution: a mid-run environment change must not let record and estimators diverge."""
+    monkeypatch.setenv("TABPFN_MODEL_PATH", "v3_default")
+    rp.pinned_model_path.cache_clear()
+    first = rp.pinned_model_path()
+
+    monkeypatch.setenv("TABPFN_MODEL_PATH", "v3.5_default")
+    assert rp.pinned_model_path() == first, "the pin was re-read mid-run"
+    rp.pinned_model_path.cache_clear()

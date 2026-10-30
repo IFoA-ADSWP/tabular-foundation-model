@@ -18,12 +18,20 @@ is a declaration, not evidence, and it is the thing `docs/MODEL_VERSIONS.md` exi
 
 Nothing else moves: the same resolver, the same default (`v3_default`), the same config.
 
-## What this changes about results
+## What this changes about results — and a correction
 
-If `TABPFN_MODEL_PATH` is unset — every run to date — the loaded weights are the baseline the resolver
-also names, so results are unchanged. If it **is** set, results can change, and that is the point: the
-record and the run now agree. The anchor's acceptance already re-baselines in every run (D9), so a
-different pin is absorbed by its in-run `A_raw` rather than compared across model eras.
+**This is not a no-op, and the first draft of this plan wrongly said it was.** The library default is
+`model_path="auto"`, and `docs/MODEL_VERSIONS.md` records that the **server default became v3.5**, so an
+unpinned call no longer resolves to v3. Two consequences:
+
+- From this commit on, a pilot run loads the version the record states.
+- **An unpinned pilot run made after that server-side change may have loaded v3.5 while its record said
+  `v3_default`.** The probe and R1 numbers are re-read with that caveat; nothing here re-labels them.
+  The anchor is unaffected structurally because it re-baselines in every run (D9), but it is the first
+  pilot run that can state its version truthfully.
+
+The 2,000-row probe and the 10,000-row anchor share this exposure; `docs/MODEL_VERSIONS.md` gains a note
+so the next reader does not assume the old labels were pinned.
 
 ## Verification
 

@@ -21,6 +21,7 @@ Pilot 2 additions (see docs/reports/PILOT_2_PREREQUISITES.md):
 import sys
 import os
 import json
+from functools import lru_cache
 import time
 import hashlib
 import argparse
@@ -357,6 +358,17 @@ def _runtime_versions():
     return versions
 
 
+@lru_cache(maxsize=1)
+def pinned_model_path() -> str:
+    """The model this process pins, resolved once.
+
+    One resolution per run: the record and every estimator read the same string, so "the version
+    we record" and "the version we asked the library for" cannot drift apart (#285). Cached rather
+    than re-read so a mid-run environment change cannot make them disagree.
+    """
+    return resolve_model_path()
+
+
 def _model_provenance(weights=None, versions=None):
     """The model the record is about: the RESOLVED version, and the hash that corroborates it.
 
@@ -367,12 +379,12 @@ def _model_provenance(weights=None, versions=None):
     the version it actually used rather than the one the baseline assumes.
     """
     return model_section(
-        version=resolve_model_path(),
-        # The pilot DECLARES the version and does not pass it to `TabPFNClassifier`, which is
-        # constructed at run_arm_a_raw with no `model_path` (#285). Saying where the label
-        # comes from is the difference between "the model we pinned" and "the label this
-        # repository resolves to" -- and the record must not imply the first.
-        version_source="resolver",
+        version=pinned_model_path(),
+        # The pilot now PASSES this value to both estimators (#285), so the label is a statement
+        # about what was asked for rather than what the repository resolves to. `pinned` is a
+        # stronger claim than `resolver`: if the library ignored the argument, weights_sha256 is
+        # the field that would contradict it.
+        version_source="pinned",
         weights_sha256=(weights or {}).get("sha256"),
         client_version=(versions or {}).get("tabpfn"),
     )
@@ -798,7 +810,7 @@ def run_arm_a_raw(X_train, X_test, y_train, y_test, config):
     clf = TabPFNClassifier(
         # Pin the version this run records (#285). Without it the record states the resolver's
         # label while the library loads its own default, so the two can disagree silently.
-        model_path=resolve_model_path(),
+        model_path=pinned_model_path(),
         ignore_pretraining_limits=True,
         device="cuda" if torch.cuda.is_available() else "cpu",
         n_estimators=config["n_estimators"],
@@ -852,7 +864,7 @@ def run_arm_b_in_domain(X_train, X_test, y_train, y_test, config):
     _ft_kwargs = dict(
         # The fine-tuner has no model_path of its own; it forwards classifier kwargs, so the pin
         # travels the same route the raw arm uses (#285).
-        extra_classifier_kwargs={"model_path": resolve_model_path()},
+        extra_classifier_kwargs={"model_path": pinned_model_path()},
         device="cuda" if torch.cuda.is_available() else "cpu",
         epochs=config["epochs"],
         learning_rate=config["learning_rate"],
