@@ -43,7 +43,7 @@ TRANSFORMS = ("log_exposure",)
 
 _DATASET_KEYS = ("file", "target", "drop", "metric", "transform")
 _METHOD_KEYS = ("n_params",)
-_EXPERIMENT_KEYS = ("dataset", "methods", "n_folds", "seed", "model_version")
+_EXPERIMENT_KEYS = ("dataset", "methods", "n_folds", "seed", "model_version", "row_sizes")
 
 
 class RegistryError(ValueError):
@@ -80,10 +80,38 @@ class Experiment:
     n_folds: int
     seed: int
     model_version: str
+    row_sizes: tuple[int, ...] = ()
 
     @property
     def mode(self) -> str:
         return MODE_BY_METRIC[self.metric]
+
+    @property
+    def row_size_points(self) -> tuple[int | None, ...]:
+        """The sizes this experiment is measured at, full last (#264).
+
+        A declared size is a cap on the training rows; full is always a point, because an
+        experiment quoted at its whole table is not an exception to its own axis, and the
+        committed sweep already carries those rows. Declaring none therefore means full
+        only -- which is what every experiment predating the axis means.
+        """
+        return (*self.row_sizes, None)
+
+
+def resolve_row_size(experiment: Experiment, requested: int | None) -> int | None:
+    """The declared point a run asked for, or a refusal naming the declaration (#264).
+
+    `None` asks for the full table, which every experiment has. An integer must be one of
+    the declared sizes: a point the declaration does not contain describes a measurement
+    the experiment never claimed, so it is refused before anything is fitted.
+    """
+    if requested is None or requested in experiment.row_sizes:
+        return requested
+    declared = ", ".join(["full", *(str(n) for n in experiment.row_sizes)])
+    raise RegistryError(
+        f"experiment {experiment.id!r} is not declared at {requested} rows "
+        f"(declared: {declared})"
+    )
 
 
 @dataclass(frozen=True)
@@ -305,6 +333,15 @@ def _experiment(
         if method not in table:
             _fail(loc, f"references unknown {dataset.mode} method {method!r}")
 
+    row_sizes = entry.get("row_sizes", [])
+    if not isinstance(row_sizes, list) or not all(
+        isinstance(n, int) and not isinstance(n, bool) and n >= 1 for n in row_sizes
+    ):
+        _fail(loc, f"row_sizes must be a list of positive integers, got {row_sizes!r}")
+    repeated = sorted({n for n in row_sizes if row_sizes.count(n) > 1})
+    if repeated:
+        _fail(loc, f"declares row size {repeated[0]} more than once")
+
     return Experiment(
         id=name,
         dataset=dataset_name,
@@ -313,6 +350,7 @@ def _experiment(
         n_folds=_integer(loc, entry, "n_folds", minimum=2),
         seed=_integer(loc, entry, "seed", minimum=0),
         model_version=_text(loc, entry, "model_version"),
+        row_sizes=tuple(row_sizes),
     )
 
 

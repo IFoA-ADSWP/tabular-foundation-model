@@ -29,7 +29,9 @@ import pandas as pd
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 from src.api_key import load_api_key as _load_api_key  # noqa: E402  (src import after the repo-root path insert)
+from src.experiment_spec import load_registry  # noqa: E402  (src import after the repo-root path insert)
 from src.model_version import resolve_model_path as _model_path  # noqa: E402  (src import after the repo-root path insert)
+from src.row_sizes import slice_data  # noqa: E402  (src import after the repo-root path insert)
 REPO = HERE.parent.parent
 DATA_RAW = REPO / "data" / "raw"
 EVAL_DIR = REPO / "scripts" / "eval" / "insurance_benchmark_v1"
@@ -47,7 +49,17 @@ DATASETS = [
     # §6 leakage fix: claim == (nclaims>0) == (amount>0) exactly; drop the leak features
     dict(name="bemtl97", file="bemtl97.csv", target="claim", drop=["nclaims", "amount"]),
 ]
-SIZES = [1000, 5000, None]  # None = full
+# The sizes come from the registry, one declaration per experiment (#264). Full is the
+# last point, so a dataset declared at [1000, 5000] is measured at 1000, 5000 and its
+# whole table -- exactly the cells the committed sweep table holds.
+REGISTRY_TOML = EVAL_DIR / "experiments.toml"
+
+
+def declared_sizes(dataset: str) -> tuple[int | None, ...]:
+    """The row sizes the registry declares for this dataset's experiment (#264)."""
+    return load_registry(REGISTRY_TOML).experiment(dataset).row_size_points
+
+
 N_FOLDS = 5
 SPLIT_SEED = 42  # recorded on every row so the frontier can match it (#233)
 
@@ -61,15 +73,6 @@ def load_Xy(ds: dict) -> tuple[np.ndarray, np.ndarray]:
         X[col] = X[col].astype("category").cat.codes.replace(-1, np.nan)
     X = X.fillna(0.0).astype(np.float32)
     return X.to_numpy(dtype=np.float32), y
-
-
-def slice_data(X: np.ndarray, y: np.ndarray, n: int | None) -> tuple[np.ndarray, np.ndarray]:
-    """Stratified slice preserving class balance (deterministic seed)."""
-    if n is None or len(X) <= n:
-        return X, y
-    from sklearn.model_selection import train_test_split
-    Xs, _, ys, _ = train_test_split(X, y, train_size=n, stratify=y, random_state=42)
-    return Xs, ys
 
 
 # ---------------------------------------------------------------------------
@@ -157,7 +160,7 @@ def main() -> None:
         X_full, y_full = load_Xy(ds)
         say(f"dataset={ds['name']} full_shape={X_full.shape} pos_rate={y_full.mean():.4f}")
 
-        for n in SIZES:
+        for n in declared_sizes(ds["name"]):
             X, y = slice_data(X_full, y_full, n)
             n_rows = len(X)
             cell_t0 = time.time()
