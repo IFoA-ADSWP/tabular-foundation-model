@@ -796,6 +796,9 @@ def run_arm_a_raw(X_train, X_test, y_train, y_test, config):
     from tabpfn import TabPFNClassifier
 
     clf = TabPFNClassifier(
+        # Pin the version this run records (#285). Without it the record states the resolver's
+        # label while the library loads its own default, so the two can disagree silently.
+        model_path=resolve_model_path(),
         ignore_pretraining_limits=True,
         device="cuda" if torch.cuda.is_available() else "cpu",
         n_estimators=config["n_estimators"],
@@ -847,6 +850,9 @@ def run_arm_b_in_domain(X_train, X_test, y_train, y_test, config):
     # P8: pass the pin explicitly. If it is ever enabled (not for this pilot), patience is passed
     # too -- the package takes the pair together and no default is assumed here.
     _ft_kwargs = dict(
+        # The fine-tuner has no model_path of its own; it forwards classifier kwargs, so the pin
+        # travels the same route the raw arm uses (#285).
+        extra_classifier_kwargs={"model_path": resolve_model_path()},
         device="cuda" if torch.cuda.is_available() else "cpu",
         epochs=config["epochs"],
         learning_rate=config["learning_rate"],
