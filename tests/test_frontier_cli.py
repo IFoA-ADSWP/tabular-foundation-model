@@ -494,7 +494,10 @@ def test_synthetic_ds_metric_by_mode():
 # ---- c. load_Xy on a real registry CSV --------------------------------------
 
 def test_load_xy_coil2000():
-    reg = next(ds for ds in mod.DATASETS if ds["name"] == "coil2000")
+    from src.experiment_spec import dataset_entry, load_registry
+
+    registry = load_registry(mod.EXPERIMENTS_TOML)
+    reg = dataset_entry(registry.datasets["coil2000"])
     X, y = mod.load_Xy(reg)
 
     assert X.dtype == np.float32

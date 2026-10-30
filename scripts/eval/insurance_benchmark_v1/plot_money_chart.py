@@ -22,6 +22,7 @@ Usage:
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import matplotlib
@@ -33,23 +34,10 @@ import pandas as pd
 
 HERE = Path(__file__).resolve().parent
 RAW = HERE.parent.parent.parent / "data" / "raw"
+sys.path.insert(0, str(HERE.parent.parent.parent))  # repo root
+from src.experiment_spec import load_registry  # noqa: E402
 
-# dataset -> raw source file (row count read from here; shared files supply two
-# frontier datasets each: bemtl97/amount, ausprivauto0405/vehvalue)
-DATASETS = {
-    "ausautoBI8999": "ausautoBI8999.csv",
-    "ausprivauto0405": "ausprivauto0405.csv",
-    "ausprivauto0405_vehvalue": "ausprivauto0405.csv",
-    "bemtl16": "bemtl16.csv",
-    "bemtl97": "bemtl97.csv",
-    "bemtl97_amount": "bemtl97.csv",
-    "coil2000": "coil2000.csv",
-    "freMTPL2freq": "freMTPL2freq.csv",  # log_exposure transform, count unchanged
-    "norauto": "norauto.csv",
-    "spanish_motor_freq": "spanish_motor_freq.csv",
-    "spanish_motor_severity": "spanish_motor_severity.csv",
-    "uslapseagent": "uslapseagent.csv",
-}
+_DATASETS = load_registry(HERE / "experiments.toml").datasets
 
 # label offsets in POINTS (textcoords="offset points") per dataset — hand-tuned
 # to separate the same-file pairs (67,856; 163,212; 53,502) and the 1.0-line cluster
@@ -61,6 +49,10 @@ OFFSETS = {
     "norauto": (-20, 10), "spanish_motor_freq": (-20, 20),
     "spanish_motor_severity": (10, 10), "uslapseagent": (14, 10),
 }
+
+# Plot only the datasets with a committed frontier result and a label offset; a new
+# registry Dataset must not make a committed chart crash (file, then KeyError).
+DATASETS = {name: _DATASETS[name].file for name in OFFSETS}
 
 
 def load_points() -> pd.DataFrame:
