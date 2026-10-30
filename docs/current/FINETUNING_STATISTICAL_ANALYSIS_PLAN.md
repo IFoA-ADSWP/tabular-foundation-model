@@ -180,8 +180,11 @@ pinned to it.
 
 Stated so a reviewer can see the remaining gaps rather than assume the plan is complete:
 
-1. **The numeric ECE/Brier calibration tolerance** (design §6.5 criterion 5) — required in advance, and
-   currently unset. **This must be a number before sign-off, or criterion 5 is not pre-registered.**
+1. **The numeric ECE/Brier calibration tolerance** (design §6.5 criterion 5) — **set at sign-off
+   (2026-10-30): Brier must not increase against the in-run `A_raw` by more than 0.001**, and a gain is
+   claimed only when the paired ROC AUC interval excludes zero. The threshold sits inside the measured
+   3→30 epoch Brier spread (0.0887 → 0.0875), so it separates a real calibration effect from noise
+   rather than rubber-stamping every result.
 2. **The primary target for the transfer step** (D4) — named before the run, not after.
 3. **The minimum detectable effect** — computed rather than deferred: see §12.1.
 
@@ -224,6 +227,13 @@ minimum detectable effect** -- it costs nothing at run time, and it is worth str
 additional repeats, which (above) buy no sensitivity at all. Recorded here as a candidate change
 rather than made, because it changes the split every existing number was computed on.
 
+**Decision (2026-10-30): the anchor keeps the uniform cap.** A stratified cap is the cheapest available
+improvement to the minimum detectable effect, but it changes the split every existing number was
+computed on. Adopting it before the anchor would make the two-seed replication incomparable with R1's
+10,000-row result, which is the one comparison the anchor exists to make. It is recorded here as a
+change to adopt **after** the gate, as its own step. `uslapseagent` already resolves 0.009 ROC — the
+best of the four datasets — so the anchor pays least for the deferral.
+
 **What this means for the design's claims.** A positive result at these settings is evidence of a
 large effect; a null is *not* evidence that fine-tuning is worthless at the 0.001-0.010 scale. Every
 null is therefore reported **with its minimum detectable effect beside it**, so a reader can see what
@@ -233,8 +243,15 @@ the experiment could and could not have seen.
 
 | Role | Name | Date |
 | --- | --- | --- |
-| Statistical review | ______ | ______ |
-| Technical review | ______ | ______ |
-| Owner (@scotthawes) | ______ | ______ |
+| Statistical review | Scott Hawes — one-pass review | 2026-10-30 |
+| Technical review | Scott Hawes — one-pass review | 2026-10-30 |
+| Owner (@scotthawes) | Scott Hawes | 2026-10-30 |
+
+**Both review rows record one pass by the owner, not two independent reviewers.** Stated plainly so the
+table is not read as independent statistical review; the plan's claims rest on its own worked numbers
+(§12.1), not on a second signature.
+
+**Authority.** This plan is authoritative on analysis. The campaign spec (#286) is authoritative on
+execution, and a conflict between them is a bug in the spec.
 
 **Once signed, this plan is fixed.** Changes are deviations under §10.

@@ -97,7 +97,9 @@ is reproducible.
 balance, with the seed recorded. And state in the report what it actually controls — **fine-tuning on
 signal-free data** — which is narrower than "wrong pool data degrades the model".
 
-DECISION: ______  Owner: ______  Date: ______  Section: §6.2
+DECISION: **accepted as recommended (2026-10-30)** — permute within each pool dataset, preserving that
+dataset's marginal class balance, with the seed recorded; the report states that this controls
+fine-tuning on signal-free data, not "wrong pool data degrades the model".  Owner: scotthawes  Date: 2026-10-30  Section: §6.2
 
 ### D7 — The funded envelope
 
@@ -126,7 +128,9 @@ only. Recorded with its consequence in the campaign map, #286.  Owner: scotthawe
 **Recommendation:** confirm that any report frames the pooled arm this way and states the
 heterogeneous-outcome limitation explicitly, rather than describing it as a single "insurance model".
 
-DECISION: ______  Owner: ______  Date: ______  Section: §6.3
+DECISION: **accepted as recommended (2026-10-30)** — pooled arms are reported as a multi-domain prior,
+not a specialist, and the heterogeneous-outcome limitation is stated wherever a pooled number appears.
+Owner: scotthawes  Date: 2026-10-30  Section: §6.3
 
 ---
 
@@ -158,7 +162,9 @@ debatable afterwards. Confirm this mapping, or amend it here rather than later.
 | Transfer positive under the coherent pool, negative under the heterogeneous pool | the pool's **incoherence** cost the gain | report the composition finding; consider schema work |
 | Test-set power unreachable within the envelope | report the **power limit**, not a null | revisit scale or accept the limit |
 
-DECISION (accept as written / amend): ______  Owner: ______  Date: ______
+DECISION (accept as written / amend): **accepted as written** (2026-10-30). Every outcome this design
+can produce already has a stated reading, including the power-limited case, which is the one it is
+most likely to meet.  Owner: scotthawes  Date: 2026-10-30  Section: §3
 
 ---
 
