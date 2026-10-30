@@ -55,7 +55,10 @@ No GBDT-only analysis.
 ### 3.1 Reuse feasibility — verified by reading code (nothing was run)
 
 `home_turf_sweep_results.csv` header:
-`dataset,n_rows,method,fold,n_estimators,trimmed,error,train_s,infer_s,log_loss,brier,roc_auc`.
+`dataset,n_rows,method,fold,n_estimators,seed,model_version,trimmed,error,train_s,infer_s,log_loss,brier,roc_auc`.
+
+Since #233 every row also records `seed` and `model_version`; the frontier reuses a row
+only when both match the run (the seed it folds at and the experiment's declared version).
 
 It stores **per-fold summary brier and roc_auc (not predictions)** for
 cat/lgbm/xgb/tabpfn on bemtl97/coil2000/uslapseagent — 0 NaNs, 5 folds each, under the

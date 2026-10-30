@@ -49,6 +49,7 @@ DATASETS = [
 ]
 SIZES = [1000, 5000, None]  # None = full
 N_FOLDS = 5
+SPLIT_SEED = 42  # recorded on every row so the frontier can match it (#233)
 
 
 def load_Xy(ds: dict) -> tuple[np.ndarray, np.ndarray]:
@@ -106,6 +107,31 @@ def predict_proba(model, X: np.ndarray) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+def sweep_row(ds_name: str, n_rows: int, method: str, fold: int,
+              n_estimators: int | None, trimmed: bool) -> dict:
+    """One result row, with the provenance the frontier's reuse predicate requires (#233).
+
+    `model_version` is the version this row was actually produced under, not the
+    registry's declaration; a later run compares its own resolved version against it.
+    """
+    return {
+        "dataset": ds_name,
+        "n_rows": n_rows,
+        "method": method,
+        "fold": fold,
+        "n_estimators": n_estimators,
+        "seed": SPLIT_SEED,
+        "model_version": _model_path(),
+        "trimmed": trimmed,
+        "error": "",
+        "train_s": np.nan,
+        "infer_s": np.nan,
+        "log_loss": np.nan,
+        "brier": np.nan,
+        "roc_auc": np.nan,
+    }
+
+
 def main() -> None:
     _load_api_key()
     os.environ.setdefault("TABPFN_CLIENT_TIMEOUT", "240")  # cap hangs; v1 max infer ~41s
@@ -150,24 +176,12 @@ def main() -> None:
 
             say(f"cell {ds['name']} n={n_rows} methods={[m[0] + str(m[1]) for m in methods]}{' TRIMMED(no extra tabpfn configs)' if trim_extra else ''}")
 
-            skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=42)
+            skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=SPLIT_SEED)
             for fold, (tr, te) in enumerate(skf.split(X, y)):
                 Xtr, Xte, ytr, yte = X[tr], X[te], y[tr], y[te]
                 for mname, mkw in methods:
-                    row = {
-                        "dataset": ds["name"],
-                        "n_rows": n_rows,
-                        "method": mname,
-                        "fold": fold,
-                        "n_estimators": mkw.get("n_estimators"),
-                        "trimmed": trim_extra,
-                        "error": "",
-                        "train_s": np.nan,
-                        "infer_s": np.nan,
-                        "log_loss": np.nan,
-                        "brier": np.nan,
-                        "roc_auc": np.nan,
-                    }
+                    row = sweep_row(ds["name"], n_rows, mname, fold,
+                                    mkw.get("n_estimators"), trim_extra)
                     try:
                         if mname == "tabpfn":
                             model = make_tabpfn(mkw["n_estimators"])

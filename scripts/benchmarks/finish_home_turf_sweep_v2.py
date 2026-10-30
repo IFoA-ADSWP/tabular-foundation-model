@@ -26,11 +26,13 @@ import pandas as pd
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 from src.api_key import load_api_key as _load_api_key  # noqa: E402  (src import after the repo-root path insert)
+from src.model_version import resolve_model_path as _model_path  # noqa: E402
 REPO = HERE.parent.parent
 DATA_RAW = REPO / "data" / "raw"
 EVAL_DIR = REPO / "scripts" / "eval" / "insurance_benchmark_v1"
 OUT_CSV = EVAL_DIR / "home_turf_sweep_results.csv"
 PER_FIT_TIMEOUT = 300.0
+SPLIT_SEED = 42  # recorded on every row so the frontier can match it (#233)
 WALL_BUDGET_S = 35 * 60  # protect the 40-min budget; slow tabpfn-full retries last
 
 os.environ["TABPFN_CLIENT_TIMEOUT"] = "300"
@@ -136,10 +138,11 @@ def main() -> None:
             break
         Xf, yf = load_Xy(name)
         X, y = slice_data(Xf, yf, n_rows)
-        skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+        skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=SPLIT_SEED)
         tr, te = list(skf.split(X, y))[fold]
         row = {"dataset": name, "n_rows": n_rows, "method": mname, "fold": fold,
                "n_estimators": mkw.get("n_estimators"),
+               "seed": SPLIT_SEED, "model_version": _model_path(),
                "trimmed": bool(name == "bemtl97" and n_rows > 50000),
                "error": "", "train_s": np.nan, "infer_s": np.nan,
                "log_loss": np.nan, "brier": np.nan, "roc_auc": np.nan}
