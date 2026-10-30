@@ -10,9 +10,11 @@ Run:  python -m pytest tests/test_d1_profiling.py -v
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -78,7 +80,7 @@ def test_d1_emits_one_record_through_the_shared_writer(tmp_path, csv_path, d1):
         root=out,
     ) == 0
 
-    written = out / "d1_profiling" / "20261029T120000Z"
+    written = out / "d1_profiling" / "20261029T120000Z-synthetic"
     on_disk = read_diagnostic_record(written)
 
     assert list(on_disk) == list(DIAGNOSTIC_RECORD_FIELDS)
@@ -95,12 +97,12 @@ def test_d1_refuses_to_replace_a_record(tmp_path, csv_path, d1):
     argv = ["--csv", str(csv_path), "--target", "target", "--run-id", "20261029T120000Z"]
     out = tmp_path / "records"
     d1.main(argv, root=out)
-    before = (out / "d1_profiling" / "20261029T120000Z" / "record.json").read_bytes()
+    before = (out / "d1_profiling" / "20261029T120000Z-synthetic" / "record.json").read_bytes()
 
     with pytest.raises(FileExistsError, match="REFUSING TO OVERWRITE"):
         d1.main(argv, root=out)
 
-    after = (out / "d1_profiling" / "20261029T120000Z" / "record.json").read_bytes()
+    after = (out / "d1_profiling" / "20261029T120000Z-synthetic" / "record.json").read_bytes()
     assert after == before
 
 
@@ -112,3 +114,135 @@ def test_the_cli_cannot_name_a_location(tmp_path, csv_path, d1):
 
     # With no flag to redirect it, the script's only target is the records tree.
     assert d1.DIAGNOSTICS_ROOT == REPO_ROOT / "outputs" / "diagnostics"
+
+
+# --- #302: the rest of the design's table, asserted through the record ------------
+
+
+@pytest.fixture
+def mixed_csv(tmp_path):
+    """Two numeric features (one correlated), one categorical, one with missing values."""
+    path = tmp_path / "mixed.csv"
+    n = 40
+    x = [float(i) for i in range(n)]
+    # Near-duplicate, not exact: an exactly collinear pair makes the correlation matrix
+    # singular, and the point of the test is a computable VIF that is large.
+    noise = np.random.default_rng(7).normal(0.0, 1.5, n)
+    pd.DataFrame(
+        {
+            "target": [i % 2 for i in range(n)],
+            "x": x,
+            "x_copy": [v + float(d) for v, d in zip(x, noise)],
+            # Not proportional to x: an exact linear relation would make the matrix singular
+            # and the test would be asserting the guard rather than a computed VIF.
+            "amount": [None if i < 10 else float((i * 7) % 23) for i in range(n)],
+            "kind": ["a", "b", "c", "d"][:1] * n,
+        }
+    ).to_csv(path, index=False)
+    return path
+
+
+def _record_for(d1, tmp_path, csv, target, name="synthetic"):
+    root = tmp_path / "diagnostics"
+    rc = d1.main(["--csv", str(csv), "--target", target, "--name", name, "--run-id", "R1"], root=root)
+    assert rc == 0
+    record = json.loads((root / "d1_profiling" / f"R1-{name}" / "record.json").read_text())
+    return record
+
+
+def test_record_reports_missingness_per_column_and_marks_pattern_untested(d1, tmp_path, mixed_csv):
+    m = _record_for(d1, tmp_path, mixed_csv, "target")["measurements"]
+
+    assert m["missing_by_column"] == {"amount": 0.25}
+    assert m["n_cols_with_missing"] == 1
+    # No pattern label: MCAR/MAR/MNAR needs a test whose answer depends on assumptions the
+    # profile cannot check, so the field would be a constant pretending to be a measurement.
+    assert "missing_pattern" not in m
+
+
+def test_record_reports_target_quantiles_for_a_numeric_target(d1, tmp_path):
+    csv = tmp_path / "numeric_target.csv"
+    pd.DataFrame({"t": [float(i) for i in range(20)], "f": [float(i) for i in range(20)]}).to_csv(
+        csv, index=False
+    )
+    m = _record_for(d1, tmp_path, csv, "t")["measurements"]
+
+    q = m["target"]["quantiles"]
+    assert q["p50"] == pytest.approx(9.5)
+    assert q["p05"] < q["p50"] < q["p95"]
+
+
+def test_record_reports_numeric_to_categorical_ratio(d1, tmp_path, mixed_csv):
+    m = _record_for(d1, tmp_path, mixed_csv, "target")["measurements"]
+    assert m["numeric_to_categorical_ratio"] == pytest.approx(3.0)
+
+
+def test_record_reports_vif_only_when_it_can_be_computed(d1, tmp_path, mixed_csv):
+    """Two near-duplicate numeric features: VIF is computable and high. One feature: it is not."""
+    m = _record_for(d1, tmp_path, mixed_csv, "target")["measurements"]
+    assert m["max_vif"] is not None and m["max_vif"] > 5
+
+    single = tmp_path / "single.csv"
+    pd.DataFrame({"t": [0, 1, 0, 1], "only": [1.0, 2.0, 3.0, 4.0]}).to_csv(single, index=False)
+    m2 = _record_for(d1, tmp_path / "two", single, "t")["measurements"]
+    assert m2["max_vif"] is None
+    assert m2["vif_reason"] == "fewer than two numeric features"
+
+
+def test_anchors_write_one_record_each_from_the_registry(d1, tmp_path):
+    a = tmp_path / "a.csv"
+    b = tmp_path / "b.csv"
+    pd.DataFrame({"t": [0, 1] * 10, "f": range(20)}).to_csv(a, index=False)
+    pd.DataFrame({"y": [0, 1] * 10, "g": range(20)}).to_csv(b, index=False)
+
+    root = tmp_path / "diagnostics"
+    registry = {"alpha": {"file": str(a), "target": "t"}, "beta": {"file": str(b), "target": "y"}}
+    rc = d1.main(["--all-anchors", "--run-id", "R2"], root=root, datasets=registry)
+    assert rc == 0
+
+    # A batch is several runs, not one run holding a list: one record per directory, which is
+    # the shared writer's invariant (#211) and is not weakened for convenience.
+    runs = sorted(p.name for p in (root / "d1_profiling").iterdir())
+    assert runs == ["R2-alpha", "R2-beta"]
+    for name, spec in registry.items():
+        record = json.loads((root / "d1_profiling" / f"R2-{name}" / "record.json").read_text())
+        assert record["dataset_name"] == name
+        assert record["dataset_sha256"] == sha256_file(Path(spec["file"]))
+
+
+def test_two_runs_with_the_same_inputs_produce_the_same_measurements(d1, tmp_path, mixed_csv):
+    first = _record_for(d1, tmp_path / "one", mixed_csv, "target")["measurements"]
+    second = _record_for(d1, tmp_path / "two", mixed_csv, "target")["measurements"]
+    assert first == second
+
+
+def test_record_values_are_recomputable_from_the_csv(d1, tmp_path, mixed_csv):
+    """The ticket's wrongness check: a reader must be able to verify the record from the file."""
+    record = _record_for(d1, tmp_path, mixed_csv, "target")
+    frame = pd.read_csv(mixed_csv)
+
+    assert record["dataset_sha256"] == sha256_file(mixed_csv)
+    assert record["measurements"]["n_rows"] == len(frame)
+    assert record["measurements"]["n_cols"] == frame.shape[1]
+    positive = float((frame["target"] == 1).mean())
+    assert record["measurements"]["target"]["positive_rate"] == pytest.approx(positive, abs=1e-6)
+    per_column = frame.isna().mean()
+    assert record["measurements"]["missing_by_column"] == {
+        "amount": pytest.approx(float(per_column["amount"]), abs=1e-6)
+    }
+
+
+def test_a_missing_file_fails_before_any_record_is_written(d1, tmp_path):
+    """A set that fails halfway is unrecoverable: the writer refuses to replace what exists."""
+    present = tmp_path / "present.csv"
+    pd.DataFrame({"t": [0, 1], "f": [1.0, 2.0]}).to_csv(present, index=False)
+    registry = {
+        "alpha": {"file": str(present), "target": "t"},
+        "beta": {"file": str(tmp_path / "absent.csv"), "target": "t"},
+    }
+    root = tmp_path / "diagnostics"
+
+    with pytest.raises(SystemExit, match="no such file"):
+        d1.main(["--all-anchors", "--run-id", "R3"], root=root, datasets=registry)
+
+    assert not (root / "d1_profiling").exists(), "a record was written before the pre-flight failed"
