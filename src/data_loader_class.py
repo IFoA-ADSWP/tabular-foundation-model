@@ -9,7 +9,7 @@ from typing import Tuple, Optional, Dict
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-from baseline_config import DATA_DIR, RANDOM_SEED
+from baseline_utils import DATA_DIR, RANDOM_SEED
 
 
 class DataLoader:

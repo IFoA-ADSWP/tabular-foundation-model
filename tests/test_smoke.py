@@ -1,8 +1,6 @@
 """Smoke tests — fail loudly if the package is broken.
 
-These tests assert that the public surface of `src/` imports cleanly
-and that critical constants in `baseline_config.py` are present and
-of the expected type.
+These tests assert that the public surface of `src/` imports cleanly.
 """
 
 from __future__ import annotations
@@ -16,7 +14,6 @@ def test_src_imports() -> None:
     # doesn't mask other failures. The exact module list mirrors
     # MAINTENANCE_BACKLOG.md Issue 24.
     module_names = [
-        "baseline_config",
         "baseline_utils",
         "cleanup_outputs",
         "data_loader",
@@ -33,18 +30,12 @@ def test_src_imports() -> None:
     assert not failed, f"failed to import: {failed}"
 
 
-def test_baseline_config_random_seed() -> None:
-    """RANDOM_SEED must exist and be an int (Issue 18: standardise seed)."""
-    from baseline_config import RANDOM_SEED
+
+def test_baseline_utils_data_dir_and_seed() -> None:
+    """The notebook-era source of paths and seed must resolve (replaces the old module)."""
+    from baseline_utils import DATA_DIR, RANDOM_SEED
 
     assert isinstance(RANDOM_SEED, int), f"RANDOM_SEED must be int, got {type(RANDOM_SEED)}"
-
-
-def test_baseline_config_data_dir_exists() -> None:
-    """DATA_DIR must point to a real directory in the repo."""
-    from baseline_config import DATA_DIR
-
-    assert DATA_DIR.exists(), f"DATA_DIR does not exist: {DATA_DIR}"
     assert DATA_DIR.is_dir(), f"DATA_DIR is not a directory: {DATA_DIR}"
 
 
