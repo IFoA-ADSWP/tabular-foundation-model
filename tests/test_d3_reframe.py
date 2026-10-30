@@ -14,6 +14,7 @@ Run:  python -m pytest tests/test_d3_reframe.py -v
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import sys
@@ -24,7 +25,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from provenance import DIAGNOSTIC_RECORD_FIELDS, sha256_file  # noqa: E402
+from provenance import DIAGNOSTIC_RECORD_FIELDS  # noqa: E402
 
 SCRIPT = REPO_ROOT / "scripts" / "diagnostics" / "d3_reframe.py"
 
@@ -66,16 +67,20 @@ def test_control_reproduces_section_14_14_from_committed_evidence(tmp_path, d3):
     # actual sets keeps the record honest about what it read rather than what we assumed.
     for record, task, seeds in ((binary, "binary", [7, 42]), (ordinal, "ordinal", [42])):
         assert list(record) == list(DIAGNOSTIC_RECORD_FIELDS)
-        assert record["dataset_sha256"] == sha256_file(d3.EVIDENCE)
+        # Independent of the code under test: hash the bytes here, not via provenance's helper.
+        assert record["dataset_sha256"] == hashlib.sha256(d3.EVIDENCE.read_bytes()).hexdigest()
         m = record["measurements"]
         assert m["task"] == task
         assert m["tabpfn_rank"] == 1
         assert m["control"] == {"expected_tabpfn_rank": 1, "reproduced": True}
-        assert m["n_methods"] >= 6 and m["n_folds"] == 5 and m["seeds"] == seeds
+        assert m["n_methods"] == (9 if task == "binary" else 6)
+        assert m["n_folds"] == 5 and m["seeds"] == seeds
 
 
 def test_the_control_can_fail(tmp_path, d3):
-    """A rival that beats TabPFN must produce reproduced: false and a non-zero exit."""
+    """A rival that beats TabPFN must be read as rank 2, and must stop the run before any write."""
+    import csv as _csv
+
     evidence = _write_evidence(tmp_path / "flipped.csv", "spanish_motor_freq",
                                tabpfn_aucs=[0.60] * 5, rival_aucs=[0.70] * 5)
     root = tmp_path / "records"
@@ -83,9 +88,14 @@ def test_the_control_can_fail(tmp_path, d3):
     with pytest.raises(SystemExit, match="CONTROL FAILED"):
         d3.main(["--control", "--run-id", "R2"], root=root, evidence=evidence)
 
-    m = _record(root, "R2-spanish_motor_freq-binary")["measurements"]
+    with evidence.open(newline="") as handle:
+        rows = list(_csv.DictReader(handle))
+    m = d3.control_measurements(rows, "spanish_motor_freq", "binary")
     assert m["tabpfn_rank"] == 2
     assert m["control"]["reproduced"] is False
+    # Both tasks are computed before either is written, so a late failure leaves nothing behind
+    # for the writer to refuse on a retry.
+    assert not (root / "d3_reframe").exists()
 
 
 def test_reframing_a_new_dataset_refuses_before_writing(tmp_path, d3):

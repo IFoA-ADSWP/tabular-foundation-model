@@ -29,7 +29,6 @@ from statistics import mean
 _REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO / "src"))
 
-from model_version import resolve_model_path  # noqa: E402  (same-dir module, after the path insert)
 from provenance import (  # noqa: E402  (same-dir module, after the path insert)
     DIAGNOSTICS_ROOT,
     DiagnosticRecord,
@@ -54,9 +53,8 @@ def read_ranks(rows, dataset, task, metric="auc"):
     be compared with a rank computed across methods.
     """
     by_method = defaultdict(list)
-    for row in rows:
-        if row["dataset"] == dataset and row["task"] == task:
-            by_method[row["method"]].append(float(row[metric]))
+    for row in _rows_for(rows, dataset, task):
+        by_method[row["method"]].append(float(row[metric]))
     if not by_method:
         raise SystemExit(f"no rows for dataset={dataset!r} task={task!r} in the evidence")
     means = {method: mean(values) for method, values in by_method.items()}
@@ -64,13 +62,19 @@ def read_ranks(rows, dataset, task, metric="auc"):
     return ranked, means
 
 
+def _rows_for(rows, dataset, task):
+    return [row for row in rows if row["dataset"] == dataset and row["task"] == task]
+
+
 def control_measurements(rows, dataset, task):
     ranked, means = read_ranks(rows, dataset, task)
-    rank = next(i for i, (method, _) in enumerate(ranked, 1) if method == "tabpfn")
-    seeds = sorted(
-        {int(row["seed"]) for row in rows if row["dataset"] == dataset and row["task"] == task}
-    )
-    folds = sorted({row["fold"] for row in rows if row["dataset"] == dataset and row["task"] == task})
+    try:
+        rank = next(i for i, (method, _) in enumerate(ranked, 1) if method == "tabpfn")
+    except StopIteration:
+        raise SystemExit(f"tabpfn is absent from the evidence for {dataset!r}/{task!r}") from None
+    selected = _rows_for(rows, dataset, task)
+    seeds = sorted({int(row["seed"]) for row in selected})
+    folds = sorted({row["fold"] for row in selected})
     leader, leader_mean = ranked[0]
     return {
         "task": task,
@@ -112,7 +116,8 @@ def main(argv=None, *, root=None, evidence=None):
     parser.add_argument("--run-id", default=None, help="record directory prefix (default: UTC now)")
     args = parser.parse_args(argv)
 
-    if args.dataset and not args.control:
+    if args.dataset:
+        # Accepted with --control, the flag would be read and ignored -- the worst of both.
         raise SystemExit(_refuse_paid(args.dataset))
     if not args.control:
         parser.error("give --control")
@@ -125,30 +130,33 @@ def main(argv=None, *, root=None, evidence=None):
 
     dataset = "spanish_motor_freq"
     base = args.run_id or _run_id()
-    verdicts = []
-    for task in ("binary", "ordinal"):
-        measurements = control_measurements(rows, dataset, task)
-        verdicts.append(measurements["control"]["reproduced"])
+    # Compute both tasks before writing either: a control that fails on the second task must not
+    # leave the first record behind, because the writer refuses to replace it on a retry.
+    measurements_by_task = {task: control_measurements(rows, dataset, task) for task in ("binary", "ordinal")}
+    if not all(m["control"]["reproduced"] for m in measurements_by_task.values()):
+        raise SystemExit(
+            "CONTROL FAILED: the reading did not reproduce §14.14, so no flip on a new dataset "
+            "would be interpretable. Nothing was written."
+        )
+
+    for task, measurements in measurements_by_task.items():
         record = DiagnosticRecord(
             diagnostic=DIAGNOSTIC,
             run_id=f"{base}-{dataset}-{task}",
-            dataset_name=f"{dataset}-{task}",
+            # The artifact this record reads is the committed evidence file, not a dataset: the
+            # hash is of that file, and the dataset and task live in the measurements.
+            dataset_name="reframe_frequency_results.csv",
             dataset_sha256=sha256_file(source),
-            # Reframing reads committed results here; the version is the one those results were
-            # produced under, resolved from the environment rather than inferred from a filename.
-            model_version=resolve_model_path(),
+            # NOT the resolver: these numbers were produced under v3_default (REPORT_REGISTRY,
+            # §14.14), and stamping the environment's current label on them would mix version
+            # eras in a claim -- the one thing AGENTS.md forbids.
+            model_version="v3_default",
             seed=None,
             matched_context=matched_context_evidence(),
             measurements=measurements,
         )
         written = write_diagnostic_record(record, root=root or DIAGNOSTICS_ROOT)
-        print(f"{DIAGNOSTIC} {record.dataset_name}: tabpfn rank {measurements['tabpfn_rank']} -> {written}")
-
-    if not all(verdicts):
-        raise SystemExit(
-            "CONTROL FAILED: the reading did not reproduce §14.14, so no flip on a new dataset "
-            "would be interpretable."
-        )
+        print(f"{DIAGNOSTIC} {dataset}/{task}: tabpfn rank {measurements['tabpfn_rank']} -> {written}")
     return 0
 
 
