@@ -111,15 +111,15 @@ import pandas as pd
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent.parent
 sys.path.insert(0, str(REPO))  # repo root
-from src.api_key import load_api_key as _load_api_key  # noqa: E402
-from src.experiment_spec import (  # noqa: E402
+from src.api_key import load_api_key as _load_api_key  # noqa: E402  (src import after the path insert above)
+from src.experiment_spec import (  # noqa: E402  (src import after the path insert above)
     REGRESSION,
     Experiment,
     RegistryError,
     as_runner_dataset,
     load_registry,
 )
-from src.model_version import resolve_model_path as _model_path  # noqa: E402
+from src.model_version import resolve_model_path as _model_path  # noqa: E402  (src import after the path insert above)
 DATA_RAW = REPO / "data" / "raw"
 EXPERIMENTS_TOML = HERE / "experiments.toml"  # the committed registry (#230)
 

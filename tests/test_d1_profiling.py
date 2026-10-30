@@ -19,8 +19,8 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from model_version import resolve_model_path  # noqa: E402
-from provenance import DIAGNOSTIC_RECORD_FIELDS, read_diagnostic_record, sha256_file  # noqa: E402
+from model_version import resolve_model_path  # noqa: E402  (importable after the src path insert above)
+from provenance import DIAGNOSTIC_RECORD_FIELDS, read_diagnostic_record, sha256_file  # noqa: E402  (importable after the src path insert above)
 
 SCRIPT = REPO_ROOT / "scripts" / "diagnostics" / "d1_profiling.py"
 

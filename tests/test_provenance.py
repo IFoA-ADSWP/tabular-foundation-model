@@ -22,7 +22,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from provenance import (  # noqa: E402
+from provenance import (  # noqa: E402  (importable after the src path insert above)
     DIAGNOSTIC_RECORD_FIELDS,
     DIAGNOSTIC_RECORD_SCHEMA_VERSION,
     DataSource,
@@ -132,25 +132,55 @@ def _source():
 
 
 def test_fingerprint_of_a_known_table(tmp_path):
+    import pandas as pd
+
     data_dir = tmp_path / "raw"
     data_dir.mkdir()
-    (data_dir / "toy.csv").write_text("y,a,b\n0,1,2\n1,3,4\n0,5,6\n", encoding="utf-8")
+    path = data_dir / "toy.csv"
+    path.write_text("y,a,leaky\n0,1,2\n1,3,4\n0,5,6\n", encoding="utf-8")
 
     fp = dataset_fingerprint(
-        "toy", target="y", data_dir=data_dir, repo_root=tmp_path, source=_source()
+        "toy",
+        frame=pd.read_csv(path),
+        target="y",
+        drop=("leaky",),
+        path=path,
+        repo_root=tmp_path,
+        source=_source(),
     )
 
-    assert fp["sha256"] == hashlib.sha256((data_dir / "toy.csv").read_bytes()).hexdigest()
+    assert fp["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
     assert (fp["n_rows"], fp["n_cols"], fp["file"]) == (3, 3, "toy.csv")
-    assert fp["target_col"] == "y"
+    assert (fp["target"], fp["drop"]) == ("y", ["leaky"])
     assert fp["positive_rate"] == pytest.approx(1 / 3, abs=1e-6)
     assert fp["source_url"].endswith("/data/raw/toy.csv")
     assert (fp["source_ref"], fp["source_ref_is_pinned"]) == ("deadbeef", True)
 
 
+def test_fingerprint_of_a_frame_with_no_file_states_it_cannot_hash(tmp_path):
+    """No bytes on disk means no content hash: the absence is stated, not invented."""
+    import pandas as pd
+
+    fp = dataset_fingerprint(
+        "in_memory",
+        frame=pd.DataFrame({"y": [0, 1], "a": [1.0, 2.0]}),
+        target="y",
+        path=None,
+        repo_root=tmp_path,
+        source=_source(),
+    )
+    assert fp["sha256"] is None and fp["file"] is None
+    assert fp["n_rows"] == 2
+
+
 def test_fingerprint_states_a_missing_table(tmp_path):
+    """A table that is not on disk is STATE, not an error -- the original behaviour."""
     missing = dataset_fingerprint(
-        "absent", target="y", data_dir=tmp_path, repo_root=tmp_path, source=_source()
+        "absent",
+        target="y",
+        path=tmp_path / "absent.csv",
+        repo_root=tmp_path,
+        source=_source(),
     )
     assert missing == {
         "name": "absent",

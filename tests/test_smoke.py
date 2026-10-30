@@ -28,7 +28,7 @@ def test_src_imports() -> None:
     for name in module_names:
         try:
             __import__(name)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001  (the smoke test reports any import failure)
             failed.append((name, repr(e)))
     assert not failed, f"failed to import: {failed}"
 

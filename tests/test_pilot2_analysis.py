@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from paired_analysis import (  # noqa: E402
+from paired_analysis import (  # noqa: E402  (importable after the src path insert above)
     holm_adjust,
     inverse_variance_summary,
     paired_bootstrap_ci,

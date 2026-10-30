@@ -43,7 +43,7 @@ def test_pf_dataset_fingerprint_has_content_hash(rp):
     assert fp["n_rows"] > 0
     assert fp["n_cols"] > 0
     assert 0.0 < fp["positive_rate"] < 1.0
-    assert fp["target_col"] == rp.DATASETS["coil2000"]["target"]
+    assert fp["target"] == rp.DATASETS["coil2000"]["target"]
     # columns are recorded, so a schema change is visible
     assert len(fp["columns"]) == fp["n_cols"]
 

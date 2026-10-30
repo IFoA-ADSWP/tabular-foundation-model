@@ -50,7 +50,7 @@ if TYPE_CHECKING:
 
 import sys as _sys
 _sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
-from src.tabpfn_client_model import TabPFNClientModel  # noqa: E402
+from src.tabpfn_client_model import TabPFNClientModel  # noqa: E402  (src import after the path insert above)
 
 # ---------------------------------------------------------------------------
 # Paths
