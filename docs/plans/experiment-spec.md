@@ -1,8 +1,10 @@
 # Plan — experiment spec
 
 **Status:** Current — agreed 2026-10-28. Slices 1–2 and the `experiment_id` stamping of
-slice 4 are implemented in #230 (`docs/plans/experiment-registry.md`); slices 3, 5 and 6
-remain open as #231–#233.
+slice 4 are implemented in #230 (`docs/plans/experiment-registry.md`); slice 3 and the
+classification half of slice 4 are implemented in #231
+(`docs/plans/frontier-registry-adoption.md`); the regression half of slice 4 and slices 5–6
+remain open as #232–#233.
 **Origin:** issue #227 (survey) · issue #210 (the ask) · `docs/plans/experiment-spec-handoff.md` (grilling record)
 **Glossary:** `GLOSSARY.md` · **ADR:** `docs/adr/0001-experiment-spec-pins-version-and-guards-reuse.md`
 
