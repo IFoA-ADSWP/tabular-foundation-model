@@ -194,19 +194,25 @@ def test_an_experiment_accepts_its_declared_seed(monkeypatch, tmp_path):
         mod.main()  # selection and seed both accepted; it stops at the runner stub
 
 
-def test_an_experiment_refuses_a_fold_count_the_runner_cannot_honour(monkeypatch, tmp_path):
-    # n_folds is declared and validated. Until the runner folds from the registry (#231),
-    # a declared count it ignores would be a stamp the artifact cannot back.
+def test_an_experiment_passes_its_declared_fold_count_to_the_runner(monkeypatch, tmp_path):
+    # #231 folds from the experiment, so a declared count is honoured rather than refused.
     import dataclasses
 
     datasets, experiment = mod.experiment_selection("coil2000")
     monkeypatch.setattr(mod, "experiment_selection",
                         lambda _id: (datasets, dataclasses.replace(experiment, n_folds=10)))
-    refuse_to_run(monkeypatch)
+    seen = {}
+
+    def capture(_ds, _out_csv, _out_png, experiment=None):
+        seen["folds"] = experiment.n_folds
+        raise AssertionError("stop after capture")
+
+    monkeypatch.setattr(mod, "run_dataset", capture)
     monkeypatch.setattr(sys, "argv",
                         ["prog", "--experiment", "coil2000", "--out-dir", str(tmp_path)])
-    with pytest.raises(SystemExit):
+    with pytest.raises(AssertionError, match="stop after capture"):
         mod.main()
+    assert seen["folds"] == 10
 
 
 def test_every_results_row_states_its_experiment_id():

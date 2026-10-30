@@ -190,9 +190,10 @@ def test_the_experiments_methods_resolve_in_its_own_mode_in_declared_order(tmp_p
 
 # ---- the committed file vs the code it was generated from --------------------
 #
-# Temporary by design: #231 deletes the runner's DATASETS/REG_DATASETS constants, and
-# this test is the bridge that proves the committed file was generated from them rather
-# than typed by hand. When the constants go, this goes.
+# DATASETS is deprecated for the classification frontier (#231 reads the registry) but
+# run_tuned_baselines still imports it until #235; REG_DATASETS serves regression until
+# #232/#235. This test keeps the committed file and those remaining code lists from
+# drifting apart.
 
 REGISTRY = (
     Path(__file__).resolve().parents[1]
@@ -224,7 +225,7 @@ def _runner():
     return module
 
 
-def test_the_committed_registry_declares_every_dataset_the_runner_uses():
+def test_the_committed_registry_covers_the_remaining_code_dataset_lists():
     runner = _runner()
     registry = load_registry(REGISTRY)
 
@@ -263,8 +264,10 @@ def test_the_committed_registry_declares_every_method_in_runner_order():
     compared = [m.name for m in registry.methods_of(classification)]
     # Every method the runner compares is declared — derived from its own constants, so
     # drift in REUSED_METHODS or FAST_METHODS fails here rather than passing silently.
-    assert set(compared) == set(runner.REUSED_METHODS) | set(runner.FAST_METHODS)
+    assert set(compared) == set(runner.CLASSIFICATION_METHODS)
     assert compared[-1] == "tabpfn"  # the hosted method is always deferred to last
+    for method in registry.methods_of(classification):
+        assert runner.CLASSIFICATION_METHODS[method.name].n_params == method.n_params
 
     regression = registry.experiment("freMTPL2freq")
     assert tuple(m.name for m in registry.methods_of(regression)) == REGRESSION_ORDER
@@ -281,3 +284,41 @@ def test_the_committed_registry_declares_every_method_in_runner_order():
 
 
 
+
+
+# ---- shared fold constructor (#231) -----------------------------------------
+
+def test_make_folds_is_reproducible_for_the_same_kind_count_and_seed():
+    import numpy as np
+
+    from src.experiment_spec import make_folds
+
+    X = np.zeros((120, 3))
+    y = np.array([0, 1] * 60)
+    first = list(make_folds("stratified", 5, 42).split(X, y))
+    second = list(make_folds("stratified", 5, 42).split(X, y))
+
+    assert len(first) == len(second) == 5
+    for (tr_a, te_a), (tr_b, te_b) in zip(first, second):
+        assert np.array_equal(tr_a, tr_b)
+        assert np.array_equal(te_a, te_b)
+
+
+def test_make_folds_changes_the_split_when_the_seed_changes():
+    import numpy as np
+
+    from src.experiment_spec import make_folds
+
+    X = np.zeros((120, 3))
+    y = np.array([0, 1] * 60)
+    first = list(make_folds("stratified", 5, 42).split(X, y))
+    second = list(make_folds("stratified", 5, 7).split(X, y))
+
+    assert any(not np.array_equal(a[1], b[1]) for a, b in zip(first, second))
+
+
+def test_make_folds_refuses_an_unknown_kind_and_names_it():
+    from src.experiment_spec import RegistryError, make_folds
+
+    with pytest.raises(RegistryError, match=r"unknown fold kind 'nope'"):
+        make_folds("nope", 5, 42)
