@@ -424,7 +424,7 @@ def read_diagnostic_record(path):
 # A record declares the layout it was written with, and the reader dispatches on it per KIND:
 # an arm record and a capture manifest do not share a version space, so a capture declaring 3
 # must not be read just because some other layout has a 3 in it.
-ARM_RECORD_SCHEMA_VERSION = 3
+ARM_RECORD_SCHEMA_VERSION = 4  # 4 adds the optional `experiment` section (ADR 0004)
 PILOT_RUN_SCHEMA_VERSION = 2  # the invocation manifest and meta.FAILED.json
 FRONTIER_MANIFEST_SCHEMA_VERSION = 1  # #240's layout; the committed ones predate it
 CAPTURE_SCHEMA_VERSION = 2  # 1 is the committed layout; 2 is #240's
@@ -443,6 +443,7 @@ _DATASET = "dataset"
 _SPLIT = "split"
 _MODEL = "model"
 _CODE = "code"
+_EXPERIMENT = "experiment"
 
 # The block's vocabulary, defined once. The builders assemble their sections from these names
 # and `verdict` builds its missing-key paths from the same ones, so a rename cannot leave the
@@ -465,6 +466,11 @@ CODE_IMAGE = "image"
 SPLIT_KEYS = (SPLIT_N_FOLDS, SPLIT_SEED, SPLIT_SHA256, SPLIT_RULE)
 MODEL_KEYS = (MODEL_VERSION, MODEL_VERSION_SOURCE, MODEL_WEIGHTS_SHA256, MODEL_CLIENT_VERSION)
 CODE_KEYS = (CODE_GIT_SHA, CODE_DIRTY, CODE_RUNTIME, CODE_IMAGE)
+
+EXPERIMENT_ID = "id"
+EXPERIMENT_DECLARED = "declared"
+EXPERIMENT_RESOLVED = "resolved"
+EXPERIMENT_KEYS = (EXPERIMENT_ID, EXPERIMENT_DECLARED, EXPERIMENT_RESOLVED)
 
 
 @dataclass(frozen=True)
@@ -490,7 +496,7 @@ class RecordLayout:
 
 
 RECORD_LAYOUTS = {
-    ARM_RECORD_KIND: RecordLayout(ARM_RECORD_KIND, (1, 2, ARM_RECORD_SCHEMA_VERSION), 1),
+    ARM_RECORD_KIND: RecordLayout(ARM_RECORD_KIND, (1, 2, 3, ARM_RECORD_SCHEMA_VERSION), 1),
     PILOT_MANIFEST_KIND: RecordLayout(PILOT_MANIFEST_KIND, (1, PILOT_RUN_SCHEMA_VERSION), None),
     FRONTIER_MANIFEST_KIND: RecordLayout(
         FRONTIER_MANIFEST_KIND, (FRONTIER_MANIFEST_SCHEMA_VERSION,), 1
@@ -566,7 +572,22 @@ def code_section(*, git_sha=None, dirty=None, runtime=None, image=None):
     )
 
 
-def provenance_block(*, dataset, split=None, model=None, code=None):
+def experiment_section(*, id=None, declared=None, resolved=None):  # noqa: A002 - the key's name
+    """The experiment a run named, its declaration, and what it executed (ADR 0004).
+
+    All three keys are emitted together. `declared` is the registry's base config;
+    `resolved` is what the arms ran. The pair exists so a drifted default is visible in the
+    artifact -- #238 refuses a contradiction, so today they agree only because a
+    disagreement cannot be run, not because nothing checked.
+    """
+    return _check_section(
+        _EXPERIMENT,
+        EXPERIMENT_KEYS,
+        {EXPERIMENT_ID: id, EXPERIMENT_DECLARED: declared, EXPERIMENT_RESOLVED: resolved},
+    )
+
+
+def provenance_block(*, dataset, split=None, model=None, code=None, experiment=None):
     """The one top-level `provenance` key a record carries.
 
     Every section is emitted with its full key set even when a value is unknown, so a reader
@@ -583,12 +604,17 @@ def provenance_block(*, dataset, split=None, model=None, code=None):
             return empty()
         return _check_section(name, keys, dict(given))
 
-    return {
+    block = {
         _DATASET: dataset,
         _SPLIT: section(split, _SPLIT, SPLIT_KEYS, split_section),
         _MODEL: section(model, _MODEL, MODEL_KEYS, model_section),
         _CODE: section(code, _CODE, CODE_KEYS, code_section),
     }
+    # Optional, and absent rather than null-filled: a run that named no experiment has no
+    # declaration to state (ADR 0004). v3 records never carried it and still read.
+    if experiment is not None:
+        block[_EXPERIMENT] = section(experiment, _EXPERIMENT, EXPERIMENT_KEYS, experiment_section)
+    return block
 
 
 @dataclass(frozen=True)

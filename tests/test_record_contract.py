@@ -154,10 +154,11 @@ def _record(path: Path) -> dict:
 # --------------------------------------------------------------------------
 # The writer: schema 3, four sections, a model version
 # --------------------------------------------------------------------------
-def test_a_pilot_arm_record_declares_schema_three(mock_arm_run):
+def test_a_pilot_arm_record_declares_schema_four(mock_arm_run):
     record = _record(mock_arm_run)
 
-    assert record["schema_version"] == ARM_RECORD_SCHEMA_VERSION == 3
+    assert record["schema_version"] == ARM_RECORD_SCHEMA_VERSION == 4
+    # No experiment was named in this run, so the optional section is absent, not null-filled.
     assert set(record["provenance"]) == {"dataset", "split", "model", "code"}
 
 
@@ -398,7 +399,7 @@ def test_a_committed_unversioned_arm_record_reads_unusable():
 # --------------------------------------------------------------------------
 # Version dispatch: per kind, and fail closed
 # --------------------------------------------------------------------------
-@pytest.mark.parametrize("declared", [4, 99, 0, "3", True, None])
+@pytest.mark.parametrize("declared", [5, 99, 0, "3", True, None])
 def test_an_arm_record_with_a_version_this_reader_does_not_know_raises(declared):
     record = _complete(schema_version=declared)
 
@@ -423,12 +424,12 @@ def test_an_absent_version_is_read_as_the_legacy_layout_only_where_documented():
 
 
 def test_a_version_known_to_one_kind_is_not_known_to_another():
-    """A capture declaring 3 must not pass because arm records have a 3."""
+    """A capture declaring an arm-record version must not pass because arm records have it."""
     capture = {"schema_version": ARM_RECORD_SCHEMA_VERSION}
     with pytest.raises(ValueError, match="capture"):
         verdict(capture, kind=CAPTURE_KIND)
-    # ...while an arm record declaring 3 is exactly what the writer emits.
-    assert verdict(_complete(), kind=ARM_RECORD_KIND).schema_version == 3
+    # ...while an arm record declaring the current version is exactly what the writer emits.
+    assert verdict(_complete(), kind=ARM_RECORD_KIND).schema_version == ARM_RECORD_SCHEMA_VERSION
 
 
 def test_a_committed_frontier_manifest_is_read_as_its_unversioned_layout():

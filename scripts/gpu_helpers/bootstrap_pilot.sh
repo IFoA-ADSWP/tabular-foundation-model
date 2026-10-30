@@ -23,6 +23,7 @@ set -uo pipefail
 BRANCH="${BRANCH:-main}"   # the box must run the reviewed code, not a stale branch
 REPO="https://github.com/IFoA-ADSWP/tabular-foundation-model.git"
 WORKDIR="${WORKDIR:-/workspace/tfm}"
+EXPERIMENT="${EXPERIMENT:-}"   # empty = no declared experiment (#238)
 ARMS="${ARMS:-A_raw,B_in_domain,E_glm,F_catboost}"
 DATASET="${DATASET:-}"   # empty = every registered dataset
 TRAIN_SIZE="${TRAIN_SIZE:-}"   # empty = the runner's own default
@@ -42,7 +43,7 @@ PYARROW_PIN="${PYARROW_PIN:-pyarrow>=15,<20}"
 CATBOOST_PIN="${CATBOOST_PIN:-catboost>=1.2,<2}"
 
 echo "============================================================"
-echo "BOOTSTRAP — branch=$BRANCH arms=$ARMS workdir=$WORKDIR"
+echo "BOOTSTRAP — branch=$BRANCH experiment=${EXPERIMENT:-none} arms=$ARMS workdir=$WORKDIR"
 echo "============================================================"
 
 # ---- 0. Always emit the completion marker, on EVERY exit path ----
@@ -299,8 +300,11 @@ for arm in ${ARMS//,/ }; do
     echo
     echo "########## ARM $arm ##########"
     # shellcheck disable=SC2086  # DATASET is a dataset name, not unquoted input
-    python3 scripts/run_pilot.py --arms "$arm" ${DATASET:+--dataset "$DATASET"} \
-        ${TRAIN_SIZE:+--train-size "$TRAIN_SIZE"} ${TEST_SIZE:+--test-size "$TEST_SIZE"}
+    # The id owns the dataset, sizes and seed; --arms selects within its declaration, so
+    # one process per arm still isolates a failure (#238).
+    python3 scripts/run_pilot.py ${EXPERIMENT:+--experiment "$EXPERIMENT"} --arms "$arm" \
+        ${DATASET:+--dataset "$DATASET"} ${TRAIN_SIZE:+--train-size "$TRAIN_SIZE"} \
+        ${TEST_SIZE:+--test-size "$TEST_SIZE"}
     rc=$?
     if [ "$rc" -ne 0 ]; then
         # 137 => 128+9 SIGKILL, i.e. the OOM killer. Reported, not fatal.

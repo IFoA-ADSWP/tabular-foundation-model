@@ -54,7 +54,8 @@ sys.path.insert(0, str(REPO_ROOT))
 # `scripts/analyse_pilot.py` uses for `paired_analysis`.
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from provenance import (  # noqa: E402  (same-dir module, after the src path insert above)
+from provenance import (
+    experiment_section,
     ARM_RECORD_SCHEMA_VERSION,
     BASELINE_TABPFN_ARM,
     PILOT_RUN_SCHEMA_VERSION,
@@ -133,6 +134,9 @@ DATASETS = {
 
 DATA_DIR = REPO_ROOT / "data" / "raw"
 OUTPUT_DIR = REPO_ROOT / "outputs" / "finetune" / "pilot"
+# The experiment this run named and its declared config, or None (#238). Set once in
+# main(); read by the record writer, so the artifact states declared beside resolved.
+DECLARED_EXPERIMENT: dict | None = None
 
 # Where the datasets come from. `main` is a MOVING reference: if a CSV changes on that
 # branch, a re-run silently gets different bytes -- the content fingerprint can only
@@ -1089,6 +1093,14 @@ def save_results(
             ),
             model=_model_provenance(weights, versions),
             code=_code_provenance(git, versions),
+            experiment=(
+                experiment_section(
+                    id=DECLARED_EXPERIMENT["id"],
+                    declared=DECLARED_EXPERIMENT["config"],
+                    resolved=config,
+                )
+                if DECLARED_EXPERIMENT else None
+            ),
         ),
         # PR-6. Retained alongside the block, pointing at the same objects: a reader of the
         # old layout keeps working, and cannot see two fingerprints that disagree.
@@ -1460,7 +1472,7 @@ def resolve_invocation(args):
             if value is not None:
                 config[key] = value
         return (args.dataset, arms or list(ARMS), seeds or [DEFAULT_SEED], train_size,
-                test_size, args.folds, config, None)
+                test_size, args.folds, config, None, None, None)
 
     registry = load_registry(REGISTRY_TOML)
     declared = registry.pilot_experiment(args.experiment)
@@ -1468,7 +1480,14 @@ def resolve_invocation(args):
     if args.dataset is not None:
         _refuse(declared.id, "--dataset", declared.dataset, args.dataset)
     if arms is not None:
-        _refuse(declared.id, "--arms", set(declared.arms), set(arms))
+        # A subset SELECTS within the declaration (the launcher runs one arm per process);
+        # an arm the declaration does not name is a contradiction, not a selection.
+        undeclared = [arm for arm in arms if arm not in declared.arms]
+        if undeclared:
+            raise InvocationError(
+                f"--experiment {declared.id!r} does not declare arm(s) {undeclared}; "
+                f"--arms selects within the declaration"
+            )
     if seeds is not None:
         _refuse(declared.id, "--seeds", [declared.seed], seeds)
     if args.folds is not None:
@@ -1492,9 +1511,9 @@ def resolve_invocation(args):
         method.name: arm_epoch_budget(declared, method)
         for method in registry.pilot_methods_of(declared)
     }
-    return (declared.dataset, list(declared.arms), [declared.seed],
+    return (declared.dataset, list(arms or declared.arms), [declared.seed],
             declared.train_size, declared.test_size, declared.folds,
-            _config_dict(declared.config), budgets)
+            _config_dict(declared.config), budgets, declared.id, _config_dict(declared.config))
 
 
 def make_parser():
@@ -1562,12 +1581,15 @@ def main():
     parser = make_parser()
     args = parser.parse_args()
 
-    global ARM_BUDGETS
+    global ARM_BUDGETS, DECLARED_EXPERIMENT
     try:
-        dataset, arms, seeds, train_size, test_size, folds, config, ARM_BUDGETS = \
-            resolve_invocation(args)
+        (dataset, arms, seeds, train_size, test_size, folds, config, ARM_BUDGETS,
+         experiment_id, declared_config) = resolve_invocation(args)
     except (InvocationError, RegistryError) as exc:
         parser.error(str(exc))
+    DECLARED_EXPERIMENT = (
+        {"id": experiment_id, "config": declared_config} if experiment_id else None
+    )
     rung_name = args.rung
 
     # ---------------- Reproducibility gates, before any work runs ----------------
