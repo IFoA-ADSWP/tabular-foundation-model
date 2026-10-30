@@ -104,6 +104,7 @@ import argparse
 import os
 import sys
 import time
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Callable, NamedTuple
 
@@ -123,7 +124,10 @@ from src.experiment_spec import (  # noqa: E402  (src import after the path inse
     load_registry,
     make_folds,
 )
-from src.model_version import resolve_model_path as _model_path  # noqa: E402  (src import after the path insert above)
+from src.model_version import (  # noqa: E402  (src import after the path insert above)
+    resolve_model_path as _model_path,
+    version_mismatch,
+)
 DATA_RAW = REPO / "data" / "raw"
 EXPERIMENTS_TOML = HERE / "experiments.toml"  # the committed registry (#230)
 
@@ -190,6 +194,12 @@ EXPERIMENT_ID: str | None = None
 POWER_SOURCES: dict[str, dict[str, list[str]]] = {}
 # The manifest's `utc` is the run start, even when the file is rewritten after each dataset.
 RUN_STARTED_UTC: str | None = None
+# #239: the model versions the experiments this run will EXECUTE declare, as the literals
+# in experiments.toml. Empty on an ad-hoc run, which declares nothing -- that is not the
+# same fact as "the declared and resolved versions agree", so the manifest records absent
+# rather than a pass. A sweep covers several experiments, so this is a tuple: the manifest
+# names a single literal only when they agree on one.
+RUN_DECLARED_VERSIONS: tuple[str, ...] = ()
 
 # TabPFN parameter count — settled non-decision (spec §5): constant per dataset, orders of
 # magnitude above the GBDTs, so its precise value never changes frontier membership.
@@ -529,6 +539,20 @@ SWEEP_PROVENANCE_COLUMNS = ("dataset", "n_rows", "method", "fold", "n_estimators
 SWEEP_VALUE_COLUMNS = ("log_loss", "brier", "roc_auc")
 
 
+def reuse_version_for(experiment: Experiment | None, resolved: str) -> str | None:
+    """The model version a run may reuse rows under, or None when it may not reuse.
+
+    A declared experiment reuses only when execution resolved the declared version (#239
+    records the comparison; #233 requires it to agree). An ad-hoc run declares nothing,
+    so there is no identity to attest and it reuses nothing.
+    """
+    if experiment is None:
+        return None
+    if version_mismatch(experiment.model_version, resolved):
+        return None
+    return experiment.model_version
+
+
 def reusable_sweep_rows(sweep: pd.DataFrame, dataset: str, n_rows: int,
                         seed: int, model_version: str) -> pd.DataFrame:
     """Sweep rows attributable to this run, or none.
@@ -599,13 +623,25 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path,
             pred_store[f"{method}__fold{fold}"] = y_pred.astype(np.float32)
 
     # ---- 1. Sweep rows: reusable only for a method that declares it, and only when
-    # the row records this run's seed and the experiment's declared model version (#233).
-    # An ad-hoc --data run has no declaration, so it compares its resolved version.
+    # the run's identity is attestable. #239 records declared vs resolved; #233 requires
+    # them to agree before a row may stand in for a fit. An ad-hoc run declares nothing,
+    # so it reuses nothing: absence is not a pass.
     sweep = pd.read_csv(SWEEP_CSV)
-    reuse_version = experiment.model_version if experiment is not None else _model_path()
-    sweep_full = reusable_sweep_rows(sweep, ds["name"], len(X), seed, reuse_version)
-    if sweep_full.empty and not sweep.empty:
-        say(f"  no sweep row records seed={seed} model_version={reuse_version}; fitting fresh")
+    resolved_version = _model_path()
+    reuse_version = reuse_version_for(experiment, resolved_version)
+    if reuse_version is None:
+        sweep_full = sweep.iloc[0:0]
+        if not sweep.empty:
+            if experiment is None:
+                say("  ad-hoc run declares no model version; fitting fresh")
+            else:
+                say(f"  declared model_version={experiment.model_version} but resolved "
+                    f"{resolved_version}; fitting fresh")
+    else:
+        sweep_full = reusable_sweep_rows(sweep, ds["name"], len(X), seed, reuse_version)
+        if sweep_full.empty and not sweep.empty:
+            say(f"  no sweep row records seed={seed} model_version={reuse_version}; "
+                f"fitting fresh")
     fresh = PR_AUC_MODE or SAVE_PREDICTIONS
     reused_any = False
 
@@ -793,7 +829,7 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path,
         npz_path = write_predictions_npz(ds, pred_store, written, n_folds,
                                           problem_type="classification",
                                           metric_name=ds.get("metric", "log_loss"), seed=seed,
-                                          experiment_id=EXPERIMENT_ID)
+                                          experiment=experiment)
         verify_predictions_readback(npz_path, written, metric, rows, n_folds,
                                      problem_type="classification")
 
@@ -903,11 +939,15 @@ def verify_predictions_dir(pred_dir: Path) -> int:
 
 def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: list[str],
                            n_folds: int, problem_type: str, metric_name: str, seed: int,
-                           experiment_id: str | None = None) -> Path:
+                           experiment: Experiment | None = None) -> Path:
     """Write predictions/<dataset>__seed<seed>__<model_path>.npz + sibling .manifest.json
     (schema v1, docs/analyses/prediction_capture_rescore_spec.md §4). Asserts every
     fold/method array is present, length-matched to its test split, and finite before
     writing anything.
+
+    `experiment` is the declaration this capture belongs to, and it is the *dataset's*
+    experiment, not the run's (#239): a sweep covers several, and each capture can state
+    its own literal. None for an ad-hoc run, which declares nothing.
 
     The model_path suffix keeps generations side by side: without it a version re-test
     (§15/§16) silently overwrites the baseline it is being diffed against, since dataset
@@ -916,7 +956,8 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
     import subprocess
 
     PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
-    stem = f"{ds['name']}__seed{seed}__{_model_path()}"
+    resolved = _model_path()
+    stem = f"{ds['name']}__seed{seed}__{resolved}"
     npz_path = PREDICTIONS_DIR / f"{stem}.npz"
     manifest_path = PREDICTIONS_DIR / f"{stem}.manifest.json"
 
@@ -955,7 +996,7 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
                   f"random_state={splitter.random_state})")
     manifest = {
         "schema_version": 1,
-        "experiment_id": experiment_id,
+        "experiment_id": experiment.id if experiment else None,
         "dataset": ds["name"],
         "data_file": ds["file"],
         "target": ds["target"],
@@ -972,7 +1013,10 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
         "seed": seed,
         "split": split_desc,
         "methods": methods,
-        "model_version": _model_path(),
+        "model_version": resolved,
+        # #239: the dataset's declaration, so a drifted capture says so instead of looking
+        # verified; None is absent, not a pass.
+        **model_version_fields([experiment.model_version] if experiment else [], resolved),
         "tabpfn_client_version": tabpfn_client_version,
         "script_git_sha": git_sha,
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -1026,7 +1070,8 @@ def verify_predictions_readback(npz_path: Path, methods: list[str], metric, rows
 
 def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path,
                            seed: int | None = None,
-                           n_folds: int | None = None) -> pd.DataFrame:
+                           n_folds: int | None = None,
+                           experiment: Experiment | None = None) -> pd.DataFrame:
     """Regression-mode frontier (--regression). No sweep reuse — the sweep CSV is
     classification-only, so every regression dataset is FRESH power: all CPU methods
     first, TabPFN last via the hosted API (same retry/backoff loop as the classifier
@@ -1034,7 +1079,8 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path,
 
     `seed` and `n_folds` default to the CLI globals; a named experiment passes its
     declaration, so the folds and the capture describe one split. The filename's `_seedN`
-    suffix is `main()`'s, from the same run seed.
+    suffix is `main()`'s, from the same run seed. `experiment` also supplies the capture's
+    declared model version (#239); regression does not take its methods from it yet.
     """
     def say(msg: str) -> None:
         print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
@@ -1171,7 +1217,7 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path,
         methods = [r["method"] for r in rows]
         npz_path = write_predictions_npz(ds, pred_store, methods, n_folds,
                                           problem_type="regression", metric_name=ds["metric"],
-                                          seed=seed, experiment_id=EXPERIMENT_ID)
+                                          seed=seed, experiment=experiment)
         verify_predictions_readback(npz_path, methods, metric, rows, n_folds,
                                      problem_type="regression")
 
@@ -1302,6 +1348,27 @@ def with_experiment_id(table: pd.DataFrame, experiment_id: str | None) -> pd.Dat
     return stamped
 
 
+def model_version_fields(declared: Iterable[str | None], resolved: str) -> dict:
+    """The declared/resolved keys a manifest records, for the declarations it covers (#239).
+
+    A capture covers one experiment, so `declared` is its literal. The run manifest covers
+    every experiment the run will execute, and those need not declare the same version: no
+    single literal is then true, so `model_version_declared` is None — but the flag is
+    still answerable, and answers true when *any* covered declaration differs from what
+    execution resolved. That is the sweep's only chance to notice drift.
+
+    No declaration at all (an ad-hoc run) is None in both keys. That is an absence, never a
+    pass: #233 must require exactly False before it reuses a row.
+    """
+    values = {v for v in declared if v is not None}
+    if not values:
+        return {"model_version_declared": None, "model_version_mismatch": None}
+    return {
+        "model_version_declared": next(iter(values)) if len(values) == 1 else None,
+        "model_version_mismatch": any(version_mismatch(v, resolved) for v in values),
+    }
+
+
 def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
     """Per-run provenance manifest — pins git state, seed, and command for this output dir."""
     import json
@@ -1312,13 +1379,19 @@ def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
         ).stdout.strip()
     except Exception:
         git_sha = "unknown"  # shallow/tarball checkouts
+    resolved = _model_path()
     manifest = {
         "run_id": out_dir.name,
         "utc": RUN_STARTED_UTC or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "git_sha": git_sha,
         "seed": SEED,
         "experiment_id": EXPERIMENT_ID,
-        "model_version": _model_path(),  # what the run resolved, so the registry's pin is checkable
+        "model_version": resolved,  # what the run resolved, so the registry's pin is checkable
+        # #239: the registry's literals beside the value execution actually used. A mismatch
+        # is recorded, not enforced -- #233 owns the reuse rule and needs this to be exactly
+        # False, not None, before it may reuse a row. None (nothing declared a version) is an
+        # absence, never a pass.
+        **model_version_fields(RUN_DECLARED_VERSIONS, resolved),
         "model_version_scope": (
             "resolved and used for every fresh fit; a reused sweep row is attested by "
             "its recorded model_version, which must match the experiment's declaration "
@@ -1338,7 +1411,7 @@ def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
 
 def main() -> None:
     global SEED, PR_AUC_MODE, SAVE_PREDICTIONS, EXPERIMENT_ID, POWER_SOURCES
-    global RUN_STARTED_UTC
+    global RUN_DECLARED_VERSIONS, RUN_STARTED_UTC
     POWER_SOURCES = {}
     RUN_STARTED_UTC = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     t0 = time.time()
@@ -1376,9 +1449,16 @@ def main() -> None:
             )
         regression = experiment.mode == REGRESSION
         EXPERIMENT_ID = experiment.id
+        # What the experiment declared. Recorded, not applied: execution below still
+        # resolves env-first, and the manifest states both (#239).
+        RUN_DECLARED_VERSIONS = (experiment.model_version,)
         wanted = None
     else:
         datasets, wanted = select_datasets(args)
+        # An ad-hoc run belongs to no experiment, so it declares nothing. Clearing these
+        # matters because main() is re-entered by tests in one process.
+        EXPERIMENT_ID = None
+        RUN_DECLARED_VERSIONS = ()
 
     # A classification run reads each dataset's experiment for its methods and folds.
     # --experiment selected one above; the all-datasets path maps each dataset to its
@@ -1393,6 +1473,15 @@ def main() -> None:
         for declared in classification:
             planned_classification_methods(declared.methods)
         experiments_by_dataset = {experiment.dataset: experiment for experiment in classification}
+        if args.experiment is None:
+            # This run is a sweep of several experiments, and the manifest is one artifact
+            # for all of them (#239). Record what the datasets that will actually run
+            # declare, not the whole registry: a filter narrows what the run covers.
+            RUN_DECLARED_VERSIONS = tuple(
+                experiment.model_version
+                for name, experiment in experiments_by_dataset.items()
+                if wanted is None or name.lower() in wanted
+            )
 
     # Output layout: results/<dir> (default) keeps run artifacts out of the code tree.
     # 'legacy' preserves the old beside-script paths for exact reproduction of
@@ -1421,7 +1510,7 @@ def main() -> None:
         if regression:
             if args.experiment is not None:
                 runner(ds, out_csv, out_png, seed=experiment.seed,
-                       n_folds=experiment.n_folds)
+                       n_folds=experiment.n_folds, experiment=experiment)
             else:
                 runner(ds, out_csv, out_png, seed=SEED, n_folds=N_FOLDS)
         elif args.experiment is not None:

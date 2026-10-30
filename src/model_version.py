@@ -20,6 +20,27 @@ BASELINE_MODEL_PATH = "v3_default"
 _ENV_KEY = "TABPFN_MODEL_PATH"
 
 
+def version_mismatch(declared: str | None, resolved: str) -> bool | None:
+    """Whether the version a run declared is **not** the one execution resolved (#239).
+
+    Three answers, because there are three facts. `None` means no experiment declared a
+    version — an ad-hoc `--data` or filtered run can be neither matched nor mismatched, and
+    `None` must never be read as a pass: a row with no declaration has been verified against
+    nothing. Otherwise the answer is whether the two labels differ.
+
+    Returns the mismatch rather than the agreement because that is the fact the artifact
+    records and #233 must require to be exactly `False`. Inverting an agreement at each call
+    site would turn the absent `None` into a false flag.
+
+    This is a comparison, not a resolution. `resolve_model_path` above is still the only
+    thing that decides `resolved`, and the registry's literal arrives as an argument, so
+    declaration stays intent and execution stays env-first.
+    """
+    if declared is None:
+        return None
+    return declared != resolved
+
+
 def resolve_model_path() -> str:
     """The `model_path` to pass to TabPFN estimators: env, else .env, else baseline."""
     value = os.environ.get(_ENV_KEY)

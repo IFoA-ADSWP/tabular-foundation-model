@@ -173,6 +173,142 @@ def test_the_run_manifest_records_the_model_version_actually_used(tmp_path, monk
     assert "reused" in manifest["model_version_scope"] and "#233" in manifest["model_version_scope"]
 
 
+# ---- declared vs resolved model version (#239) ------------------------------
+
+def _run_manifest(tmp_path, monkeypatch, *, resolved, declared_versions, experiment_id):
+    """Write a run manifest with the module globals a run would have set, and read it back."""
+    import argparse
+    import json
+
+    monkeypatch.setattr(mod, "_model_path", lambda: resolved)
+    monkeypatch.setattr(mod, "SEED", 42)
+    monkeypatch.setattr(mod, "PR_AUC_MODE", False)
+    monkeypatch.setattr(mod, "EXPERIMENT_ID", experiment_id)
+    monkeypatch.setattr(mod, "RUN_DECLARED_VERSIONS", declared_versions)
+    mod.write_manifest(tmp_path, argparse.Namespace(out_dir=str(tmp_path)))
+    return json.loads((tmp_path / "manifest.json").read_text())
+
+
+def test_the_run_manifest_records_both_versions_when_they_agree(tmp_path, monkeypatch):
+    manifest = _run_manifest(tmp_path, monkeypatch, resolved="v3_default",
+                             declared_versions=("v3_default",), experiment_id="coil2000")
+
+    assert manifest["model_version_declared"] == "v3_default"
+    assert manifest["model_version"] == "v3_default"
+    assert manifest["model_version_mismatch"] is False
+
+
+def test_the_run_manifest_flags_a_mismatch_and_names_both_values(tmp_path, monkeypatch):
+    # The exact failure ADR 0001 exists to prevent: the box resolved a different model
+    # than the experiment declared. The artifact says so instead of looking consistent.
+    manifest = _run_manifest(tmp_path, monkeypatch, resolved="v3.5_default",
+                             declared_versions=("v3_default",), experiment_id="coil2000")
+
+    assert manifest["model_version_declared"] == "v3_default"
+    assert manifest["model_version"] == "v3.5_default"
+    assert manifest["model_version_mismatch"] is True
+
+
+def test_an_ad_hoc_run_records_an_absent_declaration_not_a_pass(tmp_path, monkeypatch):
+    # Absent is not false: no experiment declared a version, so nothing was verified.
+    manifest = _run_manifest(tmp_path, monkeypatch, resolved="v3_default",
+                             declared_versions=(), experiment_id=None)
+
+    assert manifest["model_version_declared"] is None
+    assert "model_version_mismatch" in manifest  # present, so absent ≠ predates-schema
+    assert manifest["model_version_mismatch"] is None
+    assert manifest["model_version_mismatch"] is not False
+
+
+def test_a_run_covering_experiments_that_disagree_names_no_single_literal(tmp_path, monkeypatch):
+    # No literal is true of the whole run, so none is invented; the flag still answers.
+    manifest = _run_manifest(tmp_path, monkeypatch, resolved="v3_default",
+                             declared_versions=("v3_default", "v3.5_default"),
+                             experiment_id=None)
+
+    assert manifest["model_version_declared"] is None
+    assert manifest["model_version_mismatch"] is True
+
+
+def test_a_sweep_run_records_the_declaration_its_experiments_share(monkeypatch, tmp_path):
+    # The default classification run is a sweep of several experiments (#231). It has no
+    # single experiment_id, but every declaration it covers is v3_default, so the run can
+    # still say what it declared.
+    import json
+
+    refuse_to_run(monkeypatch)
+    monkeypatch.setattr(sys, "argv", ["prog", "--out-dir", str(tmp_path)])
+    with pytest.raises(AssertionError, match="reached the dataset runner"):
+        mod.main()
+
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    assert manifest["experiment_id"] is None
+    assert manifest["model_version_declared"] == "v3_default"
+    assert manifest["model_version_mismatch"] is False
+
+
+def test_a_sweep_run_flags_drift_instead_of_staying_silent(monkeypatch, tmp_path):
+    # The most common run must be able to contradict itself; before this, only an
+    # --experiment run recorded a declaration at all.
+    import json
+
+    monkeypatch.setattr(mod, "_model_path", lambda: "v3.5_default")
+    refuse_to_run(monkeypatch)
+    monkeypatch.setattr(sys, "argv", ["prog", "--out-dir", str(tmp_path)])
+    with pytest.raises(AssertionError, match="reached the dataset runner"):
+        mod.main()
+
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    assert manifest["model_version_declared"] == "v3_default"
+    assert manifest["model_version"] == "v3.5_default"
+    assert manifest["model_version_mismatch"] is True
+
+
+def test_a_filtered_sweep_declares_only_what_it_covers(monkeypatch, tmp_path):
+    # A filter that matches nothing runs nothing, so the run declares nothing. This is the
+    # absent case at run level, and it must stay None rather than borrowing a registry value.
+    import json
+
+    monkeypatch.setattr(sys, "argv",
+                        ["prog", "no-such-dataset", "--out-dir", str(tmp_path)])
+    mod.main()  # nothing matches, so no runner is reached
+
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    assert manifest["model_version_declared"] is None
+    assert manifest["model_version_mismatch"] is None
+
+
+def test_an_experiment_run_wires_its_declared_version_into_the_manifest(monkeypatch, tmp_path):
+    # Proves main() sets the global from the registry, not just that write_manifest can
+    # record one it is handed.
+    import json
+
+    refuse_to_run(monkeypatch)
+    monkeypatch.setattr(sys, "argv",
+                        ["prog", "--experiment", "coil2000", "--out-dir", str(tmp_path)])
+    with pytest.raises(AssertionError, match="reached the dataset runner"):
+        mod.main()
+
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    assert manifest["experiment_id"] == "coil2000"
+    assert manifest["model_version_declared"] == "v3_default"
+
+
+def test_an_ad_hoc_run_through_main_declares_nothing(monkeypatch, tmp_path):
+    import json
+
+    refuse_to_run(monkeypatch)
+    monkeypatch.setattr(sys, "argv",
+                        ["prog", "--data", "X.csv", "--target", "y", "--out-dir", str(tmp_path)])
+    with pytest.raises(AssertionError, match="reached the dataset runner"):
+        mod.main()
+
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    assert manifest["experiment_id"] is None
+    assert manifest["model_version_declared"] is None
+    assert manifest["model_version_mismatch"] is None
+
+
 def test_an_experiment_refuses_a_seed_that_contradicts_its_declaration(monkeypatch, tmp_path):
     # coil2000 is declared at seed 42. Stamping that id on a seed-7 run would make the
     # artifact contradict the declaration it cites — the bug class this ticket exists for.
@@ -251,6 +387,14 @@ def test_an_ad_hoc_run_stamps_an_empty_experiment_id():
     assert list(mod.with_experiment_id(table, None)["experiment_id"]) == [""]
 
 
+def _experiment(model_version="v3_default"):
+    """The declaration a capture belongs to. The capture reads this, not the run's global."""
+    from src.experiment_spec import Experiment
+
+    return Experiment(id="toy", dataset="toy", methods=("lgbm",), metric="log_loss",
+                      n_folds=1, seed=42, model_version=model_version)
+
+
 def test_the_capture_manifest_records_the_experiment_id(tmp_path, monkeypatch):
     import json
 
@@ -262,10 +406,50 @@ def test_the_capture_manifest_records_the_experiment_id(tmp_path, monkeypatch):
     npz_path = mod.write_predictions_npz(ds, pred_store, methods, n_folds,
                                           problem_type="classification",
                                           metric_name="log_loss", seed=42,
-                                          experiment_id="toy")
+                                          experiment=_experiment())
     manifest = json.loads(npz_path.with_suffix(".manifest.json").read_text())
     assert manifest["experiment_id"] == "toy"
     assert npz_path.name == "toy__seed42__v3_default.npz"  # capture discovery unchanged
+
+
+def test_the_capture_manifest_carries_the_dataset_declaration_not_the_runs(tmp_path, monkeypatch):
+    # A capture covers one experiment, so it records that experiment's literal even when the
+    # run it belongs to is a sweep with no single experiment_id (#239).
+    import json
+
+    monkeypatch.setattr(mod, "PREDICTIONS_DIR", tmp_path)
+    monkeypatch.setattr(mod, "_model_path", lambda: "v3.5_default")
+    n_folds, methods = 2, ["lgbm"]
+    ds = dict(name="toy", file="toy.csv", target="y", drop=[])
+
+    npz_path = mod.write_predictions_npz(ds, _toy_pred_store(n_folds=n_folds, methods=methods),
+                                          methods, n_folds, problem_type="classification",
+                                          metric_name="log_loss", seed=42,
+                                          experiment=_experiment())
+    manifest = json.loads(npz_path.with_suffix(".manifest.json").read_text())
+
+    assert manifest["model_version_declared"] == "v3_default"
+    assert manifest["model_version"] == "v3.5_default"
+    assert manifest["model_version_mismatch"] is True
+
+
+def test_an_ad_hoc_capture_records_an_absent_declaration(tmp_path, monkeypatch):
+    # No experiment, so the capture declares nothing. It must say so, not borrow the run's
+    # value or claim agreement.
+    import json
+
+    monkeypatch.setattr(mod, "PREDICTIONS_DIR", tmp_path)
+    n_folds, methods = 2, ["lgbm"]
+    ds = dict(name="toy_adhoc", file="toy.csv", target="y", drop=[])
+
+    npz_path = mod.write_predictions_npz(ds, _toy_pred_store(n_folds=n_folds, methods=methods),
+                                          methods, n_folds, problem_type="classification",
+                                          metric_name="log_loss", seed=42)
+    manifest = json.loads(npz_path.with_suffix(".manifest.json").read_text())
+
+    assert manifest["model_version_declared"] is None
+    assert manifest["model_version_mismatch"] is None
+    assert manifest["model_version_mismatch"] is not False
 
 
 def test_parse_drop_splits():
@@ -364,7 +548,7 @@ def test_a_regression_experiment_passes_its_declared_seed(monkeypatch, tmp_path)
                         lambda _id: (datasets, dataclasses.replace(experiment, seed=7)))
     seen = {}
 
-    def capture(_ds, _out_csv, _out_png, seed=None, n_folds=None):
+    def capture(_ds, _out_csv, _out_png, seed=None, n_folds=None, experiment=None):
         seen.update(seed=seed, folds=n_folds)
         raise AssertionError("stop after capture")
 
@@ -386,8 +570,7 @@ def test_regression_capture_split_states_the_seed(tmp_path, monkeypatch):
 
     npz_path = mod.write_predictions_npz(ds, pred_store, ["lgbm"], 2,
                                           problem_type="regression",
-                                          metric_name="rmse", seed=7,
-                                          experiment_id="toyreg")
+                                          metric_name="rmse", seed=7)
     manifest = json.loads(npz_path.with_suffix(".manifest.json").read_text())
     assert manifest["seed"] == 7
     assert manifest["split"] == "KFold(2, shuffle=True, random_state=7)"

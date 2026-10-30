@@ -44,9 +44,10 @@ resumes only after that sweep writes attributable rows. The first frontier run d
 create them, and this plan does not claim otherwise.
 
 The version check uses the **experiment's declared** `model_version`, not the value the
-environment resolved: ADR 0001 makes the pin part of the experiment's identity, and #233
-is where reuse becomes conditional on it. A run whose resolved version drifts from the
-declaration still records the resolved value and its scope in the manifest. CPU rows carry
+environment resolved, and requires the two to agree: #239 records `model_version_mismatch`,
+and #233 refuses reuse unless it is exactly false. A run whose resolved version drifts from
+the declaration refits and records both values; an ad-hoc run declares nothing, so it
+reuses nothing — absence is not a pass. CPU rows carry
 the same version stamp, so a TabPFN bump also invalidates them; that is strict on purpose,
 and the cost is a refit.
 

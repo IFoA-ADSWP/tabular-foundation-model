@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.experiment_spec import Experiment
+
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py"
 SWEEP = ROOT / "scripts/benchmarks/run_home_turf_size_sweep.py"
@@ -105,3 +107,18 @@ def test_the_sweep_writer_stamps_seed_and_model_version_on_every_row():
 
     assert row["seed"] == sweep.SPLIT_SEED == 42
     assert row["model_version"] == sweep._model_path()
+
+
+def _experiment(model_version: str = "v3_default") -> Experiment:
+    return Experiment(id="coil2000", dataset="coil2000", methods=("cat",),
+                      metric="log_loss", n_folds=5, seed=42,
+                      model_version=model_version)
+
+
+def test_reuse_requires_the_declared_and_resolved_versions_to_agree():
+    assert mod.reuse_version_for(_experiment(), "v3_default") == "v3_default"
+    assert mod.reuse_version_for(_experiment(), "v2.5") is None
+
+
+def test_an_ad_hoc_run_declares_nothing_and_reuses_nothing():
+    assert mod.reuse_version_for(None, "v3_default") is None
