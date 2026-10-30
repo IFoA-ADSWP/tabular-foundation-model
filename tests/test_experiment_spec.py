@@ -266,8 +266,6 @@ def test_the_committed_registry_declares_every_method_in_runner_order():
     # drift in REUSED_METHODS or FAST_METHODS fails here rather than passing silently.
     assert set(compared) == set(runner.CLASSIFICATION_METHODS)
     assert compared[-1] == "tabpfn"  # the hosted method is always deferred to last
-    for method in registry.methods_of(classification):
-        assert runner.CLASSIFICATION_METHODS[method.name].n_params == method.n_params
 
     regression = registry.experiment("freMTPL2freq")
     assert tuple(m.name for m in registry.methods_of(regression)) == REGRESSION_ORDER

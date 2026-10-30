@@ -86,8 +86,8 @@ def test_default_classification_datasets_come_from_the_registry():
     args = mod.make_parser().parse_args([])
     datasets, wanted = mod.select_datasets(args)
 
-    registry = load_registry(TOML)
-    expected = [experiment.dataset for experiment in registry.experiments.values()
-                if experiment.mode == CLASSIFICATION]
     assert wanted is None
-    assert [ds["name"] for ds in datasets] == expected
+    assert [ds["name"] for ds in datasets] == [
+        "bemtl97", "coil2000", "uslapseagent", "norauto",
+        "ausprivauto0405", "bemtl16",
+    ]

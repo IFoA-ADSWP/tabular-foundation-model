@@ -45,12 +45,12 @@ Two decisions worth stating:
 
 ### Hyperparameters are not in the file yet
 
-The handoff settled that the file names "an id and hyperparameters". It cannot, honestly:
-`make_logisticglm()` passes `penalty=None` deliberately, and TOML has no null. Recording
-it would mean inventing a sentinel or dropping the key and misdescribing the method —
-and nothing would read it until #231 supplies the code-side dispatch that can encode it
-losslessly. So this ticket declares which method, in which mode, counted by which rule;
-#231 adds `params` when it can also honour them.
+The handoff settled that the file names "an id and hyperparameters". The as-built
+decision (#236) keeps hyperparameters in the code-side constructors instead:
+`make_logisticglm()` passes `penalty=None` deliberately, TOML has no null, and a declared
+value the code cannot honour is worse than no declaration. So this ticket declares which
+method, in which mode, counted by which rule; #231 reads that declaration and builds the
+method from code.
 
 ### What is deliberately not stamped
 

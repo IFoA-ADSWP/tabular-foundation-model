@@ -203,8 +203,8 @@ def test_an_experiment_passes_its_declared_fold_count_to_the_runner(monkeypatch,
                         lambda _id: (datasets, dataclasses.replace(experiment, n_folds=10)))
     seen = {}
 
-    def capture(_ds, _out_csv, _out_png, experiment=None):
-        seen["folds"] = experiment.n_folds
+    def capture(_ds, _out_csv, _out_png, experiment=None, seed=None, n_folds=None):
+        seen["folds"] = n_folds
         raise AssertionError("stop after capture")
 
     monkeypatch.setattr(mod, "run_dataset", capture)
@@ -213,6 +213,24 @@ def test_an_experiment_passes_its_declared_fold_count_to_the_runner(monkeypatch,
     with pytest.raises(AssertionError, match="stop after capture"):
         mod.main()
     assert seen["folds"] == 10
+
+
+def test_the_all_datasets_path_keeps_the_cli_seed(monkeypatch, tmp_path):
+    # `--seed 7` is the documented split-stability run. The dataset now supplies its
+    # methods, but the sweep's own seed and filename must still come from the CLI.
+    seen = {}
+
+    def capture(_ds, _out_csv, _out_png, experiment=None, seed=None, n_folds=None):
+        seen.update(seed=seed, folds=n_folds,
+                    experiment=experiment.id if experiment else None)
+        raise AssertionError("stop after capture")
+
+    monkeypatch.setattr(mod, "run_dataset", capture)
+    monkeypatch.setattr(sys, "argv",
+                        ["prog", "coil2000", "--seed", "7", "--out-dir", str(tmp_path)])
+    with pytest.raises(AssertionError, match="stop after capture"):
+        mod.main()
+    assert seen == {"seed": 7, "folds": 5, "experiment": "coil2000"}
 
 
 def test_every_results_row_states_its_experiment_id():

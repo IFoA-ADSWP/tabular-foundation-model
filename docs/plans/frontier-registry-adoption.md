@@ -34,21 +34,30 @@ evidence cannot disagree about what a dataset or an experiment is.
 ### `scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py`
 
 - **Method registry.** One ordered table maps each classification method id to its
-  constructor, how it produces a probability (direct `predict_proba`, or a regressor's
-  mean mapped to a probability), whether its power may be reused from the sweep table, and
-  how its parameters are counted. The experiment's `methods` list decides what runs and in
-  what order; `tabpfn` is still deferred to last. A method named by the registry but absent
-  from the code table fails at selection, naming the method.
+  constructor (`None` means the hosted client), how it produces a probability (direct
+  `predict_proba`, or a regressor's mean mapped to a probability), whether its power may be
+  reused from the sweep table, and how its parameters are counted. The experiment's
+  `methods` list decides what runs and in what order; `tabpfn` is still deferred to last.
+  A method named by the registry but absent from the code table fails at selection, naming
+  the method — and every experiment is validated before the first dataset fits. The predict
+  kind is enforced with an explicit branch, so an unknown value cannot fall through to
+  `predict_proba`.
 - **Metric registry.** A closed `log_loss` / `rmse` / `poisson_deviance` table. A present
   but unknown name raises; an absent name still means log loss for the ad-hoc `--data`
   path that has no experiment.
 - **Dataset selection.** A classification run with no `--experiment` and no `--data` builds
-  its dataset list from the registry's classification experiments. `--experiment <id>`
-  already selected one; it now also supplies the methods and folds. Filenames stay keyed to
-  the dataset name, so `{dataset}__seed{s}__*` discovery is unchanged.
-- **Folds.** `run_dataset` calls `make_folds("stratified", experiment.n_folds,
-  experiment.seed)`. The `experiment.n_folds != N_FOLDS` refusal is removed because the
-  count is now honoured. The seed guard stays.
+  its dataset list from the registry's classification experiments. Two experiments that
+  claim one dataset are refused: the output filename is keyed to the dataset, so they would
+  overwrite each other. `--experiment <id>` already selected one; it now also supplies the
+  methods and folds. Filenames stay keyed to the dataset name, so
+  `{dataset}__seed{s}__*` discovery is unchanged. `--data` does not read the registry at
+  all.
+- **Folds.** `run_dataset` calls `make_folds("stratified", n_folds, seed)`. `--experiment`
+  passes the declaration's count and seed; the all-datasets sweep passes the CLI values,
+  so `--seed 7` still folds at 7 and writes `_seed7` files that agree with their folds. The
+  `experiment.n_folds != N_FOLDS` refusal is removed because the declared count is now
+  honoured. The seed guard on `--experiment` stays. The sweep self-check runs only when a
+  row was actually reused, so a 10-fold experiment does not fail on the sweep's 5 folds.
 - **Regression path.** It keeps its own dataset list and methods until #232/#235, but its
   inline `KFold(..., random_state=42)` becomes `make_folds("kfold", N_FOLDS, 42)` — the
   same splitter, at the same seed, so behaviour does not move. #232 replaces `42` with the
@@ -81,7 +90,8 @@ evidence cannot disagree about what a dataset or an experiment is.
    names the metric. The loader's own rejection is already covered by
    `tests/test_experiment_spec.py`.
 5. **Fold identity.** `make_folds` tests assert that two calls with the same kind, count and
-   seed produce identical indices, and a different seed produces different indices.
+   seed produce identical indices, and a different seed produces different indices. A CLI
+   test pins the sweep path: `--seed 7` reaches the runner as 7, not the experiment's 42.
 
 ## Evidence
 
