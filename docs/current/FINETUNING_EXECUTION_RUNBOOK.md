@@ -2,17 +2,21 @@
 
 > **Supporting document.** The canonical funded proposal is `docs/current/FINETUNING_PILOT_DESIGN.md`. This page retains the concrete next-run commands and acceptance procedure; it does not define the overall scope. The funded work is the diagnostics phase followed by the full in-domain pilot.
 
-**Prerequisite 0: the seed is not reachable.** The loader and the split both hard-code seed 42, and the launcher
-exposes no flag for it. Replication therefore needs a small pass-through first (`--seed`, alongside the existing
-`--dataset`, `--train-size`, `--test-size`). Until that exists, "run it again" runs the same split, not an
-independent replication, and would look like a result while measuring nothing new.
+**Prerequisite 0: satisfied — the seed is reachable (2026-10-30).** The launcher forwards `--seeds` to the runner
+(`--seeds LIST`, comma-separated, alongside the existing `--dataset`, `--train-size`, `--test-size`), exporting
+`SEEDS` into the onstart payload and the SSH invocation. Note the flag is plural: it takes the runner's list form,
+not the singular `--seed` this paragraph used to name. Seeds are passed through rather than defaulted, so the record
+states the seed that actually ran.
+
+The anchor's two seeds are pre-registered in `FINETUNING_DECISION_LOG.md` (D9) as **43 and 44**; changing them is a
+deviation, not a launch-time choice.
 
 ## Stage 1 — replicate the 10,000-row result (2 runs, ~$0.037 each)
 
 ```bash
 bash scripts/gpu_helpers/vast_run.sh \
   --dataset uslapseagent --arms A_raw,B_ft3,B_ft10,B_ft30 \
-  --train-size 10000 --max-dph 0.65
+  --train-size 10000 --seeds 43,44 --max-dph 0.65
 ```
 
 **Acceptance, per seed and pre-registered before the run:** each rung's paired interval against the in-run

@@ -140,10 +140,11 @@ def _payload_after_launch(tmp_path, *launcher_args):
 def _payload_export(payload, name):
     """Read one variable back the way the box's shell will, not as the text spells it.
 
-    `printf %q` quotes, so a comma is written `\\,` and the literal text is NOT the value
-    the box ends up with. Asserting on the text would test printf's spelling; evaluating
-    only the `export` lines (the rest of the payload starts the bootstrap, which is what
-    the mock replaces) tests the environment the bootstrap actually inherits.
+    `printf %q` shell-quotes for re-parsing, but it does not escape commas: `printf '%q' "43,44"`
+    emits `43,44` unchanged. Asserting on the text would test printf's spelling rather than the
+    value the box ends up with; evaluating only the `export` lines (the rest of the payload starts
+    the bootstrap, which is what the mock replaces) tests the environment the bootstrap actually
+    inherits.
     """
     exports = "\n".join(
         line for line in payload.splitlines() if line.startswith("export ")
@@ -172,6 +173,26 @@ def test_onstart_payload_exports_the_seeds(tmp_path):
     assert _payload_export(payload, "TFM_DRY_RUN") == "1", payload
     # Nothing live reaches the record: the mock redacts the token it captured.
     assert "TABPFN_TOKEN=REDACTED" in payload, payload
+
+
+def test_an_explicitly_empty_seed_list_is_refused(tmp_path):
+    """`--seeds ""` is a mistake, not a request for the default.
+
+    Before the guard it fell through every `${SEEDS:+...}` expansion and ran one seed at the
+    runner's default -- the exact silent single-seed run this flag exists to prevent. The guard
+    runs before any provider call, so this test needs no mock and cannot spend.
+    """
+    repo = _launcher_repo(tmp_path)
+    result = subprocess.run(
+        ["bash", str(repo / "scripts" / "gpu_helpers" / "vast_run.sh"), "--seeds", "", "--yes"],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        cwd=str(repo),
+    )
+    combined = result.stdout + result.stderr
+    assert result.returncode == 2, combined
+    assert "empty value" in combined, combined
 
 
 def test_onstart_payload_omits_seeds_when_unset(tmp_path):

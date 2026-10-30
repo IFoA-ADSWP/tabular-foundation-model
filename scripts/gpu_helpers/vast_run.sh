@@ -85,6 +85,7 @@ TEST_SIZE="${TEST_SIZE:-}"
 # of the funded design) could not be launched at all. The value is the runner's own format, a
 # comma-separated list -- passed through verbatim, so `--seeds 42,43` stays two seeds.
 SEEDS="${SEEDS:-}"
+SEEDS_GIVEN=0
 IMAGE=""
 TRANSPORT="onstart"
 KEEP=0
@@ -116,7 +117,7 @@ while [ $# -gt 0 ]; do
         --dataset)   DATASET="$2"; shift 2 ;;
         --train-size) TRAIN_SIZE="$2"; shift 2 ;;
         --test-size)  TEST_SIZE="$2"; shift 2 ;;
-        --seeds)      SEEDS="$2"; shift 2 ;;
+        --seeds)      SEEDS="$2"; SEEDS_GIVEN=1; shift 2 ;;
         --image)     IMAGE="$2"; shift 2 ;;
         --transport) TRANSPORT="$2"; shift 2 ;;
         --max-attempts) MAX_ATTEMPTS="$2"; shift 2 ;;
@@ -126,6 +127,14 @@ while [ $# -gt 0 ]; do
         *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
 done
+
+# An explicit empty list is a mistake, not a request for the default: `--seeds ""` used to fall
+# through every `${SEEDS:+...}` expansion and run one seed silently, which is the failure this
+# flag exists to prevent.
+if [ "$SEEDS_GIVEN" = 1 ] && [ -z "$SEEDS" ]; then
+    echo "FATAL: --seeds was given an empty value; give a comma-separated list (e.g. 43,44)." >&2
+    exit 2
+fi
 
 # DO NOT export VAST_API_KEY -- it silently breaks authentication.
 # Measured: supplying the key explicitly (env var or --api-key) yields
