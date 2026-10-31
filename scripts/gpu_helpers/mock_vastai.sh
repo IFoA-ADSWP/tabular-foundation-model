@@ -99,6 +99,15 @@ JSON
       fi
       ;;
   "destroy instance")
+      # Every attempt is recorded, so a test can tell "destroyed once" from "tried twice".
+      printf '%s\n' "$3" >> "$MOCK_STATE_DIR/destroy_attempts.txt"
+      # Failure injection for the lease tests (#325): fail the first destroy, succeed after.
+      # A destroy that never fails cannot prove the launcher keeps the id when it does.
+      if [ "${MOCK_DESTROY_FAIL_ONCE:-0}" = 1 ] && [ ! -f "$MOCK_STATE_DIR/destroy_failed_once" ]; then
+          : > "$MOCK_STATE_DIR/destroy_failed_once"
+          echo "[mock] destroy failed (injected, once)" >&2
+          exit 1
+      fi
       echo "destroying instance $3."
       # Record the teardown. The acceptance test for PR-8 is that the destroy FIRED
       # -- a mock that only prints cannot prove the trap ran.

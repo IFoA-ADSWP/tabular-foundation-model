@@ -263,6 +263,79 @@ fi
 BRANCH="${BRANCH:-main}"
 RUN_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 
+# ---- the lease: one identity, written before anything is rented (#325) ----
+# The launch id is minted here, used as the provider label, and used as the lease record's key.
+# That is what makes an instance findable again after a lost create response or a dead process.
+LAUNCH_ID="${LAUNCH_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$(od -An -N3 -tx1 /dev/urandom | tr -d ' \n')}"
+LEASE_DIR="$OUTDIR/leases/$LAUNCH_ID"
+LEASE_FILE="$LEASE_DIR/lease.json"
+LEASE_RELEASED=0
+
+lease_write() { # lease_write <state> <outcome> <reason>
+    mkdir -p "$LEASE_DIR" 2>/dev/null || return 1
+    # Atomic: a crash mid-write must leave the previous record, not half a file.
+    python3 - "$LEASE_FILE" "$LAUNCH_ID" "${INSTANCE_ID:-}" "$IMAGE" "$1" "$2" "$3" "$RUN_STAMP" <<'LEASE_PY'
+import json, os, sys, tempfile, time
+
+path, launch, instance, image, state, outcome, reason, stamp = sys.argv[1:9]
+payload = {
+    "launch_id": launch,
+    "run_stamp": stamp,
+    "instance_id": instance or None,
+    "label": launch,
+    "image": image or None,
+    "state": state,
+    "outcome": outcome or None,
+    "reason": reason or None,
+    "updated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+}
+directory = os.path.dirname(path)
+os.makedirs(directory, exist_ok=True)
+fd, tmp = tempfile.mkstemp(dir=directory, prefix=".lease-")
+with os.fdopen(fd, "w") as handle:
+    json.dump(payload, handle, indent=2)
+    handle.write("\n")
+os.replace(tmp, path)
+LEASE_PY
+}
+
+# Three findings, never a boolean: released | already_gone | failed. A caller that sees
+# `failed` keeps the id and exits; it must not retry.
+lease_release() { # lease_release <reason>
+    local reason="${1:-}"
+    [ "${LEASE_RELEASED:-0}" = 1 ] && return 0
+    if [ -z "${INSTANCE_ID:-}" ]; then
+        lease_write released already_gone "$reason" || true
+        LEASE_RELEASED=1
+        return 0
+    fi
+    echo "--- releasing instance $INSTANCE_ID ---" >&2
+    if vastai destroy instance "$INSTANCE_ID" -y >/dev/null 2>&1; then
+        lease_write released released "$reason" || true
+        LEASE_RELEASED=1
+        INSTANCE_ID=""
+        return 0
+    fi
+    # The id is KEPT. Clearing it before the destroy is confirmed is what made a stranded
+    # instance unfindable by the process that could have stopped it.
+    lease_write acquired failed "destroy failed ($reason)" || true
+    echo "FATAL: DESTROY FAILED -- $INSTANCE_ID is STILL BILLING." >&2
+    echo "       launch id: $LAUNCH_ID" >&2
+    echo "       run: vastai destroy instance $INSTANCE_ID -y" >&2
+    return 1
+}
+
+lease_on_exit() {
+    local rc=$?
+    cleanup
+    if [ "${KEEP:-0}" -eq 1 ] && [ -n "${INSTANCE_ID:-}" ]; then
+        lease_write kept kept "kept by --keep" || true
+    elif ! lease_release "exit path"; then
+        rc=3
+    fi
+    exit "$rc"
+}
+
 # Record what a run actually cost, so the cost model in the runbook can be
 # replaced with measurements instead of assumptions. Writes one JSON per run
 # plus an appended CSV ledger we can aggregate across runs.
@@ -387,20 +460,12 @@ cleanup() {
             echo "    (the instance is BILLING until you do)"
         else
             echo
-            echo "--- destroying instance $INSTANCE_ID ---"
-            # -y is REQUIRED. Without it the CLI asks for confirmation, which in
-            # a non-interactive script reads EOF, aborts, and leaves the
-            # instance running and billing -- the exact failure this trap is
-            # supposed to prevent. Verified: 'vastai destroy instance' has a
-            # '-y, --yes  Skip confirmation prompt' flag.
-            if ! vastai destroy instance "$INSTANCE_ID" -y; then
-                echo "WARNING: DESTROY FAILED -- $INSTANCE_ID is STILL BILLING." >&2
-                echo "         run: vastai destroy instance $INSTANCE_ID -y" >&2
-            fi
+            # The destroy lives in lease_release, which owns the outcome and the record.
+            # One teardown path, so this trap and the retry cannot disagree about it.
         fi
     fi
 }
-trap cleanup EXIT
+trap lease_on_exit EXIT
 
 # Provisioning failed in a way that will not fix itself: destroy the instance so it
 # stops accruing storage, record the cost, and -- if attempts remain -- re-exec the
@@ -413,9 +478,11 @@ trap cleanup EXIT
 retry_or_die() {
     echo "$*" >&2
     record_run
-    if [ -n "$INSTANCE_ID" ]; then
-        vastai destroy instance "$INSTANCE_ID" -y >/dev/null 2>&1 || true
-        INSTANCE_ID=""      # so the EXIT trap does not retry if exec fails
+    # A retry is allowed only after a CONFIRMED release. The old code discarded the destroy's
+    # result, cleared the id, and exec'd -- which is how a stranded instance kept billing.
+    if ! lease_release "retry"; then
+        echo "FATAL: not retrying while $INSTANCE_ID may still be billing." >&2
+        exit 3
     fi
     if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ] && [ -n "$MACHINE_ID" ]; then
         echo "--- attempt $ATTEMPT/$MAX_ATTEMPTS failed on machine $MACHINE_ID; retrying ---" >&2
@@ -617,10 +684,11 @@ fi
 # by showing the request carried the onstart file's CONTENTS rather than a path. So never run it
 # where the output is shared, pasted or recorded, and rotate the key afterwards if it does run.
 # The guard above is the cheaper first check and fails locally, for free.
+lease_write pending none "before create" || true
 CREATE_OUT="$(vastai create instance "$OFFER_ID" \
     --image "$IMAGE" --disk "$DISK" \
     --onstart "$ONSTART_FILE" \
-    --label "tabpfn-pilot" --raw 2>&1)"
+    --label "$LAUNCH_ID" --raw 2>&1)"
 rm -f "$ONSTART_FILE"   # it held the token; do not leave it on disk
 echo "$CREATE_OUT"
 INSTANCE_ID="$(printf '%s' "$CREATE_OUT" | python3 -c "
@@ -629,9 +697,11 @@ m=re.search(r'\{.*\}', sys.stdin.read(), re.S)
 try: print(json.loads(m.group(0)).get('new_contract','') if m else '')
 except Exception: print('')
 ")"
-[ -z "$INSTANCE_ID" ] && { echo "FATAL: no instance id in the create response." >&2; exit 2; }
+[ -z "$INSTANCE_ID" ] && { lease_write released already_gone "create returned no id" || true; echo "FATAL: no instance id in the create response." >&2; exit 2; }
 T_CREATE="$(date -u +%s)"
+lease_write acquired none "created" || true
 echo "instance id: $INSTANCE_ID  (billing starts now)"
+echo "launch id:  $LAUNCH_ID  (the provider label)"
 
 # ---- 6. Wait for running ----
 echo "=== 6/7 waiting for the instance ==="

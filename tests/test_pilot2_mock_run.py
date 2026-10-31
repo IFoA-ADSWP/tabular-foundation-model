@@ -401,3 +401,55 @@ def test_guard_resolves_head_when_the_override_is_absent(mock_env):
 
     assert result.returncode in (0, 2), combined
     assert head in combined, f"launcher did not resolve HEAD ({head}):\n{combined}"
+
+
+# --- the lease (#325): one record, three outcomes, no stranded instance -------
+
+
+def _lease(mock_env):
+    leases = sorted((mock_env["outdir"] / "leases").glob("*/lease.json"))
+    assert leases, f"no lease record written under {mock_env['outdir']}/leases"
+    return json.loads(leases[0].read_text())
+
+
+def _launch(mock_env, *extra, env=None):
+    return _run_launcher(
+        env or mock_env["env"], "--yes", "--arms", "A_raw", "--max-attempts", "1", *extra
+    )
+
+
+def test_a_normal_exit_records_released_and_destroys_once(mock_env):
+    result, combined = _launch(mock_env)
+    assert result.returncode == 0, combined
+
+    lease = _lease(mock_env)
+    assert lease["state"] == "released"
+    assert lease["outcome"] == "released"
+    assert lease["instance_id"] == (mock_env["state"] / "created.txt").read_text().split()[0]
+    # The launch id is the provider label, and it is in the record rather than only in a log.
+    assert lease["label"] == lease["launch_id"]
+    assert (mock_env["state"] / "destroyed.txt").read_text().split() == [lease["instance_id"]]
+    assert len((mock_env["state"] / "destroy_attempts.txt").read_text().split()) == 1
+
+
+def test_a_failed_destroy_keeps_the_id_and_exits_nonzero(mock_env):
+    """The bug this exists for: a swallowed destroy left an instance billing, unfindable."""
+    env = {**mock_env["env"], "MOCK_DESTROY_FAIL_ONCE": "1"}
+    result, combined = _launch(mock_env, env=env)
+
+    assert result.returncode != 0, combined
+    lease = _lease(mock_env)
+    assert lease["state"] == "acquired"
+    assert lease["outcome"] == "failed"
+    assert lease["instance_id"], "the id was cleared, so nothing could destroy it"
+    assert "STILL BILLING" in combined
+    assert lease["instance_id"] in combined and lease["launch_id"] in combined
+    assert not (mock_env["state"] / "destroyed.txt").exists(), "a failed destroy was recorded as success"
+
+
+def test_the_trap_does_not_try_a_second_destroy_after_a_failure(mock_env):
+    env = {**mock_env["env"], "MOCK_DESTROY_FAIL_ONCE": "1"}
+    _launch(mock_env, env=env)
+
+    attempts = (mock_env["state"] / "destroy_attempts.txt").read_text().split()
+    assert len(attempts) == 1, f"the trap retried a destroy that had already failed: {attempts}"
