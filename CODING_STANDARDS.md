@@ -38,3 +38,18 @@ This file is for judgement calls that no guardrail can substitute for.
 
 Promote a judgement call here once review has raised it repeatedly. Two instances in one pass
 counts, as it did for the first rule; one passing mention does not.
+
+## A cost or availability claim cites its measurement
+
+*Raised in the 2026-10-30 campaign review, twice in one pass: D2's "the models are already
+committed" (only prediction arrays were — nothing loadable), and D3's "analysis only, $0" (true
+for the one dataset already run; the reframe fits nine methods through the hosted client for any
+other). Both sat in signed documents, and both changed what got scheduled.*
+
+A claim about cost, availability, runtime or what a repository already contains is a fact about the
+world, not a preference. Cite the measurement, the file, or the command that establishes it — or
+write **unmeasured**, so the next reader knows to measure before relying on it.
+
+**Reviewer's test:** for every such claim the change adds or leans on, ask for the file, the figure
+or the command. "It says so in the design document" is the answer that should fail; the design
+document is where the claim was written, not where it was checked.

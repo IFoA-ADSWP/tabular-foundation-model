@@ -15,14 +15,16 @@ why. Commit it with the change.
 ## Conventions
 
 Python research repo (TabPFN vs actuarial baselines). The gate is CI, and CI is
-**three checks, not one** — a change that passes pytest can still fail the others:
+**four checks, not one** — a change that passes pytest can still fail the others:
 
 - `ruff check scripts/ src/ tests/`
 - `pytest tests/ -q`
 - `shellcheck --severity=warning scripts/gpu_helpers/*.sh`
+- `./scripts/check.sh evidence` — `outputs/` and `results/` unchanged, or the PR labelled
+  `evidence-change`
 
-Run all three with `./scripts/check.sh`, or one with
-`./scripts/check.sh ruff|pytest|shellcheck`. The script is the single definition;
+Run all four with `./scripts/check.sh`, or one with
+`./scripts/check.sh ruff|pytest|shellcheck|evidence`. The script is the single definition;
 `.github/workflows/ci.yml` calls it for each separate job. A missing tool exits non-zero
 rather than skipping a check.
 
@@ -51,6 +53,13 @@ experiment outputs. Do not treat them as source; do not regenerate or delete the
 one stops firing, the test does not fail: it fits a dataset for minutes and writes
 `results/<timestamp>/`. `tests/conftest.py` now fails the session when run artifacts appear,
 so trust it before `git status`.
+
+**A PR body closes issues by substring.** "Does not close #304" closed #304: any
+`close`/`closes`/`closed` keyword anywhere in the body, negation included, closes on merge. Write
+`Refs #N` unless you mean it.
+
+**Plans are claims.** If a plan names a verification command or an "empty diff", run it in the
+same commit that carries the plan.
 
 ## Review
 

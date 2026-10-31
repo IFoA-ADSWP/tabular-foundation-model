@@ -55,25 +55,70 @@ run_shellcheck() {
   shellcheck --severity="${SHELLCHECK_SEVERITY}" scripts/gpu_helpers/*.sh
 }
 
+# The two trees that hold committed experiment evidence. A change here is not forbidden,
+# but it must be deliberate: deleting a tracked log or rewriting a record is how evidence
+# stops matching the claim that cites it. Raised by the 2026-10-30 retro, after a commit
+# deleted seven tracked logs under outputs/ while its own plan asserted the diff was empty.
+EVIDENCE_TREES=(outputs results)
+
+run_evidence() {
+  local base="${EVIDENCE_BASE:-origin/main}"
+  echo "== evidence (${EVIDENCE_TREES[*]} unchanged vs ${base})"
+  if ! git rev-parse --verify -q "${base}^{commit}" >/dev/null 2>&1; then
+    # Not a missing tool (3): the comparison could not be made. A check that cannot run is a
+    # failed check, not an absent binary.
+    echo "check.sh: cannot compare evidence: '${base}' is not a commit here." >&2
+    echo "  Fetch it (git fetch origin main) or set EVIDENCE_BASE." >&2
+    return 1
+  fi
+
+  # Committed drift *and* pending drift. A staged `git add -A` of a deleted log is invisible to
+  # a commit-range diff, which is exactly how one such deletion reached a commit. Untracked
+  # files are excluded on purpose: mock runs write scratch under outputs/ every time.
+  local changed pending
+  changed="$(git diff --name-status "${base}"...HEAD -- "${EVIDENCE_TREES[@]}")"
+  pending="$(git status --porcelain --untracked-files=no -- "${EVIDENCE_TREES[@]}")"
+  if [ -z "$changed" ] && [ -z "$pending" ]; then
+    echo "evidence trees unchanged"
+    return 0
+  fi
+
+  if [ "${EVIDENCE_CHANGE_OK:-0}" = "1" ]; then
+    echo "evidence trees CHANGED — allowed by EVIDENCE_CHANGE_OK=1:"
+    [ -n "$changed" ] && printf '%s\n' "$changed"
+    [ -n "$pending" ] && printf '%s\n' "$pending"
+    return 0
+  fi
+
+  echo "evidence trees CHANGED — these hold committed experiment evidence:" >&2
+  [ -n "$changed" ] && printf '%s\n' "$changed" >&2
+  [ -n "$pending" ] && printf '%s\n' "$pending" >&2
+  echo "  A deletion or rewrite here is evidence drift; a deliberate one is a decision." >&2
+  echo "  Locally: EVIDENCE_CHANGE_OK=1 ./scripts/check.sh evidence" >&2
+  echo "  CI: add the 'evidence-change' label to the pull request." >&2
+  return 1
+}
+
 usage() {
-  echo "usage: $(basename "$0") [ruff|pytest|shellcheck|all]" >&2
+  echo "usage: $(basename "$0") [ruff|pytest|shellcheck|evidence|all]" >&2
   exit 2
 }
 
-run_check() { # run_check <ruff|pytest|shellcheck>
+run_check() { # run_check <ruff|pytest|shellcheck|evidence>
   case "$1" in
     ruff)       run_ruff ;;
     pytest)     run_pytest ;;
     shellcheck) run_shellcheck ;;
+    evidence)   run_evidence ;;
   esac
 }
 
 case "${1:-all}" in
-  ruff|pytest|shellcheck) run_check "$1" ;;
+  ruff|pytest|shellcheck|evidence) run_check "$1" ;;
   all)
     status=0
     missing=0
-    for check in ruff pytest shellcheck; do
+    for check in ruff pytest shellcheck evidence; do
       # The subshell is load-bearing: need() exits 3 when a tool is absent, and without
       # it that exit would end the script and hide every check after this one.
       ( run_check "$check" )
