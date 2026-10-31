@@ -340,7 +340,7 @@ def git_revision(repo_root=None):
     return run("rev-parse", "HEAD") or None, dirty
 
 
-def _csv_cell(value):
+def csv_cell(value):
     """One CSV cell, spelled so two writers cannot disagree about a type.
 
     `measurements` is JSON with sorted keys, so the same numbers serialise to the same bytes.
@@ -414,7 +414,7 @@ def write_diagnostic_record(record, *, root=None):
     with open(target / _CSV, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=list(DIAGNOSTIC_RECORD_FIELDS), lineterminator="\n")
         writer.writeheader()
-        writer.writerow({k: _csv_cell(v) for k, v in payload.items()})
+        writer.writerow({k: csv_cell(v) for k, v in payload.items()})
     return target
 
 

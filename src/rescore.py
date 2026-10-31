@@ -5,32 +5,27 @@ and reports, per arm × seed × metric, whether each recomputation agrees with t
 identity decisions are #356's (name plus a version, defined in `docs/analyses/METRIC_REGISTRY.md`)
 and the interface is #357's (long-format CSV, fail closed).
 
-**Integrity has two sources.** With a `capture.json` (#362) present, both of the entry's hashes
-are checked: `predictions_sha256` against the record's and the array on disk, and `truth_sha256`
-against the array on disk. A disagreement refuses, naming both hashes, and an entry with a null
-hash refuses with its own reason. Without a manifest the record's `predictions_sha256` verifies
-the predictions array, and there is no truth hash to check — stated here rather than implied by
-silence (#384).
+**Integrity** comes from `capture_reader.read_run`: every slot is verified against the manifest
+and the record before a number is computed, and a disagreement refuses naming both hashes. The
+predictions export (#387) reads through the same function, so the two tools cannot disagree about
+what "verified" means.
 """
 
 from __future__ import annotations
 
 import csv
-import json
 import math
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-import numpy as np
-
+from capture_reader import read_run
+from provenance import csv_cell
 from metrics import brier, expected_calibration_error, log_loss, pr_auc, roc_auc
-from provenance import sha256_array
-from run_capture import CAPTURE_SCHEMA_VERSION, CaptureRefused, discover_slots
+from run_capture import CaptureRefused
 
 TOOL_VERSION = "1"
-CAPTURE_FILE = "capture.json"
 DEFAULT_METRICSET = "recorded-five"
 DEFAULT_OUT_DIR = Path(__file__).resolve().parents[1] / "docs" / "analyses" / "data"
 
@@ -114,96 +109,6 @@ def select_metrics(specs: list[str] | None) -> MetricSet:
     )
 
 
-def read_manifest(run_dir: Path) -> dict[tuple[str, int], dict] | None:
-    """The run's capture entries by arm × seed, or None when no manifest exists."""
-    path = Path(run_dir) / CAPTURE_FILE
-    if not path.exists():
-        return None
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    version = payload.get("schema_version")
-    if version != CAPTURE_SCHEMA_VERSION:
-        raise RescoreRefused(
-            f"{path}: unknown capture schema_version {version!r}; this tool reads "
-            f"{CAPTURE_SCHEMA_VERSION}"
-        )
-    return {(entry["arm"], entry["seed"]): entry for entry in payload.get("captures", [])}
-
-
-def _read_record(slot) -> dict:
-    if not slot.record.is_file():
-        raise RescoreRefused(f"{slot.record} is missing; there is no record to compare against")
-    return json.loads(slot.record.read_text(encoding="utf-8"))
-
-
-def _verify(slot, entry: dict | None, record: dict) -> tuple[np.ndarray, np.ndarray, str, str]:
-    """Load the arrays, prove them against whichever hash source exists, and name it."""
-    for path in (slot.predictions, slot.truth):
-        if not path.is_file():
-            raise RescoreRefused(f"{path} is missing; there is nothing to rescore")
-
-    predictions = np.load(slot.predictions)
-    truth = np.load(slot.truth)
-    computed = sha256_array(predictions)
-
-    if entry is None:
-        recorded_sha = record.get("predictions_sha256")
-        if recorded_sha is None:
-            raise RescoreRefused(
-                f"{slot.record} carries no predictions_sha256 and no {CAPTURE_FILE} exists; "
-                "the predictions cannot be verified"
-            )
-        if computed != recorded_sha:
-            raise RescoreRefused(
-                f"hash mismatch for {slot.predictions}: array is {computed}, record says "
-                f"{recorded_sha}"
-            )
-        return predictions, truth, computed, "record"
-
-    manifest_sha = entry.get("predictions_sha256")
-    if manifest_sha is None:
-        raise RescoreRefused(
-            f"{CAPTURE_FILE} entry {slot.arm} seed {slot.seed} was not retained: "
-            f"{entry.get('reason') or 'no reason stated'}"
-        )
-    if manifest_sha != computed:
-        raise RescoreRefused(
-            f"hash mismatch for {slot.predictions}: array is {computed}, {CAPTURE_FILE} says "
-            f"{manifest_sha}"
-        )
-    recorded_sha = record.get("predictions_sha256")
-    if recorded_sha is not None and recorded_sha != manifest_sha:
-        raise RescoreRefused(
-            f"hash mismatch for {slot.arm} seed {slot.seed}: {CAPTURE_FILE} says {manifest_sha}, "
-            f"{slot.record} says {recorded_sha}"
-        )
-
-    # The labels decide every value, so the manifest's truth hash is checked with the same rule.
-    # Without a manifest there is no truth hash to check against, and the docstring says so.
-    computed_truth = sha256_array(truth)
-    manifest_truth = entry.get("truth_sha256")
-    if manifest_truth is None:
-        raise RescoreRefused(
-            f"{CAPTURE_FILE} entry {slot.arm} seed {slot.seed} did not retain {slot.truth.name}: "
-            f"{entry.get('reason') or 'no reason stated'}"
-        )
-    if manifest_truth != computed_truth:
-        raise RescoreRefused(
-            f"hash mismatch for {slot.truth}: array is {computed_truth}, {CAPTURE_FILE} says "
-            f"{manifest_truth}"
-        )
-    return predictions, truth, manifest_sha, CAPTURE_FILE
-
-
-def _cell(value) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, float):
-        return repr(value)
-    return str(value)
-
-
 def rescore(
     run_dir: Path,
     *,
@@ -212,29 +117,13 @@ def rescore(
 ) -> Path:
     """Recompute `metrics` over every arm × seed slot and write the long-format CSV."""
     run_dir = Path(run_dir)
-    _, slots = discover_slots(run_dir)
-    manifest = read_manifest(run_dir)
-    if manifest is not None:
-        uncaptured = [
-            f"{slot.arm} seed {slot.seed}"
-            for slot in slots
-            if (slot.arm, slot.seed) not in manifest
-        ]
-        if uncaptured:
-            raise RescoreRefused(
-                f"{run_dir / CAPTURE_FILE} has no entry for {', '.join(uncaptured)}; "
-                "a cited run's manifest covers every arm × seed"
-            )
+    run = read_run(run_dir)
 
     rows: list[dict] = []
-    for slot in slots:
-        record = _read_record(slot)
-        predictions, truth, capture_sha, source = _verify(
-            slot, None if manifest is None else manifest[(slot.arm, slot.seed)], record
-        )
+    for slot in run.slots:
         for metric in metric_set.metrics:
-            value = metric.compute(truth, predictions)
-            recorded = record.get(metric.record_key)
+            value = metric.compute(slot.truth, slot.predictions)
+            recorded = slot.record.get(metric.record_key)
             agrees = (
                 None
                 if recorded is None
@@ -249,9 +138,9 @@ def rescore(
                     "value": value,
                     "seed": slot.seed,
                     "arm": slot.arm,
-                    "capture_sha": capture_sha,
+                    "capture_sha": slot.capture_sha,
                     "tool_version": TOOL_VERSION,
-                    "source": source,
+                    "source": slot.source,
                     "recorded_value": None if recorded is None else float(recorded),
                     "agrees": agrees,
                 }
@@ -261,13 +150,12 @@ def rescore(
 
     out_dir = Path(out_dir) if out_dir is not None else DEFAULT_OUT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
-    run_id = run_dir.resolve().name
-    target = out_dir / f"{run_id}-rescore-{metric_set.name}.csv"
+    target = out_dir / f"{run.run_id}-rescore-{metric_set.name}.csv"
     with target.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=FIELDS, lineterminator="\n")
         writer.writeheader()
         for row in rows:
-            writer.writerow({field: _cell(row[field]) for field in FIELDS})
+            writer.writerow({field: csv_cell(row[field]) for field in FIELDS})
     return target
 
 
