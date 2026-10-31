@@ -18,8 +18,19 @@ Exactly one category label (`bug`/`enhancement`) and one state label on every tr
 
 ## External PR rule
 
-`external` = pull request whose author is NOT `IFoA-ADSWP` (the repo owner). Internal PRs are
-out of scope for triage discovery. An explicitly named PR is always triaged regardless of author.
+`external` = pull request whose author is NOT a collaborator on this repository. Resolve the
+list with:
+
+```
+gh api repos/IFoA-ADSWP/tabular-foundation-model/collaborators --paginate --jq '.[].login'
+```
+
+The author-is-owner form (`author != IFoA-ADSWP`) is unusable here: the owner is an
+organisation, so no PR author can ever satisfy it and every PR reads as external. The
+collaborator test is the intended filter.
+
+Internal PRs are out of scope for triage discovery. An explicitly named PR is always triaged
+regardless of author.
 
 ## Operations
 
@@ -70,4 +81,5 @@ Issue reference resolution: bare `#N` resolves against `IFoA-ADSWP/tabular-found
 Run `gh --version` and record it here on setup:
 - gh version: 2.101.0 (2026-09-15)
 
-External-PR rule repeated for triage: external = author != owner.
+External-PR rule repeated for triage: external = author is not a repository collaborator
+(org-owned repo, so the author-is-owner form cannot apply).
