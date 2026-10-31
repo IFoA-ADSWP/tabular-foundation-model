@@ -23,7 +23,6 @@ import os
 import json
 from functools import lru_cache
 import time
-import hashlib
 import argparse
 import subprocess
 from pathlib import Path
@@ -62,6 +61,7 @@ from provenance import (
     inference_context_rows,
     model_section,
     provenance_block,
+    sha256_array,
     sha256_file as _sha256_file,
     split_rule,
     split_section,
@@ -148,11 +148,6 @@ DATA_REF = os.environ.get("TFM_DATA_REF", "main")
 # ---------------------------------------------------------------------------
 # Fingerprints, versions, hashes  (PR-6, PR-1)
 # ---------------------------------------------------------------------------
-def _sha256_array(arr):
-    a = np.ascontiguousarray(arr)
-    return hashlib.sha256(a.tobytes()).hexdigest()
-
-
 def _git_info():
     def run(*args):
         try:
@@ -669,15 +664,15 @@ def make_split(X, y, *, seed, train_size, test_size, fold=None, n_folds=None):
         "n_test": int(len(test_idx)),
         "pos_train": int(y[train_idx].sum()),
         "pos_test": int(y[test_idx].sum()),
-        "train_index_sha256": _sha256_array(train_idx),
-        "test_index_sha256": _sha256_array(test_idx),
+        "train_index_sha256": sha256_array(train_idx),
+        "test_index_sha256": sha256_array(test_idx),
         "test_rows_excluded_from_fit": True,
         # PR-10: recorded, not assumed.
         # PR-10: the rows dropped by the train-size cap, fingerprinted so the
         # selection step is visible rather than implied by the row counts.
         "n_dropped": int(dropped_idx.size) if dropped_idx is not None else 0,
         "dropped_index_sha256": (
-            _sha256_array(dropped_idx) if dropped_idx is not None else None
+            sha256_array(dropped_idx) if dropped_idx is not None else None
         ),
         "leakage_assertion": contamination,
     }
@@ -1112,7 +1107,7 @@ def save_results(
         # old layout keeps working, and cannot see two fingerprints that disagree.
         "dataset_fingerprint": dataset_fp,
         "split_fingerprint": split_fp,
-        "predictions_sha256": _sha256_array(y_prob),
+        "predictions_sha256": sha256_array(y_prob),
         # PR-1 / PR-7: what this arm actually used
         "effective_config": arm_fp,
         # legacy key retained so existing readers do not break

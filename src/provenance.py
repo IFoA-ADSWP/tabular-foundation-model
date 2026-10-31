@@ -55,6 +55,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any, Mapping
 
+import numpy as np
 import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -77,6 +78,17 @@ def sha256_file(path, chunk=1 << 20):
                 break
             h.update(b)
     return h.hexdigest()
+
+
+def sha256_array(values):
+    """sha256 of an array's contiguous bytes — the convention every record hash uses.
+
+    An arm record's `predictions_sha256` and a capture entry's `predictions_sha256`/
+    `truth_sha256` all mean this, so the pilot, the capture generator and the rescore tool cannot
+    disagree about what a hash covers. Deliberately not the `.npy` file's bytes: the header is
+    not evidence, and a file-bytes hash would never match the record it is checked against.
+    """
+    return sha256(np.ascontiguousarray(values).tobytes()).hexdigest()
 
 
 @dataclass(frozen=True)

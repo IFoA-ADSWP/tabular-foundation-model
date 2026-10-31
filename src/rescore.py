@@ -26,12 +26,8 @@ from typing import Callable
 import numpy as np
 
 from metrics import brier, expected_calibration_error, log_loss, pr_auc, roc_auc
-from run_capture import (
-    CAPTURE_SCHEMA_VERSION,
-    CaptureRefused,
-    discover_slots,
-    sha256_array,
-)
+from provenance import sha256_array
+from run_capture import CAPTURE_SCHEMA_VERSION, CaptureRefused, discover_slots
 
 TOOL_VERSION = "1"
 CAPTURE_FILE = "capture.json"
