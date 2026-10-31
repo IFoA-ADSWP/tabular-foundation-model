@@ -16,8 +16,6 @@ from pathlib import Path
 
 import numpy as np
 
-import run_capture
-
 REPO = Path(__file__).resolve().parents[1]
 ANCHOR = REPO / "results" / "20261031T021845Z"
 SCRIPT = REPO / "scripts" / "analyses" / "make_capture.py"
