@@ -428,6 +428,8 @@ retry_or_die() {
     if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ] && [ -n "$MACHINE_ID" ]; then
         echo "--- attempt $ATTEMPT/$MAX_ATTEMPTS failed on machine $MACHINE_ID; retrying ---" >&2
         export ATTEMPT=$(( ATTEMPT + 1 ))
+        export LEASE_ATTEMPT=$(( ${LEASE_ATTEMPT:-1} + 1 ))
+        export LEASE_LAUNCH_ID
         export EXCLUDE_MACHINES="$EXCLUDE_MACHINES $MACHINE_ID"
         exec bash "$SELF" "${ORIG_ARGS[@]}"
     fi

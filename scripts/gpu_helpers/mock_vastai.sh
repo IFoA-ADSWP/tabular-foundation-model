@@ -51,8 +51,16 @@ case "${1:-} ${2:-}" in
               cp "$lease_file" "$MOCK_STATE_DIR/lease_at_create.json"
           fi
       fi
-      echo '{"success": true, "new_contract": 12345678}'
-      printf '%s\n' "${MOCK_INSTANCE_ID:-12345678}" >> "$MOCK_STATE_DIR/created.txt"
+      create_attempts=$(( $(cat "$MOCK_STATE_DIR/create_attempts" 2>/dev/null || echo 0) + 1 ))
+      printf '%s\n' "$create_attempts" > "$MOCK_STATE_DIR/create_attempts"
+      instance_id="${MOCK_INSTANCE_ID:-12345678}"
+      if [ -n "${MOCK_INSTANCE_ID_SEQ:-}" ]; then
+          IFS=',' read -ra IDS <<< "$MOCK_INSTANCE_ID_SEQ"
+          idx=$((create_attempts - 1))
+          instance_id="${IDS[$idx]:-$instance_id}"
+      fi
+      echo "{\"success\": true, \"new_contract\": $instance_id}"
+      printf '%s\n' "$instance_id" >> "$MOCK_STATE_DIR/created.txt"
       # Capture the generated onstart payload as well. vast_run.sh deletes it on
       # every exit path (it carries the licence token), so `create` is the only
       # moment it exists -- which made "what environment does the box actually
@@ -96,7 +104,18 @@ case "${1:-} ${2:-}" in
           # intended_status and machine_id are emitted because the runner now
           # DEPENDS on them: intended_status drives the early abort, machine_id is
           # what a retry excludes. A mock missing them silently disables both.
-          echo "{\"actual_status\": \"$MOCK_STATUS\", \"gpu_name\": \"RTX A6000\", \"dph_total\": 0.469, \"gpu_ram\": 49140, \"cpu_ram\": 128000, \"reliability\": 0.9951, \"cuda_max_good\": 13.0, \"intended_status\": \"${MOCK_INTENDED:-running}\", \"machine_id\": ${MOCK_MACHINE_ID:-424242}, \"host_id\": 909090}"
+          show_attempt=$(cat "$MOCK_STATE_DIR/create_attempts" 2>/dev/null || echo 1)
+          show_status="${MOCK_STATUS}"
+          show_intended="${MOCK_INTENDED:-running}"
+          if [ -n "${MOCK_STATUS_SEQ:-}" ]; then
+              IFS=',' read -ra SSTATES <<< "$MOCK_STATUS_SEQ"
+              show_status="${SSTATES[$((show_attempt - 1))]:-$show_status}"
+          fi
+          if [ -n "${MOCK_INTENDED_SEQ:-}" ]; then
+              IFS=',' read -ra SINTENDED <<< "$MOCK_INTENDED_SEQ"
+              show_intended="${SINTENDED[$((show_attempt - 1))]:-$show_intended}"
+          fi
+          echo "{\"actual_status\": \"$show_status\", \"gpu_name\": \"RTX A6000\", \"dph_total\": 0.469, \"gpu_ram\": 49140, \"cpu_ram\": 128000, \"reliability\": 0.9951, \"cuda_max_good\": 13.0, \"intended_status\": \"$show_intended\", \"machine_id\": ${MOCK_MACHINE_ID:-424242}, \"host_id\": 909090}"
       else
           cat <<'JSON'
 {"actual_status": "running", "ssh_host": "203.0.113.9", "ssh_port": 41234,

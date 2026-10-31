@@ -146,3 +146,27 @@ lease_state
     record = _record(out)
     assert record["state"] == "released"
     assert record["outcome"] == "already_gone"
+
+
+def test_a_retry_appends_an_attempt_under_one_launch_id(tmp_path):
+    out, _state, env = _mock(tmp_path)
+
+    result = _run(f'''
+lease_begin "{out}" "img:tag"
+echo "launch=$LEASE_LAUNCH_ID"
+lease_acquired 111
+lease_release
+LEASE_ATTEMPT=2
+lease_begin "{out}" "img:tag"
+lease_acquired 222
+lease_release
+lease_state
+''', env)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    record = _record(out)
+    assert record["state"] == "released"
+    assert record["launch_id"] in result.stdout
+    assert len(record["attempts"]) == 2, record
+    assert [a["instance_id"] for a in record["attempts"]] == ["111", "222"]
+    assert [a["state"] for a in record["attempts"]] == ["released", "released"]
