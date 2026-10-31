@@ -35,12 +35,6 @@ import torch
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import (
-    roc_auc_score,
-    brier_score_loss,
-    average_precision_score,
-    log_loss,
-)
 
 # Ensure repo imports work (handle both __file__ and piped execution)
 if "__file__" in dir():
@@ -693,30 +687,10 @@ def make_split(X, y, *, seed, train_size, test_size, fold=None, n_folds=None):
 # ---------------------------------------------------------------------------
 # Metrics  (log loss primary, per PILOT_2_DESIGN.md §3)
 # ---------------------------------------------------------------------------
-def expected_calibration_error(y_true, y_prob, n_bins=10):
-    """Expected calibration error, equal-width bins."""
-    y_true = np.asarray(y_true, dtype=float)
-    y_prob = np.asarray(y_prob, dtype=float)
-    edges = np.linspace(0.0, 1.0, n_bins + 1)
-    idx = np.clip(np.digitize(y_prob, edges[1:-1], right=True), 0, n_bins - 1)
-    ece = 0.0
-    n = len(y_true)
-    for b in range(n_bins):
-        m = idx == b
-        if not m.any():
-            continue
-        ece += (m.sum() / n) * abs(y_true[m].mean() - y_prob[m].mean())
-    return float(ece)
-
-
-def compute_metrics(y_true, y_prob):
-    return {
-        "roc_auc": float(roc_auc_score(y_true, y_prob)),
-        "brier": float(brier_score_loss(y_true, y_prob)),
-        "pr_auc": float(average_precision_score(y_true, y_prob)),
-        "log_loss": float(log_loss(y_true, np.clip(y_prob, 1e-15, 1 - 1e-15))),
-        "ece": expected_calibration_error(y_true, y_prob),
-    }
+# Defined in `src/metrics.py` since #361, so the rescore tool and the run share one
+# implementation and the registry names code that exists once. Re-exported here because
+# tests and ad-hoc callers reach them through the runner.
+from metrics import compute_metrics, expected_calibration_error  # noqa: E402,F401
 
 
 # ---------------------------------------------------------------------------
