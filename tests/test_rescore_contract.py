@@ -132,6 +132,38 @@ def test_a_mutated_array_refuses_against_the_manifest_too(tmp_path):
     assert "hash mismatch" in result.stderr
 
 
+def test_a_mutated_truth_array_refuses_and_names_both_hashes(tmp_path):
+    """The labels decide every value, so the manifest's truth hash must be checked too."""
+    run = _copy_anchor(tmp_path, manifest=True)
+    slot = run / "uslapseagent" / "A_raw" / "seed43_foldNone"
+    entry = next(
+        c for c in json.loads((run / "capture.json").read_text())["captures"]
+        if (c["arm"], c["seed"]) == ("A_raw", 43)
+    )
+    truth = np.load(slot / "ground_truth.npy")
+    np.save(slot / "ground_truth.npy", np.float32(1.0) - truth)
+
+    result = _cli("--run", str(run), "--out-dir", str(tmp_path / "out"))
+
+    assert result.returncode == 1
+    assert "ground_truth.npy" in result.stderr
+    assert entry["truth_sha256"] in result.stderr
+
+
+def test_a_manifest_entry_that_did_not_retain_the_truth_refuses_with_its_reason(tmp_path):
+    run = _copy_anchor(tmp_path, manifest=True)
+    manifest = json.loads((run / "capture.json").read_text())
+    entry = next(c for c in manifest["captures"] if (c["arm"], c["seed"]) == ("A_raw", 43))
+    entry["truth_sha256"] = None
+    entry["reason"] = "ground_truth.npy not retained"
+    (run / "capture.json").write_text(json.dumps(manifest, indent=2) + "\n")
+
+    result = _cli("--run", str(run), "--out-dir", str(tmp_path / "out"))
+
+    assert result.returncode == 1
+    assert "ground_truth.npy not retained" in result.stderr
+
+
 def test_an_unknown_metric_name_refuses_and_lists_the_known_ones(tmp_path):
     run = _copy_anchor(tmp_path)
 

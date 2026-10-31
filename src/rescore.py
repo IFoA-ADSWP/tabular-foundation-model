@@ -5,11 +5,12 @@ and reports, per arm × seed × metric, whether each recomputation agrees with t
 identity decisions are #356's (name plus a version, defined in `docs/analyses/METRIC_REGISTRY.md`)
 and the interface is #357's (long-format CSV, fail closed).
 
-**Integrity has two sources.** With a `capture.json` (#362) present, the manifest's
-`predictions_sha256` must agree with the record's and with the array on disk; a disagreement
-refuses, naming both hashes, and an entry with null hashes refuses with its own reason. Without a
-manifest the record's `predictions_sha256` verifies the predictions array. The truth array has no
-independent hash without a manifest — stated here rather than implied by silence.
+**Integrity has two sources.** With a `capture.json` (#362) present, both of the entry's hashes
+are checked: `predictions_sha256` against the record's and the array on disk, and `truth_sha256`
+against the array on disk. A disagreement refuses, naming both hashes, and an entry with a null
+hash refuses with its own reason. Without a manifest the record's `predictions_sha256` verifies
+the predictions array, and there is no truth hash to check — stated here rather than implied by
+silence (#384).
 """
 
 from __future__ import annotations
@@ -169,6 +170,21 @@ def _verify(slot, entry: dict | None, record: dict) -> tuple[np.ndarray, np.ndar
         raise RescoreRefused(
             f"hash mismatch for {slot.arm} seed {slot.seed}: {CAPTURE_FILE} says {manifest_sha}, "
             f"{slot.record} says {recorded_sha}"
+        )
+
+    # The labels decide every value, so the manifest's truth hash is checked with the same rule.
+    # Without a manifest there is no truth hash to check against, and the docstring says so.
+    computed_truth = sha256_array(truth)
+    manifest_truth = entry.get("truth_sha256")
+    if manifest_truth is None:
+        raise RescoreRefused(
+            f"{CAPTURE_FILE} entry {slot.arm} seed {slot.seed} did not retain {slot.truth.name}: "
+            f"{entry.get('reason') or 'no reason stated'}"
+        )
+    if manifest_truth != computed_truth:
+        raise RescoreRefused(
+            f"hash mismatch for {slot.truth}: array is {computed_truth}, {CAPTURE_FILE} says "
+            f"{manifest_truth}"
         )
     return predictions, truth, manifest_sha, CAPTURE_FILE
 
