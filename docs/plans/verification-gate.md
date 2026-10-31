@@ -5,7 +5,7 @@
 
 ## Why
 
-`AGENTS.md` tells every agent the gate is CI and names four checks. On `main` there
+`AGENTS.md` told every agent the gate is CI and named four checks at the time. On `main` there
 is no workflow at all: the only copy sits on an unmerged branch inside a conflicting
 pull request, and 64 ruff errors have accumulated because no event reports them.
 
@@ -190,6 +190,9 @@ on a machine with `ruff` installed — the old test skipped instead of asserting
 
 The corrected instructions (#260) and retiring the duplicate workflow still living on the
 old pull request (#261).
+
+**Update 2026-10-30:** #260 corrected `AGENTS.md` and `CONTRIBUTING.md` to name the three
+checks and `./scripts/check.sh`, and to state that the doc checks are not in the gate yet.
 
 
 ## Follow-up — suppression reasons and the excluded lambdas (#258 review)

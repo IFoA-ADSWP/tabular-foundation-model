@@ -44,7 +44,7 @@ An experiment's identity is declared in six code sites:
   *method* as canonical, and `docs/adr/0001` records the version-pinning and reuse-guard
   decision. The repo uses *arm*, *method* and *model* interchangeably, and *experiment*, *run*
   and *sweep* without defining the difference — that is now settled.
-- **Gate is four checks:** `ruff check scripts/ src/ tests/` · `pytest tests/ -q` · `shellcheck --severity=warning scripts/gpu_helpers/*.sh` · doc link/status checks. Suite is green as of `9758b0c` (185 passed).
+- **Gate at survey time was described as four checks:** `ruff check scripts/ src/ tests/` · `pytest tests/ -q` · `shellcheck --severity=warning scripts/gpu_helpers/*.sh` · doc link/status checks. The landed gate runs the first three; the doc checks are out until their backlog clears (#260). Suite was green as of `9758b0c` (185 passed).
 - **Tracker is configured** (PR #224): labels are in place, so `/to-tickets` gets native blocking links.
 - **Version pinning is load-bearing** — see `docs/MODEL_VERSIONS.md`. A spec that resolves `model_version` must record it, never infer it later.
 

@@ -14,13 +14,21 @@ why. Commit it with the change.
 
 ## Conventions
 
-Python research repo (TabPFN vs actuarial baselines). The test gate is CI, and CI is
-**four checks, not one** — a change that passes pytest can still fail the others:
+Python research repo (TabPFN vs actuarial baselines). The gate is CI, and CI is
+**three checks, not one** — a change that passes pytest can still fail the others:
 
 - `ruff check scripts/ src/ tests/`
 - `pytest tests/ -q`
 - `shellcheck --severity=warning scripts/gpu_helpers/*.sh`
-- doc link/doc-status checks
+
+Run all three with `./scripts/check.sh`, or one with
+`./scripts/check.sh ruff|pytest|shellcheck`. The script is the single definition;
+`.github/workflows/ci.yml` calls it for each separate job. A missing tool exits non-zero
+rather than skipping a check.
+
+**What the gate does not cover yet:** the doc link and doc-status checks. They are red on
+`main` against a pre-existing backlog and are not in `ci.yml`, so a green gate says
+nothing about them. Adding them is its own work against that backlog.
 
 `scripts/gpu_helpers/*.sh` is the **paid-run path** — it runs on rented boxes, mid-run, at
 cost. A syntax error there is expensive and happens away from your terminal. Run shellcheck

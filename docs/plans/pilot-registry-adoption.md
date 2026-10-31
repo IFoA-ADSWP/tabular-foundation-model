@@ -104,7 +104,7 @@ construction).
 | id + contradicting flag fails at load, naming both | 2 |
 | invocations without an id behave as before | 2 |
 | no experiment setting declared only in the pilot module | 2 (+ `RUNG`/`DEFAULT_CONFIG` reduced to fallbacks) |
-| four CI checks | each slice |
+| the gate (`./scripts/check.sh`) | each slice |
 
 - **`resolved` is the arm's, not the base config's.** The writer recomputes the arm's
   epoch budget, so a ladder arm's record says 30 when it ran 30 — a copy of `declared`
