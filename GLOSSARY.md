@@ -53,6 +53,12 @@ The identity a number was produced under: dataset, seed, fold construction, mode
 version, and git sha. When an artifact's recorded provenance contradicts itself, that
 is a bug in the artifact, not a stale comment.
 
+**Significance marker**:
+The `***` printed beside a comparison. It means **the interval covers zero** — inconclusive —
+in the pilot report, and **the comparison is significant** in the evaluation analysers. The
+two are opposites, so read the legend of the report in front of you; the interval bounds
+decide, and the marker is derived from them.
+
 **Record**:
 The file a run writes to describe itself: one top-level `provenance` block with the same
 four sections — dataset, split, model, code — whatever produced it. A per-dataset record
