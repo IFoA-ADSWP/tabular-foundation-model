@@ -187,6 +187,44 @@ decision rather than a ticket comment — which is the point of requiring the me
 DECISION: **accepted (2026-10-30)** — per-run approval, measured estimate first, no diagnostics
 envelope; D7 continues to govern the anchor.  Owner: scotthawes  Date: 2026-10-30  Section: §4.5.3
 
+### D11 — The anchor did not replicate; the fine-tuning line stops
+
+**What was run.** `uslapseagent`, 10,000 training / 1,000 test rows, arms `A_raw`, `B_ft3`, `B_ft10`,
+`B_ft30`, seeds **43** and **44**, one instance, one launch (`20261031T021925Z-c24870`, instance
+`58479781`, 6.52 min, $0.0288). Eight arm records, `predictions_sha256` on every one, artifacts
+verified (`verified=8 mismatched=0 missing=0`), lease `released`. Evidence committed at
+`results/20261031T021845Z/`.
+
+**The reading, per D9.** Paired bootstrap over the 1,000 test rows, 4,000 resamples, fixed seed,
+percentile interval; each arm against that seed's own `A_raw`:
+
+| seed | rung | ΔAUC | 95% paired CI | D9 |
+| --- | --- | --- | --- | --- |
+| 43 | B_ft3 | +0.0031 | [+0.0000, +0.0063] | pass |
+| 43 | B_ft10 | +0.0050 | [+0.0010, +0.0092] | pass |
+| 43 | B_ft30 | +0.0057 | [+0.0013, +0.0105] | pass |
+| 44 | B_ft3 | +0.0009 | [−0.0017, +0.0036] | fail |
+| 44 | B_ft10 | +0.0013 | [−0.0022, +0.0048] | fail |
+| 44 | B_ft30 | +0.0010 | [−0.0026, +0.0049] | fail |
+
+**D9 required both seeds to clear all three rungs. One seed did, one did not.** The anchor does not
+replicate.
+
+**Decision (2026-10-31).** The fine-tuning line **stops**. The 10,000-row gain is not stable across
+splits at this scale; seed 43 reproduces the R1 pattern and seed 44 is indistinguishable from raw
+TabPFN on all three rungs. Calibration is not the cause — seed 44's Brier moves are within +0.001 of
+its `A_raw`, so the failure is in ranking.
+
+This is a **fair negative**, not the historic one: matched context, in-run baseline, pre-registered
+reading. Per the pre-registered outcome mapping, the redirect is calibration, preprocessing and
+task-specific model selection — not further fine-tuning at this scale.
+
+**What this does not settle.** Why seed 44 differs. The diagnostics (D1–D5) remain the way to ask
+that question; they no longer gate anything.
+
+DECISION: **stop the fine-tuning line (2026-10-31)** — the anchor did not replicate under D9.
+Owner: scotthawes  Date: 2026-10-31  Section: §4.5.2
+
 ---
 
 ## 2. Settled in the design — confirm, do not re-open
