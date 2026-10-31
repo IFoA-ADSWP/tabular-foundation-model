@@ -209,3 +209,5 @@ outputs/finetune/pilot/*/*/
 # how a run's predictions ended up recorded in the working tree only.
 !/outputs/gpu-pilot/runs/**
 !/outputs/gpu-pilot/logs/**
+# Lease records are runtime artifacts (#325); never commit them.
+outputs/gpu-pilot/leases/

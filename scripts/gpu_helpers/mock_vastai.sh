@@ -43,6 +43,14 @@ case "${1:-} ${2:-}" in
   "create instance")
       # Record the create so a test can assert what was requested, not just that
       # something happened.
+      # Snapshot the lease record first: the proof is that it existed before this create
+      # call was recorded (#325).
+      if [ -n "${MOCK_LEASE_DIR:-}" ]; then
+          lease_file="$(ls -1 "$MOCK_LEASE_DIR"/*.json 2>/dev/null | head -1)"
+          if [ -n "$lease_file" ]; then
+              cp "$lease_file" "$MOCK_STATE_DIR/lease_at_create.json"
+          fi
+      fi
       echo '{"success": true, "new_contract": 12345678}'
       printf '%s\n' "${MOCK_INSTANCE_ID:-12345678}" >> "$MOCK_STATE_DIR/created.txt"
       # Capture the generated onstart payload as well. vast_run.sh deletes it on
@@ -99,6 +107,17 @@ JSON
       fi
       ;;
   "destroy instance")
+      # MOCK_DESTROY_FAIL_ONCE makes the first destroy fail, so a test can prove the
+      # failed path keeps the id and the next attempt can still succeed (#325).
+      attempts_file="$MOCK_STATE_DIR/destroy_attempts"
+      attempts=$(cat "$attempts_file" 2>/dev/null || echo 0)
+      attempts=$((attempts + 1))
+      printf '%s\n' "$attempts" > "$attempts_file"
+      if [ -n "${MOCK_DESTROY_FAIL_ALWAYS:-}" ] || \
+         { [ -n "${MOCK_DESTROY_FAIL_ONCE:-}" ] && [ "$attempts" -eq 1 ]; }; then
+          echo "mock: destroy failed" >&2
+          exit 1
+      fi
       echo "destroying instance $3."
       # Record the teardown. The acceptance test for PR-8 is that the destroy FIRED
       # -- a mock that only prints cannot prove the trap ran.

@@ -55,6 +55,11 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # into the working tree (PR-8).
 OUTDIR="${VAST_OUTDIR:-$REPO_DIR/outputs/gpu-pilot}"
 
+# The lease owns the record and the release (#325). One interface for the trap and the
+# retry path; sourced, not executed.
+# shellcheck source=lease.sh
+. "$REPO_DIR/scripts/gpu_helpers/lease.sh"
+
 DEFAULT_QUERY='num_gpus=1 gpu_ram>=23 cpu_ram>=32 disk_space>=60 reliability>=0.98 inet_down>200 dph<0.80'
 # Ampere / Ada / Hopper only. Deliberately excludes Volta (V100), Pascal
 # (P40/P100) and Turing (T4, Q RTX 8000), whose kernels recent PyTorch
@@ -354,6 +359,7 @@ PY
 }
 
 cleanup() {
+    local status=$?
     # Remove the generated onstart script, which holds the token. This runs on EVERY
     # exit path including failures and signals -- the leak happened because the only
     # cleanup was an inline `rm` on the success path, which an abort never reached.
@@ -378,27 +384,22 @@ cleanup() {
         fi
     fi
 
-    # Record BEFORE destroying: the record must survive a failed destroy.
+    # Record BEFORE releasing: the record must survive a failed release.
     record_run
-    if [ -n "$INSTANCE_ID" ]; then
-        if [ "$KEEP" -eq 1 ]; then
+    if [ -n "$LEASE_FILE" ]; then
+        if [ "$KEEP" -eq 1 ] && [ -n "$INSTANCE_ID" ]; then
             echo; echo "--- --keep: NOT destroying $INSTANCE_ID ---"
+            lease_keep
             echo "    destroy manually:  vastai destroy instance $INSTANCE_ID -y"
             echo "    (the instance is BILLING until you do)"
         else
             echo
-            echo "--- destroying instance $INSTANCE_ID ---"
-            # -y is REQUIRED. Without it the CLI asks for confirmation, which in
-            # a non-interactive script reads EOF, aborts, and leaves the
-            # instance running and billing -- the exact failure this trap is
-            # supposed to prevent. Verified: 'vastai destroy instance' has a
-            # '-y, --yes  Skip confirmation prompt' flag.
-            if ! vastai destroy instance "$INSTANCE_ID" -y; then
-                echo "WARNING: DESTROY FAILED -- $INSTANCE_ID is STILL BILLING." >&2
-                echo "         run: vastai destroy instance $INSTANCE_ID -y" >&2
+            if ! lease_release "exit"; then
+                status=1
             fi
         fi
     fi
+    exit "$status"
 }
 trap cleanup EXIT
 
@@ -413,10 +414,17 @@ trap cleanup EXIT
 retry_or_die() {
     echo "$*" >&2
     record_run
-    if [ -n "$INSTANCE_ID" ]; then
-        vastai destroy instance "$INSTANCE_ID" -y >/dev/null 2>&1 || true
-        INSTANCE_ID=""      # so the EXIT trap does not retry if exec fails
+    if [ "$KEEP" -eq 1 ]; then
+        echo "FATAL: --keep is set, so this run cannot retry without leaving an instance." >&2
+        exit 2
     fi
+    # A retry is legal only after a confirmed release. On failure, keep the instance id:
+    # the EXIT trap will try once more, and the operator gets the one-line destroy command.
+    if ! lease_release "retry"; then
+        echo "FATAL: release failed; refusing to retry while an instance may be billing." >&2
+        exit 2
+    fi
+    INSTANCE_ID=""      # confirmed gone; the trap must not try again
     if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ] && [ -n "$MACHINE_ID" ]; then
         echo "--- attempt $ATTEMPT/$MAX_ATTEMPTS failed on machine $MACHINE_ID; retrying ---" >&2
         export ATTEMPT=$(( ATTEMPT + 1 ))
@@ -445,7 +453,8 @@ except Exception:
     raise SystemExit
 insts = d if isinstance(d, list) else d.get('instances', [])
 for i in insts:
-    if (i.get('label') or '') == 'tabpfn-pilot':
+    label = i.get('label') or ''
+    if label == 'tabpfn-pilot' or label.startswith('tabpfn-pilot-'):
         print('  id=%s status=%s gpu=%s dph=%s' % (i.get('id'), i.get('actual_status'),
                                                   i.get('gpu_name'), i.get('dph_total')))
 " 2>/dev/null)"
@@ -617,10 +626,11 @@ fi
 # by showing the request carried the onstart file's CONTENTS rather than a path. So never run it
 # where the output is shared, pasted or recorded, and rotate the key afterwards if it does run.
 # The guard above is the cheaper first check and fails locally, for free.
+lease_begin "$OUTDIR" "$IMAGE" || { echo "FATAL: could not write the lease record." >&2; exit 2; }
 CREATE_OUT="$(vastai create instance "$OFFER_ID" \
     --image "$IMAGE" --disk "$DISK" \
     --onstart "$ONSTART_FILE" \
-    --label "tabpfn-pilot" --raw 2>&1)"
+    --label "$LEASE_LABEL" --raw 2>&1)"
 rm -f "$ONSTART_FILE"   # it held the token; do not leave it on disk
 echo "$CREATE_OUT"
 INSTANCE_ID="$(printf '%s' "$CREATE_OUT" | python3 -c "
@@ -630,6 +640,7 @@ try: print(json.loads(m.group(0)).get('new_contract','') if m else '')
 except Exception: print('')
 ")"
 [ -z "$INSTANCE_ID" ] && { echo "FATAL: no instance id in the create response." >&2; exit 2; }
+lease_acquired "$INSTANCE_ID" || echo "WARNING: the lease record could not be updated; the instance id is still in hand." >&2
 T_CREATE="$(date -u +%s)"
 echo "instance id: $INSTANCE_ID  (billing starts now)"
 
