@@ -209,6 +209,7 @@ def mock_env(tmp_path):
         "MOCK_OUTPUT_TREE": str(tree),
         "MOCK_EMITTER": str(EMITTER),
         "VAST_OUTDIR": str(outdir),
+        "MOCK_LEASE_DIR": str(outdir / "leases"),
         "MOCK_SEQ_FILE": str(state / "seq"),
         # The launcher refuses to provision when HEAD is not an ancestor of origin/$BRANCH
         # (#256). On a feature branch -- and in PR CI, where the checkout is a merge ref --
@@ -253,6 +254,21 @@ def test_mock_run_completes_verifies_and_tears_down(mock_env):
     assert (state / "destroyed.txt").exists(), f"TEARDOWN DID NOT FIRE:\n{combined}"
     destroyed = (state / "destroyed.txt").read_text().split()
     assert destroyed, "destroy recorded an empty instance id"
+
+    # 1b. The lease was written before create, and one release destroyed exactly once
+    #     (#325). The mock snapshotted the record at create time; the final record says
+    #     released.
+    import json as _json
+
+    lease_files = sorted((outdir / "leases").glob("*.json"))
+    assert len(lease_files) == 1, f"expected one lease record, found {lease_files}"
+    lease = _json.loads(lease_files[0].read_text())
+    assert lease["state"] == "released", lease
+    assert lease["outcome"] == "released", lease
+    assert (state / "lease_at_create.json").exists(), "lease was not written before create"
+    at_create = _json.loads((state / "lease_at_create.json").read_text())
+    assert at_create["state"] == "acquiring", at_create
+    assert len(destroyed) == 1, f"expected one destroy, got {destroyed}"
 
     # 2. The artifacts came back and verify against their recorded hashes.
     rc = subprocess.run(
@@ -314,6 +330,64 @@ def test_a_real_launch_still_logs_beside_the_paid_run_records():
     assert resolved_log_dir() == REPO_ROOT / "outputs" / "gpu-pilot" / "logs"
     # ...and the override still wins, which is the half the mock run proves behaviourally.
     assert resolved_log_dir(VAST_OUTDIR=str(REPO_ROOT / "tmp-out")) == REPO_ROOT / "tmp-out" / "logs"
+
+
+def test_a_mid_run_failure_releases_and_does_not_retry(mock_env):
+    """A provisioning abort calls release, and one attempt means no second instance."""
+    env = dict(mock_env["env"])
+    env["MOCK_INTENDED"] = "stopped"
+    env["MOCK_STATUS"] = "loading"  # three polls before the fatal abort
+
+    result, combined = _run_launcher(
+        env, "--yes", "--arms", "A_raw,B_in_domain", "--max-attempts", "1"
+    )
+
+    assert result.returncode != 0, combined
+    state, outdir = mock_env["state"], mock_env["outdir"]
+    assert len((state / "created.txt").read_text().split()) == 1, combined
+    assert len((state / "destroyed.txt").read_text().split()) == 1, combined
+    lease = json.loads(next((outdir / "leases").glob("*.json")).read_text())
+    assert lease["state"] == "released", lease
+
+
+def test_a_destroy_that_fails_once_is_released_by_the_trap_retry(mock_env):
+    """The first release fails, the retry is refused, and the EXIT trap succeeds."""
+    env = dict(mock_env["env"])
+    env["MOCK_INTENDED"] = "stopped"
+    env["MOCK_STATUS"] = "loading"
+    env["MOCK_DESTROY_FAIL_ONCE"] = "1"
+
+    result, combined = _run_launcher(
+        env, "--yes", "--arms", "A_raw,B_in_domain", "--max-attempts", "2"
+    )
+
+    assert result.returncode != 0, combined
+    state, outdir = mock_env["state"], mock_env["outdir"]
+    assert len((state / "created.txt").read_text().split()) == 1, combined
+    assert len((state / "destroyed.txt").read_text().split()) == 1, combined
+    assert (state / "destroy_attempts").read_text().strip() == "2"
+    lease = json.loads(next((outdir / "leases").glob("*.json")).read_text())
+    assert lease["state"] == "released", lease
+
+
+def test_a_destroy_that_keeps_failing_is_reported_and_still_billing(mock_env):
+    env = dict(mock_env["env"])
+    env["MOCK_INTENDED"] = "stopped"
+    env["MOCK_STATUS"] = "loading"
+    env["MOCK_DESTROY_FAIL_ALWAYS"] = "1"
+
+    result, combined = _run_launcher(
+        env, "--yes", "--arms", "A_raw,B_in_domain", "--max-attempts", "2"
+    )
+
+    assert result.returncode != 0, combined
+    assert "vastai destroy instance 12345678 -y" in combined, combined
+    state, outdir = mock_env["state"], mock_env["outdir"]
+    assert len((state / "created.txt").read_text().split()) == 1
+    lease = json.loads(next((outdir / "leases").glob("*.json")).read_text())
+    assert lease["state"] == "failed", lease
+    assert lease["instance_id"] == "12345678", lease
+    assert lease["outcome"] == "failed:destroy", lease
 
 
 def test_mock_run_reports_the_artifact_verification(mock_env):
