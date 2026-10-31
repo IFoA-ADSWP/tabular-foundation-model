@@ -5,10 +5,10 @@ name: ci
 # command, so this file and a contributor's local run have one definition and cannot
 # drift. The commands themselves live in the script; this file only schedules them.
 #
-# Four checks, not five. The doc link and doc-status checks are not here: they are red
-# on main against a pre-existing backlog, and a gate that lands red gets disabled within
-# a week. Correcting the instructions to say three was #260; the evidence job is the fourth, and adding the doc checks is
-# their own work against that backlog.
+# Four checks, not five: ruff, pytest, shellcheck and the evidence guard. The doc link
+# and doc-status checks are not here -- they are red on main against a pre-existing
+# backlog, and adding them is their own work. #260 corrected the instructions to the
+# then-three checks; the evidence job (#319) is the fourth.
 #
 # The shellcheck severity floor and its reason live in scripts/check.sh, beside the
 # check, so that it is not re-litigated here.

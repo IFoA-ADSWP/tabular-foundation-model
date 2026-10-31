@@ -191,8 +191,10 @@ on a machine with `ruff` installed — the old test skipped instead of asserting
 The corrected instructions (#260) and retiring the duplicate workflow still living on the
 old pull request (#261).
 
-**Update 2026-10-30:** #260 corrected `AGENTS.md` and `CONTRIBUTING.md` to name the three
-checks and `./scripts/check.sh`, and to state that the doc checks are not in the gate yet.
+**Update 2026-10-30:** #260 corrected `AGENTS.md` and `CONTRIBUTING.md` to name the then
+three checks and `./scripts/check.sh`, and to state that the doc checks are not in the gate
+yet. **Update 2026-10-31:** #319 added the `evidence` job, so the gate is now four checks;
+the instructions and this count were reconciled.
 
 
 ## Follow-up — suppression reasons and the excluded lambdas (#258 review)
