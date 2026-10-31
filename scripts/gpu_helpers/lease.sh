@@ -9,7 +9,10 @@
 # Outcomes: released · already_gone · failed:<reason>.
 # A failed release keeps the instance id in hand and prints a one-line destroy command.
 
-LEASE_LAUNCH_ID=""
+# A retry re-execs with these two in the environment; preserve them. Everything else is
+# derived by lease_begin.
+LEASE_LAUNCH_ID="${LEASE_LAUNCH_ID:-}"
+LEASE_ATTEMPT="${LEASE_ATTEMPT:-1}"
 LEASE_INSTANCE_ID=""
 LEASE_LABEL=""
 LEASE_IMAGE=""
@@ -23,13 +26,14 @@ lease_write() { # lease_write <state> <outcome> <reason>
     [ -n "$LEASE_FILE" ] || return 1
     mkdir -p "$(dirname "$LEASE_FILE")" || return 1
     python3 - "$LEASE_FILE" "$LEASE_LAUNCH_ID" "$LEASE_INSTANCE_ID" "$LEASE_LABEL" \
-        "$LEASE_IMAGE" "$state" "$outcome" "$reason" "${RUN_STAMP:-}" <<'PY'
+        "$LEASE_IMAGE" "$state" "$outcome" "$reason" "${RUN_STAMP:-}" "$LEASE_ATTEMPT" <<'PY'
 import json
 import os
 import sys
 import time
 
-path, launch, instance, label, image, state, outcome, reason, run_id = sys.argv[1:10]
+(path, launch, instance, label, image, state, outcome, reason, run_id,
+ attempt_no) = sys.argv[1:11]
 now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 try:
     with open(path) as fh:
@@ -49,6 +53,18 @@ record.update({
     "updated_at": now,
 })
 record.setdefault("created_at", now)
+attempts = record.setdefault("attempts", [])
+attempt = next((a for a in attempts if a.get("attempt") == int(attempt_no)), None)
+if attempt is None:
+    attempt = {"attempt": int(attempt_no), "instance_id": "", "state": "acquiring",
+               "started_at": now}
+    attempts.append(attempt)
+attempt.update({"instance_id": instance, "state": state, "outcome": outcome or None,
+                "reason": reason or None, "updated_at": now})
+if state == "acquired":
+    attempt.setdefault("acquired_at", now)
+if state in ("released", "failed"):
+    attempt["ended_at"] = now
 if state == "acquired":
     record.setdefault("acquired_at", now)
 if state in ("released", "failed"):
@@ -64,14 +80,27 @@ PY
 lease_begin() { # lease_begin <outdir> <image>
     local outdir="$1"
     LEASE_IMAGE="$2"
+    if [ -n "${LEASE_LAUNCH_ID:-}" ] && [ -f "$outdir/leases/$LEASE_LAUNCH_ID.json" ]; then
+        # A retry re-execs with the same id; append an attempt to the existing record.
+        LEASE_ATTEMPT="${LEASE_ATTEMPT:-1}"
+        LEASE_LABEL="tabpfn-pilot-$LEASE_LAUNCH_ID"
+        LEASE_FILE="$outdir/leases/$LEASE_LAUNCH_ID.json"
+        LEASE_INSTANCE_ID=""
+        LEASE_STATE="acquiring"
+        lease_write acquiring "" "" || return 1
+        export LEASE_LAUNCH_ID LEASE_LABEL LEASE_FILE LEASE_ATTEMPT
+        echo "[lease] launch=$LEASE_LAUNCH_ID attempt=$LEASE_ATTEMPT (retry)"
+        return 0
+    fi
     LEASE_LAUNCH_ID="$(date -u +%Y%m%dT%H%M%SZ)-$(python3 -c 'import secrets; print(secrets.token_hex(3))')"
     LEASE_LABEL="tabpfn-pilot-$LEASE_LAUNCH_ID"
     LEASE_FILE="$outdir/leases/$LEASE_LAUNCH_ID.json"
+    LEASE_ATTEMPT=1
     LEASE_INSTANCE_ID=""
     LEASE_STATE="acquiring"
     lease_write acquiring "" "" || return 1
-    export LEASE_LAUNCH_ID LEASE_LABEL LEASE_FILE
-    echo "[lease] launch=$LEASE_LAUNCH_ID label=$LEASE_LABEL"
+    export LEASE_LAUNCH_ID LEASE_LABEL LEASE_FILE LEASE_ATTEMPT
+    echo "[lease] launch=$LEASE_LAUNCH_ID attempt=1 label=$LEASE_LABEL"
 }
 
 lease_acquired() { # lease_acquired <instance id>

@@ -350,6 +350,30 @@ def test_a_mid_run_failure_releases_and_does_not_retry(mock_env):
     assert lease["state"] == "released", lease
 
 
+def test_a_retry_reuses_the_launch_id_and_appends_an_attempt(mock_env):
+    """A clean release re-execs; attempt 2 has the same launch id, a new instance id."""
+    env = dict(mock_env["env"])
+    env["MOCK_STATUS_SEQ"] = "loading,running"
+    env["MOCK_INTENDED_SEQ"] = "stopped,running"
+    env["MOCK_INSTANCE_ID_SEQ"] = "111,222"
+
+    result, combined = _run_launcher(
+        env, "--yes", "--arms", "A_raw,B_in_domain", "--max-attempts", "2"
+    )
+
+    assert result.returncode == 0, combined
+    state, outdir = mock_env["state"], mock_env["outdir"]
+    assert (state / "created.txt").read_text().split() == ["111", "222"]
+    assert (state / "destroyed.txt").read_text().split() == ["111", "222"]
+    lease_files = sorted((outdir / "leases").glob("*.json"))
+    assert len(lease_files) == 1, lease_files
+    lease = json.loads(lease_files[0].read_text())
+    assert lease["state"] == "released", lease
+    assert len(lease["attempts"]) == 2, lease
+    assert [a["instance_id"] for a in lease["attempts"]] == ["111", "222"]
+    assert [a["state"] for a in lease["attempts"]] == ["released", "released"]
+
+
 def test_a_destroy_that_fails_once_is_released_by_the_trap_retry(mock_env):
     """The first release fails, the retry is refused, and the EXIT trap succeeds."""
     env = dict(mock_env["env"])
