@@ -395,8 +395,8 @@ def _model_provenance(weights=None, versions=None):
     return model_section(
         # "auto" is the honest label when nothing was pinned: the library chose, and the record
         # must not borrow the baseline's name for a choice nobody made (#285).
-        version=pinned or "auto",
-        version_source="pinned" if pinned else "auto",
+        version="auto" if pinned is None else pinned,
+        version_source="auto" if pinned is None else "pinned",
         weights_sha256=(weights or {}).get("sha256"),
         client_version=(versions or {}).get("tabpfn"),
     )
@@ -829,7 +829,7 @@ def run_arm_a_raw(X_train, X_test, y_train, y_test, config):
     )
     # A label is not a filename: `model_path` is passed only when an operator set one (#285).
     _pin = pinned_model_path()
-    if _pin:
+    if _pin is not None:
         _kwargs["model_path"] = _pin
     clf = TabPFNClassifier(**_kwargs)
     clf.fit(X_train, y_train)
@@ -879,7 +879,7 @@ def run_arm_b_in_domain(X_train, X_test, y_train, y_test, config):
     _ft_kwargs = dict(
         # The fine-tuner has no model_path of its own; it forwards classifier kwargs, so the pin
         # travels the same route the raw arm uses (#285) -- and only when one was set.
-        **({"extra_classifier_kwargs": {"model_path": _pin}} if _pin else {}),
+        **({"extra_classifier_kwargs": {"model_path": _pin}} if _pin is not None else {}),
         device="cuda" if torch.cuda.is_available() else "cpu",
         epochs=config["epochs"],
         learning_rate=config["learning_rate"],

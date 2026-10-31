@@ -152,3 +152,17 @@ def test_the_pin_is_resolved_once_per_process(rp, monkeypatch):
     monkeypatch.setenv("TABPFN_MODEL_PATH", "v3.5_default")
     assert rp.pinned_model_path() == first, "the pin was re-read mid-run"
     rp.pinned_model_path.cache_clear()
+
+
+def test_arm_b_passes_nothing_when_nobody_pinned(rp, capture, monkeypatch, tmp_path):
+    """The fine-tuned arm must not forward an empty or None model_path either."""
+    monkeypatch.delenv("TABPFN_MODEL_PATH", raising=False)
+    monkeypatch.chdir(tmp_path)
+    X, Xte, y, yte = _data()
+    rp.run_arm_b_in_domain(
+        X, Xte, y, yte,
+        {"epochs": 1, "learning_rate": 1e-5, "n_estimators": 2, "early_stopping": False},
+    )
+    kind, kwargs = capture[0]
+    assert kind == "finetuned"
+    assert "extra_classifier_kwargs" not in kwargs, kwargs

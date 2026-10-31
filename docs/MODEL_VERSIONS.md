@@ -26,10 +26,15 @@ record states the repository's resolver label, which is intent, not observation.
 records that the **hosted server** default moved to v3.5; whether a given local package's `auto`
 followed that move depends on the package version, and nothing in the pilot's records establishes it.
 
-From #285 the pilot passes `model_path` explicitly, resolves it once per run, and records
-`version_source: pinned`. Treat earlier pilot labels as attribution by declaration rather than
-measurement; the anchor (D9) re-baselines every run, so it is the first pilot whose numbers carry a
-version it can defend.
+#285 changed this twice. The first attempt passed `v3_default` — a **label** — to the local
+package, which takes a file name, a path or `"auto"`; every arm of the 2026-10-31 smoke failed in
+three seconds. The pilot now passes a path **only when an operator sets `TABPFN_MODEL_PATH`**, and
+otherwise lets the library choose while recording `version: auto`, `version_source: auto`.
+
+So a pilot record says `pinned:<value>` only when someone pinned, and `auto` when nobody did.
+Treat earlier pilot labels as attribution by declaration rather than measurement; the anchor (D9)
+re-baselines every run, so it is the first pilot whose numbers carry a version the record can
+defend.
 
 ```mermaid
 timeline
