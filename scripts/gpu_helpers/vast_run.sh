@@ -305,6 +305,7 @@ rec = {
     "machine_id": "$MACHINE_ID",
     "host_id": "$HOST_ID",
     "attempt": "$ATTEMPT",
+    "credit_before_usd": "$CREDIT_USD" or None,
     "disk_requested_gb": "$DISK",
     "t_create": "$T_CREATE",
     "t_running": "$T_RUNNING",
@@ -444,6 +445,37 @@ if ! vastai show user >/dev/null 2>&1; then
     bash "$REPO_DIR/scripts/gpu_helpers/vast_login.sh" || exit 2
 fi
 echo "session OK"
+
+# ---- 1b. Credit ----
+# The price ceiling bounds the RATE; nothing bounded the BALANCE. A run could start with
+# nothing left and fail after paying for provisioning, or spend past a threshold nobody set.
+# Two numbers, both overridable: refuse below MIN_CREDIT_USD, warn below WARN_CREDIT_USD.
+# An unreadable balance warns and continues -- a provider schema change must not stop a run
+# whose cost is already controlled by the ceiling -- but it is recorded, not assumed.
+MIN_CREDIT_USD="${MIN_CREDIT_USD:-1.00}"
+WARN_CREDIT_USD="${WARN_CREDIT_USD:-2.00}"
+CREDIT_USD="$(vastai show user --raw 2>/dev/null | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    value = d.get(\"credit\")
+    print(f\"{float(value):.4f}\" if value is not None else \"\")
+except Exception:
+    print(\"\")
+" 2>/dev/null || true)"
+if [ -z "$CREDIT_USD" ]; then
+    echo "WARNING: could not read the account credit; continuing under the price ceiling only." >&2
+else
+    echo "credit: \$$CREDIT_USD"
+    if python3 -c "import sys; sys.exit(0 if float('$CREDIT_USD') < float('$MIN_CREDIT_USD') else 1)"; then
+        echo "FATAL: \$$CREDIT_USD credit is below the \$$MIN_CREDIT_USD floor." >&2
+        echo "       top up, or lower MIN_CREDIT_USD deliberately." >&2
+        exit 2
+    fi
+    if python3 -c "import sys; sys.exit(0 if float('$CREDIT_USD') < float('$WARN_CREDIT_USD') else 1)"; then
+        echo "WARNING: \$$CREDIT_USD credit is below the \$$WARN_CREDIT_USD warning threshold." >&2
+    fi
+fi
 
 # Preflight: surface any instance left over from a previous run. A leaked
 # instance bills continuously, so it is worth one extra API call to catch here.
