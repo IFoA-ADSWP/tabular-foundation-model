@@ -120,7 +120,10 @@ def main() -> None:
                      "tabpfn_rank"]].to_string(index=False))
 
     # Key question: does any baseline beat tabpfn with paired significance?
+    # The `***` below means "this comparison is significant" -- the opposite of the pilot
+    # report's marker, which marks an interval covering zero (#296).
     print(f"\n{'=' * 80}\nKEY QUESTION: best baseline vs tabpfn (paired p<0.05)\n{'=' * 80}")
+    print("  `***` = paired-significant (p<0.05); no marker = not significant")
     for (task, seed), g in summ.groupby(["task", "seed"]):
         for metric in ("auc", "pr_auc") if task == "binary" else ("auc",):
             t = g[g.metric == metric]

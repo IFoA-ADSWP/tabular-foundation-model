@@ -66,11 +66,16 @@ observation, not a substitute for the primary result.
 - **2,000 training rows.** The verdict is scale-conditional, as the plan says up front.
 - **Small counts:** 369 test positives in this dataset. The intervals are honest about that; the effects
   are smaller than they are.
-- **A reporting check is outstanding.** `B_ft3` is marked `***` (the tool's marker for "interval covers
-  zero") while its interval prints as [-0.0047, -0.0003], which does not cover zero. Either the bounds are
-  rounded from something that does, or the marker disagrees with the bound. **Do not quote `B_ft3` as
-  resolvable until that is settled**, and note the verdict above does not depend on it: outcomes 2 and 3
-  are distinguished by whether the arms *beat* `A_raw`, and none do.
+- **The marker is derived from the bounds beside it.** An earlier revision of this section reported
+  `B_ft3` as marked `***` while its interval excluded zero. The report tool cannot produce that
+  combination: the marker is computed from the same two bounds the line prints, asserted over a
+  generated sweep by `test_generated_comparisons_agree_with_the_interval_they_render` in
+  `tests/test_pilot2_report.py`.
+  No other arm in the table below carries a marker claim. What produced the confusion is a second
+  convention in this repository —
+  the evaluation analysers mark a comparison `***` when it **is** significant. The bounds decide:
+  `B_ft3`'s interval, `[-0.0047, -0.0003]`, excludes zero. The verdict above does not depend on
+  this: outcomes 2 and 3 are distinguished by whether the arms *beat* `A_raw`, and none do.
 - **The pulled `pilot_metrics.parquet` is stale.** The box's aggregate step refused to overwrite the
   committed aggregate file (the same class of collision that blocked `A_raw` before #179). This analysis
   used the per-arm records, which are current and hashed.

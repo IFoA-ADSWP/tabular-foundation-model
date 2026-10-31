@@ -37,6 +37,7 @@ sys.path.insert(0, str(_REPO / "src"))
 
 from paired_analysis import (  # noqa: E402  (importable after the src path insert above)
     holm_adjust,
+    interval_covers_zero,
     inverse_variance_summary,
     nested_paired_bootstrap,
 )
@@ -166,6 +167,29 @@ def analyse(
     return report
 
 
+def significance_marker(ci_low: float, ci_high: float) -> str:
+    """The marker for "this interval covers zero", or nothing -- no padding.
+
+    Derived from the same two bounds the line prints (#296): the probe write-up reported a
+    marker contradicting its own interval, which a stored flag can drift into and arithmetic
+    cannot.
+    """
+    return "***" if interval_covers_zero(ci_low, ci_high) else ""
+
+
+def signed_text(value: float) -> str:
+    """One signed number as printed: four decimals, unless rounding would erase its sign."""
+    text = f"{value:+.4f}"
+    if text in {"+0.0000", "-0.0000"} and value != 0.0:
+        return f"{value:+.1e}"
+    return text
+
+
+def format_interval(ci_low: float, ci_high: float) -> str:
+    """The bracketed interval, formatted so a bound never loses its sign to rounding."""
+    return f"[{signed_text(ci_low)}, {signed_text(ci_high)}]"
+
+
 def print_report(report: dict, outdir: Path) -> None:
     print(f"Pilot 2 analysis -- {outdir}")
     print(f"baseline: {report['baseline']}   (paired on ROC AUC over matching seed/fold slots)\n")
@@ -174,18 +198,18 @@ def print_report(report: dict, outdir: Path) -> None:
     for dataset, by_arm in report["datasets"].items():
         print(f"  {dataset}")
         for arm, out in sorted(by_arm.items()):
-            flag = "*** " if not out["excludes_zero"] else "    "
+            marker = significance_marker(out["ci_low"], out["ci_high"])
             print(
-                f"    {flag}{arm:<14} {out['estimate']:+.4f}  "
-                f"[{out['ci_low']:+.4f}, {out['ci_high']:+.4f}]  "
+                f"    {marker:<4}{arm:<14} {signed_text(out['estimate'])}  "
+                f"{format_interval(out['ci_low'], out['ci_high'])}  "
                 f"repeats={out['n_repeats']}  rows={out['n_test_rows']}  "
                 f"noise(half-width)={((out['ci_high'] - out['ci_low']) / 2):.4f}"
             )
     print()
     for arm, summary in sorted(report["summary"].items()):
         print(
-            f"  inverse-variance summary, {arm}: {summary['pooled']:+.4f} "
-            f"[{summary['ci_low']:+.4f}, {summary['ci_high']:+.4f}]  "
+            f"  inverse-variance summary, {arm}: {signed_text(summary['pooled'])} "
+            f"{format_interval(summary['ci_low'], summary['ci_high'])}  "
             f"k={summary['k']}  I2={summary['i2']:.0f}%"
         )
     if report["unpaired"]:

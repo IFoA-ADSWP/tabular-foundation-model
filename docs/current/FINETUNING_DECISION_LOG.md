@@ -147,10 +147,10 @@ crosses a run.
 
 The anchor **passes** for a seed when, for **all three rungs**, the paired 95% interval of ROC AUC
 against that run's in-run `A_raw` excludes zero in the direction seed 42 showed (positive). A rung that
-fails is reported as failing; it is not dropped. The **interval bounds decide** — the `***` display
-marker is not a criterion, because it is currently known to disagree with its own bounds on `B_ft3`
-(filed as a reporting defect). Calibration is judged by the signed plan's tolerance: Brier must not
-increase against in-run `A_raw` by more than 0.001.
+fails is reported as failing; it is not dropped. The **interval bounds decide**. The `***` display
+marker is not a criterion and carries no information of its own: it is derived from the same bounds,
+as #296 settled. Calibration is judged by the signed plan's tolerance: Brier must not increase
+against in-run `A_raw` by more than 0.001.
 
 **Known conflict, recorded rather than hidden.** §12.1 of the statistical plan says this dataset "can
 resolve >= 0.009 ROC" from R1's paired intervals, while `FINETUNING_PROBE_RESULTS.md` records measured
