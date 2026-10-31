@@ -146,3 +146,35 @@ lease_state
     record = _record(out)
     assert record["state"] == "released"
     assert record["outcome"] == "already_gone"
+
+
+# --- #326: a retry is a new attempt under ONE launch ------------------------------
+
+
+def test_a_retry_reuses_the_launch_id_and_records_both_attempts(tmp_path):
+    """Two attempts, one decision. A new id per attempt records them as unrelated launches."""
+    out, _state, env = _mock(tmp_path)
+    body = f'''
+lease_begin "{out}" "img"
+first="$LEASE_LAUNCH_ID"
+first_label="$LEASE_LABEL"
+lease_acquired 1111
+lease_release "attempt one" >/dev/null
+
+# What the exec'd retry inherits: the same id and label, a new ATTEMPT.
+ATTEMPT=2
+lease_begin "{out}" "img"
+[ "$LEASE_LAUNCH_ID" = "$first" ] || exit 7
+[ "$LEASE_LABEL" = "$first_label" ] || exit 8
+lease_acquired 2222
+lease_release "attempt two" >/dev/null
+'''
+    result = _run(body, env)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    record = _record(out)
+    assert sorted(record["attempts"]) == ["1", "2"]
+    assert record["attempts"]["1"]["instance_id"] == "1111"
+    assert record["attempts"]["2"]["instance_id"] == "2222"
+    # One record per launch, not per attempt.
+    assert len(list((out / "leases").glob("*.json"))) == 1

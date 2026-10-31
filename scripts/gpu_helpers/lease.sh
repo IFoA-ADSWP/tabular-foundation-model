@@ -23,19 +23,27 @@ lease_write() { # lease_write <state> <outcome> <reason>
     [ -n "$LEASE_FILE" ] || return 1
     mkdir -p "$(dirname "$LEASE_FILE")" || return 1
     python3 - "$LEASE_FILE" "$LEASE_LAUNCH_ID" "$LEASE_INSTANCE_ID" "$LEASE_LABEL" \
-        "$LEASE_IMAGE" "$state" "$outcome" "$reason" "${RUN_STAMP:-}" <<'PY'
+        "$LEASE_IMAGE" "$state" "$outcome" "$reason" "${RUN_STAMP:-}" "${ATTEMPT:-1}" <<'PY'
 import json
 import os
 import sys
 import time
 
-path, launch, instance, label, image, state, outcome, reason, run_id = sys.argv[1:10]
+path, launch, instance, label, image, state, outcome, reason, run_id, attempt = sys.argv[1:11]
 now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 try:
     with open(path) as fh:
         record = json.load(fh)
 except (FileNotFoundError, json.JSONDecodeError):
     record = {}
+attempts = record.get("attempts") or {}
+attempts[str(attempt)] = {
+    "instance_id": instance or None,
+    "state": state,
+    "outcome": outcome or None,
+    "updated_at": now,
+}
+record["attempts"] = attempts
 record.update({
     "schema_version": 1,
     "launch_id": launch,
@@ -64,7 +72,12 @@ PY
 lease_begin() { # lease_begin <outdir> <image>
     local outdir="$1"
     LEASE_IMAGE="$2"
-    LEASE_LAUNCH_ID="$(date -u +%Y%m%dT%H%M%SZ)-$(python3 -c 'import secrets; print(secrets.token_hex(3))')"
+    # Reuse the id when one was inherited across an exec. A retry is a NEW ATTEMPT under one
+    # launch, not a new launch (#326) -- otherwise two instances that belong to one decision are
+    # recorded as unrelated.
+    if [ -z "${LEASE_LAUNCH_ID:-}" ]; then
+        LEASE_LAUNCH_ID="$(date -u +%Y%m%dT%H%M%SZ)-$(python3 -c 'import secrets; print(secrets.token_hex(3))')"
+    fi
     LEASE_LABEL="tabpfn-pilot-$LEASE_LAUNCH_ID"
     LEASE_FILE="$outdir/leases/$LEASE_LAUNCH_ID.json"
     LEASE_INSTANCE_ID=""
