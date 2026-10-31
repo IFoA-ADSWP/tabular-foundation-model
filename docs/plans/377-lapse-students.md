@@ -77,6 +77,12 @@ pilot.
 Parameters come from `BASELINE_MODELS` rather than being retyped. Brier and AUC are computed per
 fold from `predict_proba[:, 1]`.
 
+The pinned `logistic_regression` carries no scaler, and lbfgs reports non-convergence on raw
+category codes, so a **sensitivity** arm (`logistic_regression_scaled`: the same pinned model
+behind a `StandardScaler`) is fitted too. It is labelled a sensitivity arm, never a pinned
+student, and exists so the headline assumes neither that the pinned config is broken nor that it
+is fine.
+
 **Preprocessing, and the asymmetry it creates.** The teacher rows were produced by TabArena's
 pipeline, which is not in the tree; the students are fitted under the repo's own home-harness
 convention (`object`/`category` → `.cat.codes`, `fillna(0)`, `float32`) — the same convention
@@ -101,9 +107,11 @@ source file named and hashed.
 
 `results/20261031-lapse-students/`:
 
-* `per_fold.csv` — `dataset, fold, method, role, auc, brier, source, model_version, provenance_verdict`.
+* `per_fold.csv` — `dataset, dataset_id, fold, method, role, auc, brier, source`.
   `method` is the student's pinned name (`catboost`, `xgboost`, `random_forest`,
-  `logistic_regression`) and, for the existing row, `LinearModel`.
+  `logistic_regression`); `role` separates `teacher`, `student`, the `LinearModel` and LightGBM
+  `committed-proxy` rows, `sensitivity` and `control`. `source` names where each row came from, so
+  a reused row can never be mistaken for a fit. The version pin lives once, in `record.json`.
 * `predictions/<dataset>__seed42__students.npz` — per-fold `y_true`, `y_pred` and `test_idx` per
   student, so a future rescore does not need a refit (the #370 failure).
 * `record.json` — the record contract's one top-level `provenance` block (dataset / split /

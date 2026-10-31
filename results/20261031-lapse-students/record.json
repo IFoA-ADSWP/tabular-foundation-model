@@ -1,0 +1,340 @@
+{
+  "schema_version": 2,
+  "kind": "capture",
+  "created_utc": "2026-10-31T11:54:24.859813+00:00",
+  "issue": 377,
+  "title": "Lapse student measurement \u2014 teacher folds reused, four pinned students fitted",
+  "protocol": "StratifiedKFold(n_splits=5, shuffle=True, random_state=42); roc_auc (primary) + brier per fold; unscaled features encoded as cat.codes, fillna(0), float32 (the repository's home-harness convention)",
+  "provenance": {
+    "dataset": [
+      {
+        "name": "eudirectlapse",
+        "path": "data/raw/eudirectlapse.csv",
+        "file": "eudirectlapse.csv",
+        "target": "lapse",
+        "drop": [],
+        "sha256": "c05777d10cdc18f55b2562f732212ddb61d8ffe56c9403f2b352cde008098850",
+        "n_rows": 23060,
+        "n_cols": 19,
+        "columns": [
+          "lapse",
+          "polholder_age",
+          "polholder_BMCevol",
+          "polholder_diffdriver",
+          "polholder_gender",
+          "polholder_job",
+          "policy_age",
+          "policy_caruse",
+          "policy_nbcontract",
+          "prem_final",
+          "prem_freqperyear",
+          "prem_last",
+          "prem_market",
+          "prem_pure",
+          "vehicl_age",
+          "vehicl_agepurchase",
+          "vehicl_garage",
+          "vehicl_powerkw",
+          "vehicl_region"
+        ],
+        "positive_rate": 0.128101,
+        "n_positive": 2954,
+        "source_url": null,
+        "source_repo": null,
+        "source_ref": null,
+        "source_ref_is_pinned": null,
+        "committed_id": "eudirectlapse-a9e3be270541"
+      },
+      {
+        "name": "spanish_motor_lapse",
+        "path": "data/raw/spanish_motor_lapse.csv",
+        "file": "spanish_motor_lapse.csv",
+        "target": "LapseB",
+        "drop": [],
+        "sha256": "baccd8bc6b1dfc900d71a80d15f358b1fe786d7eea27d5614d38d28ae3fa4db6",
+        "n_rows": 53502,
+        "n_cols": 23,
+        "columns": [
+          "Distribution_channel",
+          "Seniority",
+          "Policies_in_force",
+          "Max_policies",
+          "Max_products",
+          "Payment",
+          "Premium",
+          "Type_risk",
+          "Area",
+          "Second_driver",
+          "driver_age",
+          "licence_age",
+          "vehicle_age",
+          "Power",
+          "Cylinder_capacity",
+          "Value_vehicle",
+          "N_doors",
+          "Type_fuel",
+          "Length",
+          "Weight",
+          "N_claims_year",
+          "Cost_claims_year",
+          "LapseB"
+        ],
+        "positive_rate": 0.354379,
+        "n_positive": 18960,
+        "source_url": null,
+        "source_repo": null,
+        "source_ref": null,
+        "source_ref_is_pinned": null,
+        "committed_id": "spanish_motor_lapse-bd4b3cd76722"
+      }
+    ],
+    "split": {
+      "n_folds": 5,
+      "seed": 42,
+      "sha256": "28ab16ea09c620ef1bdd264bcdd87010aa1ae21f0bb2c31126b2c9ff43e63aa6",
+      "rule": {
+        "constructor": "StratifiedKFold",
+        "params": {
+          "n_splits": 5,
+          "random_state": 42,
+          "shuffle": true
+        }
+      }
+    },
+    "model": {
+      "version": "v3_default",
+      "version_source": "documented-timeline",
+      "weights_sha256": null,
+      "client_version": null
+    },
+    "code": {
+      "git_sha": "47fb1322ea816f9f382a426bbf3e08033126d3da",
+      "dirty": true,
+      "runtime": {
+        "python": "3.12.7",
+        "numpy": "1.26.4",
+        "pandas": "2.3.3",
+        "scikit-learn": "1.6.1",
+        "xgboost": "3.4.1",
+        "catboost": "1.2.10",
+        "lightgbm": "4.7.0",
+        "accelerator": "cpu",
+        "tabpfn_client": null
+      },
+      "image": null
+    }
+  },
+  "teacher_reuse": {
+    "teacher_refit": false,
+    "teacher_no_refit_reason": "run_lapse_benchmark.py's only teacher path calls the hosted API; #377 forbids a hosted call and the five folds are already committed",
+    "source": "scripts/eval/lapse_benchmark_v1/results_per_split.csv",
+    "source_sha256": "cfd66a4a85544222c21e57d86e655acd62a076a89237cbfb17466f85d1605056",
+    "rows": "[Lapse] TabPFNClient (default) (per-fold roc_auc error; auc = 1 - metric_error)",
+    "teacher_brier": "not measurable: the committed lapse record holds no teacher probabilities, and producing them needs a hosted call this ticket forbids",
+    "version_evidence": "v3_default attributed from docs/MODEL_VERSIONS.md's Aug-2026 timeline plus the re-scored means reproducing the published 0.6101 / 0.7553; the source CSV carries no version field, which is the gap #370 \u00a74.5 named"
+  },
+  "version_source_note": "provenance.model.version_source = 'documented-timeline': v3_default is the label the committed rows are attributed by docs/MODEL_VERSIONS.md, not a label this run resolved from a client (none was imported). The era is corroborated by reproducing the published per-fold means, which is a documented claim, not a manifest.",
+  "measurements": {
+    "per_fold_csv": "results/20261031-lapse-students/per_fold.csv",
+    "predictions_npz": "results/20261031-lapse-students/predictions/lapse__seed42__students.npz",
+    "predictions_sha256": "35bf7e3c76ac075a26e52ee5bcd2f4a334d14a804dcc65a0ee80696e7995083f",
+    "predictions_sha256_scheme": "sha256 over arrays in sorted key order; per array: key, NUL, dtype.str, NUL, shape, NUL, C-contiguous data bytes",
+    "se_definition": "sample std (ddof=1) / sqrt(n_folds)",
+    "split_index_sha256": {
+      "eudirectlapse": "97ee9179e3de5ae107e97048ad24500735b837d4b0ca79e5ad9292566916d813",
+      "spanish_motor_lapse": "87ffbc3d3fb0c27374d1bed943f17920665c9a8624df5e9808a9f252423bc862"
+    },
+    "sensitivity_note": "logistic_regression_scaled is NOT a pinned student: it is the pinned model behind a StandardScaler, because the pinned config carries no scaler and lbfgs reports non-convergence on raw category codes. The pinned arm is therefore a lower bound on linear performance; the paired pair sizes that gap.",
+    "summaries": [
+      {
+        "dataset": "eudirectlapse",
+        "teacher_mean_auc": 0.6100658846463454,
+        "teacher_se_auc": 0.004916564160045687,
+        "methods": {
+          "tabpfn": {
+            "role": "teacher",
+            "mean_auc": 0.6100658846463454,
+            "se_auc": 0.004916564160045687,
+            "mean_brier": null,
+            "brier_note": "no committed probabilities; not measurable without a teacher call"
+          },
+          "LinearModel": {
+            "role": "committed-proxy",
+            "mean_auc": 0.6259588180661049,
+            "se_auc": 0.003724638576282995,
+            "mean_brier": null,
+            "brier_note": "no committed probabilities; not measurable without a teacher call"
+          },
+          "lightgbm_tabarena": {
+            "role": "committed-proxy",
+            "mean_auc": 0.6137541367502817,
+            "se_auc": 0.004306064261367914,
+            "mean_brier": null,
+            "brier_note": "no committed probabilities; not measurable without a teacher call"
+          },
+          "catboost": {
+            "role": "student",
+            "mean_auc": 0.6162312270966888,
+            "se_auc": 0.0061701391837830355,
+            "mean_brier": 0.11008950376655328,
+            "brier_note": null
+          },
+          "xgboost": {
+            "role": "student",
+            "mean_auc": 0.5815031643925537,
+            "se_auc": 0.0053492831747001856,
+            "mean_brier": 0.11607953050571718,
+            "brier_note": null
+          },
+          "random_forest": {
+            "role": "student",
+            "mean_auc": 0.5807870924119356,
+            "se_auc": 0.004343654304488407,
+            "mean_brier": 0.11295848655680833,
+            "brier_note": null
+          },
+          "logistic_regression": {
+            "role": "student",
+            "mean_auc": 0.6155781555758345,
+            "se_auc": 0.004651404343458795,
+            "mean_brier": 0.10950809819021154,
+            "brier_note": null
+          },
+          "logistic_regression_scaled": {
+            "role": "sensitivity",
+            "mean_auc": 0.6158540992151796,
+            "se_auc": 0.005093572352776803,
+            "mean_brier": 0.10950552691439808,
+            "brier_note": null
+          },
+          "lightgbm_control": {
+            "role": "control",
+            "mean_auc": 0.6067755525186286,
+            "se_auc": 0.004127539101174625,
+            "mean_brier": 0.11090501831395087,
+            "brier_note": null
+          }
+        },
+        "best_pinned_student_gap": {
+          "best_student": "catboost",
+          "best_mean_auc": 0.6162312270966888,
+          "best_se_auc": 0.0061701391837830355,
+          "gap_auc": -0.006165342450343392,
+          "d3_clears": false,
+          "method": "D3: best_student_mean + SE_best < teacher_mean - SE_teacher (GLOSSARY.md, Frontier)"
+        },
+        "best_gbdt_gap": {
+          "best_student": "catboost",
+          "best_mean_auc": 0.6162312270966888,
+          "best_se_auc": 0.0061701391837830355,
+          "gap_auc": -0.006165342450343392,
+          "d3_clears": false,
+          "method": "D3: best_student_mean + SE_best < teacher_mean - SE_teacher (GLOSSARY.md, Frontier)"
+        }
+      },
+      {
+        "dataset": "spanish_motor_lapse",
+        "teacher_mean_auc": 0.7552546135180632,
+        "teacher_se_auc": 0.002576190001959498,
+        "methods": {
+          "tabpfn": {
+            "role": "teacher",
+            "mean_auc": 0.7552546135180632,
+            "se_auc": 0.002576190001959498,
+            "mean_brier": null,
+            "brier_note": "no committed probabilities; not measurable without a teacher call"
+          },
+          "LinearModel": {
+            "role": "committed-proxy",
+            "mean_auc": 0.6841251813827933,
+            "se_auc": 0.0014788620956661324,
+            "mean_brier": null,
+            "brier_note": "no committed probabilities; not measurable without a teacher call"
+          },
+          "lightgbm_tabarena": {
+            "role": "committed-proxy",
+            "mean_auc": 0.7500005341713322,
+            "se_auc": 0.0022444313613726175,
+            "mean_brier": null,
+            "brier_note": "no committed probabilities; not measurable without a teacher call"
+          },
+          "catboost": {
+            "role": "student",
+            "mean_auc": 0.7436716831477292,
+            "se_auc": 0.00202449626431493,
+            "mean_brier": 0.1913811570069026,
+            "brier_note": null
+          },
+          "xgboost": {
+            "role": "student",
+            "mean_auc": 0.7444651042591172,
+            "se_auc": 0.002583910964604713,
+            "mean_brier": 0.19143699278860268,
+            "brier_note": null
+          },
+          "random_forest": {
+            "role": "student",
+            "mean_auc": 0.7333641934398295,
+            "se_auc": 0.001696709456807437,
+            "mean_brier": 0.19405906643382967,
+            "brier_note": null
+          },
+          "logistic_regression": {
+            "role": "student",
+            "mean_auc": 0.6196705077546226,
+            "se_auc": 0.0016056895567729047,
+            "mean_brier": 0.22026143800750103,
+            "brier_note": null
+          },
+          "logistic_regression_scaled": {
+            "role": "sensitivity",
+            "mean_auc": 0.6401599099066078,
+            "se_auc": 0.0025363926101648693,
+            "mean_brier": 0.21669198591884342,
+            "brier_note": null
+          },
+          "lightgbm_control": {
+            "role": "control",
+            "mean_auc": 0.7498589621489946,
+            "se_auc": 0.0021313177605306165,
+            "mean_brier": 0.1888474957128484,
+            "brier_note": null
+          }
+        },
+        "best_pinned_student_gap": {
+          "best_student": "xgboost",
+          "best_mean_auc": 0.7444651042591172,
+          "best_se_auc": 0.002583910964604713,
+          "gap_auc": 0.010789509258946062,
+          "d3_clears": true,
+          "method": "D3: best_student_mean + SE_best < teacher_mean - SE_teacher (GLOSSARY.md, Frontier)"
+        },
+        "best_gbdt_gap": {
+          "best_student": "lightgbm_tabarena",
+          "best_mean_auc": 0.7500005341713322,
+          "best_se_auc": 0.0022444313613726175,
+          "gap_auc": 0.005254079346731055,
+          "d3_clears": true,
+          "method": "D3: best_student_mean + SE_best < teacher_mean - SE_teacher (GLOSSARY.md, Frontier)"
+        }
+      }
+    ]
+  },
+  "pipeline_asymmetry": {
+    "what": "lightgbm_control (fitted here) minus lightgbm_tabarena (committed [Lapse] GBM row), mean AUC per dataset",
+    "datasets": {
+      "eudirectlapse": {
+        "control_mean_auc": 0.6067755525186286,
+        "committed_mean_auc": 0.6137541367502817,
+        "delta_mean_auc": -0.0069785842316530955,
+        "delta_max_abs_per_fold": 0.011360198214870998
+      },
+      "spanish_motor_lapse": {
+        "control_mean_auc": 0.7498589621489946,
+        "committed_mean_auc": 0.7500005341713322,
+        "delta_mean_auc": -0.00014157202233755495,
+        "delta_max_abs_per_fold": 0.0011872814861506598
+      }
+    }
+  }
+}
