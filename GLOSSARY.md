@@ -112,3 +112,39 @@ The decision that a launch may rent a machine, taken before anything is created.
 either allows the launch or refuses it, listing every failed check at once, and the
 decision is recorded. A refusal is not a crash and not a transport failure.
 _Avoid_: gate, preflight, guard
+
+**Offer**:
+One listing of a host for rent, at a price. Offers expire and are spent once: the same
+machine returns later as a different offer, at a price nobody chose. A launch rents one
+offer, and the offer is not the machine.
+_Avoid_: instance, listing, bid
+
+**Host**:
+The physical machine a launch rents, which outlives any one offer — the same host can be
+rented again under a different listing. It is what a rerun recognises when it wants the
+machine it has already tested.
+_Avoid_: machine, node, server
+
+**Machine class**:
+The hardware attributes a run's numbers depend on: the GPU model, its memory, and the
+driver's CUDA ceiling. A class is named so a replication can ask for the same kind of
+machine without demanding the same host. Measured throughput is not part of it — a class
+says what the cards are, not how fast they benchmarked that day.
+_Avoid_: machine type, SKU, tier, hardware
+
+**Supply policy**:
+The standing rules for choosing and buying: which machine classes may be rented, which
+image each host may run, and the most a launch may pay. It is consulted before spend; one
+invocation may tighten its values and never loosen them.
+_Avoid_: pricing policy, procurement, config
+
+**Pin**:
+The declared identity of an image, fixed by digest rather than by tag, so a retag
+upstream cannot quietly change what a run executed. A pin is verified before spend, and a
+pin that cannot be verified is a refusal rather than a pass.
+_Avoid_: lock, version, tag
+
+**Instance**:
+The provider's word for a rented host. This repo says *launch* for the rent that owns it
+and *host* for the machine; *instance* appears only when quoting the provider.
+_Avoid_: using it for the launch
