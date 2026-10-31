@@ -105,6 +105,7 @@ Every contribution should satisfy these before review:
 - [ ] **Reports registered** — any new file in `docs/reports/` must have a row in `docs/REPORT_REGISTRY.md` with topic_key, audience, source_workbooks, and evidence_files
 - [ ] **Changelog updated** — user-facing changes get an entry in `CHANGELOG.md` under `[Unreleased]`
 - [ ] **Pre-commit green** — see below
+- [ ] **Gate green** — `./scripts/check.sh` (ruff, pytest, shellcheck)
 - [ ] **Smoke test passes** — `pytest tests/` after any change to `src/`
 - [ ] **PR focused** — one experiment or fix per pull request
 
@@ -130,6 +131,17 @@ ruff check src/ tests/
 ruff format src/ tests/
 ```
 
+## The gate
+
+CI and a local run share one definition. `./scripts/check.sh` runs three checks — ruff,
+the test suite, and shellcheck over the paid-run scripts — and `./scripts/check.sh ruff`
+(or `pytest`, `shellcheck`) runs one. `.github/workflows/ci.yml` calls the same script as
+three separate jobs on every pull request, every push to `main`, and on demand. A missing
+tool exits non-zero; it is never a silent skip.
+
+The gate does **not** run the doc link or doc-status checks yet. They are red on `main`
+against a pre-existing backlog, so a green gate is silent about them.
+
 ## Report Registration
 
 If you add a file to `docs/reports/`, open `docs/REPORT_REGISTRY.md` and add a row with:
@@ -147,4 +159,4 @@ If you add a file to `docs/reports/`, open `docs/REPORT_REGISTRY.md` and add a r
 - Use the PR template
 - Keep changes focused (one experiment or fix per PR)
 - Update `CHANGELOG.md` for user-facing changes
-- Pre-existing CI checks run automatically
+- A pull request runs the three gate checks via `.github/workflows/ci.yml`; run `./scripts/check.sh` before you push

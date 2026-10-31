@@ -157,7 +157,7 @@ Each rejection names the offending entry and the file:
 
 ## Gate state at the start of this work
 
-Three of the four checks are already red on `origin/main`, independently of this change:
+Three of the checks the instructions then named are already red on `origin/main`, independently of this change (the fourth, the doc link/status checks, is not in today's `ci.yml` — see #260):
 
 - `ruff check scripts/ src/ tests/` — 64 errors, no `pyproject.toml`/`ruff.toml` in the
   repo, so ruff's defaults decide. Reproduced on a clean `git archive` of `origin/main`.

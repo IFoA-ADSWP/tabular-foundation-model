@@ -56,7 +56,7 @@ Ordered; each is a ticket. `/to-tickets` should encode the blocking links.
 
 ## Verification
 
-- Gate: all four checks (`ruff`, `pytest tests/ -q`, `shellcheck`, doc checks).
+- Gate: the three CI checks (`ruff`, `pytest tests/ -q`, `shellcheck`); the doc link/status checks are not in `ci.yml` yet.
 - Behaviour: the `coil2000` diff above. Slice 4 without it is unproven.
 - Note: the doc gate is currently red on `main` (49 broken references, 27 unlabelled
   reports). This change must not add to either count, and a "gate green" claim needs those
