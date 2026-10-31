@@ -16,8 +16,6 @@ from pathlib import Path
 
 import numpy as np
 
-import run_capture
-
 REPO = Path(__file__).resolve().parents[1]
 ANCHOR = REPO / "results" / "20261031T021845Z"
 SCRIPT = REPO / "scripts" / "analyses" / "make_capture.py"
@@ -115,12 +113,24 @@ def test_a_run_with_no_arm_records_refuses(tmp_path):
 def test_the_committed_anchor_manifest_matches_its_arrays():
     """The committed manifest is evidence, so the suite keeps it honest.
 
-    Read-only: a fresh build over the committed anchor must reproduce the file byte for byte,
-    or the manifest has drifted from the arrays it cites.
+    Read-only, and worked out from the arrays and the records rather than by calling the
+    generator: a generator bug must not be able to reproduce itself here.
     """
-    committed = (ANCHOR / "capture.json").read_text()
+    manifest = json.loads((ANCHOR / "capture.json").read_text())
+    assert manifest["schema_version"] == 1
+    assert manifest["run_id"] == ANCHOR.name
+    assert manifest["dataset"] == "uslapseagent"
 
-    assert committed == run_capture.render_capture(run_capture.build_capture(ANCHOR))
+    captures = {(c["arm"], c["seed"]): c for c in manifest["captures"]}
+    assert len(captures) == 8
+    for (arm, seed), entry in captures.items():
+        slot = ANCHOR / "uslapseagent" / arm / f"seed{seed}_foldNone"
+        record = json.loads((slot / "meta.json").read_text())
+        assert entry["record"] == f"{arm}/{slot.name}/meta.json"
+        assert entry["predictions_sha256"] == _array_sha256(slot / "predictions.npy")
+        assert entry["truth_sha256"] == _array_sha256(slot / "ground_truth.npy")
+        assert entry["predictions_sha256"] == record["predictions_sha256"]
+        assert entry["reason"] is None
 
 
 def test_nothing_is_written_outside_the_run_directory(tmp_path):

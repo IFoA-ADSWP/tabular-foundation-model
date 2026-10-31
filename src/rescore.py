@@ -5,11 +5,12 @@ and reports, per arm × seed × metric, whether each recomputation agrees with t
 identity decisions are #356's (name plus a version, defined in `docs/analyses/METRIC_REGISTRY.md`)
 and the interface is #357's (long-format CSV, fail closed).
 
-**Integrity has two sources.** With a `capture.json` (#362) present, the manifest's
-`predictions_sha256` must agree with the record's and with the array on disk; a disagreement
-refuses, naming both hashes, and an entry with null hashes refuses with its own reason. Without a
-manifest the record's `predictions_sha256` verifies the predictions array. The truth array has no
-independent hash without a manifest — stated here rather than implied by silence.
+**Integrity has two sources.** With a `capture.json` (#362) present, both of the entry's hashes
+are checked: `predictions_sha256` against the record's and the array on disk, and `truth_sha256`
+against the array on disk. A disagreement refuses, naming both hashes, and an entry with a null
+hash refuses with its own reason. Without a manifest the record's `predictions_sha256` verifies
+the predictions array, and there is no truth hash to check — stated here rather than implied by
+silence (#384).
 """
 
 from __future__ import annotations
@@ -25,12 +26,8 @@ from typing import Callable
 import numpy as np
 
 from metrics import brier, expected_calibration_error, log_loss, pr_auc, roc_auc
-from run_capture import (
-    CAPTURE_SCHEMA_VERSION,
-    CaptureRefused,
-    discover_slots,
-    sha256_array,
-)
+from provenance import sha256_array
+from run_capture import CAPTURE_SCHEMA_VERSION, CaptureRefused, discover_slots
 
 TOOL_VERSION = "1"
 CAPTURE_FILE = "capture.json"
@@ -69,10 +66,6 @@ class Metric:
     record_key: str
     compute: Callable[[object, object], float]
 
-    @property
-    def identity(self) -> str:
-        return f"{self.name}/{self.version}"
-
 
 RECORDED_FIVE = (
     Metric("auc", "1", "roc_auc", roc_auc),
@@ -84,10 +77,21 @@ RECORDED_FIVE = (
 METRICS = {metric.name: metric for metric in RECORDED_FIVE}
 
 
-def select_metrics(specs: list[str] | None) -> tuple[tuple[Metric, ...], str]:
-    """The requested metrics and the metric-set name their rows are written under."""
+@dataclass(frozen=True)
+class MetricSet:
+    """The metrics a run of the tool covers, and the name their file and rows carry."""
+
+    name: str
+    metrics: tuple[Metric, ...]
+
+
+DEFAULT_METRIC_SET = MetricSet(DEFAULT_METRICSET, RECORDED_FIVE)
+
+
+def select_metrics(specs: list[str] | None) -> MetricSet:
+    """The requested metrics, named so the file says what its rows contain."""
     if not specs:
-        return RECORDED_FIVE, DEFAULT_METRICSET
+        return DEFAULT_METRIC_SET
 
     chosen: list[Metric] = []
     for spec in specs:
@@ -104,8 +108,10 @@ def select_metrics(specs: list[str] | None) -> tuple[tuple[Metric, ...], str]:
             chosen.append(metric)
 
     chosen.sort(key=lambda metric: metric.name)
-    metricset = "+".join(f"{metric.name}-{metric.version}" for metric in chosen)
-    return tuple(chosen), metricset
+    return MetricSet(
+        "+".join(f"{metric.name}-{metric.version}" for metric in chosen),
+        tuple(chosen),
+    )
 
 
 def read_manifest(run_dir: Path) -> dict[tuple[str, int], dict] | None:
@@ -170,6 +176,21 @@ def _verify(slot, entry: dict | None, record: dict) -> tuple[np.ndarray, np.ndar
             f"hash mismatch for {slot.arm} seed {slot.seed}: {CAPTURE_FILE} says {manifest_sha}, "
             f"{slot.record} says {recorded_sha}"
         )
+
+    # The labels decide every value, so the manifest's truth hash is checked with the same rule.
+    # Without a manifest there is no truth hash to check against, and the docstring says so.
+    computed_truth = sha256_array(truth)
+    manifest_truth = entry.get("truth_sha256")
+    if manifest_truth is None:
+        raise RescoreRefused(
+            f"{CAPTURE_FILE} entry {slot.arm} seed {slot.seed} did not retain {slot.truth.name}: "
+            f"{entry.get('reason') or 'no reason stated'}"
+        )
+    if manifest_truth != computed_truth:
+        raise RescoreRefused(
+            f"hash mismatch for {slot.truth}: array is {computed_truth}, {CAPTURE_FILE} says "
+            f"{manifest_truth}"
+        )
     return predictions, truth, manifest_sha, CAPTURE_FILE
 
 
@@ -186,7 +207,7 @@ def _cell(value) -> str:
 def rescore(
     run_dir: Path,
     *,
-    metrics: tuple[Metric, ...] = RECORDED_FIVE,
+    metric_set: MetricSet = DEFAULT_METRIC_SET,
     out_dir: Path | None = None,
 ) -> Path:
     """Recompute `metrics` over every arm × seed slot and write the long-format CSV."""
@@ -211,7 +232,7 @@ def rescore(
         predictions, truth, capture_sha, source = _verify(
             slot, None if manifest is None else manifest[(slot.arm, slot.seed)], record
         )
-        for metric in metrics:
+        for metric in metric_set.metrics:
             value = metric.compute(truth, predictions)
             recorded = record.get(metric.record_key)
             agrees = (
@@ -241,10 +262,7 @@ def rescore(
     out_dir = Path(out_dir) if out_dir is not None else DEFAULT_OUT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
     run_id = run_dir.resolve().name
-    metricset = DEFAULT_METRICSET if metrics == RECORDED_FIVE else "+".join(
-        f"{metric.name}-{metric.version}" for metric in metrics
-    )
-    target = out_dir / f"{run_id}-rescore-{metricset}.csv"
+    target = out_dir / f"{run_id}-rescore-{metric_set.name}.csv"
     with target.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=FIELDS, lineterminator="\n")
         writer.writeheader()
@@ -275,8 +293,8 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        metrics, _ = select_metrics(args.metric)
-        target = rescore(args.run, metrics=metrics, out_dir=args.out_dir)
+        metric_set = select_metrics(args.metric)
+        target = rescore(args.run, metric_set=metric_set, out_dir=args.out_dir)
     except (RescoreRefused, CaptureRefused) as exc:
         print(f"rescore: {exc}", file=sys.stderr)
         return 1

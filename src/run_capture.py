@@ -5,7 +5,7 @@ row count and the hashes of the two arrays — or null hashes and a reason when 
 retained. The shape was decided in #355; this module only writes it.
 
 **The hashes cover the array's contiguous bytes, not the `.npy` file's bytes.** The record
-already spells `predictions_sha256` that way (`_sha256_array` in `scripts/run_pilot.py`), and the
+already spells `predictions_sha256` that way (`provenance.sha256_array`), and the
 rescore tool (#361) refuses when the manifest and the record disagree, so a file-bytes hash would
 make every manifest disagree with every record.
 
@@ -15,7 +15,6 @@ Nothing the record already holds is duplicated here: `record` is a relative poin
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import sys
@@ -23,6 +22,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+
+from provenance import sha256_array
 
 CAPTURE_SCHEMA_VERSION = 1
 
@@ -59,11 +60,6 @@ class Slot:
     def relative_record(self) -> str:
         """The record path as a manifest entry spells it: relative to the dataset directory."""
         return f"{self.arm}/{self.directory.name}/{RECORD}"
-
-
-def sha256_array(values) -> str:
-    """sha256 of an array's contiguous bytes — the record's convention, not the file's."""
-    return hashlib.sha256(np.ascontiguousarray(values).tobytes()).hexdigest()
 
 
 def created_utc_from_run_id(run_id: str) -> str:

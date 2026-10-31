@@ -19,10 +19,6 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-#: The five a pilot run records in its arm record, in registry order.
-RECORDED_METRICS = ("roc_auc", "pr_auc", "brier", "log_loss", "ece")
-
-
 def roc_auc(y_true, y_prob) -> float:
     return float(roc_auc_score(y_true, y_prob))
 
