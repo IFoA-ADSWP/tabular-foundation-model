@@ -30,6 +30,16 @@ gh exposes these as first-class commands:
 - Close: `gh issue close N -R IFoA-ADSWP/tabular-foundation-model` / reopen: `gh issue reopen N -R IFoA-ADSWP/tabular-foundation-model`
 - List by label: `gh issue list -R IFoA-ADSWP/tabular-foundation-model --label <label> ...`
 
+Pull requests take different verbs: view and edit them with `gh pr view N -R …` and
+`gh pr edit N -R … --add-label …`. `gh issue view N` on a PR number fails with "Could not
+resolve to an issue"; `gh issue comment N` does accept a PR number, so comments can go
+through either command.
+
+Before reporting a checks status or merging, read the run rather than the cached summary:
+`gh pr checks N -R …` lags by minutes and can show `pending` for a job that already passed.
+`gh run view <run-id> --json jobs` is the authority, and `mergeStateStatus` is a snapshot —
+`CLEAN` can still fail to merge if the base moved.
+
 Sub-issues and blocking relationships have **no** `gh` subcommand (`gh` 2.101); use `gh api`:
 - List sub-issues of #N:
   `gh api repos/IFoA-ADSWP/tabular-foundation-model/issues/N/sub_issues`
