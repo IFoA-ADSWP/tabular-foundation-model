@@ -149,6 +149,9 @@ outputs/diagnostics/
 # them from the blanket *.npz rule above (decision: option 1, commit directly — #150).
 # Filenames carry <dataset>__seed<seed>__<model_path>, so version generations coexist (#186).
 !scripts/eval/insurance_benchmark_v1/predictions/*.npz
+# #377's lapse capture is likewise the deliverable: #370 lost its per-fold output to
+# /tmp/opencode, which is why the lapse gaps stayed estimates. Exempt that one directory.
+!results/20261031-lapse-students/predictions/*.npz
 
 # OS / editor junk
 **/.DS_Store
