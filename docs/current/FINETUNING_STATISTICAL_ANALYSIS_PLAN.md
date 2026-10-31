@@ -182,6 +182,14 @@ recomputed here; the discrepancy is recorded so the figure cannot be quoted as s
 reconciliation is owed before the breadth phase. If §12.1 turns out to describe between-seed resolution
 rather than within-run interval width, that will be stated when it is reconciled.
 
+**Reconciled (2026-10-31), from the anchor's own records.** `docs/analyses/anchor_power_diagnosis.md`
+measures the design's achieved resolution at **0.0036 AUC** median half-width (0.0026–0.0046) on
+1,000 test rows, pooled and per seed. The probe's 0.0022–0.0043 and this figure agree; the claimed
+**≥0.009 is not what this design achieves** and must not be quoted. Whatever §12.1's number was
+measuring, it was not within-run interval width. The anchor's acceptance (D9) never depended on it —
+D9 uses interval exclusion — so no result changes; only the sentence does.
+
+
 ## 11. Reproducibility linkage
 
 Seeds, splits, data ref, container image and package versions are recorded per run by the pipeline's

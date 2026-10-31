@@ -56,7 +56,19 @@ The research context from Molnar's [*Tabular Foundation Models*](https://tabular
 
 ## What we're doing next
 
-**Decision requested now:** approve the core arm set and staged scale.
+**Stopped (2026-10-31).** The two-seed anchor did not replicate: seed 43 cleared all three rungs,
+seed 44 cleared none. Under the pre-registered rule (D9) that is a stop, not a close call. The record
+and its evidence are in `FINETUNING_DECISION_LOG.md` (D11) and `results/20261031T021845Z/`.
+
+The redirect is **calibration, preprocessing, and task-specific model selection** — not further
+fine-tuning at this scale. The diagnostics remain open and now serve explanation rather than a gate.
+
+The historical sections below are kept as they were, so this document still records what was being
+asked before the result arrived.
+
+---
+
+**The decision that was requested before the run:** approve the core arm set and staged scale.
 
 | Core arms | Description |
 |---|---|
