@@ -499,3 +499,33 @@ def test_guard_resolves_head_when_the_override_is_absent(mock_env):
 
     assert result.returncode in (0, 2), combined
     assert head in combined, f"launcher did not resolve HEAD ({head}):\n{combined}"
+
+
+# --- credit preflight: the ceiling bounds the rate, not the balance ----------------
+
+
+def test_a_balance_below_the_floor_refuses_before_creating(mock_env):
+    env = {**mock_env["env"], "MOCK_CREDIT": "0.50", "MIN_CREDIT_USD": "1.00"}
+    result, combined = _run_launcher(env, "--yes", "--arms", "A_raw", "--max-attempts", "1")
+
+    assert result.returncode != 0, combined
+    assert "below the $1.00 floor" in combined
+    assert not (mock_env["state"] / "created.txt").exists(), "refused after renting"
+
+
+def test_a_thin_balance_warns_but_still_runs(mock_env):
+    env = {**mock_env["env"], "MOCK_CREDIT": "1.50", "WARN_CREDIT_USD": "2.00"}
+    result, combined = _run_launcher(env, "--yes", "--arms", "A_raw", "--max-attempts", "1")
+
+    assert result.returncode == 0, combined
+    assert "below the $2.00 warning threshold" in combined
+    assert (mock_env["state"] / "created.txt").exists()
+
+
+def test_the_balance_is_recorded_in_the_run(mock_env):
+    env = {**mock_env["env"], "MOCK_CREDIT": "7.25"}
+    result, combined = _run_launcher(env, "--yes", "--arms", "A_raw", "--max-attempts", "1")
+    assert result.returncode == 0, combined
+
+    record = json.loads(sorted(mock_env["outdir"].glob("run_*.json"))[-1].read_text())
+    assert float(record["credit_before_usd"]) == 7.25

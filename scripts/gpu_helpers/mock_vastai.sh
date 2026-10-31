@@ -35,7 +35,7 @@ MOCK_OFFERS_FILE="${MOCK_OFFERS:-/tmp/mock_offers.json}"
 MOCK_STATE_DIR="${MOCK_STATE_DIR:-/tmp/mockstate}"
 
 case "${1:-} ${2:-}" in
-  "show user")        echo '{"credit": 10.0, "balance": 0, "total_spend": 0.0}' ;;
+  "show user")        echo "{\"credit\": ${MOCK_CREDIT:-10.0}, \"balance\": 0, \"total_spend\": 0.0}" ;;
   "show instances")   echo '[]' ;;
   "show ssh-keys")    echo '[]' ;;
   "search offers")    cat "$MOCK_OFFERS_FILE" 2>/dev/null || echo '[]' ;;
