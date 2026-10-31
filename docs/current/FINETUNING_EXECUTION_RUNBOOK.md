@@ -1,5 +1,8 @@
 # Fine-Tuning Execution Runbook — Next-Run Appendix
 
+> **Status:** current as of 2026-10-31.
+
+
 > **Supporting document.** The canonical funded proposal is `docs/current/FINETUNING_PILOT_DESIGN.md`. This page retains the concrete next-run commands and acceptance procedure; it does not define the overall scope. The funded work is the diagnostics phase followed by the full in-domain pilot.
 
 **Prerequisite 0: satisfied — the seed is reachable (2026-10-30).** The launcher forwards `--seeds` to the runner

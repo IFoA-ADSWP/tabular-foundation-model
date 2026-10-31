@@ -1,5 +1,8 @@
 # Fine-Tuning Methodology — Technical Description
 
+> **Historical document.** Kept for the record; it describes a state that has since been superseded.
+
+
 > Date: 2026-09-12 | Status: current | Related: #22
 > Describes the method used in **R1** (the smoke test). The results are in
 > `docs/reference/FINE_TUNING_PILOT_RESULTS.md`; what R1 did and did not exercise is in `docs/archive/SMOKE_TEST_SCOPE.md`.

@@ -1,5 +1,8 @@
 # Technical Companion: Understanding the TabPFN vs GLM Comparison
 
+> **Historical document.** Kept for the record; it describes a state that has since been superseded.
+
+
 > Deeper/current takes on these metrics: `docs/analyses/metrics_explained.md` (v3 numbers, actuarial framing) and `docs/KNOWLEDGE-PATH-JUNIOR.md` Phase 0 lessons 0.2–0.4 (from-scratch course). Numbers below are v2-era.
 
 > Tested: Apr 2026 · TabPFN v2 era (v2.0 via API; weights ID unrecorded). Do not assume results hold on v2.5/v3 — see [../MODEL_VERSIONS.md](../MODEL_VERSIONS.md).

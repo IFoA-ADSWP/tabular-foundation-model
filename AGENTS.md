@@ -15,7 +15,7 @@ why. Commit it with the change.
 ## Conventions
 
 Python research repo (TabPFN vs actuarial baselines). The gate is CI, and CI is
-**five checks, not one** — a change that passes pytest can still fail the others:
+**six checks, not one** — a change that passes pytest can still fail the others:
 
 - `ruff check scripts/ src/ tests/`
 - `pytest tests/ -q`
@@ -24,14 +24,13 @@ Python research repo (TabPFN vs actuarial baselines). The gate is CI, and CI is
   `evidence-change`
 - `./scripts/check.sh doclinks` — every reference in `docs/` resolves (plans and archives
   are citations, and the git-ignored run trees describe a shape)
+- `./scripts/check.sh docstatus` — every report in the three tiers states whether it is
+  current, historical or proposed
 
-Run all five with `./scripts/check.sh`, or one with
-`./scripts/check.sh ruff|pytest|shellcheck|evidence|doclinks`. The script is the single definition;
+Run all six with `./scripts/check.sh`, or one with
+`./scripts/check.sh ruff|pytest|shellcheck|evidence|doclinks|docstatus`. The script is the single definition;
 `.github/workflows/ci.yml` calls it for each separate job. A missing tool exits non-zero
 rather than skipping a check.
-
-**What the gate does not cover yet:** the doc-status check. It asks whether a report says
-what it is, which is an editorial question no rule answers yet (#323).
 
 `scripts/gpu_helpers/*.sh` is the **paid-run path** — it runs on rented boxes, mid-run, at
 cost. A syntax error there is expensive and happens away from your terminal. Run shellcheck

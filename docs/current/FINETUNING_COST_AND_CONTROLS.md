@@ -1,5 +1,8 @@
 # Fine-Tuning — What It Costs, and Why
 
+> **Status:** current as of 2026-10-31.
+
+
 > **Supporting cost appendix.** The canonical current proposal is `docs/current/FINETUNING_PILOT_DESIGN.md`. This page owns measured and modelled cost figures; it does not define the current pilot scope.
 
 ## Current measured anchors

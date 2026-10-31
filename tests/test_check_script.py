@@ -99,6 +99,12 @@ def test_failing_doclinks_fails_the_check(tmp_path):
     assert result.returncode == 1, result.stdout + result.stderr
 
 
+def test_failing_docstatus_fails_the_check(tmp_path):
+    shim(tmp_path, "python3", 1)
+    result = run(["docstatus"], path=f"{tmp_path}:{MINIMAL_PATH}")
+    assert result.returncode == 1, result.stdout + result.stderr
+
+
 def test_failing_shellcheck_fails_the_check(tmp_path):
     shim(tmp_path, "shellcheck", 1)
     result = run(["shellcheck"], path=f"{tmp_path}:{MINIMAL_PATH}")

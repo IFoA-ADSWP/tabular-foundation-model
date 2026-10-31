@@ -1,5 +1,8 @@
 # Fine-Tuning Findings — What This Repository Currently Believes
 
+> **Status:** current as of 2026-10-31.
+
+
 **Read this before citing any number.** Two probes have run, and the second overturned the first. Documents
 from the era of the first still describe it accurately; this page says which claim is current. For the current
 funded proposal and execution scope, start with `docs/current/FINETUNING_PILOT_DESIGN.md`.

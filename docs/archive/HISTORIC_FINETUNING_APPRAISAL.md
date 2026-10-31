@@ -1,5 +1,8 @@
 # Historic Fine-Tuning Testing — Appraisal and Limitations
 
+> **Historical document.** Kept for the record; it describes a state that has since been superseded.
+
+
 > Date: 2026-09-12 | Status: current | Related: #22
 > Companion to `docs/archive/NEXT_STAGE_PROPOSAL.md` (the proposed next stage) and
 > `docs/archive/CLASSIFIER_HOMOGENEITY_HYPOTHESIS_METHOD.md` (the historic pooling study itself).

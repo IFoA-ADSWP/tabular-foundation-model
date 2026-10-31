@@ -1,5 +1,8 @@
 # Fine-Tuning Diagnostics — Understanding Why Datasets Are Hard Before Fine-Tuning Them
 
+> **Status:** current as of 2026-10-31.
+
+
 > Date: 2026-09-24 | Status: **Funded workstream — execution design**
 > Related: #22 | Phase 1 of `docs/current/FINETUNING_PILOT_DESIGN.md`
 > Builds on: `regime_characterization.md`, `class_imbalance_analysis_summary.md`, master report §14
