@@ -115,3 +115,14 @@ jobs:
 
       - name: check
         run: ./scripts/check.sh doclinks
+
+  docstatus:
+    name: docstatus
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # A report that does not say what it is cannot be trusted to be current.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: check
+        run: ./scripts/check.sh docstatus

@@ -1,5 +1,8 @@
 # TabPFN for Insurance — Benchmark Summary
 
+> **Historical document.** Kept for the record; it describes a state that has since been superseded.
+
+
 One-page answer to the question: **Is TabPFN worth adopting for insurance modeling?** Written for actuarial colleagues — the full evidence and methods live in the technical report (references at the end).
 
 > **Model versions — this page now spans two.** Classification results and the `eudirectlapse` loss are **TabPFN v3** (`v3_default`, client 0.3.3, Aug 2026). The four regression/count datasets — `freMTPL2freq`, `spanish_motor_freq`, `bemtl97_amount`, `spanish_motor_severity` — were re-tested on **v3.5** (`v3.5_default`, client 0.6.0) on 2026-09-16 and improved on every one; see master report §16 and `docs/MODEL_VERSIONS.md`. The classification tiers have **not** been re-tested on v3.5, so the risk-ranking verdict below remains a v3 statement.

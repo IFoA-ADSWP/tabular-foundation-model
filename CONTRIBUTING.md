@@ -133,16 +133,14 @@ ruff format src/ tests/
 
 ## The gate
 
-CI and a local run share one definition. `./scripts/check.sh` runs five checks — ruff,
+CI and a local run share one definition. `./scripts/check.sh` runs six checks — ruff,
 the test suite, shellcheck over the paid-run scripts, the evidence guard (`outputs/`
-and `results/` unchanged, or the PR labelled `evidence-change`), and the doc-link check
-(every reference in `docs/` resolves) — and `./scripts/check.sh ruff` (or `pytest`,
-`shellcheck`, `evidence`, `doclinks`) runs one. `.github/workflows/ci.yml` calls the same
-script as five separate jobs on every pull request, every push to `main`, and on demand. A missing tool exits non-zero; it is never a
+and `results/` unchanged, or the PR labelled `evidence-change`), the doc-link check
+(every reference in `docs/` resolves), and the doc-status check (every report says
+whether it is current) — and `./scripts/check.sh ruff` (or `pytest`,
+`shellcheck`, `evidence`, `doclinks`, `docstatus`) runs one. `.github/workflows/ci.yml` calls the same
+script as six separate jobs on every pull request, every push to `main`, and on demand. A missing tool exits non-zero; it is never a
 silent skip.
-
-The gate does **not** run the doc link or doc-status checks yet. They are red on `main`
-against a pre-existing backlog, so a green gate is silent about them.
 
 ## Report Registration
 

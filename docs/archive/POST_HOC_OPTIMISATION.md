@@ -1,4 +1,7 @@
 # TabPFN Post-Hoc Optimisation: Executive Summary
+
+> **Historical document.** Kept for the record; it describes a state that has since been superseded.
+
 > Tested: Apr 2026 · TabPFN v2 era (v2.0 via API; weights ID unrecorded). Do not assume results hold on v2.5/v3 — see [../MODEL_VERSIONS.md](../MODEL_VERSIONS.md).
 
 

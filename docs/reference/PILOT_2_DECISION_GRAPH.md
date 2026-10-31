@@ -1,5 +1,8 @@
 # Pilot 2 — the decision graph
 
+> **Status:** current as of 2026-10-31.
+
+
 **How to read this page.** Each node is one experiment, and each node is also a **stopping point**.
 The edges are outcomes, not hopes: a designed experiment has to say in advance what it will do with
 each one. Costs are cumulative along a path; the figure at each node is what *that step* adds.

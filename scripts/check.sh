@@ -108,27 +108,36 @@ run_doclinks() {
   python3 scripts/check_doc_links.py
 }
 
+# Every report in the three tiers must say what it is: current, historical, proposed.
+# Without that, a reader cannot tell the design as built from a plan since overtaken.
+run_docstatus() {
+  need python3 "install Python 3, or use the interpreter that runs pytest"
+  echo "== docstatus (every report states what it is)"
+  python3 scripts/check_doc_status.py
+}
+
 usage() {
-  echo "usage: $(basename "$0") [ruff|pytest|shellcheck|evidence|doclinks|all]" >&2
+  echo "usage: $(basename "$0") [ruff|pytest|shellcheck|evidence|doclinks|docstatus|all]" >&2
   exit 2
 }
 
-run_check() { # run_check <ruff|pytest|shellcheck|evidence|doclinks>
+run_check() { # run_check <ruff|pytest|shellcheck|evidence|doclinks|docstatus>
   case "$1" in
     ruff)       run_ruff ;;
     pytest)     run_pytest ;;
     shellcheck) run_shellcheck ;;
     evidence)   run_evidence ;;
     doclinks)   run_doclinks ;;
+    docstatus)  run_docstatus ;;
   esac
 }
 
 case "${1:-all}" in
-  ruff|pytest|shellcheck|evidence|doclinks) run_check "$1" ;;
+  ruff|pytest|shellcheck|evidence|doclinks|docstatus) run_check "$1" ;;
   all)
     status=0
     missing=0
-    for check in ruff pytest shellcheck evidence doclinks; do
+    for check in ruff pytest shellcheck evidence doclinks docstatus; do
       # The subshell is load-bearing: need() exits 3 when a tool is absent, and without
       # it that exit would end the script and hide every check after this one.
       ( run_check "$check" )

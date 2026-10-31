@@ -1,5 +1,8 @@
 # Fine-Tuning Investigation — Status Brief
 
+> **Status:** current as of 2026-10-31.
+
+
 > Date: 2026-09-24 | Status: **Two probes complete; funded diagnostics and full pilot defined**
 > Related: #22 | Stakeholder summary; full design in `docs/current/FINETUNING_PILOT_DESIGN.md`
 

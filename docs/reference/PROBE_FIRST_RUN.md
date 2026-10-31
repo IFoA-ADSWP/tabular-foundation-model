@@ -1,5 +1,8 @@
 # The probe's first real run — what it took to get a container up
 
+> **Status:** current as of 2026-10-31.
+
+
 **This records the transport, not the result.** The launcher had been reviewed and unit-tested and had
 never been executed. Its first real execution found three faults, all of which only a real run could
 find, and all of which failed **before an instance existed**. Nothing here is a numerical result.

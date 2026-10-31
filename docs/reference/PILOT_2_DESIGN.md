@@ -1,5 +1,8 @@
 # Pilot 2 — Design for a Fair Test of Fine-Tuning
 
+> **Status:** current as of 2026-10-31.
+
+
 > **Start here: [`docs/reference/PILOT_2_DECISION_GRAPH.md`](docs/reference/PILOT_2_DECISION_GRAPH.md)** — the design as a gated
 > graph: the recommendation, what every stopping point lets us claim, and the cost of each step.
 > This document is the reference specification that route arrives at; the graph page is the entry
