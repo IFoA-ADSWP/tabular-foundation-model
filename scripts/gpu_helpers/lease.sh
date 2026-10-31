@@ -9,7 +9,7 @@
 # Outcomes: released · already_gone · failed:<reason>.
 # A failed release keeps the instance id in hand and prints a one-line destroy command.
 
-LEASE_LAUNCH_ID=""
+LEASE_LAUNCH_ID="${LEASE_LAUNCH_ID:-}"  # preserved across exec; see lease_begin
 LEASE_INSTANCE_ID=""
 LEASE_LABEL=""
 LEASE_IMAGE=""
@@ -77,6 +77,13 @@ lease_begin() { # lease_begin <outdir> <image>
     # recorded as unrelated.
     if [ -z "${LEASE_LAUNCH_ID:-}" ]; then
         LEASE_LAUNCH_ID="$(date -u +%Y%m%dT%H%M%SZ)-$(python3 -c 'import secrets; print(secrets.token_hex(3))')"
+    else
+        # Inherited across exec: it must name a record that already exists. An ambient export
+        # that names nothing would graft this launch onto another launch's file.
+        if [ ! -f "$outdir/leases/$LEASE_LAUNCH_ID.json" ]; then
+            echo "[lease] REFUSING inherited launch id with no record: $LEASE_LAUNCH_ID" >&2
+            return 1
+        fi
     fi
     LEASE_LABEL="tabpfn-pilot-$LEASE_LAUNCH_ID"
     LEASE_FILE="$outdir/leases/$LEASE_LAUNCH_ID.json"

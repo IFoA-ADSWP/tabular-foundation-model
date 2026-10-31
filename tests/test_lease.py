@@ -151,30 +151,47 @@ lease_state
 # --- #326: a retry is a new attempt under ONE launch ------------------------------
 
 
-def test_a_retry_reuses_the_launch_id_and_records_both_attempts(tmp_path):
-    """Two attempts, one decision. A new id per attempt records them as unrelated launches."""
-    out, _state, env = _mock(tmp_path)
-    body = f'''
-lease_begin "{out}" "img"
-first="$LEASE_LAUNCH_ID"
-first_label="$LEASE_LABEL"
-lease_acquired 1111
-lease_release "attempt one" >/dev/null
+def test_a_retry_across_processes_reuses_the_launch_id(tmp_path):
+    """The seam that matters: a second PROCESS, with the id carried in the environment.
 
-# What the exec'd retry inherits: the same id and label, a new ATTEMPT.
-ATTEMPT=2
-lease_begin "{out}" "img"
-[ "$LEASE_LAUNCH_ID" = "$first" ] || exit 7
-[ "$LEASE_LABEL" = "$first_label" ] || exit 8
-lease_acquired 2222
-lease_release "attempt two" >/dev/null
-'''
-    result = _run(body, env)
-    assert result.returncode == 0, result.stdout + result.stderr
+    The first version of this test faked the exec in one shell and passed while production was
+    broken -- sourcing lease.sh reset the id. Crossing the process boundary is the whole test.
+    """
+    out, _state, env = _mock(tmp_path)
+    id_file = tmp_path / "launch_id"
+
+    first = _run(
+        f'lease_begin "{out}" "img" && lease_acquired 1111 && lease_release "attempt one" >/dev/null '
+        f'&& printf "%s" "$LEASE_LAUNCH_ID" > "{id_file}"',
+        env,
+    )
+    assert first.returncode == 0, first.stdout + first.stderr
+    launch_id = id_file.read_text()
+    assert launch_id
+
+    second_env = {**env, "LEASE_LAUNCH_ID": launch_id, "ATTEMPT": "2"}
+    second = _run(
+        f'lease_begin "{out}" "img" && [ "$LEASE_LAUNCH_ID" = "{launch_id}" ] '
+        f'&& lease_acquired 2222 && lease_release "attempt two" >/dev/null',
+        second_env,
+    )
+    assert second.returncode == 0, second.stdout + second.stderr
 
     record = _record(out)
+    assert record["launch_id"] == launch_id
     assert sorted(record["attempts"]) == ["1", "2"]
     assert record["attempts"]["1"]["instance_id"] == "1111"
     assert record["attempts"]["2"]["instance_id"] == "2222"
-    # One record per launch, not per attempt.
     assert len(list((out / "leases").glob("*.json"))) == 1
+
+
+def test_an_inherited_id_with_no_record_is_refused(tmp_path):
+    """A stray export must not graft a new launch onto another launch's file."""
+    out, _state, env = _mock(tmp_path)
+    result = _run(
+        f'lease_begin "{out}" "img"',
+        {**env, "LEASE_LAUNCH_ID": "not-a-launch"},
+    )
+    assert result.returncode != 0
+    assert "REFUSING inherited launch id" in result.stderr
+    assert not list((out / "leases").glob("*.json"))

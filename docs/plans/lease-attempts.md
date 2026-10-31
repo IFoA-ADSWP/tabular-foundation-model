@@ -18,6 +18,19 @@ that happened to look alike. Two instances, two records, no declared parent.
 - A successful release still does not consume an attempt: `ATTEMPT` advances only in the retry path,
   as it did before.
 
+## The hazard this nearly shipped with
+
+`lease.sh` reset `LEASE_LAUNCH_ID=""` at **source time**. `vast_run.sh` sources the module before
+calling `lease_begin`, so the inherited id was wiped before the new guard could read it: every
+`exec` would have minted a fresh id, a fresh label and a second record file.
+
+The first test missed it because it faked the exec **in one shell** — it re-derived the
+implementation's assumption instead of crossing a process boundary. The test now runs two separate
+`bash` processes with the id carried in the environment, which is the actual seam.
+
+An inherited id must also name a record that already exists. An ambient export that names nothing
+is refused rather than grafting this launch onto another launch's file.
+
 ## What is deliberately not changed
 
 - **No new auto-retry inside the trap.** #325's teardown makes one destroy attempt and keeps the id;
