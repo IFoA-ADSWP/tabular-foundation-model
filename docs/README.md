@@ -118,7 +118,7 @@ The report-level index is `docs/REPORT_REGISTRY.md` and is deliberately not rest
 | Doc | Purpose |
 |---|---|
 | `docs/archive/COMBINED_TABPFN_CLASSIFIER_REGRESSOR_ANALYSIS.md` | Consolidated classifier + regressor findings |
-| `reports/MULTI_DATASET_GLM_VS_TABPFN_SUMMARY.md` | Multi-dataset GLM vs TabPFN (non-technical) |
+| `archive/MULTI_DATASET_GLM_VS_TABPFN_SUMMARY.md` | Multi-dataset GLM vs TabPFN (non-technical) |
 | `docs/archive/POST_HOC_OPTIMISATION.md` | Calibration/optimisation summary |
 | `docs/archive/STAGE_A_B_FINDINGS_AND_RECOMMENDATIONS.md` | Stage A/B short report |
 | `docs/archive/TABPFN_FINE_TUNING_LIMIT_STUDY.md` | Apple-Silicon finetune limits (classifier-only) |

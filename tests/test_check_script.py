@@ -93,6 +93,12 @@ def test_failing_pytest_fails_the_check(tmp_path):
     assert result.returncode == 1, result.stdout + result.stderr
 
 
+def test_failing_doclinks_fails_the_check(tmp_path):
+    shim(tmp_path, "python3", 1)
+    result = run(["doclinks"], path=f"{tmp_path}:{MINIMAL_PATH}")
+    assert result.returncode == 1, result.stdout + result.stderr
+
+
 def test_failing_shellcheck_fails_the_check(tmp_path):
     shim(tmp_path, "shellcheck", 1)
     result = run(["shellcheck"], path=f"{tmp_path}:{MINIMAL_PATH}")
@@ -113,7 +119,7 @@ def test_missing_tool_is_named_and_not_a_pass(tmp_path):
 
 
 def test_all_passes_when_every_check_passes(tmp_path):
-    for name in ("ruff", "pytest", "shellcheck"):
+    for name in ("ruff", "pytest", "shellcheck", "python3"):
         shim(tmp_path, name, 0)
     result = run([], path=f"{tmp_path}:{MINIMAL_PATH}")
     assert result.returncode == 0, result.stdout + result.stderr
