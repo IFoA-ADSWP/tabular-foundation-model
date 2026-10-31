@@ -5,7 +5,7 @@ name: ci
 # command, so this file and a contributor's local run have one definition and cannot
 # drift. The commands themselves live in the script; this file only schedules them.
 #
-# Three checks, not four. The doc link and doc-status checks are not here: they are red
+# Four checks, not five. The doc link and doc-status checks are not here: they are red
 # on main against a pre-existing backlog, and a gate that lands red gets disabled within
 # a week. Correcting the instructions to say three is #260; adding the doc checks is
 # their own work against that backlog.
@@ -93,7 +93,14 @@ jobs:
 
       - name: check
         env:
+          # On a pull request the base commit is the comparison; on a push it is the previous
+          # commit. Falling back to origin/main keeps a branch-creation push meaningful, and a
+          # zero SHA (new branch) resolves through the same fallback.
+          EVIDENCE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'origin/main' }}
           EVIDENCE_CHANGE_OK: ${{ contains(github.event.pull_request.labels.*.name, 'evidence-change') && '1' || '0' }}
         run: |
           git fetch --quiet origin main
+          if ! git rev-parse --verify -q "${EVIDENCE_BASE}^{commit}" >/dev/null 2>&1; then
+            EVIDENCE_BASE=origin/main
+          fi
           ./scripts/check.sh evidence

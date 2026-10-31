@@ -65,26 +65,34 @@ run_evidence() {
   local base="${EVIDENCE_BASE:-origin/main}"
   echo "== evidence (${EVIDENCE_TREES[*]} unchanged vs ${base})"
   if ! git rev-parse --verify -q "${base}^{commit}" >/dev/null 2>&1; then
+    # Not a missing tool (3): the comparison could not be made. A check that cannot run is a
+    # failed check, not an absent binary.
     echo "check.sh: cannot compare evidence: '${base}' is not a commit here." >&2
     echo "  Fetch it (git fetch origin main) or set EVIDENCE_BASE." >&2
-    return 3
+    return 1
   fi
 
-  local changed
+  # Committed drift *and* pending drift. A staged `git add -A` of a deleted log is invisible to
+  # a commit-range diff, which is exactly how one such deletion reached a commit. Untracked
+  # files are excluded on purpose: mock runs write scratch under outputs/ every time.
+  local changed pending
   changed="$(git diff --name-status "${base}"...HEAD -- "${EVIDENCE_TREES[@]}")"
-  if [ -z "$changed" ]; then
+  pending="$(git status --porcelain --untracked-files=no -- "${EVIDENCE_TREES[@]}")"
+  if [ -z "$changed" ] && [ -z "$pending" ]; then
     echo "evidence trees unchanged"
     return 0
   fi
 
   if [ "${EVIDENCE_CHANGE_OK:-0}" = "1" ]; then
     echo "evidence trees CHANGED — allowed by EVIDENCE_CHANGE_OK=1:"
-    printf '%s\n' "$changed"
+    [ -n "$changed" ] && printf '%s\n' "$changed"
+    [ -n "$pending" ] && printf '%s\n' "$pending"
     return 0
   fi
 
   echo "evidence trees CHANGED — these hold committed experiment evidence:" >&2
-  printf '%s\n' "$changed" >&2
+  [ -n "$changed" ] && printf '%s\n' "$changed" >&2
+  [ -n "$pending" ] && printf '%s\n' "$pending" >&2
   echo "  A deletion or rewrite here is evidence drift; a deliberate one is a decision." >&2
   echo "  Locally: EVIDENCE_CHANGE_OK=1 ./scripts/check.sh evidence" >&2
   echo "  CI: add the 'evidence-change' label to the pull request." >&2
