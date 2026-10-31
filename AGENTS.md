@@ -52,6 +52,17 @@ one stops firing, the test does not fail: it fits a dataset for minutes and writ
 `results/<timestamp>/`. `tests/conftest.py` now fails the session when run artifacts appear,
 so trust it before `git status`.
 
+**Evidence trees are guarded.** `./scripts/check.sh evidence` fails when a branch changes
+`outputs/` or `results/`. A deliberate evidence change sets `EVIDENCE_CHANGE_OK=1` locally, and
+the `evidence-change` label on a pull request.
+
+**A PR body closes issues by substring.** "Does not close #304" closed #304: any
+`close`/`closes`/`closed` keyword anywhere in the body, negation included, closes on merge. Write
+`Refs #N` unless you mean it.
+
+**Plans are claims.** If a plan names a verification command or an "empty diff", run it in the
+same commit that carries the plan.
+
 ## Review
 
 Every change is reviewed before merge, in a fresh context, against the plan and the

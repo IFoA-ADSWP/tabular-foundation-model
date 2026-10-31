@@ -79,3 +79,21 @@ jobs:
 
       - name: check
         run: ./scripts/check.sh shellcheck
+
+  evidence:
+    name: evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Deliberate changes to committed evidence are allowed, but they must be labelled:
+    # the label is the difference between a decision and a stray `git add -A`.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: check
+        env:
+          EVIDENCE_CHANGE_OK: ${{ contains(github.event.pull_request.labels.*.name, 'evidence-change') && '1' || '0' }}
+        run: |
+          git fetch --quiet origin main
+          ./scripts/check.sh evidence
