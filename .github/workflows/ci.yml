@@ -93,12 +93,19 @@ jobs:
 
       - name: check
         env:
+          GH_TOKEN: ${{ github.token }}
           # On a pull request the base commit is the comparison; on a push it is the previous
           # commit. Falling back to origin/main keeps a branch-creation push meaningful, and a
           # zero SHA (new branch) resolves through the same fallback.
           EVIDENCE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'origin/main' }}
-          EVIDENCE_CHANGE_OK: ${{ contains(github.event.pull_request.labels.*.name, 'evidence-change') && '1' || '0' }}
         run: |
+          # Read the label from the branch's open PR rather than the event payload: a
+          # workflow_dispatch has no pull_request object, so the payload form silently evaluates
+          # to "not labelled" and fails a change that is correctly labelled.
+          labels="$(gh pr list --head "$GITHUB_REF_NAME" --state open --json labels             --jq '[.[].labels[].name] | join(",")' 2>/dev/null || true)"
+          case ",${labels}," in
+            *,evidence-change,*) export EVIDENCE_CHANGE_OK=1 ;;
+          esac
           git fetch --quiet origin main
           if ! git rev-parse --verify -q "${EVIDENCE_BASE}^{commit}" >/dev/null 2>&1; then
             EVIDENCE_BASE=origin/main

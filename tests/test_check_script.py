@@ -29,8 +29,11 @@ MINIMAL_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
 def run(args, path=None, cwd=None, extra_env=None):
     env = dict(os.environ)
     # `all` includes the evidence check. Defaulting its base to HEAD keeps these tests
-    # independent of whichever refs the ambient checkout happens to have.
+    # independent of whichever refs the ambient checkout happens to have, and clearing the
+    # override keeps them independent of the caller's environment -- otherwise a gate run with
+    # EVIDENCE_CHANGE_OK=1 makes the tests that assert refusal silently pass instead.
     env.setdefault("EVIDENCE_BASE", "HEAD")
+    env.pop("EVIDENCE_CHANGE_OK", None)
     if path is not None:
         env["PATH"] = path
     if extra_env:
