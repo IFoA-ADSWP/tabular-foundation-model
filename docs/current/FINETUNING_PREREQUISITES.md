@@ -297,7 +297,7 @@ save/reload on a GPU box is outstanding, so the "reproduces the same predictions
 acceptance test has not run.
 
 **Evidence.** Import path verified present in `tabpfn==8.5.0` (the box version);
-`save_fitted_tabpfn_model` exported from `tabpfn/__init__.py`.
+`save_fitted_tabpfn_model` exported by the installed `tabpfn` package.
 
 ---
 

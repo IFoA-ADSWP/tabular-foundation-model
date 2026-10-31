@@ -104,3 +104,14 @@ jobs:
             EVIDENCE_BASE=origin/main
           fi
           ./scripts/check.sh evidence
+
+  doclinks:
+    name: doclinks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # A reader who clicks and finds nothing is the failure this prevents.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: check
+        run: ./scripts/check.sh doclinks

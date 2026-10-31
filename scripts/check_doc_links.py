@@ -24,18 +24,36 @@ import sys
 EXTS = (".md", ".py", ".json", ".csv", ".npz", ".npy", ".png", ".parquet", ".sh", ".ipynb", ".txt", ".lock",
         ".toml", ".yaml", ".yml")
 MD_LINK = re.compile(r"\]\(([^)\s#]+?)(?:#[^)]*)?\)")
+
+
+# Records, not promises: plans state what was intended and archives what a superseded
+# document said, so a path there is a citation even when the file has since moved or
+# retired. Checking them would punish the history the documents exist to keep.
+CITATION_TIERS = ("plans", "archive")
+
+# Run output is git-ignored: a document that says "a run writes outputs/<dir>/manifest.json"
+# describes a shape, and the file cannot resolve from a clean checkout by design.
+UNCOMMITTED_TREES = ("outputs", "results")
 BACKTICK = re.compile(r"`([^`\s]+?)`")
 
 
 def candidates(text: str) -> list[str]:
     out = []
     for m in MD_LINK.finditer(text):
-        out.append(m.group(1))
+        ref = m.group(1)
+        # A bare name in a link target is a wiki page or a section, not a repo path:
+        # `[x](Benchmark-Summary)` cannot resolve against the tree by design.
+        if "/" not in ref and not ref.endswith(EXTS):
+            continue
+        out.append(ref)
     for m in BACKTICK.finditer(text):
         tok = m.group(1)
         # A bare filename in prose ("meta.json", "the .npy file") is not a reference, and a glob or a
         # domain name only looks like a path. Require a separator, and rule out both.
         if not tok.endswith(EXTS) or "/" not in tok or "*" in tok:
+            continue
+        # `frontier_plot_{a,b}.png` is a shell illustration, not a path.
+        if "{" in tok or "}" in tok:
             continue
         if re.match(r"^[\w.-]+\.[a-z]{2,}/", tok):  # docs.priorlabs.ai/...
             continue
@@ -46,6 +64,8 @@ def candidates(text: str) -> list[str]:
 def resolves(doc: pathlib.Path, root: pathlib.Path, ref: str) -> bool:
     if ref.startswith(("http://", "https://", "mailto:")) or "<" in ref:
         return True
+    if ref.split("/", 1)[0] in UNCOMMITTED_TREES:
+        return True  # a described shape, not a committed file
     for base in (doc.parent, root / "docs", root):
         if (base / ref).exists():
             return True
@@ -67,6 +87,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dir", default="docs")
     ap.add_argument("--root", default=".")
     ap.add_argument("--warn", action="store_true")
+    ap.add_argument("--include-citations", action="store_true",
+                    help="also check docs/plans and docs/archive, where a path is a citation")
     args = ap.parse_args(argv)
 
     root = pathlib.Path(args.root).resolve()
@@ -75,12 +97,19 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  no such directory: {d}")
         return 2
 
-    docs = sorted(d.rglob("*.md"))
+    if args.include_citations:
+        docs = sorted(d.rglob("*.md"))
+    else:
+        docs = sorted(p for p in d.rglob("*.md")
+                      if not (p.relative_to(d).parts and p.relative_to(d).parts[0] in CITATION_TIERS))
     broken = check(docs, root)
     for path, line, ref in broken:
         rel = pathlib.Path(path).resolve().relative_to(root)
         print(f"  {rel}:{line}  ->  {ref}")
     print(f"  {len(docs)} documents checked, {len(broken)} broken reference(s)")
+    if not args.include_citations:
+        print(f"  (citation tiers skipped: {', '.join(CITATION_TIERS)}; "
+              f"pass --include-citations to check them)")
 
     if broken and not args.warn:
         print("  FAIL: a reference that does not resolve is a reader who finds nothing")

@@ -739,7 +739,7 @@ Two traps:
   licence`, which derives the name the same way the library does.
 - A locally-installed `tabpfn` may be a different version with **no licence gate at all**, in
   which case a local fit succeeds regardless and proves nothing. Check for
-  `tabpfn/browser_auth.py` before trusting a local pass. 8.5.0's real auth modules can be
+  the installed package's `browser_auth` module before trusting a local pass. 8.5.0's real auth modules can be
   exercised without torch by copying `errors.py`/`settings.py`/`constants.py`/`browser_auth.py`
   out of the sdist and stubbing `torch`.
 
