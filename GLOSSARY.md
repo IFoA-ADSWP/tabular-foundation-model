@@ -112,3 +112,20 @@ The decision that a launch may rent a machine, taken before anything is created.
 either allows the launch or refuses it, listing every failed check at once, and the
 decision is recorded. A refusal is not a crash and not a transport failure.
 _Avoid_: gate, preflight, guard
+
+**Dispatch**:
+The paid-path seam that turns a launch's experiment — or its ad-hoc facts — into one
+command document before spend. It builds and validates the command; it never decides
+what an experiment is.
+_Avoid_: runner, launcher, job builder
+
+**Command document**:
+The versioned JSON a launch sends to the box: launch id, experiment id or ad-hoc facts,
+pinned commit, image, and the declared-arm subset. It carries no secret and no machine
+identity; the box re-validates it and expands it into runs.
+_Avoid_: payload, config, script
+
+**Ad-hoc run**:
+A paid run with no declared experiment: its dataset, arms, seed and row sizes are stated
+explicitly. It is recorded as ad-hoc and never stamped with an experiment id.
+_Avoid_: custom run, manual run
