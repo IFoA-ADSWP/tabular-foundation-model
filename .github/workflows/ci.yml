@@ -7,7 +7,7 @@ name: ci
 #
 # Four checks, not five. The doc link and doc-status checks are not here: they are red
 # on main against a pre-existing backlog, and a gate that lands red gets disabled within
-# a week. Correcting the instructions to say three is #260; adding the doc checks is
+# a week. Correcting the instructions to say three was #260; the evidence job is the fourth, and adding the doc checks is
 # their own work against that backlog.
 #
 # The shellcheck severity floor and its reason live in scripts/check.sh, beside the
