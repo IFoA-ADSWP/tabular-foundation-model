@@ -186,7 +186,8 @@ def test_the_block_names_its_dataset_split_model_and_code(mock_arm_run):
     # Since #285 the pilot passes the resolved version to the estimator, so the block's claim is
     # a pin rather than a declaration. The block
     # says which claim it is making rather than implying a pin.
-    assert block["model"]["version_source"] == "pinned"
+    # `pinned` when an operator named a model path; `auto` when the library chose (#285).
+    assert block["model"]["version_source"] in ("pinned", "auto")
     assert block["model"]["client_version"]
 
     assert len(block["code"]["git_sha"]) == 40

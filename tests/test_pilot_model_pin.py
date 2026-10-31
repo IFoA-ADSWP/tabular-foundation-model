@@ -85,18 +85,20 @@ def _data():
     return X, X, y, y
 
 
-def test_arm_a_pins_the_resolved_model(rp, capture, monkeypatch):
+def test_no_pin_is_passed_when_nobody_set_one(rp, capture, monkeypatch, tmp_path):
+    """A label is not a filename. Unset means the library chooses, and nothing is passed (#285)."""
     monkeypatch.delenv("TABPFN_MODEL_PATH", raising=False)
+    monkeypatch.chdir(tmp_path)  # no .env here, so the environment is genuinely unset
     X, Xte, y, yte = _data()
     rp.run_arm_a_raw(X, Xte, y, yte, {"n_estimators": 2, "fit_mode": "fit_preprocessors"})
 
     kind, kwargs = capture[0]
     assert kind == "classifier"
-    assert kwargs["model_path"] == "v3_default", kwargs
+    assert "model_path" not in kwargs, kwargs
 
 
-def test_the_pin_follows_the_resolver(rp, capture, monkeypatch):
-    """A version-drift re-test sets the env; the constructor must follow it, not the default."""
+def test_an_explicit_pin_is_passed_through(rp, capture, monkeypatch):
+    """When an operator names a model path, it reaches the constructor unchanged."""
     monkeypatch.setenv("TABPFN_MODEL_PATH", "v3.5_default")
     X, Xte, y, yte = _data()
     rp.run_arm_a_raw(X, Xte, y, yte, {"n_estimators": 2, "fit_mode": "fit_preprocessors"})
@@ -104,8 +106,8 @@ def test_the_pin_follows_the_resolver(rp, capture, monkeypatch):
     assert capture[0][1]["model_path"] == "v3.5_default"
 
 
-def test_arm_b_pins_the_model_through_extra_classifier_kwargs(rp, capture, monkeypatch):
-    """The fine-tuner has no `model_path` of its own; it forwards classifier kwargs."""
+def test_arm_b_passes_an_explicit_pin_through_extra_classifier_kwargs(rp, capture, monkeypatch):
+    """The fine-tuner has no model_path of its own; it forwards classifier kwargs."""
     monkeypatch.setenv("TABPFN_MODEL_PATH", "v3.5_default")
     X, Xte, y, yte = _data()
     rp.run_arm_b_in_domain(
@@ -121,8 +123,18 @@ def test_arm_b_pins_the_model_through_extra_classifier_kwargs(rp, capture, monke
     assert kwargs["extra_classifier_kwargs"]["model_path"] == "v3.5_default", kwargs
 
 
-def test_the_record_states_the_pinned_version_not_the_resolver(rp, monkeypatch):
-    """The seam that matters: the version in the record is the version handed to the estimator."""
+def test_the_record_says_auto_when_nothing_was_pinned(rp, monkeypatch, tmp_path):
+    """The smoke's failure, recorded honestly: no operator pin means the library chose."""
+    monkeypatch.delenv("TABPFN_MODEL_PATH", raising=False)
+    monkeypatch.chdir(tmp_path)
+    rp.pinned_model_path.cache_clear()
+
+    block = rp._model_provenance()
+    assert block["version"] == "auto"
+    assert block["version_source"] == "auto"
+
+
+def test_the_record_states_an_explicit_pin(rp, monkeypatch):
     monkeypatch.setenv("TABPFN_MODEL_PATH", "v9_test_only")
     rp.pinned_model_path.cache_clear()
 

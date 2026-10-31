@@ -41,20 +41,36 @@ def version_mismatch(declared: str | None, resolved: str) -> bool | None:
     return declared != resolved
 
 
-def resolve_model_path() -> str:
-    """The `model_path` to pass to TabPFN estimators: env, else .env, else baseline."""
+def explicit_model_path() -> str | None:
+    """The `model_path` an operator actually set: env, else .env.
+
+    `None` means "nothing was chosen" -- and that is materially different from a baseline label.
+    `TabPFNClassifier(model_path=...)` takes a **file name, a path, or "auto"**, never a label
+    like `v3_default`: passing one is what failed every arm of the 2026-10-31 smoke in three
+    seconds. So the launcher passes this only when it is not None, and the library uses its own
+    default otherwise (#285).
+    """
     value = os.environ.get(_ENV_KEY)
     if not value:
         candidates = [
             Path.cwd() / ".env",
             Path(os.environ["TABPFN_ENV_FILE"]) if os.environ.get("TABPFN_ENV_FILE") else None,
         ]
-        for p in candidates:
-            if p and p.exists():
-                for line in p.read_text().splitlines():
+        for candidate in candidates:
+            if candidate and candidate.exists():
+                for line in candidate.read_text().splitlines():
                     if line.startswith(f"{_ENV_KEY}="):
                         value = line.split("=", 1)[1].strip()
                         break
             if value:
                 break
-    return (value or BASELINE_MODEL_PATH).strip() or BASELINE_MODEL_PATH
+    return (value or "").strip() or None
+
+
+def resolve_model_path() -> str:
+    """The version *label* a record states: env, else .env, else the baseline label.
+
+    This is a label, not a value to hand the estimator. Benchmarks that pass `model_path`
+    explicitly need `explicit_model_path()` instead.
+    """
+    return explicit_model_path() or BASELINE_MODEL_PATH
