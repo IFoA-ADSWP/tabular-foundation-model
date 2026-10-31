@@ -99,10 +99,24 @@ jobs:
           # zero SHA (new branch) resolves through the same fallback.
           EVIDENCE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'origin/main' }}
         run: |
-          # Read the label from the branch's open PR rather than the event payload: a
-          # workflow_dispatch has no pull_request object, so the payload form silently evaluates
-          # to "not labelled" and fails a change that is correctly labelled.
-          labels="$(gh pr list --head "$GITHUB_REF_NAME" --state open --json labels             --jq '[.[].labels[].name] | join(",")' 2>/dev/null || true)"
+          # Which PR's label governs this change. Two event shapes, two lookups:
+          #
+          # * a pull request reads its own labels. `GITHUB_REF_NAME` is `<pr>/merge` here, not
+          #   a branch name, so the previous `gh pr list --head "$GITHUB_REF_NAME"` matched
+          #   nothing and every labelled evidence PR failed (#378 measured: 0 PRs found).
+          # * a push to main reads the PR that produced the merged commit. The label still
+          #   lives on the PR, so a labelled evidence merge passes instead of leaving main red
+          #   for a change that was reviewed and labelled (#350, #352 both did).
+          #
+          # A direct push with no PR finds no labels, which is the honest answer: nobody
+          # declared it a deliberate evidence change.
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            labels="$(gh pr view "${{ github.event.pull_request.number }}" --json labels \
+              --jq '[.labels[].name] | join(",")' 2>/dev/null || true)"
+          else
+            labels="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
+              --jq '[.[].labels[].name] | join(",")' 2>/dev/null || true)"
+          fi
           case ",${labels}," in
             *,evidence-change,*) export EVIDENCE_CHANGE_OK=1 ;;
           esac
