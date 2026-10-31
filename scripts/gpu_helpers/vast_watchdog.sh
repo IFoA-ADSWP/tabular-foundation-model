@@ -1,5 +1,5 @@
 #!/bin/bash
-# Destroy stray 'tabpfn-pilot' instances.
+# Destroy stray 'tfm-' instances (lease-labelled, #325).
 #
 #   bash scripts/gpu_helpers/vast_watchdog.sh [--max-age-min N] [--dry-run] [--all-labels]
 #
@@ -33,7 +33,9 @@ command -v vastai >/dev/null 2>&1 || \
 # Consequence: the keychain CANNOT be the single store for the Vast key. That file
 # is the CLI's store; keep it at mode 600.
 
-LABEL="${LABEL:-tabpfn-pilot}"
+# A prefix, not one constant: the lease label is `tfm-<launch id>`, and a stranded
+# instance must be found by the prefix after the launch that could not release it is gone.
+LABEL="${LABEL:-tfm-}"
 # 60 min, not 90: the runner's own poll ceiling is now 40 min, so a legitimate run
 # cannot reach 60. A leaked instance was left billing for 64 minutes by a runner
 # whose log-poll never saw its completion marker, and the watchdog was the only
@@ -82,7 +84,7 @@ except Exception:
     raise SystemExit
 insts = d if isinstance(d, list) else d.get("instances", [])
 
-mine = [i for i in insts if (i.get("label") or "") == label]
+mine = [i for i in insts if (i.get("label") or "").startswith(label)]
 if not mine:
     print(f"{stamp} clean: no '{label}' instances")
     raise SystemExit

@@ -880,7 +880,7 @@ A real leak occurred twice during development (**~$0.13 total**, credit-only, no
 
 Two further safeguards:
 
-**Preflight leak check.** Step 1 lists any existing `tabpfn-pilot` instances and requires confirmation before starting, so a leak cannot accumulate unnoticed across runs.
+**Preflight leak check.** Step 1 lists any existing `tfm-` instances (the lease label is `tfm-<launch id>`) and requires confirmation before starting, so a leak cannot accumulate unnoticed across runs.
 
 **Dry-run fixture.** `scripts/gpu_helpers/mock_vastai.sh` answers every call the runner makes. It refuses to run (exit 99) unless it *is* the resolved `vastai`, compared by realpath:
 

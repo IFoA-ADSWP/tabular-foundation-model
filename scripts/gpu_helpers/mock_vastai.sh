@@ -103,9 +103,11 @@ JSON
       printf '%s\n' "$3" >> "$MOCK_STATE_DIR/destroy_attempts.txt"
       # Failure injection for the lease tests (#325): fail the first destroy, succeed after.
       # A destroy that never fails cannot prove the launcher keeps the id when it does.
-      if [ "${MOCK_DESTROY_FAIL_ONCE:-0}" = 1 ] && [ ! -f "$MOCK_STATE_DIR/destroy_failed_once" ]; then
-          : > "$MOCK_STATE_DIR/destroy_failed_once"
-          echo "[mock] destroy failed (injected, once)" >&2
+      # Fail the first N destroys (default 0). A teardown that can only fail once cannot test
+      # "fail, retry, succeed", and one that never fails cannot test "keep the id".
+      _attempts="$(wc -l < "$MOCK_STATE_DIR/destroy_attempts.txt" | tr -d ' ')"
+      if [ "$_attempts" -le "${MOCK_DESTROY_FAIL_TIMES:-0}" ]; then
+          echo "[mock] destroy failed (injected, attempt $_attempts)" >&2
           exit 1
       fi
       echo "destroying instance $3."

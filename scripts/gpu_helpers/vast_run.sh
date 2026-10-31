@@ -267,22 +267,30 @@ RUN_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 # The launch id is minted here, used as the provider label, and used as the lease record's key.
 # That is what makes an instance findable again after a lost create response or a dead process.
 LAUNCH_ID="${LAUNCH_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$(od -An -N3 -tx1 /dev/urandom | tr -d ' \n')}"
+# A STABLE PREFIX plus the unique launch id. The prefix is what the preflight leak check and
+# vast_watchdog.sh match on; a bare launch id would make a stranded instance invisible to both --
+# the exact instance this lease exists to keep findable.
+LAUNCH_LABEL="tfm-$LAUNCH_ID"
+export LAUNCH_ID LAUNCH_LABEL
 LEASE_DIR="$OUTDIR/leases/$LAUNCH_ID"
 LEASE_FILE="$LEASE_DIR/lease.json"
 LEASE_RELEASED=0
+LEASE_OUTCOME=""
+export LEASE_OUTCOME
+LEASE_CREATED=0
 
 lease_write() { # lease_write <state> <outcome> <reason>
     mkdir -p "$LEASE_DIR" 2>/dev/null || return 1
     # Atomic: a crash mid-write must leave the previous record, not half a file.
-    python3 - "$LEASE_FILE" "$LAUNCH_ID" "${INSTANCE_ID:-}" "$IMAGE" "$1" "$2" "$3" "$RUN_STAMP" <<'LEASE_PY'
+    python3 - "$LEASE_FILE" "$LAUNCH_ID" "${INSTANCE_ID:-}" "$LAUNCH_LABEL" "$IMAGE" "$1" "$2" "$3" "$RUN_STAMP" <<'LEASE_PY'
 import json, os, sys, tempfile, time
 
-path, launch, instance, image, state, outcome, reason, stamp = sys.argv[1:9]
+path, launch, instance, label, image, state, outcome, reason, stamp = sys.argv[1:10]
 payload = {
     "launch_id": launch,
     "run_stamp": stamp,
     "instance_id": instance or None,
-    "label": launch,
+    "label": label,
     "image": image or None,
     "state": state,
     "outcome": outcome or None,
@@ -305,20 +313,37 @@ lease_release() { # lease_release <reason>
     local reason="${1:-}"
     [ "${LEASE_RELEASED:-0}" = 1 ] && return 0
     if [ -z "${INSTANCE_ID:-}" ]; then
-        lease_write released already_gone "$reason" || true
+        if [ "${LEASE_CREATED:-0}" = 1 ]; then
+            lease_write released already_gone "$reason" || true
+            LEASE_OUTCOME=already_gone
+        else
+            # Nothing was ever rented. Recording "released" here would put a row in the record
+            # for a launch that never spent, which a reader would mistake for a torn-down run.
+            lease_write aborted no_instance "$reason" || true
+            LEASE_OUTCOME=no_instance
+        fi
         LEASE_RELEASED=1
         return 0
     fi
     echo "--- releasing instance $INSTANCE_ID ---" >&2
-    if vastai destroy instance "$INSTANCE_ID" -y >/dev/null 2>&1; then
-        lease_write released released "$reason" || true
-        LEASE_RELEASED=1
-        INSTANCE_ID=""
-        return 0
-    fi
+    # Two attempts, not one. A dropped connection at teardown is the exact moment this matters,
+    # and the second attempt usually succeeds; a single attempt would strand the machine on a blip.
+    local attempt=0
+    while [ "$attempt" -lt 2 ]; do
+        attempt=$((attempt + 1))
+        if vastai destroy instance "$INSTANCE_ID" -y >/dev/null 2>&1; then
+            lease_write released released "$reason" || true
+            LEASE_RELEASED=1
+            LEASE_OUTCOME=released
+            INSTANCE_ID=""
+            return 0
+        fi
+        [ "$attempt" -lt 2 ] && sleep 2
+    done
     # The id is KEPT. Clearing it before the destroy is confirmed is what made a stranded
     # instance unfindable by the process that could have stopped it.
     lease_write acquired failed "destroy failed ($reason)" || true
+    LEASE_OUTCOME=failed
     echo "FATAL: DESTROY FAILED -- $INSTANCE_ID is STILL BILLING." >&2
     echo "       launch id: $LAUNCH_ID" >&2
     echo "       run: vastai destroy instance $INSTANCE_ID -y" >&2
@@ -512,12 +537,12 @@ except Exception:
     raise SystemExit
 insts = d if isinstance(d, list) else d.get('instances', [])
 for i in insts:
-    if (i.get('label') or '') == 'tabpfn-pilot':
+    if (i.get('label') or '').startswith('tfm-'):
         print('  id=%s status=%s gpu=%s dph=%s' % (i.get('id'), i.get('actual_status'),
                                                   i.get('gpu_name'), i.get('dph_total')))
 " 2>/dev/null)"
 if [ -n "$LEAKS" ]; then
-    echo "WARNING: 'tabpfn-pilot' instances from an earlier run still exist and are BILLING:" >&2
+    echo "WARNING: 'tfm-' instances from an earlier run still exist and are BILLING:" >&2
     echo "$LEAKS" >&2
     echo "         destroy with:  vastai destroy instance <id> -y" >&2
     printf 'Continue anyway? [y/N] '
@@ -688,7 +713,7 @@ lease_write pending none "before create" || true
 CREATE_OUT="$(vastai create instance "$OFFER_ID" \
     --image "$IMAGE" --disk "$DISK" \
     --onstart "$ONSTART_FILE" \
-    --label "$LAUNCH_ID" --raw 2>&1)"
+    --label "$LAUNCH_LABEL" --raw 2>&1)"
 rm -f "$ONSTART_FILE"   # it held the token; do not leave it on disk
 echo "$CREATE_OUT"
 INSTANCE_ID="$(printf '%s' "$CREATE_OUT" | python3 -c "
@@ -697,8 +722,17 @@ m=re.search(r'\{.*\}', sys.stdin.read(), re.S)
 try: print(json.loads(m.group(0)).get('new_contract','') if m else '')
 except Exception: print('')
 ")"
-[ -z "$INSTANCE_ID" ] && { lease_write released already_gone "create returned no id" || true; echo "FATAL: no instance id in the create response." >&2; exit 2; }
+[ -z "$INSTANCE_ID" ] && { 
+    # Say "unknown", never "released": a create whose response was lost may have rented a
+    # machine, and the label is how an operator finds it.
+    lease_write unknown create_no_id "create returned no id; search by label" || true
+    echo "FATAL: no instance id in the create response." >&2
+    echo "       an instance MAY be billing under label $LAUNCH_LABEL" >&2
+    echo "       find it: vastai show instances --label $LAUNCH_LABEL --raw" >&2
+    exit 2
+}
 T_CREATE="$(date -u +%s)"
+LEASE_CREATED=1
 lease_write acquired none "created" || true
 echo "instance id: $INSTANCE_ID  (billing starts now)"
 echo "launch id:  $LAUNCH_ID  (the provider label)"

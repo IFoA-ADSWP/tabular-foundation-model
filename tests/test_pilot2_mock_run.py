@@ -427,14 +427,14 @@ def test_a_normal_exit_records_released_and_destroys_once(mock_env):
     assert lease["outcome"] == "released"
     assert lease["instance_id"] == (mock_env["state"] / "created.txt").read_text().split()[0]
     # The launch id is the provider label, and it is in the record rather than only in a log.
-    assert lease["label"] == lease["launch_id"]
+    assert lease["label"] == "tfm-" + lease["launch_id"], "the leak check matches the tfm- prefix"
     assert (mock_env["state"] / "destroyed.txt").read_text().split() == [lease["instance_id"]]
     assert len((mock_env["state"] / "destroy_attempts.txt").read_text().split()) == 1
 
 
 def test_a_failed_destroy_keeps_the_id_and_exits_nonzero(mock_env):
     """The bug this exists for: a swallowed destroy left an instance billing, unfindable."""
-    env = {**mock_env["env"], "MOCK_DESTROY_FAIL_ONCE": "1"}
+    env = {**mock_env["env"], "MOCK_DESTROY_FAIL_TIMES": "2"}
     result, combined = _launch(mock_env, env=env)
 
     assert result.returncode != 0, combined
@@ -447,9 +447,24 @@ def test_a_failed_destroy_keeps_the_id_and_exits_nonzero(mock_env):
     assert not (mock_env["state"] / "destroyed.txt").exists(), "a failed destroy was recorded as success"
 
 
-def test_the_trap_does_not_try_a_second_destroy_after_a_failure(mock_env):
-    env = {**mock_env["env"], "MOCK_DESTROY_FAIL_ONCE": "1"}
-    _launch(mock_env, env=env)
+def test_a_teardown_retries_once_and_succeeds(mock_env):
+    """One blip at teardown must not strand a machine; the second attempt is the point."""
+    env = {**mock_env["env"], "MOCK_DESTROY_FAIL_TIMES": "1"}
+    result, combined = _launch(mock_env, env=env)
 
+    assert result.returncode == 0, combined
+    lease = _lease(mock_env)
+    assert lease["state"] == "released"
     attempts = (mock_env["state"] / "destroy_attempts.txt").read_text().split()
-    assert len(attempts) == 1, f"the trap retried a destroy that had already failed: {attempts}"
+    assert len(attempts) == 2, f"expected one retry, saw {attempts}"
+
+
+def test_a_launch_that_never_created_records_aborted(mock_env):
+    """A spend-gate refusal must not look like a torn-down run."""
+    env = {**mock_env["env"], "MAX_DPH": "0.01"}  # below the fixture offer: refusal before create
+    result, combined = _launch(mock_env, "--max-dph", "0.01", env=env)
+
+    assert result.returncode != 0, combined
+    lease = _lease(mock_env)
+    assert lease["state"] == "aborted"
+    assert lease["outcome"] == "no_instance"
