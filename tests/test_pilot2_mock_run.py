@@ -439,7 +439,7 @@ def test_a_failed_destroy_keeps_the_id_and_exits_nonzero(mock_env):
 
     assert result.returncode != 0, combined
     lease = _lease(mock_env)
-    assert lease["state"] == "acquired"
+    assert lease["state"] == "failed"
     assert lease["outcome"] == "failed"
     assert lease["instance_id"], "the id was cleared, so nothing could destroy it"
     assert "STILL BILLING" in combined

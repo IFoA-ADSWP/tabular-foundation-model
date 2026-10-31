@@ -307,6 +307,15 @@ os.replace(tmp, path)
 LEASE_PY
 }
 
+# A record write that fails must say so. It must not stop teardown -- blocking the release path on
+# a disk error is how an instance gets stranded -- but a silent skip is how a record ends up absent
+# with nobody knowing (CODING_STANDARDS, rule 1).
+lease_try_write() {
+    if ! lease_write "$@"; then
+        echo "WARNING: could not write the lease record at $LEASE_FILE (continuing)." >&2
+    fi
+}
+
 # Three findings, never a boolean: released | already_gone | failed. A caller that sees
 # `failed` keeps the id and exits; it must not retry.
 lease_release() { # lease_release <reason>
@@ -314,12 +323,12 @@ lease_release() { # lease_release <reason>
     [ "${LEASE_RELEASED:-0}" = 1 ] && return 0
     if [ -z "${INSTANCE_ID:-}" ]; then
         if [ "${LEASE_CREATED:-0}" = 1 ]; then
-            lease_write released already_gone "$reason" || true
+            lease_try_write released already_gone "$reason"
             LEASE_OUTCOME=already_gone
         else
             # Nothing was ever rented. Recording "released" here would put a row in the record
             # for a launch that never spent, which a reader would mistake for a torn-down run.
-            lease_write aborted no_instance "$reason" || true
+            lease_try_write aborted no_instance "$reason"
             LEASE_OUTCOME=no_instance
         fi
         LEASE_RELEASED=1
@@ -332,7 +341,7 @@ lease_release() { # lease_release <reason>
     while [ "$attempt" -lt 2 ]; do
         attempt=$((attempt + 1))
         if vastai destroy instance "$INSTANCE_ID" -y >/dev/null 2>&1; then
-            lease_write released released "$reason" || true
+            lease_try_write released released "$reason"
             LEASE_RELEASED=1
             LEASE_OUTCOME=released
             INSTANCE_ID=""
@@ -342,7 +351,7 @@ lease_release() { # lease_release <reason>
     done
     # The id is KEPT. Clearing it before the destroy is confirmed is what made a stranded
     # instance unfindable by the process that could have stopped it.
-    lease_write acquired failed "destroy failed ($reason)" || true
+    lease_try_write failed failed "destroy failed ($reason)"
     LEASE_OUTCOME=failed
     echo "FATAL: DESTROY FAILED -- $INSTANCE_ID is STILL BILLING." >&2
     echo "       launch id: $LAUNCH_ID" >&2
@@ -354,7 +363,7 @@ lease_on_exit() {
     local rc=$?
     cleanup
     if [ "${KEEP:-0}" -eq 1 ] && [ -n "${INSTANCE_ID:-}" ]; then
-        lease_write kept kept "kept by --keep" || true
+        lease_try_write kept kept "kept by --keep"
     elif ! lease_release "exit path"; then
         rc=3
     fi
@@ -709,7 +718,7 @@ fi
 # by showing the request carried the onstart file's CONTENTS rather than a path. So never run it
 # where the output is shared, pasted or recorded, and rotate the key afterwards if it does run.
 # The guard above is the cheaper first check and fails locally, for free.
-lease_write pending none "before create" || true
+lease_try_write pending none "before create"
 CREATE_OUT="$(vastai create instance "$OFFER_ID" \
     --image "$IMAGE" --disk "$DISK" \
     --onstart "$ONSTART_FILE" \
@@ -725,7 +734,7 @@ except Exception: print('')
 [ -z "$INSTANCE_ID" ] && { 
     # Say "unknown", never "released": a create whose response was lost may have rented a
     # machine, and the label is how an operator finds it.
-    lease_write unknown create_no_id "create returned no id; search by label" || true
+    lease_try_write unknown create_no_id "create returned no id; search by label" || true
     echo "FATAL: no instance id in the create response." >&2
     echo "       an instance MAY be billing under label $LAUNCH_LABEL" >&2
     echo "       find it: vastai show instances --label $LAUNCH_LABEL --raw" >&2
@@ -733,7 +742,7 @@ except Exception: print('')
 }
 T_CREATE="$(date -u +%s)"
 LEASE_CREATED=1
-lease_write acquired none "created" || true
+lease_try_write acquired none "created"
 echo "instance id: $INSTANCE_ID  (billing starts now)"
 echo "launch id:  $LAUNCH_ID  (the provider label)"
 

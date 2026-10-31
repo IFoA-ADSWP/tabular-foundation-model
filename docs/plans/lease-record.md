@@ -34,6 +34,14 @@ decoration (`CODING_STANDARDS.md`, rule 1).
 5. **The retry releases first**, then re-execs only on a confirmed release. Its isolation benefit is
    kept; its ability to forget an instance is not.
 
+## Known gaps, stated
+
+- **Ordering is not asserted by a test.** The pre-create write sits immediately before the create
+  call, but nothing compares the record's existence to the mock's create timestamp.
+- **Idempotence is process-local.** `LEASE_RELEASED` guards a second release in one process; a
+  successor process is #327's adoption problem, and the record it would read is not written back
+  into memory here.
+
 ## Verification
 
 - The mock gains a fail-once destroy, because a destroy that never fails cannot prove the id is kept.
