@@ -1,23 +1,23 @@
 # Task List
 
-Tracked from GitHub issues. Updated manually.
+Tracked from GitHub issues. Reconciled against the tracker on **2026-10-31**; update a row when its issue changes state.
 
 | Status | # | Title | Assignee |
 |--------|---|-------|----------|
-| 🔲 | #238 | Pilot runs take their experiment from the registry — `--experiment` owns the dataset, arms, seed, folds, sizes and config; arm records schema 4 carry declared beside resolved; launcher passes the id; branch `feat/238-pilot-registry`, PR pending | — |
-| 🔲 | #264 | The registry declares the row-size axis the size sweep varies — `row_sizes` per experiment, full implicit, `--size` on the frontier, one shared slicer; branch `feat/264-row-size-axis`, PR pending | — |
-| 🔲 | #239 | A run records its declared and resolved model version and flags a mismatch — run + capture manifests carry the registry literal, the resolved value and `model_version_mismatch` (`true`/`false`/`null`); the fact is exposed for #233, which owns reuse; branch `feat/239-declared-version`, PR pending | — |
-| 🔲 | #230 | Experiment registry — datasets, methods and experiments declared once in `experiments.toml`, fail-closed loader, `--experiment` stamps its id into every artifact; branch `feat/230-experiment-registry`, PR pending | — |
+| ✅ | #238 | Pilot runs take their experiment from the registry, not five sites in code — PR #316 | — |
+| ✅ | #264 | The registry declares the row-size axis the size sweep varies — PR #311 | — |
+| ✅ | #239 | A run records its declared and resolved model version, and flags a mismatch — PR #295 | — |
+| ✅ | #230 | Declare the frontier suite's experiments in one committed registry — PR #254 | — |
 | 🔲 | #186 | Version-drift re-test: TabPFN 3.5 on the v3_default underperformance cases — regression/count tier **done** (4/4 improved; `spanish_motor_freq` onto the frontier, falsifies §14.9's tree-only reading; off-frontier count 5/12 → 4/12; master report §16). Open: classification calibration tier (`ausprivauto0405`, `bemtl97`, `norauto`), `bemtl16` lift, `eudirectlapse`, and the §15.2 sweep refresh required before any `bemtl97` frontier claim | Mako-120 |
 | 🔲 | #82 | B8 Exercise version-drift re-test policy (dry run) — **superseded by #186**, which executed §15 live after a real trigger fired; close once #186 lands | — |
 | 🔲 | #125 | Fine-tuning negative-result audit — null-control Stage A harness (W1 confound) + power/dose/scale remediation; gates #85/#81 | — |
 | ✅ | #— | Repository migrated to IFoA-ADSWP/tabular-foundation-model — full history, 123 issues+PRs (numbering preserved), wiki, collaborator access; open PR recreated as #124; old fork retained as read-only archive | scotthawes |
-| 🔲 | #123 | Add insurance-native alternative metrics (Gamma/Tweedie deviance, MAE) with fold-level SEs to regression benchmarks — consumes #122 predictions; spec at `docs/analyses/altmetrics_rescore_spec.md` | — |
-| 🔲 | #122 | Persist per-fold test predictions for retrospective re-scoring (`--save-predictions`) — spec at `docs/analyses/prediction_capture_rescore_spec.md` | — |
+| ✅ | #123 | Add insurance-native alternative metrics (Gamma/Tweedie deviance, MAE) with fold-level SEs to regression benchmarks | — |
+| ✅ | #122 | Persist per-fold test predictions for retrospective re-scoring (`--save-predictions`) — PR #149 | — |
 | 🔲 | #57 | Clean up main junk commits (f0bf230, 5264ec1) — blocked (needs main force-push decision) | — |
 | ✅ | #56 | Merge PR #51 + post-merge verification — merged 2026-08-04 (31d40a5); registry check clean | scotthawes |
 | ✅ | #55 | Version-drift re-test policy for the benchmark verdict — PR #62 | — |
-| 🔲 | #54 | TabPFN levers in the parsimony framework — fine-tuning, HPO, ensembling — assessment shipped (PR #63), run decision pending | — |
+| ✅ | #54 | TabPFN levers in the parsimony framework — fine-tuning, HPO, ensembling — assessment shipped (PR #63) | — |
 | ✅ | #53 | Regime characterization — why does TabPFN win lapse at 53.5K but lose frequency/severity? — PR #61 | — |
 | ✅ | #52 | Conclusion & adoption guidance for the TabPFN benchmark — PR #61 | — |
 | ✅ | #35 | Pipeline for Insurance/Actuarial Predictions — 5/5 criteria done (#47–#50 + #46 generic CLI) | — |
