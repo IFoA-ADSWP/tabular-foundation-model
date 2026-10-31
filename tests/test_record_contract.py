@@ -186,7 +186,11 @@ def test_the_block_names_its_dataset_split_model_and_code(mock_arm_run):
     # Since #285 the pilot passes the resolved version to the estimator, so the block's claim is
     # a pin rather than a declaration. The block
     # says which claim it is making rather than implying a pin.
-    assert block["model"]["version_source"] == "pinned"
+    # The source must say who chose, and the test must know which case it is in (#285).
+    import os as _os
+
+    expected = "pinned" if _os.environ.get("TABPFN_MODEL_PATH") else "auto"
+    assert block["model"]["version_source"] == expected
     assert block["model"]["client_version"]
 
     assert len(block["code"]["git_sha"]) == 40

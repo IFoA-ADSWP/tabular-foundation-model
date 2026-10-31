@@ -77,7 +77,7 @@ from experiment_spec import (  # noqa: E402
     arm_epoch_budget,
     load_registry,
 )
-from model_version import resolve_model_path  # noqa: E402
+from model_version import explicit_model_path  # noqa: E402
 
 # The arm record's layout is `provenance.ARM_RECORD_SCHEMA_VERSION` (3 since #241) and the
 # invocation manifest's is `provenance.PILOT_RUN_SCHEMA_VERSION` (2): one definition each, in
@@ -372,14 +372,14 @@ def _runtime_versions():
 
 
 @lru_cache(maxsize=1)
-def pinned_model_path() -> str:
-    """The model this process pins, resolved once.
+def pinned_model_path() -> str | None:
+    """The model path an operator set, resolved once; None means the library's own default.
 
-    One resolution per run: the record and every estimator read the same string, so "the version
-    we record" and "the version we asked the library for" cannot drift apart (#285). Cached rather
-    than re-read so a mid-run environment change cannot make them disagree.
+    One resolution per run, so the record and every estimator read the same value. `None` is a
+    finding, not a failure: a label like `v3_default` is not a valid `model_path`, and passing one
+    failed every arm of the 2026-10-31 smoke (#285).
     """
-    return resolve_model_path()
+    return explicit_model_path()
 
 
 def _model_provenance(weights=None, versions=None):
@@ -391,13 +391,12 @@ def _model_provenance(weights=None, versions=None):
     is env-first (src/model_version.py), so a re-test under TABPFN_MODEL_PATH is recorded as
     the version it actually used rather than the one the baseline assumes.
     """
+    pinned = pinned_model_path()
     return model_section(
-        version=pinned_model_path(),
-        # The pilot now PASSES this value to both estimators (#285), so the label is a statement
-        # about what was asked for rather than what the repository resolves to. `pinned` is a
-        # stronger claim than `resolver`: if the library ignored the argument, weights_sha256 is
-        # the field that would contradict it.
-        version_source="pinned",
+        # "auto" is the honest label when nothing was pinned: the library chose, and the record
+        # must not borrow the baseline's name for a choice nobody made (#285).
+        version="auto" if pinned is None else pinned,
+        version_source="auto" if pinned is None else "pinned",
         weights_sha256=(weights or {}).get("sha256"),
         client_version=(versions or {}).get("tabpfn"),
     )
@@ -820,10 +819,7 @@ def build_pool(target, pool_names, fingerprints):
 def run_arm_a_raw(X_train, X_test, y_train, y_test, config):
     from tabpfn import TabPFNClassifier
 
-    clf = TabPFNClassifier(
-        # Pin the version this run records (#285). Without it the record states the resolver's
-        # label while the library loads its own default, so the two can disagree silently.
-        model_path=pinned_model_path(),
+    _kwargs = dict(
         ignore_pretraining_limits=True,
         device="cuda" if torch.cuda.is_available() else "cpu",
         n_estimators=config["n_estimators"],
@@ -831,6 +827,11 @@ def run_arm_a_raw(X_train, X_test, y_train, y_test, config):
         inference_precision=torch.float32,
         fit_mode=config["fit_mode"],
     )
+    # A label is not a filename: `model_path` is passed only when an operator set one (#285).
+    _pin = pinned_model_path()
+    if _pin is not None:
+        _kwargs["model_path"] = _pin
+    clf = TabPFNClassifier(**_kwargs)
     clf.fit(X_train, y_train)
     probs = clf.predict_proba(X_test)[:, 1]
     return probs, clf
@@ -874,10 +875,11 @@ def run_arm_b_in_domain(X_train, X_test, y_train, y_test, config):
 
     # P8: pass the pin explicitly. If it is ever enabled (not for this pilot), patience is passed
     # too -- the package takes the pair together and no default is assumed here.
+    _pin = pinned_model_path()
     _ft_kwargs = dict(
         # The fine-tuner has no model_path of its own; it forwards classifier kwargs, so the pin
-        # travels the same route the raw arm uses (#285).
-        extra_classifier_kwargs={"model_path": pinned_model_path()},
+        # travels the same route the raw arm uses (#285) -- and only when one was set.
+        **({"extra_classifier_kwargs": {"model_path": _pin}} if _pin is not None else {}),
         device="cuda" if torch.cuda.is_available() else "cpu",
         epochs=config["epochs"],
         learning_rate=config["learning_rate"],

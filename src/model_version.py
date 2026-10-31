@@ -1,9 +1,17 @@
 """TABPFN_MODEL_PATH resolution shared by benchmark scripts.
 
-Defaults to the `v3_default` baseline that every committed verdict is stamped to
-(docs/MODEL_VERSIONS.md), so an unconfigured run still reproduces the published
-numbers. Set TABPFN_MODEL_PATH to re-test a newer model under the §15
-Version-Drift Re-Test Policy, e.g. TABPFN_MODEL_PATH=v3.5_default.
+Two consumers want two different things, and conflating them broke the paid path once:
+
+- **A label** (`v3_default`), for records and for the **hosted** client, whose
+  `model_path` accepts a label. `resolve_model_path()` returns this, defaulting to the
+  baseline every committed verdict is stamped to (docs/MODEL_VERSIONS.md).
+- **A file name, a path, or `"auto"`**, for the **local** `tabpfn` package. It rejects a
+  label outright: `Model v3_default not found in available models: [...]`. That is what
+  failed every arm of the 2026-10-31 smoke in three seconds. `explicit_model_path()`
+  returns this, or `None` when no operator set one.
+
+So: `TABPFN_MODEL_PATH=v3.5_default` is a label and belongs with the hosted client;
+a local run needs a `.ckpt` name or path.
 
 Resolution order mirrors src.api_key: env var, then the repo-root .env, then
 TABPFN_ENV_FILE. Reading .env matters because the server-side default moved to
@@ -41,20 +49,36 @@ def version_mismatch(declared: str | None, resolved: str) -> bool | None:
     return declared != resolved
 
 
-def resolve_model_path() -> str:
-    """The `model_path` to pass to TabPFN estimators: env, else .env, else baseline."""
+def explicit_model_path() -> str | None:
+    """What an operator set for the LOCAL package: env, else .env.
+
+    `None` means "nothing was chosen" -- and that is materially different from a baseline label.
+    `TabPFNClassifier(model_path=...)` takes a **file name, a path, or "auto"**, never a label
+    like `v3_default`: passing one is what failed every arm of the 2026-10-31 smoke in three
+    seconds. So the launcher passes this only when it is not None, and the library uses its own
+    default otherwise (#285).
+    """
     value = os.environ.get(_ENV_KEY)
     if not value:
         candidates = [
             Path.cwd() / ".env",
             Path(os.environ["TABPFN_ENV_FILE"]) if os.environ.get("TABPFN_ENV_FILE") else None,
         ]
-        for p in candidates:
-            if p and p.exists():
-                for line in p.read_text().splitlines():
+        for candidate in candidates:
+            if candidate and candidate.exists():
+                for line in candidate.read_text().splitlines():
                     if line.startswith(f"{_ENV_KEY}="):
                         value = line.split("=", 1)[1].strip()
                         break
             if value:
                 break
-    return (value or BASELINE_MODEL_PATH).strip() or BASELINE_MODEL_PATH
+    return (value or "").strip() or None
+
+
+def resolve_model_path() -> str:
+    """The version *label*: env, else .env, else the baseline label.
+
+    Correct for hosted-client benchmarks and for records that name an era. **Not** a value the
+    local `tabpfn` package accepts: it takes a file name, a path, or `"auto"` (#285).
+    """
+    return explicit_model_path() or BASELINE_MODEL_PATH

@@ -548,11 +548,11 @@ def model_section(*, version=None, weights_sha256=None, client_version=None, ver
     `client_version` is the package that served the model -- `tabpfn` for a local run,
     `tabpfn-client` for the API -- recorded so "which stack produced this" is one lookup.
 
-    `version_source` says what kind of claim `version` is. `resolver` means "the label this
-    repository resolves to". Since #285 the pilot *passes* that value to every estimator it
-    constructs, so `version_source` reads `pinned`: the label is then a statement about what was
-    asked for, and `weights_sha256` is the field that would contradict it. A record that predates
-    the pin says `resolver`, and states that weaker claim rather than implying a pin (#285).
+    `version_source` says what kind of claim `version` is. `auto` means the library chose: the
+    value is the literal `auto`, not a label borrowed from the baseline. `pinned` means an
+    operator set `TABPFN_MODEL_PATH`, and `version` is that value verbatim — a file name or path
+    for the local package, a label for the hosted client. `resolver` appears only on records that
+    predate the pin (#285).
     """
     return _check_section(
         _MODEL,
