@@ -5,10 +5,11 @@ name: ci
 # command, so this file and a contributor's local run have one definition and cannot
 # drift. The commands themselves live in the script; this file only schedules them.
 #
-# Four checks, not five: ruff, pytest, shellcheck and the evidence guard. The doc link
-# and doc-status checks are not here -- they are red on main against a pre-existing
-# backlog, and adding them is their own work. #260 corrected the instructions to the
-# then-three checks; the evidence job (#319) is the fourth.
+# Five checks, not seven: ruff, pytest, shellcheck, the evidence guard and the citation
+# check. The doc link and doc-status checks are not here -- they are red on main against a
+# pre-existing backlog, and adding them is their own work. #260 corrected the instructions
+# to the then-three checks; the evidence job (#319) is the fourth, and the citation job
+# (#364) is the fifth.
 #
 # The shellcheck severity floor and its reason live in scripts/check.sh, beside the
 # check, so that it is not re-litigated here.
@@ -147,3 +148,13 @@ jobs:
 
       - name: check
         run: ./scripts/check.sh docstatus
+
+  citation:
+    name: citation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # A run cited in docs/ must have a capture that can re-derive its numbers (#364).
+    steps:
+      - uses: actions/checkout@v4
+      - name: check
+        run: ./scripts/check.sh citation

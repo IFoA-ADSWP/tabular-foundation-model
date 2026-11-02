@@ -116,28 +116,35 @@ run_docstatus() {
   python3 scripts/check_doc_status.py
 }
 
+run_citation() {
+  need python3 "install Python 3, or use the interpreter that runs pytest"
+  echo "== citation (every cited run has a capture)"
+  python3 scripts/check_citations.py --root .
+}
+
 usage() {
-  echo "usage: $(basename "$0") [ruff|pytest|shellcheck|evidence|doclinks|docstatus|all]" >&2
+  echo "usage: $(basename "$0") [ruff|pytest|shellcheck|evidence|doclinks|docstatus|citation|all]" >&2
   exit 2
 }
 
-run_check() { # run_check <ruff|pytest|shellcheck|evidence|doclinks|docstatus>
+run_check() { # run_check <ruff|pytest|shellcheck|evidence|doclinks|docstatus|citation>
   case "$1" in
     ruff)       run_ruff ;;
     pytest)     run_pytest ;;
     shellcheck) run_shellcheck ;;
     evidence)   run_evidence ;;
     doclinks)   run_doclinks ;;
+    citation)   run_citation ;;
     docstatus)  run_docstatus ;;
   esac
 }
 
 case "${1:-all}" in
-  ruff|pytest|shellcheck|evidence|doclinks|docstatus) run_check "$1" ;;
+  ruff|pytest|shellcheck|evidence|doclinks|docstatus|citation) run_check "$1" ;;
   all)
     status=0
     missing=0
-    for check in ruff pytest shellcheck evidence doclinks docstatus; do
+    for check in ruff pytest shellcheck evidence doclinks docstatus citation; do
       # The subshell is load-bearing: need() exits 3 when a tool is absent, and without
       # it that exit would end the script and hide every check after this one.
       ( run_check "$check" )
