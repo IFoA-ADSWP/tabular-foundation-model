@@ -66,17 +66,20 @@ Tags: `paper-snapshot-2026-08-22` (pre-hygiene baseline backing §14.x verdicts)
 | `bemtl97_amount` / `spanish_motor_severity` losses | Both improved (−3.7% / −1.4%) but remain paired-significant losses; LGBM still ~1.4× better on `bemtl97_amount` |
 | Not yet tested on v3.5 | Classification calibration tier, `bemtl16` lift, `eudirectlapse` — **still v3, open under #186** |
 
-**Classification on v3.5 — a deliberate departure (2026-11-03).** D12 pins **v3.5** for the
-fine-tuning replication on `uslapseagent`, a classification task, which steps outside the "still v3"
-line above. That is a decision, not an oversight: the **hosted server's** default moved to v3.5, so an unpinned run
-can no longer be *assumed* to be v3 — though what a given **local package's** `auto` resolves to is not
-recorded anywhere (see the note above) — and the replication carries its own variance probe because
-the v3 half-widths and null bands do not transfer.
+**The fine-tuning pilot pins `v3_default`, and cannot use v3.5 (2026-11-03).** D12 pins **v3_default**
+for the replication on `uslapseagent` — the same line the anchor ran, now named in the record rather
+than inferred from the checkpoint field. The pin matters because the library default is `auto` and the
+**hosted server's** default has moved, so an unpinned run can no longer be *assumed* to be v3.
 
-**Until the pilot's evidence lands, do not cite v3.5 for any classification number.** #186 owns the
-gap; a classification row is added to the timeline above when the replication reports. A number
-measured under `version: auto` in this repo resolved to v3 (see the anchor's checkpoint field) and
-must not be re-described as v3.5.
+**v3.5 cannot be used for this work.** It exists on the **hosted client** line (`tabpfn-client 0.6.0`,
+regression/count datasets). The local package at the pilot's version — `tabpfn 8.5.0`, the version the
+anchor ran on — enumerates only `V2, V2_5, V2_6, V3` and exposes no v3.5 classifier checkpoint, and the
+fine-tuning path is local-package only. A v3.5 pin is therefore **not expressible**, not merely
+unwired. The pin also passes a **path, not a label** (#285, #345).
+
+**Until a classification run lands on a newer version, do not cite v3.5 for any classification
+number.** #186 owns the gap. A number measured under `version: auto` in this repo resolved to v3 (the
+anchor's checkpoint field) and must not be re-described as v3.5.
 
 ## Per-artifact validity (this repo)
 

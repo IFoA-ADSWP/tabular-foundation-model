@@ -265,11 +265,19 @@ launches — about **$0.23** for the pair. The **ceiling is $0.15 per launch**: 
 not a cost estimate. Sources: `docs/analyses/replication_sizing.md` §7 for the cost model, and
 `results/20261031T021845Z/` for the timings it is built from.
 
-The model is **v3.5, pinned explicitly**; the v3 variance numbers do not transfer, so a probe re-derives
-them before any sizing is asserted. Agreed on the threshold ticket (#337).
+The model is **v3_default, pinned explicitly** — the same line the anchor ran (`version: auto` resolved
+to `tabpfn-v3-classifier-v3_default.ckpt`), now named in the record instead of inferred from a checkpoint
+field. **Same version means the measured variance transfers**: the 0.0036 half-width and the 0.00535
+per-seed null SD stand, and the probe refines the between-seed term rather than re-deriving a line. The
+pin passes a **path, not a label** (#285, #345).
+
+**v3.5 is not available for this work** (corrected on evidence, 2026-11-03). It exists on the hosted
+client line; `tabpfn 8.5.0` — the version the anchor ran on — enumerates only `V2, V2_5, V2_6, V3` and
+exposes no v3.5 classifier checkpoint, and the fine-tuning path is local-package only, so a v3.5 pin
+cannot be loaded at all. Agreed on the threshold ticket (#337).
 
 DECISION: **accepted (2026-11-03)** — δ=0.002 AUC, Brier ≤ `A_raw`+0.001, one probe-selected rung,
-in-run comparator, $0.15 per launch **ceiling**, v3.5 pinned.
+in-run comparator, $0.15 per launch **ceiling**, v3_default pinned.
 Owner: scotthawes  Date: 2026-11-03  Section: §4.5.4
 
 ### D13 — The replication design
@@ -279,7 +287,8 @@ was **between splits**, so more test rows do not help: at the 19,317-row ceiling
 still gives 38% power on the conservative variance basis (`docs/analyses/replication_sizing.md` §5).
 
 **Decision (2026-11-03).** A four-arm probe — ten seeds, 1,000 test rows, 10,000 training rows —
-measures v3.5's variance and picks the rung: the highest probe mean that still fits the per-launch
+measures the **between-seed** variance (two seeds cannot estimate it, which is what made D11 ambiguous)
+and picks the rung: the highest probe mean that still fits the per-launch
 ceiling, with the next-best rung substituted (and recorded) if the winner does not fit. The
 replication then runs `A_raw` plus that one rung over `k = ceil((sd_probe / 0.000714)²)` **fresh**
 seeds, aggregated as a random-effects (REML) interval. (`0.000714` is the standard error that gives 80%
@@ -307,7 +316,7 @@ Owner: scotthawes  Date: 2026-11-03  Section: §4.5.5
 **Why it matters.** This is the destination of the effort: whether the lever stays open. Deciding it on
 the size of the effect, before the effect is measured, is how a lever stays open for a year.
 
-**Decision (2026-11-03).** The pilot **continues** — one pre-registered v3.5 replication on
+**Decision (2026-11-03).** The pilot **continues** — one pre-registered v3 replication on
 `uslapseagent`, about **$0.23** at the measured figures in D12 — and **not further**. There is **no Stage 2 expansion even on a pass**: a
 0.002–0.003 effect is roughly 20 times smaller than raw TabPFN's margin over the best actuarial
 baseline, so scaling it buys a larger sample of something no modelling choice depends on. A pass
@@ -327,9 +336,10 @@ takes the first branch in a bounded form — seeds, not rows, and no breadth —
 branches govern the replication. §3 still governs the anchor's reading.
 
 Reopening requires a **named diagnostics finding** — a dataset whose closable gap is large relative to
-0.002 — or a **measured v3.5 classification behaviour change**. Nothing vaguer.
+0.002 — or a **measured classification behaviour change on a newer model version** (v3.5 or later, once
+the local package can load one). Nothing vaguer.
 
-DECISION: **continue once, no expansion (2026-11-03)** — one v3.5 replication; pass publishes, null
+DECISION: **continue once, no expansion (2026-11-03)** — one v3 replication; pass publishes, null
 archives, unresolved reopens.
 Owner: scotthawes  Date: 2026-11-03  Section: §3
 

@@ -60,7 +60,7 @@ The research context from Molnar's [*Tabular Foundation Models*](https://tabular
 rungs, seed 44 cleared none. That stop was recorded as a null, and it was not one — a null control over
 the anchor's committed capture shows the design resolves **±0.010** against a **0.002–0.003** effect, so
 it could not tell "no effect" from "no power". D11 is restated accordingly in
-`FINETUNING_DECISION_LOG.md`, and one pre-registered v3.5 replication is authorised at about **$0.23**
+`FINETUNING_DECISION_LOG.md`, and one pre-registered v3_default replication is authorised at about **$0.23**
 measured (a $0.15-per-launch ceiling), with **no expansion afterwards** (D14). Its design is D13; its threshold is D12; its evidence is
 `results/20261031T021845Z/` and `docs/analyses/null_control_scoring_path.md`.
 

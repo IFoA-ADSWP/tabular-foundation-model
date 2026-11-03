@@ -30,7 +30,7 @@ for this case". That distinction is the whole value of pre-registering the mappi
 1. **`docs/current/FINETUNING_DECISION_LOG.md`**
    - A **restatement block under D11**, leaving the original text visible as history, naming the §3
      row the evidence actually selects.
-   - **D12** — the continuation threshold (δ=0.002 AUC, Brier guard, one probe-selected rung, v3.5
+   - **D12** — the continuation threshold (δ=0.002 AUC, Brier guard, one probe-selected rung, v3_default
      pinned, $0.15 per launch).
    - **D13** — the replication design (probe shape, rung rule with budget fallback, resolution gate,
      fresh null, pre-registration as dated amendment).
@@ -42,9 +42,10 @@ for this case". That distinction is the whole value of pre-registering the mappi
 3. **`docs/analyses/`** — two research documents promoted from their throwaway branches
    (`research/replication-sizing`, `research/spanish-lapse-stage2`), and one new document for the
    null control with its method, RNG seed, replicate count and measured figures.
-4. **`docs/MODEL_VERSIONS.md`** — a scoped note: v3.5 is pinned for the replication's classification
-   task by D12, which steps outside the table's "still v3" line; #186 owns closing the gap. Without
-   this the doc forbids what the plan does.
+4. **`docs/MODEL_VERSIONS.md`** — a scoped note: the pilot pins **v3_default** (a path, not a label),
+   and **v3.5 cannot be loaded** by the local package at the pilot's version, so it is unavailable rather
+   than merely unpinned. #186 owns any future classification re-test. Without this the doc's "still v3"
+   line and the plan look like a contradiction.
 
 ## What this deliberately does not do
 
