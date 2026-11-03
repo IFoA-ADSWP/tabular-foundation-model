@@ -1,6 +1,6 @@
 # Fine-Tuning — Decision Log for Technical Review
 
-> **Status:** current as of 2026-10-31.
+> **Status:** current as of 2026-11-03.
 
 
 > **Supporting document.** The canonical current proposal is `docs/current/FINETUNING_PILOT_DESIGN.md`. This log preserves technical decisions from the earlier pilot design. Its transfer and pooling entries become active technical references only if the in-domain gate releases Phase 3; they are not blockers for Phases 1–2.
@@ -224,6 +224,124 @@ that question; they no longer gate anything.
 
 DECISION: **stop the fine-tuning line (2026-10-31)** — the anchor did not replicate under D9.
 Owner: scotthawes  Date: 2026-10-31  Section: §4.5.2
+
+**Restated 2026-11-03, after the null control (#338).** The anchor's stop **stands for the v3 line** — D9
+required both seeds and one did not clear — but its *reading as a null* does not. D11 called the result "a fair negative",
+which is §3's row for *no gain at any budget*. The row for this case is the last one in that table:
+*"Test-set power unreachable within the envelope → report the power limit, not a null."* That reading
+was not available on 2026-10-31, because nobody had measured the design's resolution.
+
+It is measured now. Scores-only over this run's committed capture, with 5,000 label permutations per
+seed, gives a per-seed null SD of **0.0052–0.0055** and a 95% band of **±0.010**, against an effect of
+**0.002–0.003**. Every observed delta sits inside that band (p 0.29–0.84), and the two-seed rule D9 used
+fires under the null at 0.0008–0.0012. The design could not tell "no effect" from "no power".
+
+So: the stop is a **power stop, not a null**. The redirect to calibration, preprocessing and
+task-specific model selection is unchanged, and the diagnostics still serve explanation rather than a
+gate. Method and figures: `docs/analyses/null_control_scoring_path.md`. Consequences: D12–D14 below.
+
+**Which mapping governs what.** §3's last row prescribes "revisit scale or accept the limit". D14 takes
+the first branch in a **bounded** form — one replication that revisits *seeds*, not rows, and no
+breadth — and its three outcome branches govern the replication. §3 continues to govern the anchor's
+own reading, which is the power row above.
+
+### D12 — The continuation threshold, agreed before any replication
+
+**Why it matters.** Without a threshold agreed in advance, a replication's outcome gets described
+after the fact. The evidence so far is a 0.002–0.003 AUC effect, against a baseline margin about 20
+times larger (+0.068 on COIL 2000; see D14), so "is another run worth it" needs a number, not a
+feeling.
+
+**Decision (2026-11-03).** The claim measure is **ROC AUC**, with Brier as a veto (tuned arm no more
+than `A_raw` + 0.001). The comparator is the **in-run `A_raw`** — same seed, split and version. The
+effect worth continuing for is **δ = 0.002 AUC**, because R1's own range was +0.0022 to +0.0034, so an
+**equivalence bound of ±0.002** excludes all of it. **One rung**, pre-registered from a probe, carries the verdict; the
+others are descriptive. A failure claims "no effect larger than 0.002" **only** when the interval lies
+wholly inside ±0.002 — a wide interval containing zero is *unresolved* and licenses nothing.
+
+**Cost, measured rather than assumed.** From the anchor's recorded arm times and the measured rate, a
+four-arm ten-seed probe is **$0.11** and a 57-seed two-arm replication is **$0.12** across three
+launches — about **$0.23** for the pair. The **ceiling is $0.15 per launch**: an authorisation decision,
+not a cost estimate. Sources: `docs/analyses/replication_sizing.md` §7 for the cost model, and
+`results/20261031T021845Z/` for the timings it is built from.
+
+The model is **v3_default, pinned explicitly** — the same line the anchor ran (`version: auto` resolved
+to `tabpfn-v3-classifier-v3_default.ckpt`), now named in the record instead of inferred from a checkpoint
+field. **Same version means the measured variance transfers**: the 0.0036 half-width and the 0.00535
+per-seed null SD stand, and the probe refines the between-seed term rather than re-deriving a line. The
+pin passes a **path, not a label** (#285, #345).
+
+**v3.5 is not available for this work** (corrected on evidence, 2026-11-03). It exists on the hosted
+client line; `tabpfn 8.5.0` — the version the anchor ran on — enumerates only `V2, V2_5, V2_6, V3` and
+exposes no v3.5 classifier checkpoint, and the fine-tuning path is local-package only, so a v3.5 pin
+cannot be loaded at all. Agreed on the threshold ticket (#337).
+
+DECISION: **accepted (2026-11-03)** — δ=0.002 AUC, Brier ≤ `A_raw`+0.001, one probe-selected rung,
+in-run comparator, $0.15 per launch **ceiling**, v3_default pinned.
+Owner: scotthawes  Date: 2026-11-03  Section: §4.5.4
+
+### D13 — The replication design
+
+**Why it matters.** A design that cannot see the effect produces another D11. The anchor's ambiguity
+was **between splits**, so more test rows do not help: at the 19,317-row ceiling the row-only design
+still gives 38% power on the conservative variance basis (`docs/analyses/replication_sizing.md` §5).
+
+**Decision (2026-11-03).** A four-arm probe — ten seeds, 1,000 test rows, 10,000 training rows —
+measures the **between-seed** variance (two seeds cannot estimate it, which is what made D11 ambiguous)
+and picks the rung: the highest probe mean that still fits the per-launch
+ceiling, with the next-best rung substituted (and recorded) if the winner does not fit. The
+replication then runs `A_raw` plus that one rung over `k = ceil((sd_probe / 0.000714)²)` **fresh**
+seeds, aggregated as a random-effects (REML) interval. (`0.000714` is the standard error that gives 80%
+power at δ=0.002: δ divided by 2.80159, the sum of the two-sided z for 95% confidence and the one-sided
+z for 80% power.)
+
+Two safeguards, at two different moments: a **pre-spend resolution gate** stops the replication before
+any money if `k` cannot reach 0.002, and a **fresh permutation null** on the replication's own capture —
+whose acceptable **false-positive-rate band is 0.03–0.07** — voids the verdict on instrument failure
+after the capture but before the verdict is read. A failure claims equivalence only inside ±0.002. The design must be committed as a pre-registration before the
+probe launches — that document is also the dated amendment the escalation rule requires.
+
+Ruled out, with reasons: per-seed conjunction (power 1.3×10⁻⁴¹ at 57 seeds), pooling rows (SE understated
+1.69×, false-positive rate 0.25), and re-running the epoch ladder in the replication (three times the
+cost for description no decision uses). All three figures, and the cost model, are worked in
+`docs/analyses/replication_sizing.md` §§4–6; the null band the fresh check must reproduce is in
+`docs/analyses/null_control_scoring_path.md`. Design agreed on #336.
+
+DECISION: **accepted (2026-11-03)** — probe then two-arm replication, REML interval, resolution gate,
+fresh null, pre-registration first.
+Owner: scotthawes  Date: 2026-11-03  Section: §4.5.5
+
+### D14 — The pilot continues once, then stops either way
+
+**Why it matters.** This is the destination of the effort: whether the lever stays open. Deciding it on
+the size of the effect, before the effect is measured, is how a lever stays open for a year.
+
+**Decision (2026-11-03).** The pilot **continues** — one pre-registered v3 replication on
+`uslapseagent`, about **$0.23** at the measured figures in D12 — and **not further**. There is **no Stage 2 expansion even on a pass**: a
+0.002–0.003 effect is roughly 20 times smaller than raw TabPFN's margin over the best actuarial
+baseline, so scaling it buys a larger sample of something no modelling choice depends on. A pass
+publishes and stops; a decisive null archives, with code and evidence going to #340 and #341; an
+unresolved result reopens this decision and is never reported as a soft pass.
+
+**Evidence this rests on, by name.** The null control (`docs/analyses/null_control_scoring_path.md`)
+for why the earlier stop was a power stop; the sizing analysis
+(`docs/analyses/replication_sizing.md`) for why the row lever is not the answer and what the seed lever
+costs; the dataset readiness assessment
+(`docs/analyses/spanish_motor_lapse_stage2_readiness.md`) for why breadth is declined rather than
+deferred — a paired half-width of ≈0.015 makes that dataset void as evidence. Destination agreed on
+#339; the threshold it applies is D12.
+
+**Which mapping governs.** §3's power row prescribes "revisit scale or accept the limit"; this decision
+takes the first branch in a bounded form — seeds, not rows, and no breadth — and these three outcome
+branches govern the replication. §3 still governs the anchor's reading.
+
+Reopening requires a **named diagnostics finding** — a dataset whose closable gap is large relative to
+0.002 — or a **measured classification behaviour change on a newer model version** (v3.5 or later, once
+the local package can load one). Nothing vaguer.
+
+DECISION: **continue once, no expansion (2026-11-03)** — one v3 replication; pass publishes, null
+archives, unresolved reopens.
+Owner: scotthawes  Date: 2026-11-03  Section: §3
 
 ---
 

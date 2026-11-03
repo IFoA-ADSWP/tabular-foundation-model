@@ -1,6 +1,6 @@
 # Fine-Tuning Investigation — Status Brief
 
-> **Status:** current as of 2026-10-31.
+> **Status:** current as of 2026-11-03.
 
 
 > Date: 2026-09-24 | Status: **Two probes complete; funded diagnostics and full pilot defined**
@@ -56,9 +56,13 @@ The research context from Molnar's [*Tabular Foundation Models*](https://tabular
 
 ## What we're doing next
 
-**Stopped (2026-10-31).** The two-seed anchor did not replicate: seed 43 cleared all three rungs,
-seed 44 cleared none. Under the pre-registered rule (D9) that is a stop, not a close call. The record
-and its evidence are in `FINETUNING_DECISION_LOG.md` (D11) and `results/20261031T021845Z/`.
+**Continues once (2026-11-03).** The two-seed anchor did not replicate: seed 43 cleared all three
+rungs, seed 44 cleared none. That stop was recorded as a null, and it was not one — a null control over
+the anchor's committed capture shows the design resolves **±0.010** against a **0.002–0.003** effect, so
+it could not tell "no effect" from "no power". D11 is restated accordingly in
+`FINETUNING_DECISION_LOG.md`, and one pre-registered v3_default replication is authorised at about **$0.23**
+measured (a $0.15-per-launch ceiling), with **no expansion afterwards** (D14). Its design is D13; its threshold is D12; its evidence is
+`results/20261031T021845Z/` and `docs/analyses/null_control_scoring_path.md`.
 
 The redirect is **calibration, preprocessing, and task-specific model selection** — not further
 fine-tuning at this scale. The diagnostics remain open and now serve explanation rather than a gate.
@@ -85,7 +89,10 @@ asked before the result arrived.
 
 Class weighting, resampling, PEFT, synthetic augmentation, and transfer are conditional follow-ups, not part of the core in-domain decision.
 
-The immediate question is not whether fine-tuning works on every insurance dataset. It is whether the 10K result is reproducible and then generalizes across the four R1 datasets.
+**Superseded 2026-11-03 (D14).** Steps 2–4 above are **not authorised**: a pass publishes and stops,
+because a 0.002–0.003 effect is about 20 times smaller than raw TabPFN's margin over the best actuarial
+baseline. The immediate question is not whether fine-tuning generalises across the four R1 datasets. It
+is whether the 10K result exists at all, on a design that can see it.
 
 ---
 
