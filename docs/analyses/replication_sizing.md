@@ -1,6 +1,9 @@
 # Replication sizing — what design could settle 0.002–0.006 AUC, and what it costs
 
-> **Status:** proposed — decision input for issue #390, 2026-11-03. **No run was performed, nothing
+> **Status:** active — analysis for issue #390, 2026-11-03, **superseded in shape by D13** (a
+> probe-derived seed count and rung substitution replace this document's fixed "Design R-390" of 57
+> seeds; the arithmetic, the cost model and the rejected-option findings stand and are cited by D12 and
+> D13). **No run was performed, nothing
 > was spent, no GPU was touched.** Every figure below is arithmetic over committed records.
 > **Question:** what design — test rows, seeds, and aggregation rule — could settle an effect of
 > about 0.002–0.006 AUC, and what does that cost?

@@ -68,9 +68,10 @@ Tags: `paper-snapshot-2026-08-22` (pre-hygiene baseline backing §14.x verdicts)
 
 **Classification on v3.5 — a deliberate departure (2026-11-03).** D12 pins **v3.5** for the
 fine-tuning replication on `uslapseagent`, a classification task, which steps outside the "still v3"
-line above. That is a decision, not an oversight: the replication must measure the model line the
-server now defaults to — an unpinned call no longer resolves to v3 — and it carries its own variance
-probe because the v3 half-widths and null bands do not transfer.
+line above. That is a decision, not an oversight: the **hosted server's** default moved to v3.5, so an unpinned run
+can no longer be *assumed* to be v3 — though what a given **local package's** `auto` resolves to is not
+recorded anywhere (see the note above) — and the replication carries its own variance probe because
+the v3 half-widths and null bands do not transfer.
 
 **Until the pilot's evidence lands, do not cite v3.5 for any classification number.** #186 owns the
 gap; a classification row is added to the timeline above when the replication reports. A number
