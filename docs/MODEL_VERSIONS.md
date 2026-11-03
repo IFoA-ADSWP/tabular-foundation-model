@@ -66,6 +66,17 @@ Tags: `paper-snapshot-2026-08-22` (pre-hygiene baseline backing §14.x verdicts)
 | `bemtl97_amount` / `spanish_motor_severity` losses | Both improved (−3.7% / −1.4%) but remain paired-significant losses; LGBM still ~1.4× better on `bemtl97_amount` |
 | Not yet tested on v3.5 | Classification calibration tier, `bemtl16` lift, `eudirectlapse` — **still v3, open under #186** |
 
+**Classification on v3.5 — a deliberate departure (2026-11-03).** D12 pins **v3.5** for the
+fine-tuning replication on `uslapseagent`, a classification task, which steps outside the "still v3"
+line above. That is a decision, not an oversight: the replication must measure the model line the
+server now defaults to — an unpinned call no longer resolves to v3 — and it carries its own variance
+probe because the v3 half-widths and null bands do not transfer.
+
+**Until the pilot's evidence lands, do not cite v3.5 for any classification number.** #186 owns the
+gap; a classification row is added to the timeline above when the replication reports. A number
+measured under `version: auto` in this repo resolved to v3 (see the anchor's checkpoint field) and
+must not be re-described as v3.5.
+
 ## Per-artifact validity (this repo)
 
 | Artifact | Tested | TabPFN | Verdict |
