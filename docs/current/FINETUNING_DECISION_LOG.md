@@ -461,9 +461,17 @@ only reason `k` is eight times the anchor's is noise — this dataset's per-seed
 2. **Design fixed:** `A_raw` + `B_ft30` only (the anchor's replication shape — no ladder, no baselines), at
    10,000 train / 1,000 test, stratified split, **seeds 93–330** (fresh: the probe's 83–92 are estimation,
    not evidence, exactly as D13 kept the anchor's probe and replication seeds disjoint).
-3. **Batched, not one launch.** Eight batches of 30/30/30/30/30/30/30/28 seeds. One seventeen-hour launch
-   concentrates every failure into one loss; a batch concentrates it into $0.37. Each batch is pulled and
-   verified before the next starts, so a lost batch is re-run rather than re-derived.
+3. **Batched, not one launch.** One seventeen-hour launch concentrates every failure into one loss; a
+   batch concentrates it into one batch. Each batch is pulled and verified before the next starts, so a
+   lost batch is re-run rather than re-derived.
+
+   **Amended the same day, after the first batch failed.** The first batch was thirty seeds and took
+   **46.35 min** — over `vast_run.sh`'s **40-minute completion poll** (120 × 20 s), so the launcher
+   exited non-zero, the `EXIT` trap destroyed the instance, and **no artifacts were pulled**: $0.2051
+   and 46 minutes of compute lost. Batch size is now **twenty seeds** (measured ~86 s/seed at two arms,
+   so ~29 min of compute plus ~3 min of boot), giving twelve batches: eleven of 20 and one of 18. The
+   ceiling is a property of the launcher, not of the design, and it is now the binding constraint on
+   batch size until `vast_run.sh` can be told a run needs longer.
 4. **Operational controls.** `caffeinate` around each launcher invocation, because a sleeping machine
    suspends the launcher and the instance keeps billing; and a `vastai show instances` check before and
    after each batch, standing in for the watchdog #328/#367 still owe.

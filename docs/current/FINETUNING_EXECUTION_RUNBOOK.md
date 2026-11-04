@@ -73,6 +73,13 @@ It prints an unauthenticated warning rather than failing quietly, because a guar
 is running is worse than none. If that line appears, the leak protection is off: refresh with
 `vast_login.sh`.
 
+**Size a batch to the launcher's own ceiling.** `vast_run.sh` polls for completion for **40 minutes**
+(120 polls × 20 s, `vast_run.sh:778`) and then gives up: it exits non-zero, the `EXIT` trap destroys
+the instance, and **no artifacts are pulled**. A batch that overruns does not finish late — it loses
+everything it computed. Measured 2026-11-04: a thirty-seed batch at 10,000 rows with two arms took
+**46.35 min** and cost **$0.2051** for nothing. Size a batch by the per-seed time the probe measured
+(~86 s/seed at two arms), keep the compute under ~30 minutes, and leave the ceiling unreachable.
+
 **The rest of the toolbox**, in the order a run needs them:
 
 | Tool | When |
