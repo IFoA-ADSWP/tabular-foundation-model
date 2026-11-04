@@ -343,16 +343,28 @@ def test_a_batch_that_cannot_finish_is_refused_before_provisioning(tmp_path):
 def test_raising_the_poll_window_lets_the_same_batch_through(tmp_path):
     """A refusal must be answerable. The operator raises the window, and the batch proceeds."""
     seeds = ",".join(str(seed) for seed in range(93, 123))
-    state, result = _launch(tmp_path, "--seeds", seeds, "--poll-minutes", "90")
+    # 30 seeds x 170s + 900s startup = 6000s = 100 min, so the window must clear that.
+    state, result = _launch(tmp_path, "--seeds", seeds, "--poll-minutes", "120")
 
     assert "cannot finish inside the poll window" not in result.stderr
     assert (state / "created.txt").exists(), result.stdout + result.stderr
 
 
 def test_the_estimate_can_be_lowered_for_a_faster_rung(tmp_path):
-    """Two arms cost ~86 s/seed, not the blunt 90 s default -- and the flag says so."""
-    seeds = ",".join(str(seed) for seed in range(93, 123))
-    state, result = _launch(tmp_path, "--seeds", seeds, "--estimate-sec-per-seed", "60")
+    """The estimate is a property of the batch, so a cheaper rung can fit what the default refuses.
 
+    Twelve seeds at the 170 s default plus a 900 s startup is 2940 s -- over the 2400 s window --
+    so the same twelve seeds are refused by default and admitted at 60 s/seed. That is the pair the
+    flag exists for: the refusal is answerable in both directions.
+    """
+    seeds = ",".join(str(seed) for seed in range(93, 105))  # 12 seeds
+
+    refused_state, refused = _launch(tmp_path / "refused", "--seeds", seeds)
+    assert refused.returncode == 2, refused.stdout + refused.stderr
+    assert not (refused_state / "created.txt").exists()
+
+    state, result = _launch(
+        tmp_path / "admitted", "--seeds", seeds, "--estimate-sec-per-seed", "60"
+    )
     assert "cannot finish inside the poll window" not in result.stderr
     assert (state / "created.txt").exists(), result.stdout + result.stderr
