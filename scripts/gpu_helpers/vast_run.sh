@@ -116,10 +116,14 @@ POLL_MINUTES="${POLL_MINUTES:-40}"
 # Per-seed wall clock, for the pre-flight refusal below. Deliberately blunt and overridable:
 # the cost of a wrong estimate in one direction is a refusal a human must re-issue, and in
 # the other it is a silently discarded batch.
-# Measured on eudirectlapse at 10,000 rows, two arms: A_raw ~6s + B_ft30 ~102s per seed. The
-# earlier 90 was extrapolated from a run that the old ceiling cut short, so it was optimistic --
-# which is the direction that loses a batch.
-EST_SEC_PER_SEED="${EST_SEC_PER_SEED:-110}"
+# Measured on eudirectlapse at 10,000 rows, two arms, on an RTX PRO 4000: A_raw ~6s + B_ft30
+# ~158s, so ~164s per seed. Earlier defaults (90, then 110) came from dividing a truncated run's
+# elapsed time by its seed count -- both optimistic, which is the direction that loses a batch.
+#
+# This figure is device-dependent by a factor of five: the same batch on an RTX 3090 ran B_ft30
+# at 753-837s per seed. `--pick value` optimises dlperf/$, which does not predict this workload's
+# per-seed time, so pin `--gpu-allow` to a class whose timing has been measured.
+EST_SEC_PER_SEED="${EST_SEC_PER_SEED:-170}"
 BOOT_EST_SECONDS="${BOOT_EST_SECONDS:-180}"
 ATTEMPT="${ATTEMPT:-1}"
 EXCLUDE_MACHINES="${EXCLUDE_MACHINES:-}"
