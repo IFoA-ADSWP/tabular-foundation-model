@@ -71,7 +71,7 @@ from experiment_spec import (  # noqa: E402
     arm_epoch_budget,
     load_registry,
 )
-from model_version import explicit_model_path  # noqa: E402
+from model_version import checkpoint_mismatch, expected_checkpoint, explicit_model_path  # noqa: E402
 
 # The arm record's layout is `provenance.ARM_RECORD_SCHEMA_VERSION` (3 since #241) and the
 # invocation manifest's is `provenance.PILOT_RUN_SCHEMA_VERSION` (2): one definition each, in
@@ -274,6 +274,30 @@ def _checkpoints():
         if root.is_dir():
             found += sorted(p.name for p in root.glob("*.ckpt"))
     return found
+
+
+def _assert_expected_checkpoint():
+    """Refuse a launch whose cached weights are not the line it claims to run.
+
+    `auto` is honest about *intent* and silent about *outcome*: `TABPFN_PIN` decides which package
+    runs, the package decides what `auto` loads, and the record says `auto` either way. D15 had to
+    correct a draft that claimed a pin the run did not have, and a breadth cell that silently moved
+    from v3 to another line would be compared against the anchor as if it were the same model.
+
+    Empty means nobody asked; the paid-path bootstrap sets it, so a launch that skips the assertion
+    records `expected_checkpoint: null` rather than passing for a check it never ran.
+    """
+    expected = expected_checkpoint()
+    if not expected:
+        return None
+    reason = checkpoint_mismatch(_checkpoints(), expected)
+    if reason is not None:
+        raise SystemExit(
+            f"\nREFUSING: this launch claims to run {expected!r} and cannot confirm it. {reason}.\n"
+            "  The breadth specification says a cell that ran a different model line is not "
+            "comparable with the anchor (docs/current/FINETUNING_BREADTH_SPEC.md)."
+        )
+    return expected
 
 
 def _weights_provenance():
@@ -1648,6 +1672,11 @@ def main():
                 print(f"  {_f}")
             raise SystemExit(3)
 
+    # 4. The weights this launch claims, before a single arm runs. Cheap, and the failure it
+    #    catches is silent: `auto` resolves per package version, so a moved pin changes the model
+    #    line while the record still says `auto`.
+    _assert_expected_checkpoint()
+
     started = datetime.now(timezone.utc)
     run_id = started.strftime("%Y%m%dT%H%M%SZ")
 
@@ -1695,6 +1724,9 @@ def main():
         "host": _host_info(),
         "env": _runtime_versions(),
         "checkpoints": _checkpoints(),
+        # The line this launch ASSERTED it runs, checked before any arm started. null means nobody
+        # asked, which must not read like a pass (D15, docs/current/FINETUNING_BREADTH_SPEC.md).
+        "expected_checkpoint": expected_checkpoint() or None,
         # Reproducibility inputs that were previously implicit or absent:
         "weights": _weights_provenance(),
         "container": _container_provenance(),

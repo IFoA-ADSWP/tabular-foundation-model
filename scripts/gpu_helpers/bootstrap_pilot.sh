@@ -165,6 +165,12 @@ if [ "$WEIGHTS_CACHED" = "true" ]; then
 else
     echo "    weights not cached (rc=$WEIGHTS_RC) -- falling through to the preflight"
 fi
+# The model line this launch claims, asserted by run_pilot.py before any arm runs. `auto` is
+# resolved by the installed package, so moving TABPFN_PIN changes what loads while the record
+# still says `auto` -- and a breadth cell that quietly moved line would be compared against the
+# anchor as if it were the same model. Override only when the move is intended and recorded
+# (docs/current/FINETUNING_BREADTH_SPEC.md).
+export TFM_EXPECT_CHECKPOINT="${TFM_EXPECT_CHECKPOINT:-tabpfn-v3-classifier-v3_default.ckpt}"
 
 # ---- 3b. Prove the TabPFN licence BEFORE running any arm ----
 # A token being PRESENT is not the same as a token WORKING. With an un-accepted
