@@ -56,7 +56,13 @@ The research context from Molnar's [*Tabular Foundation Models*](https://tabular
 
 ## What we're doing next
 
-**Continues once (2026-11-03).** The two-seed anchor did not replicate: seed 43 cleared all three
+**Complete — the replication passed (2026-11-04).** Fine-tuning at 30 epochs on `uslapseagent` beats
+the in-run raw baseline by **+0.0035 ROC AUC**, 95% interval **[+0.0027, +0.0043]**, Brier no worse.
+That is twenty times smaller than raw TabPFN's +0.068 margin over the best actuarial baseline, and per
+D14 the line stops here: published, not expanded. Evidence: `results/20261104T123839Z/` and
+`docs/analyses/finetuning_replication_result.md`. The paragraph below records the state before the run.
+
+**Continued once (2026-11-03, superseded by the result above).** The two-seed anchor did not replicate: seed 43 cleared all three
 rungs, seed 44 cleared none. That stop was recorded as a null, and it was not one — a null control over
 the anchor's committed capture shows the design resolves **±0.010** against a **0.002–0.003** effect, so
 it could not tell "no effect" from "no power". D11 is restated accordingly in
