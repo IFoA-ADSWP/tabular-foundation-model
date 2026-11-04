@@ -1,6 +1,6 @@
 # Fine-Tuning Investigation — Status Brief
 
-> **Status:** current as of 2026-11-03.
+> **Status:** current as of 2026-11-04.
 
 
 > Date: 2026-09-24 | Status: **Two probes complete; funded diagnostics and full pilot defined**
@@ -61,6 +61,15 @@ the in-run raw baseline by **+0.0035 ROC AUC**, 95% interval **[+0.0027, +0.0043
 That is twenty times smaller than raw TabPFN's +0.068 margin over the best actuarial baseline, and per
 D14 the line stops here: published, not expanded. Evidence: `results/20261104T123839Z/` and
 `docs/analyses/finetuning_replication_result.md`. The paragraph below records the state before the run.
+
+**Breadth reopened as a specification (2026-11-04, D16).** The owner has amended D14's "no expansion
+even on a pass" so that the full value of fine-tuning can be quantified: whether the gain holds on
+`coil2000`, `eudirectlapse` and `spanish_motor_lapse`, and where the row-scale threshold sits between
+2,000 and 10,000 rows. **Nothing is authorised to run.** The specification is
+`docs/current/FINETUNING_BREADTH_SPEC.md`: it fixes the arms, the seed rule and the stop conditions
+before any spend, and it opens with **$0.74 of variance probes** that replace its own cost range with a
+measured total. The replication's result and its within-model framing are unchanged; this reopens what
+to measure, not what the +0.0035 means.
 
 **Continued once (2026-11-03, superseded by the result above).** The two-seed anchor did not replicate: seed 43 cleared all three
 rungs, seed 44 cleared none. That stop was recorded as a null, and it was not one — a null control over

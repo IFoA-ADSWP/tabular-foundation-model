@@ -391,6 +391,50 @@ DECISION: **the replication passed (2026-11-04)** — +0.0035 AUC, 95% CI [+0.00
 stop, per D14.
 Owner: scotthawes  Date: 2026-11-04  Section: §3
 
+### D16 — The owner reopens breadth, to quantify the full value of fine-tuning
+
+**Why it matters.** D14 stopped the line after one replication, and D15 applied it. Both stand as
+written. This entry records a **deliberate override** of D14's "no Stage 2 expansion even on a pass",
+taken after the pass was known. It is recorded here rather than folded into a new reading because the
+distinction matters: reopening after a favourable result is exactly the pattern pre-registration
+exists to resist, so it must be visible as an override with named reasons, not presented as new
+information.
+
+**The reasons, in the order they weigh.**
+
+1. **D14's headline comparison is a category mismatch.** It sets the within-model gain (+0.0035) against
+   the between-model margin (+0.068) and calls the first twenty times smaller. F4 states that the
+   fine-tuning gain *is* a within-model improvement, so that comparison sets a bar the question never
+   raised. On its own terms — does adapting the weights add value beyond giving the model more
+   context? — +0.0035 with an interval excluding zero is a genuine answer, and it currently exists on
+   one dataset.
+2. **One dataset is not a general finding.** `uslapseagent` is a lapse dataset, at two row counts, on
+   one model line. Nothing establishes that the effect is not specific to it, and the diagnostics
+   cannot settle it: D2 measured which features the families use, not what adaptation buys.
+3. **The money is not what stops it.** At the measured anchors ($0.0368 for a four-arm 10,000-row
+   launch), the whole programme is bounded at roughly $5 to $82, and **$0.74 of variance probes replaces
+   both bounds with a measured total** before any replication is approved.
+
+**What is authorised.** Nothing. This entry authorises a **specification**, not a run — the distinction
+#300 draws for a passing gate. The specification is
+`docs/current/FINETUNING_BREADTH_SPEC.md`; each launch is still approved separately on the estimate its
+own probe produced, per D10.
+
+**What this does not change.** The replication's result, its published reading, or the within-model
+framing of F4. A generalised gain remains a within-model improvement: whether to fine-tune is a
+different decision from which model to use, and D15's "twenty times smaller" measurement is still true
+and still belongs beside any quoted effect. The diagnostics (D2–D5) continue unchanged; this entry
+neither depends on them nor suspends them.
+
+**The risk accepted, stated plainly.** D14's stop was pre-registered before the result existed, which
+is part of why +0.0035 is credible. This entry reopens after the result. The mitigation is procedural
+rather than rhetorical: the specification fixes the seed rule, the rung rule, the resolution gate and
+the stop conditions before any spend, and the probe measures variance rather than assuming it.
+
+DECISION: **breadth reopens as a specification (2026-11-04)** — quantify the gain on the other three R1
+datasets and locate the row-scale threshold; no launch until a probe prices its own cell.
+Owner: scotthawes  Date: 2026-11-04  Section: §3
+
 ---
 
 ## 2. Settled in the design — confirm, do not re-open
