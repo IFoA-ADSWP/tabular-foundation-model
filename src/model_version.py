@@ -82,3 +82,44 @@ def resolve_model_path() -> str:
     local `tabpfn` package accepts: it takes a file name, a path, or `"auto"` (#285).
     """
     return explicit_model_path() or BASELINE_MODEL_PATH
+
+
+# ---------------------------------------------------------------------------
+# Which weights a launch claims to run  (breadth, D16)
+# ---------------------------------------------------------------------------
+# The line the replication ran, and the one a breadth cell must share to be comparable with it
+# (D15's record names this file; docs/MODEL_VERSIONS.md names v3_default as the classification line).
+ANCHOR_CHECKPOINT = "tabpfn-v3-classifier-v3_default.ckpt"
+EXPECTED_CHECKPOINT_ENV = "TFM_EXPECT_CHECKPOINT"
+
+
+def expected_checkpoint() -> str:
+    """The checkpoint file a launch claims to run, or "" when nobody asked.
+
+    Empty is a distinct answer from "the anchor's": a local diagnostic that fits v2.5 must not be
+    forced to carry v3, and a launch that asserts nothing should be visible as such in its record
+    rather than indistinguishable from one that asserted and passed.
+    """
+    return (os.environ.get(EXPECTED_CHECKPOINT_ENV) or "").strip()
+
+
+def checkpoint_mismatch(found, expected) -> str | None:
+    """Why the cached checkpoints do not carry `expected`, or None when they do.
+
+    Returns the reason rather than a flag so the refusal can name both the wanted file and what was
+    actually on disk — the difference between "the pin moved" and "the weights were never fetched".
+
+    An empty `found` is a refusal, not a pass: if an operator asked for the assertion, a cache with no
+    weights has confirmed nothing.
+    """
+    if not expected:
+        return None
+    names = sorted({Path(p).name for p in found})
+    if not names:
+        return (
+            f"no .ckpt in the cache, so {expected!r} cannot be confirmed: fetch the weights first, "
+            "or the record would claim a model line nobody checked"
+        )
+    if expected in names:
+        return None
+    return f"{expected!r} is not among the cached checkpoints ({', '.join(names)})"
