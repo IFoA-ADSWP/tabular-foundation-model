@@ -435,6 +435,53 @@ DECISION: **breadth reopens as a specification (2026-11-04)** — quantify the g
 datasets and locate the row-scale threshold; no launch until a probe prices its own cell.
 Owner: scotthawes  Date: 2026-11-04  Section: §3
 
+### D17 — The `eudirectlapse` replication: its ceiling, its seed count, and how it is batched
+
+**Why it matters.** The probe measured the variance, so `k` is no longer a projection. The old per-launch
+ceiling ($0.15, set for the anchor's 28 seeds at $0.188) cannot carry this dataset, and the breadth spec's
+own Stage 2 says to stop when `k`'s cost exceeds it. This entry takes that decision explicitly rather than
+letting a terminal invocation take it.
+
+**Measured inputs**, `results`-equivalent under `outputs/gpu-pilot/runs/` (three launches, $0.2189 total):
+
+| Rung | mean ΔAUC | per-seed SD | `k` for δ = 0.002 | measured cost at `k` |
+|---|---:|---:|---:|---:|
+| `B_ft3` | +0.0012 | 0.00556 | 61 | — |
+| `B_ft10` | +0.0005 | 0.00839 | 139 | — |
+| **`B_ft30`** | **+0.0037** | **0.01100** | **238** | **≈ $2.95** |
+
+The rung rule picks the highest probe mean, so **`B_ft30`** carries the verdict: **238 fresh seeds**. The
+only reason `k` is eight times the anchor's is noise — this dataset's per-seed SD is ~3× the
+`uslapseagent` probe's, and `k` scales with its square.
+
+**Decision (2026-11-04).**
+
+1. **Ceiling raised** for breadth replication launches: **$0.60 per launch**, from $0.15. One thirty-seed
+   batch is ≈ $0.37 at the measured 153 s for `B_ft30`, so the ceiling carries a batch plus margin.
+2. **Design fixed:** `A_raw` + `B_ft30` only (the anchor's replication shape — no ladder, no baselines), at
+   10,000 train / 1,000 test, stratified split, **seeds 93–330** (fresh: the probe's 83–92 are estimation,
+   not evidence, exactly as D13 kept the anchor's probe and replication seeds disjoint).
+3. **Batched, not one launch.** Eight batches of 30/30/30/30/30/30/30/28 seeds. One seventeen-hour launch
+   concentrates every failure into one loss; a batch concentrates it into $0.37. Each batch is pulled and
+   verified before the next starts, so a lost batch is re-run rather than re-derived.
+4. **Operational controls.** `caffeinate` around each launcher invocation, because a sleeping machine
+   suspends the launcher and the instance keeps billing; and a `vastai show instances` check before and
+   after each batch, standing in for the watchdog #328/#367 still owe.
+
+**Analysis precondition, named now so it is not discovered late.** `scripts/analyses/verdict.py` reads one
+run; batching produces eight. The per-seed records must be pooled before the reading is computed, and that
+pool is a small tool change. It blocks the **verdict**, not the run — but it must land before the result is
+claimed, and the fresh permutation null runs on the pooled capture.
+
+**What this does not do.** It does not price `coil2000` or `spanish_motor_lapse`. On the probe's figures
+`spanish_motor_lapse` projects to ~512 seeds (≈ $6.3 at two arms) and `coil2000` is unmeasured, so the full
+three-dataset programme still exceeds the $8.73 balance by some margin. This entry authorises **one**
+dataset's replication and nothing else.
+
+DECISION: **`eudirectlapse` replication authorised (2026-11-04)** — `B_ft30`, 238 fresh seeds (93–330),
+eight batches, $0.60 per launch ceiling, ≈ $2.95 and ≈ 11 h total.
+Owner: scotthawes  Date: 2026-11-04  Section: §3
+
 ---
 
 ## 2. Settled in the design — confirm, do not re-open
