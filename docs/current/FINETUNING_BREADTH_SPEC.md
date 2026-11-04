@@ -125,6 +125,12 @@ band, voids the verdict on instrument failure.
 **Measured anchors** (`FINETUNING_COST_AND_CONTROLS.md`, which owns cost figures): **$0.0122** for a
 four-arm run at 2,000 rows, **$0.0368** at 10,000 rows.
 
+**Measured since the first probe (D17, 2026-11-04).** `eudirectlapse` at 10,000 rows: per-seed SD
+**0.0110**, so `k = 238` for `B_ft30`, and the projection below is superseded for that dataset:
+three launches cost **$0.2189** in total, the two-arm replication shape costs **≈ $2.95** for all 238
+seeds, and a single batch of thirty seeds is **≈ $0.37**. The range below is retained because the other
+two datasets remain unmeasured, and because the probe's own figures are what falsified its optimistic end.
+
 **Measured-and-projected range for the whole programme**, at those anchors:
 
 | Stage | Basis | Cost |
