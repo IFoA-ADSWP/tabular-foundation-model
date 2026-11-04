@@ -5,8 +5,8 @@ name: ci
 # command, so this file and a contributor's local run have one definition and cannot
 # drift. The commands themselves live in the script; this file only schedules them.
 #
-# Five checks, not seven: ruff, pytest, shellcheck, the evidence guard and the citation
-# check. The doc link and doc-status checks are not here -- they are red on main against a
+# Six checks, not eight: ruff, pytest, shellcheck, the evidence guard, the citation
+# check and the verdict check. The doc link and doc-status checks are not here -- they are red on main against a
 # pre-existing backlog, and adding them is their own work. #260 corrected the instructions
 # to the then-three checks; the evidence job (#319) is the fourth, and the citation job
 # (#364) is the fifth.
@@ -158,3 +158,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: check
         run: ./scripts/check.sh citation
+
+  verdict:
+    name: verdict
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # The tool must still reproduce the null band the decision log cites (#398).
+    steps:
+      - uses: actions/checkout@v4
+      - name: check
+        run: ./scripts/check.sh verdict

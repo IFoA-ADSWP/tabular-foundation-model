@@ -15,7 +15,7 @@ why. Commit it with the change.
 ## Conventions
 
 Python research repo (TabPFN vs actuarial baselines). The gate is CI, and CI is
-**seven checks, not one** — a change that passes pytest can still fail the others:
+**eight checks, not one** — a change that passes pytest can still fail the others:
 
 - `ruff check scripts/ src/ tests/`
 - `pytest tests/ -q`
@@ -29,9 +29,11 @@ Python research repo (TabPFN vs actuarial baselines). The gate is CI, and CI is
 - `./scripts/check.sh citation` — every run id cited in `docs/` has a capture manifest
   covering its arms and seeds (#364); pre-rule runs are exempt in
   `docs/analyses/legacy_citations.txt`
+- `./scripts/check.sh verdict` — the verdict tool reproduces the null band the decision log
+  cites, so the code and the document cannot drift apart (#398)
 
-Run all seven with `./scripts/check.sh`, or one with
-`./scripts/check.sh ruff|pytest|shellcheck|evidence|doclinks|docstatus|citation`. The script is the single definition;
+Run all eight with `./scripts/check.sh`, or one with
+`./scripts/check.sh ruff|pytest|shellcheck|evidence|doclinks|docstatus|citation|verdict`. The script is the single definition;
 `.github/workflows/ci.yml` calls it for each separate job. A missing tool exits non-zero
 rather than skipping a check.
 

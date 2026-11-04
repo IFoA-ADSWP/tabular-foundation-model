@@ -105,7 +105,7 @@ Every contribution should satisfy these before review:
 - [ ] **Reports registered** — any new file in `docs/reports/` must have a row in `docs/REPORT_REGISTRY.md` with topic_key, audience, source_workbooks, and evidence_files
 - [ ] **Changelog updated** — user-facing changes get an entry in `CHANGELOG.md` under `[Unreleased]`
 - [ ] **Pre-commit green** — see below
-- [ ] **Gate green** — `./scripts/check.sh` (ruff, pytest, shellcheck, evidence, citation)
+- [ ] **Gate green** — `./scripts/check.sh` (ruff, pytest, shellcheck, evidence, citation, verdict)
 - [ ] **Smoke test passes** — `pytest tests/` after any change to `src/`
 - [ ] **PR focused** — one experiment or fix per pull request
 
@@ -133,14 +133,14 @@ ruff format src/ tests/
 
 ## The gate
 
-CI and a local run share one definition. `./scripts/check.sh` runs seven checks — ruff,
+CI and a local run share one definition. `./scripts/check.sh` runs eight checks — ruff,
 the test suite, shellcheck over the paid-run scripts, the evidence guard (`outputs/`
 and `results/` unchanged, or the PR labelled `evidence-change`), the doc-link check
 (every reference in `docs/` resolves), the doc-status check (every report says
 whether it is current), and the citation check (every run id cited in `docs/` has a
 capture) — and `./scripts/check.sh ruff` (or `pytest`,
-`shellcheck`, `evidence`, `doclinks`, `docstatus`, `citation`) runs one. `.github/workflows/ci.yml` calls the same
-script as five separate jobs on every pull request, every push to `main`, and on demand. A missing tool exits non-zero; it is never a
+`shellcheck`, `evidence`, `doclinks`, `docstatus`, `citation`, `verdict`) runs one. `.github/workflows/ci.yml` calls the same
+script as six separate jobs on every pull request, every push to `main`, and on demand. A missing tool exits non-zero; it is never a
 silent skip.
 
 ## Report Registration
