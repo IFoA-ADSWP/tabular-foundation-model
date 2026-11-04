@@ -77,8 +77,14 @@ is running is worse than none. If that line appears, the leak protection is off:
 (120 polls × 20 s, `vast_run.sh:778`) and then gives up: it exits non-zero, the `EXIT` trap destroys
 the instance, and **no artifacts are pulled**. A batch that overruns does not finish late — it loses
 everything it computed. Measured 2026-11-04: a thirty-seed batch at 10,000 rows with two arms took
-**46.35 min** and cost **$0.2051** for nothing. Size a batch by the per-seed time the probe measured
-(~86 s/seed at two arms), keep the compute under ~30 minutes, and leave the ceiling unreachable.
+**46.35 min** and cost **$0.2051** for nothing. Size a batch by the per-seed time measured **on the box**, and pin the GPU class while you do it.
+Two arms at 10,000 rows on an **RTX PRO 4000**: `A_raw` ~6 s, `B_ft30` ~158 s, so ~164 s per seed.
+The same batch on an **RTX 3090** ran `B_ft30` at **753–837 s** per seed — a five-fold difference,
+and `--pick value` (dlperf per dollar) does not predict it. Both figures are measured; both losses on
+2026-11-04 were batches sized from a figure taken off a truncated run.
+
+Keep the compute under ~30 minutes and leave the poll unreachable: at 164 s/seed that is a dozen
+seeds, not twenty.
 
 **The rest of the toolbox**, in the order a run needs them:
 

@@ -8,6 +8,9 @@
 #   --query 'Q'      extra offer search filters
 #   --pick HOW       value | cheapest | fastest      (default: value = dlperf/$)
 #   --max-dph N      hard price ceiling in $/hr      (default 0.60)
+#   --poll-minutes N how long to wait for the box to finish (default 40)
+#   --estimate-sec-per-seed N
+#                    the per-seed runtime used by the pre-flight check (default 90)
 #   --min-vram N     minimum VRAM in GB              (default 23)
 #   --gpu-allow L    comma list of allowed gpu_name  (default: modern-only list)
 #   --disk N         local disk GB                   (default 60)
@@ -105,6 +108,23 @@ ASSUME_YES=0
 # storage and provisioning, which is worth spending to rescue a session, but not
 # without a hard bound. MAX_ATTEMPTS counts TOTAL attempts: 2 means one retry.
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-2}"
+# How long the launcher waits for the box to report completion. Exceeding this used to be
+# unrecoverable: the poll gave up, the EXIT trap destroyed the instance, and the payload --
+# which the box emits only at the end -- was never shipped. A thirty-seed batch took 46 min
+# against a 40 min ceiling and lost $0.21 and 46 minutes of compute (2026-11-04).
+POLL_MINUTES="${POLL_MINUTES:-40}"
+# Per-seed wall clock, for the pre-flight refusal below. Deliberately blunt and overridable:
+# the cost of a wrong estimate in one direction is a refusal a human must re-issue, and in
+# the other it is a silently discarded batch.
+# Measured on eudirectlapse at 10,000 rows, two arms, on an RTX PRO 4000: A_raw ~6s + B_ft30
+# ~158s, so ~164s per seed. Earlier defaults (90, then 110) came from dividing a truncated run's
+# elapsed time by its seed count -- both optimistic, which is the direction that loses a batch.
+#
+# This figure is device-dependent by a factor of five: the same batch on an RTX 3090 ran B_ft30
+# at 753-837s per seed. `--pick value` optimises dlperf/$, which does not predict this workload's
+# per-seed time, so pin `--gpu-allow` to a class whose timing has been measured.
+EST_SEC_PER_SEED="${EST_SEC_PER_SEED:-170}"
+BOOT_EST_SECONDS="${BOOT_EST_SECONDS:-180}"
 ATTEMPT="${ATTEMPT:-1}"
 EXCLUDE_MACHINES="${EXCLUDE_MACHINES:-}"
 SELF="$0"
@@ -130,6 +150,8 @@ while [ $# -gt 0 ]; do
         --image)     IMAGE="$2"; shift 2 ;;
         --transport) TRANSPORT="$2"; shift 2 ;;
         --max-attempts) MAX_ATTEMPTS="$2"; shift 2 ;;
+        --poll-minutes) POLL_MINUTES="$2"; shift 2 ;;
+        --estimate-sec-per-seed) EST_SEC_PER_SEED="$2"; shift 2 ;;
         --keep)      KEEP=1; shift ;;
         --yes)       ASSUME_YES=1; shift ;;
         -h|--help)   sed -n '2,30p' "$0"; exit 0 ;;
@@ -502,6 +524,27 @@ if [ -n "$LEAKS" ]; then
 fi
 
 # ---- 2. Select an offer (restricted to usable architectures) ----
+# ---- 1b. Does this batch fit in the poll window? ----
+# Checked BEFORE an offer is picked, so a refusal costs nothing. The failure it prevents is
+# not "the run is late" -- it is "the run is discarded": past the poll, the launcher exits
+# non-zero, the trap destroys the instance, and the payload never ships.
+if [ -n "$SEEDS" ]; then
+    SEED_COUNT="$(printf '%s' "$SEEDS" | awk -F, '{print NF}')"
+else
+    SEED_COUNT=1
+fi
+EST_SECONDS=$(( SEED_COUNT * EST_SEC_PER_SEED + BOOT_EST_SECONDS ))
+POLL_SECONDS=$(( POLL_MINUTES * 60 ))
+if [ "$EST_SECONDS" -gt "$POLL_SECONDS" ]; then
+    echo "REFUSING: this batch cannot finish inside the poll window." >&2
+    echo "  ${SEED_COUNT} seed(s) x ${EST_SEC_PER_SEED}s + ${BOOT_EST_SECONDS}s boot = ${EST_SECONDS}s" >&2
+    echo "  poll window is ${POLL_MINUTES} min = ${POLL_SECONDS}s" >&2
+    echo "  Past that window the launcher destroys the instance and the artifacts are lost," >&2
+    echo "  because the box ships its payload only on completion." >&2
+    echo "  Fix one of: fewer seeds, --poll-minutes N, --estimate-sec-per-seed N." >&2
+    exit 2
+fi
+
 echo "=== 2/7 selecting offer (pick=$PICK ceiling=\$$MAX_DPH/hr min-vram=${MIN_VRAM}GB) ==="
 
 if [ -z "$OFFER_ID" ]; then
@@ -775,7 +818,7 @@ else
     : > /tmp/vast_run_out.txt
     BOOTSTRAP_DONE=0
     EMPTY_STREAK=0
-    for i in $(seq 1 120); do   # 120 x 20s = 40 min ceiling
+    for i in $(seq 1 $(( POLL_MINUTES * 3 ))); do   # 20s per poll
         # A huge --tail (200000) silently returns NOTHING; with stderr discarded
         # that looks identical to "not finished yet", so the loop ran its entire
         # 60-minute ceiling while the instance billed -- and the repeat poll cost
@@ -807,7 +850,10 @@ else
         sleep 20
     done
     if [ "$BOOTSTRAP_DONE" != "1" ]; then
-        echo "WARNING: bootstrap did not report BOOTSTRAP FINISHED within 40 min" >&2
+        echo "WARNING: bootstrap did not report BOOTSTRAP FINISHED within ${POLL_MINUTES} min." >&2
+        echo "         The instance is about to be destroyed and the box ships its payload only on" >&2
+        echo "         completion, so this batch's compute is being discarded. Re-run with fewer" >&2
+        echo "         seeds, or --poll-minutes N above the measured runtime." >&2
         RUN_RC=1
     fi
     echo "--- log tail ---"
