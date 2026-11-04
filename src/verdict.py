@@ -11,6 +11,11 @@ Three quantities, each refused rather than guessed:
   labels, so whatever the rule reports is noise by construction.
 - **Resolution** — the seed count a target effect needs, and the power a given seed count gives.
 
+Batches are pooled; **rows** are not. D17 delivers one design as eight launches, so `--run` may be
+given more than once and the batches are merged by arm × seed, refusing runs from different datasets
+and refusing a seed that appears twice -- a repeated seed would enter the mean twice and understate
+the spread.
+
 Rows are never pooled across seeds. Pooling treats rows inside a seed as independent; they are not, and
 the standard error is understated by about 1.69× at this design's variance ratio, which lifts the
 false-positive rate to roughly 0.25 — the exact error the seed axis exists to fix. For the same reason
@@ -214,6 +219,44 @@ def reading(arm: Arm, delta: float, false_positive_rate: float | None = None) ->
     return "unresolved"
 
 
+def pool(runs: tuple[VerifiedRun, ...]) -> VerifiedRun:
+    """Several verified runs as one, for a design delivered in batches.
+
+    D17 splits the replication into eight launches so that one host failure costs a batch rather
+    than the programme. Seeds are the unit of analysis, so pooling is exact -- provided the runs
+    share a dataset and their seeds are disjoint.
+
+    A repeated seed is refused rather than merged: it would enter the mean twice and understate the
+    between-seed spread, which is the row-pooling error in a different costume.
+    """
+    runs = tuple(runs)
+    if not runs:
+        raise CaptureRefused("no runs to pool")
+    datasets = sorted({run.dataset for run in runs})
+    if len(datasets) > 1:
+        raise CaptureRefused(
+            f"cannot pool runs from different datasets ({', '.join(datasets)}); "
+            "a pooled reading would average two experiments"
+        )
+    owner: dict[tuple[str, int], str] = {}
+    combined = []
+    for run in runs:
+        for slot in run.slots:
+            key = (slot.arm, slot.seed)
+            if key in owner:
+                raise CaptureRefused(
+                    f"{slot.arm} seed {slot.seed} appears in both {owner[key]} and {run.run_id}; "
+                    "a pooled reading needs each seed exactly once"
+                )
+            owner[key] = run.run_id
+            combined.append(slot)
+    return VerifiedRun(
+        run_id="+".join(run.run_id for run in runs),
+        dataset=datasets[0],
+        slots=tuple(sorted(combined, key=lambda slot: (slot.arm, slot.seed))),
+    )
+
+
 def check_seeds(
     run: VerifiedRun, declared: int | None = None, exclude_run: Path | None = None
 ) -> None:
@@ -297,7 +340,13 @@ def report(run: VerifiedRun, delta: float, reps: int) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--run", type=Path, required=True, help="a run directory under results/")
+    parser.add_argument(
+        "--run",
+        type=Path,
+        action="append",
+        required=True,
+        help="a run directory under results/; repeat it to pool the batches of one design (D17)",
+    )
     parser.add_argument(
         "--delta", type=float, default=0.002, help="target effect in AUC (default 0.002)"
     )
@@ -318,7 +367,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"verdict: target effect must be positive; got {args.delta}")
         return 2
     try:
-        run = read_run(args.run)
+        runs = [read_run(path) for path in args.run]
+        run = runs[0] if len(runs) == 1 else pool(tuple(runs))
         check_seeds(run, args.seeds, args.exclude_run)
         if args.out is not None:
             args.out.parent.mkdir(parents=True, exist_ok=True)
