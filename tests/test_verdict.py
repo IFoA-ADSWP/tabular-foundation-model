@@ -27,8 +27,8 @@ N = 400
 RUN_ID = "20261104T120000Z"
 
 
-def _slot(run: Path, arm: str, seed: int, truth, predictions) -> None:
-    directory = run / "lapse" / arm / f"seed{seed}_foldNone"
+def _slot(run: Path, arm: str, seed: int, truth, predictions, dataset: str = "lapse") -> None:
+    directory = run / dataset / arm / f"seed{seed}_foldNone"
     directory.mkdir(parents=True)
     np.save(directory / "predictions.npy", predictions)
     np.save(directory / "ground_truth.npy", truth)
@@ -45,22 +45,22 @@ def _slot(run: Path, arm: str, seed: int, truth, predictions) -> None:
 
 
 def _run(tmp_path: Path, seeds=(43, 44), tuned: bool = True, signal: float = 0.2,
-         baseline: bool = True) -> Path:
+         baseline: bool = True, name: str = RUN_ID, dataset: str = "lapse") -> Path:
     """A run where the tuned arm separates the classes by `signal` more than the baseline."""
-    run = tmp_path / RUN_ID
+    run = tmp_path / name
     for seed in seeds:
         rng = np.random.default_rng(1000 + seed)
         truth = np.array([0, 1] * (N // 2))
         mix = rng.random(N)
         base = np.clip(0.5 * truth + 0.5 * mix, 0, 1)
         if baseline:
-            _slot(run, "A_raw", seed, truth, base)
+            _slot(run, "A_raw", seed, truth, base, dataset)
         if tuned:
             if signal == 0.0:
                 shifted = np.clip(base + rng.normal(0, 0.02, N), 0, 1)
             else:
                 shifted = np.clip(signal * truth + (1.0 - signal) * mix, 0, 1)
-            _slot(run, "B_ft3", seed, truth, shifted)
+            _slot(run, "B_ft3", seed, truth, shifted, dataset)
     return run
 
 
@@ -207,3 +207,47 @@ def test_the_cli_exits_zero_on_a_run_and_two_on_a_bad_target(tmp_path):
     run = _run(tmp_path)
     assert verdict.main(["--run", str(run), "--reps", "120"]) == 0
     assert verdict.main(["--run", str(run), "--delta", "0"]) == 2
+
+
+# --- pooling the batches of one design (D17) -------------------------------------------
+
+
+def test_batches_pool_into_one_reading(tmp_path):
+    """Eight launches of one design are one experiment split by seed, not eight experiments."""
+    first = read_run(_run(tmp_path, seeds=(93, 94), name="batch1"))
+    second = read_run(_run(tmp_path, seeds=(95, 96), name="batch2"))
+
+    pooled = verdict.pool((first, second))
+
+    assert {slot.seed for slot in pooled.slots} == {93, 94, 95, 96}
+    assert len(pooled.slots) == len(first.slots) + len(second.slots)
+    assert pooled.dataset == first.dataset
+    # the mean is the mean of the whole seed set, not the average of two means
+    keys = {(slot.arm, slot.seed) for slot in pooled.slots}
+    assert keys == {(slot.arm, slot.seed) for slot in (*first.slots, *second.slots)}
+
+
+def test_a_seed_in_two_batches_is_refused(tmp_path):
+    """A repeated seed would enter the mean twice and understate the between-seed spread."""
+    first = read_run(_run(tmp_path, seeds=(93, 94), name="batch1"))
+    second = read_run(_run(tmp_path, seeds=(94, 95), name="batch2"))
+
+    with pytest.raises(CaptureRefused, match="appears in both"):
+        verdict.pool((first, second))
+
+
+def test_batches_from_different_datasets_are_refused(tmp_path):
+    first = read_run(_run(tmp_path, seeds=(93,), name="batch1"))
+    second = read_run(_run(tmp_path, seeds=(94,), name="batch2", dataset="coil2000"))
+
+    with pytest.raises(CaptureRefused, match="different datasets"):
+        verdict.pool((first, second))
+
+
+def test_the_cli_pools_repeated_runs(tmp_path):
+    first = _run(tmp_path, seeds=(93, 94), name="batch1")
+    second = _run(tmp_path, seeds=(95, 96), name="batch2")
+
+    assert verdict.main(
+        ["--run", str(first), "--run", str(second), "--reps", "120"]
+    ) == 0
