@@ -74,8 +74,12 @@ def _launcher_repo(tmp_path):
     return repo
 
 
-def _payload_after_launch(tmp_path, *launcher_args):
-    """Run the real launcher against the mock and return the onstart payload it built."""
+def _launch(tmp_path, *launcher_args, extra_env=None):
+    """Run the real launcher against the mock; return (state dir, completed process).
+
+    Nothing is provisioned: `vastai` here is the mock, so a run either refuses for free or
+    writes its onstart payload into the mock's state directory.
+    """
     repo = _launcher_repo(tmp_path)
     # The directory name contains "mock" on purpose: vast_run.sh records DRY_RUN=1 from
     # the resolved CLI's path, so a mock-driven run is labelled as one in its own record.
@@ -106,6 +110,7 @@ def _payload_after_launch(tmp_path, *launcher_args):
     }
     # The stub keys.sh owns the token here; an exported one would only add a warning.
     env.pop("TABPFN_TOKEN", None)
+    env.update(extra_env or {})
     (tmp_path / "tmp").mkdir()
     (tmp_path / "home").mkdir()
 
@@ -125,6 +130,12 @@ def _payload_after_launch(tmp_path, *launcher_args):
         cwd=str(repo),
     )
 
+    return state, result
+
+
+def _payload_after_launch(tmp_path, *launcher_args):
+    """Run the real launcher against the mock and return the onstart payload it built."""
+    state, result = _launch(tmp_path, *launcher_args)
     # The payload is written by `create instance` and deleted by the launcher's cleanup
     # trap on every exit path, so the mock's copy is the only surviving evidence.
     assert (state / "created.txt").exists(), (
@@ -306,3 +317,42 @@ def test_bootstrap_invokes_the_runner_exactly_as_before_when_seeds_are_unset(tmp
     assert len(lines) == 2, lines
     for line in lines:
         assert "--seeds" not in line, line
+
+
+# --------------------------------------------------------------------------
+# 3. A batch that cannot finish inside the poll window is refused (#414)
+# --------------------------------------------------------------------------
+def test_a_batch_that_cannot_finish_is_refused_before_provisioning(tmp_path):
+    """The failure this prevents is not lateness -- it is total loss.
+
+    Past the poll the launcher exits non-zero, the EXIT trap destroys the instance, and the
+    box ships its payload only on completion, so the compute is discarded. Measured once:
+    thirty seeds took 46 min against a 40 min ceiling, $0.2051 and 46 minutes for nothing.
+    """
+    seeds = ",".join(str(seed) for seed in range(93, 123))  # 30 seeds
+    state, result = _launch(tmp_path, "--seeds", seeds)
+
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert "cannot finish inside the poll window" in result.stderr
+    assert "30 seed(s)" in result.stderr          # the arithmetic is shown, not implied
+    assert "--poll-minutes" in result.stderr      # and the way out is named
+    # Nothing was rented: the refusal happens before an offer is even picked.
+    assert not (state / "created.txt").exists()
+
+
+def test_raising_the_poll_window_lets_the_same_batch_through(tmp_path):
+    """A refusal must be answerable. The operator raises the window, and the batch proceeds."""
+    seeds = ",".join(str(seed) for seed in range(93, 123))
+    state, result = _launch(tmp_path, "--seeds", seeds, "--poll-minutes", "90")
+
+    assert "cannot finish inside the poll window" not in result.stderr
+    assert (state / "created.txt").exists(), result.stdout + result.stderr
+
+
+def test_the_estimate_can_be_lowered_for_a_faster_rung(tmp_path):
+    """Two arms cost ~86 s/seed, not the blunt 90 s default -- and the flag says so."""
+    seeds = ",".join(str(seed) for seed in range(93, 123))
+    state, result = _launch(tmp_path, "--seeds", seeds, "--estimate-sec-per-seed", "60")
+
+    assert "cannot finish inside the poll window" not in result.stderr
+    assert (state / "created.txt").exists(), result.stdout + result.stderr
