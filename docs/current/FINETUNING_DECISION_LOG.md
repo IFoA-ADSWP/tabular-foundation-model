@@ -350,7 +350,9 @@ a **probe** (4 arms × 10 seeds, seeds 45–54, $0.078) measured the between-see
 rung; the **resolution gate** fixed **k = 28** from that measurement before any replication spend; the
 **replication** ran `A_raw` + `B_ft30` over 28 fresh seeds, 55–82 ($0.188). Evidence:
 `results/20261104T123839Z/` (56 records, every one `status: success`), model
-`tabpfn-v3-classifier-v3_default.ckpt` at tabpfn 8.5.0.
+`tabpfn-v3-classifier-v3_default.ckpt` at tabpfn 8.5.0 — **unpinned**: every record reads
+`version: auto`, and the checkpoint field names the file. The model that ran is v3; the record does not
+claim a pin it did not have (#399 amendment, #402).
 
 **Result.**
 
@@ -359,7 +361,7 @@ rung; the **resolution gate** fixed **k = 28** from that measurement before any 
 | Mean ΔAUC vs in-run `A_raw`, 28 seeds | **+0.0035** |
 | 95% interval (between-seed SD 0.0021) | **[+0.00272, +0.00428]** |
 | Brier, worst seed (guard ≤ +0.001) | +0.0003 |
-| Null false-positive rate | 0.0000 |
+| Null false-positive rate (5,000 permutations/seed) | 0.0000 |
 
 **Decision (2026-11-04).** The pre-registered rule is met on all three conditions — interval lower
 bound above zero, point estimate at or above 0.002, Brier inside the guard — and the entire interval
@@ -380,8 +382,8 @@ datasets, no further epoch rungs. Publication is
 1. **D11's reading was the power row, not a null.** Its own §3 mapping said so; the null control
    measured a ±0.010 band against a 0.002–0.003 effect, which is what made two seeds unable to settle
    anything. This replication exists because 28 seeds can.
-2. **The replication breached its $0.15 per-launch ceiling by 25%** ($0.188 against a $0.122
-   projection). The projection used the probe's `B_ft30` timing on an RTX 4090 (38.9 s/seed); the
+2. **The replication breached its $0.15 per-launch ceiling by 25%** ($0.188 against the ceiling —
+   25% over, and 54% over the $0.122 projection). The projection used the probe's `B_ft30` timing on an RTX 4090 (38.9 s/seed); the
    replication ran at ~62 s/seed on an RTX PRO 4000. A projection built on one host's timings does not
    transfer. Total across the effort: **$0.308** of a $9.29 balance.
 

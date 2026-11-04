@@ -82,5 +82,5 @@ pass. The diagnostics (#303–#307) are separate work and are not gated by this 
 | Date | Change |
 |---|---|
 | 2026-11-04 | Filled in at filing. `k` is left blank until the probe reports; the fill is an amendment to this table, not an edit to the rule |
-| 2026-11-04 | **`k` = 28** (`B_ft30`), from the probe's per-seed SD of 0.0037 over seeds 45–54. Replication seeds 55–82. Projected $0.122, actual **$0.188** — the per-launch ceiling was breached by 25% because the projection used the probe host's arm timings (38.9 s/seed vs 62 s/seed). Recorded, not adjusted |
+| 2026-11-04 | **`k` = 28** (`B_ft30`), from the probe's per-seed SD of **0.003742** over seeds 45–54 (`ceil((0.003742/0.000714)²)` = 28; the 4-dp rounding 0.0037 computes 27, so the unrounded value is quoted). Replication seeds 55–82. Projected $0.122, actual **$0.188** — the per-launch ceiling was breached by 25% because the projection used the probe host's arm timings (38.9 s/seed vs 62 s/seed). Recorded, not adjusted |
 | 2026-11-04 | **Result: pass.** Mean ΔAUC +0.0035, 95% interval [+0.00272, +0.00428], Brier +0.0003. Published; no expansion |
