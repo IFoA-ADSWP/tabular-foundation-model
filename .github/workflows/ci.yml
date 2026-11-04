@@ -162,9 +162,16 @@ jobs:
   verdict:
     name: verdict
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    # The tool must still reproduce the null band the decision log cites (#398).
+    timeout-minutes: 10
+    # The tool must still reproduce the null band the decision log cites (#398). It reads a run's
+    # arrays, so it needs numpy and scikit-learn -- the same install the pytest job uses.
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install
+        run: pip install -r requirements.txt
       - name: check
         run: ./scripts/check.sh verdict
