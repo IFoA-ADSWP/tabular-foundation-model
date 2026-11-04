@@ -343,6 +343,52 @@ DECISION: **continue once, no expansion (2026-11-03)** — one v3 replication; p
 archives, unresolved reopens.
 Owner: scotthawes  Date: 2026-11-03  Section: §3
 
+### D15 — The replication passed; the pilot publishes and stops
+
+**What was run.** Pre-registered on 2026-11-04, then executed in two launches:
+a **probe** (4 arms × 10 seeds, seeds 45–54, $0.078) measured the between-seed variance and picked the
+rung; the **resolution gate** fixed **k = 28** from that measurement before any replication spend; the
+**replication** ran `A_raw` + `B_ft30` over 28 fresh seeds, 55–82 ($0.188). Evidence:
+`results/20261104T123839Z/` (56 records, every one `status: success`), model
+`tabpfn-v3-classifier-v3_default.ckpt` at tabpfn 8.5.0.
+
+**Result.**
+
+| | Value |
+|---|---|
+| Mean ΔAUC vs in-run `A_raw`, 28 seeds | **+0.0035** |
+| 95% interval (between-seed SD 0.0021) | **[+0.00272, +0.00428]** |
+| Brier, worst seed (guard ≤ +0.001) | +0.0003 |
+| Null false-positive rate | 0.0000 |
+
+**Decision (2026-11-04).** The pre-registered rule is met on all three conditions — interval lower
+bound above zero, point estimate at or above 0.002, Brier inside the guard — and the entire interval
+sits above δ. **Pass.** Fine-tuning at 30 epochs on `uslapseagent` at 10,000 rows improves ROC AUC by
+about +0.0035 without degrading Brier.
+
+**What it is worth, stated with the comparison that matters.** +0.0035 is real and small: raw TabPFN's
+margin over the best actuarial baseline is **+0.068** on COIL 2000, roughly twenty times larger.
+Choosing the model matters far more than tuning it, and no report may quote this number without that
+measurement beside it.
+
+**Consequence.** Per D14, a pass **publishes and stops**: no Stage 2, no breadth across the four R1
+datasets, no further epoch rungs. Publication is
+`docs/analyses/finetuning_replication_result.md`, with its registry row.
+
+**Two corrections recorded rather than smoothed over.**
+
+1. **D11's reading was the power row, not a null.** Its own §3 mapping said so; the null control
+   measured a ±0.010 band against a 0.002–0.003 effect, which is what made two seeds unable to settle
+   anything. This replication exists because 28 seeds can.
+2. **The replication breached its $0.15 per-launch ceiling by 25%** ($0.188 against a $0.122
+   projection). The projection used the probe's `B_ft30` timing on an RTX 4090 (38.9 s/seed); the
+   replication ran at ~62 s/seed on an RTX PRO 4000. A projection built on one host's timings does not
+   transfer. Total across the effort: **$0.308** of a $9.29 balance.
+
+DECISION: **the replication passed (2026-11-04)** — +0.0035 AUC, 95% CI [+0.0027, +0.0043]; publish and
+stop, per D14.
+Owner: scotthawes  Date: 2026-11-04  Section: §3
+
 ---
 
 ## 2. Settled in the design — confirm, do not re-open
