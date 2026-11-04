@@ -8,8 +8,8 @@ name: ci
 # Six checks, not eight: ruff, pytest, shellcheck, the evidence guard, the citation
 # check and the verdict check. The doc link and doc-status checks are not here -- they are red on main against a
 # pre-existing backlog, and adding them is their own work. #260 corrected the instructions
-# to the then-three checks; the evidence job (#319) is the fourth, and the citation job
-# (#364) is the fifth.
+# to the then-three checks; the evidence job (#319) is the fourth, the citation job
+# (#364) is the fifth, and the verdict job (#398) is the sixth.
 #
 # The shellcheck severity floor and its reason live in scripts/check.sh, beside the
 # check, so that it is not re-litigated here.

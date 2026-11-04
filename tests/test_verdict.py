@@ -56,7 +56,10 @@ def _run(tmp_path: Path, seeds=(43, 44), tuned: bool = True, signal: float = 0.2
         if baseline:
             _slot(run, "A_raw", seed, truth, base)
         if tuned:
-            shifted = np.clip(signal * truth + (1.0 - signal) * mix, 0, 1)
+            if signal == 0.0:
+                shifted = np.clip(base + rng.normal(0, 0.02, N), 0, 1)
+            else:
+                shifted = np.clip(signal * truth + (1.0 - signal) * mix, 0, 1)
             _slot(run, "B_ft3", seed, truth, shifted)
     return run
 
@@ -87,14 +90,42 @@ def test_deltas_are_measured_against_the_in_run_baseline(tmp_path):
         )
 
 
-def test_a_known_null_run_shows_no_false_positive(tmp_path):
-    """With identical scores on both arms, the null band is the AUC noise and nothing is claimed."""
+def test_a_known_null_run_with_a_tight_interval_claims_equivalence(tmp_path):
+    """Noise-only scores, and an interval inside the bounds: the honest claim is "no effect this big"."""
     run = read_run(_run(tmp_path, signal=0.0))
     (arm,) = verdict.arms(run)
     null = verdict.null_band(run, arm, reps=120)
     assert null["sd"] > 0
     assert all(band > 0 for band in null["band95"].values())
-    assert verdict.reading(arm, 0.002) != "pass"
+    # The instrument check is a separate concern and needs more replicates than this fixture runs.
+    assert verdict.reading(arm, 0.002) == "equivalence"
+
+
+def test_the_tool_reproduces_the_committed_null_band_on_the_anchor():
+    run = read_run(REPO_ROOT / "results" / "20261031T021845Z")
+    assert verdict.mean_band(run, reps=300) == pytest.approx(0.010, abs=0.003)
+
+
+def test_a_seed_set_that_reuses_the_probe_is_refused(tmp_path):
+    run = _run(tmp_path)
+    other = _run(tmp_path / "other")
+    with pytest.raises(CaptureRefused, match="must be disjoint"):
+        verdict.check_seeds(read_run(run), exclude_run=other)
+
+
+def test_a_run_short_of_the_declared_seed_count_is_refused(tmp_path):
+    run = _run(tmp_path)
+    with pytest.raises(CaptureRefused, match="declares"):
+        verdict.check_seeds(read_run(run), declared=10)
+
+
+def test_the_csv_is_byte_identical_across_runs(tmp_path):
+    run = read_run(_run(tmp_path))
+    first = verdict.render_csv(verdict.rows(run, 0.002, reps=120))
+    second = verdict.render_csv(verdict.rows(run, 0.002, reps=120))
+    assert first == second
+    assert first.splitlines()[0].startswith("arm,seed,metric,value")
+    assert "verdict/1" in first and "delta_auc/1" in first
 
 
 def test_the_seed_count_formula_reproduces_the_sizing_document():
@@ -119,6 +150,28 @@ def test_a_run_with_no_tuned_arm_is_refused(tmp_path):
     run = _run(tmp_path, tuned=False)
     with pytest.raises(CaptureRefused, match="only A_raw"):
         verdict.arms(read_run(run))
+
+
+def test_zero_between_seed_variance_never_passes():
+    """Identical deltas make a zero-width interval; a pass from it is manufactured, not measured."""
+    same = verdict.Arm(
+        name="B_ft3", deltas=tuple(verdict.Delta("B_ft3", 40 + i, 0.9, 0.004, 0.0) for i in range(3))
+    )
+    assert same.sd == 0
+    assert verdict.reading(same, 0.002) == "unresolved"
+
+
+def test_zero_variance_never_claims_equivalence():
+    flat = verdict.Arm(
+        name="B_ft3", deltas=tuple(verdict.Delta("B_ft3", 40 + i, 0.9, 0.0, 0.0) for i in range(3))
+    )
+    assert verdict.reading(flat, 0.002) == "unresolved"
+
+
+def test_a_rule_outside_the_instrument_band_is_void():
+    arm = _forced(0.004, 0.0005)
+    assert verdict.reading(arm, 0.002, false_positive_rate=0.20) == "void"
+    assert verdict.reading(arm, 0.002, false_positive_rate=0.05) == "pass"
 
 
 def test_a_run_without_the_baseline_arm_is_refused(tmp_path):

@@ -31,8 +31,19 @@ rejected option that is not recorded gets reintroduced.
 lower bound above zero, the point at or above the target, and the Brier guard met; a null inside ±δ is
 equivalence; everything else is unresolved.
 
-**Refusals name the gap**: no baseline arm, no tuned arm, fewer than two seeds, a non-positive target,
-too few permutations.
+**Refusals name the gap**: no baseline arm, no tuned arm, fewer than two seeds, fewer seeds than the
+pre-registration declares, a seed set that reuses another run's (the probe and the replication must not
+overlap), a non-positive target, too few permutations.
+
+**Two claims are withheld rather than computed.** Zero between-seed variance makes a zero-width interval,
+so any point estimate would read as a pass; it reads *unresolved* instead. And a rule that fires more
+than 0.07 under the permutation null is **void** — an instrument failure, not an effect. The bound is
+one-sided because a conjunction is deliberately conservative: the anchor's rule fires at about 0.001, and
+a two-sided band would have voided the only rule that protects the claim.
+
+**Output** is a long-format CSV when `--out` is given: one row per arm × seed × metric, carrying the
+capture hash, the tool version and the target effect, so a row is self-describing and a citation can name
+the arithmetic that produced it.
 
 ## Seams
 

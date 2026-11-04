@@ -48,8 +48,13 @@ Before the replication launches, compute the design's resolution at `k` seeds:
 
 Seeds **disjoint from the probe** (55 upward), 1,000 test rows, one rung. Estimated **$0.12**.
 
-**Aggregation:** mean per-seed ΔAUC with a **random-effects interval** over seeds. Rows are never
-pooled: that understates the standard error by 1.69× and inflates the false-positive rate to 0.25.
+**Aggregation:** the mean of the per-seed ΔAUCs, with the interval taken from the **between-seed**
+standard deviation. Rows are never pooled: pooling treats rows inside a seed as independent,
+understates the standard error by 1.69× and inflates the false-positive rate to 0.25.
+
+**Two claims are withheld even when the arithmetic offers them.** Zero between-seed variance makes a
+zero-width interval, so any point estimate would become a pass; that run reads *unresolved*. And a
+rule that fails the instrument check below reads *void*, never *pass*.
 
 ## The decision rule, fixed now
 
@@ -62,8 +67,9 @@ pooled: that understates the standard error by 1.69× and inflates the false-pos
 ## The instrument check
 
 The replication's own **Capture** is permuted (5,000 label permutations per seed, fixed RNG seed).
-If the observed rule's false-positive rate falls outside **0.03–0.07**, the verdict is **void** and
-the run is recorded as an instrument failure, not an effect. A permutation null measured on another
+If the observed rule fires more often than **0.07** under the null, the verdict is **void** and the run
+is recorded as an instrument failure, not an effect. The bound is one-sided: a rate *below* it is not a
+failure, because a conjunction is deliberately conservative (the anchor's rule fires at about 0.001). A permutation null measured on another
 run or model version cannot certify this one.
 
 ## What is out of scope
