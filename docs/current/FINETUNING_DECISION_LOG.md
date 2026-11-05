@@ -535,6 +535,34 @@ Owner: scotthawes  Date: 2026-11-05  Section: §3
 
 ---
 
+### D19 — Spanish cell pre-registered: no launch, no spend
+
+*(D18 is the `eudirectlapse` result carried by #435; this entry follows it.)*
+
+**What was run.** Nothing. This entry records a design, not a result.
+
+**Design.** `spanish_motor_lapse`, 10,000 training rows and **10,000 test rows** — the size at which the
+readiness study's P1 floor (paired half-width ≤ 0.006) is met, measured at **0.0051** on the committed
+CSV by `scripts/analyses/proxy_resolution.py`. `N_claims_year` and `Cost_claims_year` are dropped from
+every arm (post-outcome; 0.023 AUC). Probe: four arms × ten fresh seeds (331–340), ceiling **$0.50**.
+Replication ceiling **$3.00**; `k` is filled by amendment after the probe. Document:
+`docs/current/FINETUNING_PREREGISTRATION_SPANISH_2026-11.md`.
+
+**Decision (2026-11-05).** No launch is authorised. The probe is a separate spend-gate decision; the
+replication is unfunded. Both projections in the tree — ≈$6.3 (D17) and ≈$18.8 (the breadth
+specification's per-dataset line) — exceed the $3.00 ceiling, so the documented default is a stop.
+
+**What it settles.** The cell has a leak-safe dataset, a measured test size, and a pre-registered gate.
+
+**What it does not settle.** It does not answer the breadth question for Spanish and authorises no
+spend.
+
+DECISION: **Spanish cell pre-registered, nothing authorised (2026-11-05)** — 10,000/10,000, drops
+applied, probe 331–340 under a $0.50 ceiling, `k` and the replication gated; default is a stop.
+Owner: scotthawes  Date: 2026-11-05  Section: §3
+
+---
+
 ## 2. Settled in the design — confirm, do not re-open
 
 | # | Settled | Where |
