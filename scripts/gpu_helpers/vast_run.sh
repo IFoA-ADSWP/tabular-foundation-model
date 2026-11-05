@@ -124,7 +124,11 @@ POLL_MINUTES="${POLL_MINUTES:-40}"
 # at 753-837s per seed. `--pick value` optimises dlperf/$, which does not predict this workload's
 # per-seed time, so pin `--gpu-allow` to a class whose timing has been measured.
 EST_SEC_PER_SEED="${EST_SEC_PER_SEED:-170}"
-BOOT_EST_SECONDS="${BOOT_EST_SECONDS:-180}"
+# Instance-running to arms-starting is not free: image pull, dependency install and the gated
+# weight fetch. Measured on 2026-11-04 across four concurrent launches: three took ~3 min and one
+# took ~15, and the poll window opens before any of it happens. 180s was the optimistic case; this
+# is the observed slow one, because an optimistic allowance is the direction that loses a batch.
+BOOT_EST_SECONDS="${BOOT_EST_SECONDS:-900}"
 ATTEMPT="${ATTEMPT:-1}"
 EXCLUDE_MACHINES="${EXCLUDE_MACHINES:-}"
 SELF="$0"

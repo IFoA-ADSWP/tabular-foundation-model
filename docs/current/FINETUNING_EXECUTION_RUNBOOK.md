@@ -83,8 +83,12 @@ The same batch on an **RTX 3090** ran `B_ft30` at **753–837 s** per seed — a
 and `--pick value` (dlperf per dollar) does not predict it. Both figures are measured; both losses on
 2026-11-04 were batches sized from a figure taken off a truncated run.
 
-Keep the compute under ~30 minutes and leave the poll unreachable: at 164 s/seed that is a dozen
-seeds, not twenty.
+Budget the **startup**, not only the fits: image pull, dependency install and the gated weight fetch
+take ~3 minutes on a warm host and ~15 on a slow one, and the poll window opens before any of it
+begins. Measured across four concurrent launches on 2026-11-04: three at ~3 min, one at ~15.
+
+Keep the compute under ~30 minutes and leave the poll unreachable: at 164 s/seed with a slow
+startup allowance, that is about **ten seeds**, not twelve and not twenty.
 
 **The rest of the toolbox**, in the order a run needs them:
 
