@@ -1,7 +1,8 @@
 # Plan — the rules for running many paid launches (#434)
 
-**Status:** Current — 2026-11-05.
-**Origin:** #434, with the two rules carried from #443's retro. Parent: #428.
+**Status:** Current — 2026-11-05. **Issue:** #434 (a child of the paid-run hardening tracking
+issue #428). **Branch:** `docs/434-paid-run-rules` from `origin/main` @ `48d3ba7`. **Scope:**
+one runbook section, one CHANGELOG line, no code, no launch, no spend.
 
 ## What this changes
 
@@ -20,18 +21,17 @@ After "Watching a launch, and not leaking one" and before "Evidence obligations,
 because the rules govern the launch path that produces those obligations, not the
 obligations themselves. The section opens by pointing at the single-launch section above
 instead of restating it, and refers to `batch_run.sh` (#430) and `watch_run.sh --plan`
-(#432) by name instead of restating their behaviour — neither exists yet, so the text names
-the ticket that builds each. Rules 1 and 2 point back at the measured sizing paragraphs
-already in the runbook rather than repeating their figures a second time; what the new text
-adds is that both inputs must come from a run that completed.
+(#432) by name instead of restating their behaviour — neither exists yet, so the section
+says so and names the ticket that builds each. Rule 1 carries the 170 s / 900 s chain and
+rule 2 the measured GPU pair, so the corrections stay in the rules themselves.
 
 ## Content, and where each rule's evidence comes from
 
 | Rule | Evidence |
 | --- | --- |
-| 1. Measure per-seed time and boot before sizing | `vast_run.sh` defaults (170 s, 900 s), the 46 min run against a 40 min ceiling, #414 |
+| 1. Measure per-seed time and boot before sizing | `vast_run.sh` defaults (90 → 110 → 170 s, 180 → 900 s boot), the 46 min run against a 40 min ceiling, #414 |
 | 2. Pin a GPU class whose timing was measured | 753–837 s vs 158 s on the 30-epoch fit |
-| 3. The missing set is the queue | #430; a fixed queue skipped a dead range |
+| 3. The missing set is the queue | #430; a fixed queue skipped a dead range, and a quarter of the spend bought nothing (#430's measurement) |
 | 4. Concurrency only after the smoke test | #426, `/tmp/vast_run_out.txt`, #431 |
 | 5. Never edit a running script | `line 863: $'in. >&2…': command not found` in a live launcher |
 | 6. Range lists go in a file | zsh does not split `$RANGES`; `FATAL: --seeds was given an empty value` |
@@ -53,6 +53,7 @@ mismatch — so the follow-on ticket inherits a specification rather than a sent
 
 ## Verification
 
-- `python3 scripts/check_doc_links.py --dir docs/current --root .` adds no broken reference
-- `python3 scripts/check_doc_status.py --dir docs/current` still passes the runbook
-- `pytest tests/ -q` once at the end (docs-only change, but the gate is the gate)
+- `./scripts/check.sh doclinks docstatus` — the repo's single definition of the checks; both
+  green (0 broken references in `docs/current`, 15/15 reports labelled)
+- `./scripts/check.sh citation` — the CHANGELOG and plan name no run id
+- `./scripts/check.sh pytest` once at the end (docs-only change, but the gate is the gate)

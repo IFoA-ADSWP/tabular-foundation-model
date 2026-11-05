@@ -1,6 +1,6 @@
 # Fine-Tuning Execution Runbook — Next-Run Appendix
 
-> **Status:** current as of 2026-10-31.
+> **Status:** current as of 2026-11-05.
 
 
 > **Supporting document.** The canonical funded proposal is `docs/current/FINETUNING_PILOT_DESIGN.md`. This page retains the concrete next-run commands and acceptance procedure; it does not define the overall scope. The funded work is the diagnostics phase followed by the full in-domain pilot.
@@ -111,12 +111,15 @@ for when a campaign is a queue of batches over hours rather than one launch over
 the shape the 2026-11-04/05 D18 campaign took (#414, tracked by #428). Every rule below was
 learned by paying for it, none is enforceable by a linter, and where a mechanism exists it
 is named rather than restated: `batch_run.sh` is #430's and `watch_run.sh --plan` is #432's.
+Neither is built yet, so each rule states the practice and names the ticket that enforces it.
 
-1. **Size a batch from a measured per-seed time and a slow startup allowance.** Both halves
-   are measured above; the rule is that both come from a run that *completed*. The first two
-   per-seed defaults, 90 s and then 110 s, were each derived by dividing the elapsed time of
-   a run the same ceiling had cut short, so the division counted work that never ran (#414) —
-   optimistic in the one direction that loses a batch. That is why the launcher's guard
+1. **Size a batch from a measured per-seed time and a slow startup allowance.** The launcher
+   now budgets 170 s per seed and 900 s to the first arm, and both numbers moved in the same
+   direction because both earlier values were optimistic. The first two per-seed defaults,
+   90 s and then 110 s, were each derived by dividing the elapsed time of a run the same
+   ceiling had cut short, so the division counted work that never ran (#414); 180 s of boot
+   was the fast case of four concurrent launches, against a slow one of ~15 minutes. The rule
+   is that both inputs come from a run that *completed*, which is why the launcher's guard
    refuses a batch outright instead of warning.
 
 2. **Pin the GPU class to one whose timing has been measured.** `--pick value` optimises
@@ -125,11 +128,11 @@ is named rather than restated: `batch_run.sh` is #430's and `watch_run.sh --plan
    wrong class never finished. Pin `--gpu-allow`; an overrun is a discarded batch, not a late
    one.
 
-3. **Run `batch_run.sh`, not a fixed queue.** A fixed queue skips a dead range and moves on,
-   and the missing set is then invisible until someone diffs the run directories against
-   the design — on this campaign that was a quarter of the spend buying nothing. #430's
-   harness makes the missing set the queue: a range a dead or wrong batch failed to produce
-   is simply still missing, and comes back on the next pass.
+3. **Run `batch_run.sh` (#430), not a fixed queue.** A fixed queue skips a dead range and
+   moves on, and the missing set is then invisible until someone diffs the run directories
+   against the design — on this campaign that was a quarter of the spend buying nothing,
+   #430's measurement and the reason its harness removes the failure mode rather than the
+   symptom.
 
 4. **Only run concurrently once the smoke test passes (#431).** Two launchers shared
    `/tmp/vast_run_out.txt` and pulled each other's artifacts; both reported success, with
@@ -148,11 +151,11 @@ is named rather than restated: `batch_run.sh` is #430's and `watch_run.sh --plan
    the list belongs in a file that the wrapper reads line by line.
 
 7. **Trust `meta.json` over any log line** — for counting, for progress, and for whether a
-   batch is real (#429, #432). A log line is a claim; a `meta.json` is evidence. The
+   batch is real (#429). A log line is a claim; a `meta.json` is evidence. The
    returned-artifact list itself was once built with `for f in */meta.json`, which matches
    nothing: the runner writes `<dataset>/<arm>/meta.json`. Per-run provenance was never
-   returned from the box and nothing failed. `watch_run.sh --plan` counts banked and missing
-   seeds from the run directories for exactly this reason.
+   returned from the box and nothing failed. `watch_run.sh --plan` (#432) derives banked and
+   missing from the run directories for exactly this reason.
 
 8. **`--yes` does not cover the leak preflight (#423).** The prompt that lists still-billing
    `tabpfn-pilot` instances is unconditional, so a second concurrent launcher — which
@@ -163,8 +166,9 @@ is named rather than restated: `batch_run.sh` is #430's and `watch_run.sh --plan
    external service.** Two symptoms on this campaign — "verified but nothing on disk" and
    "a range ran twice" — were attributed to the provider and to restarts. Both were the
    launcher sharing `/tmp/vast_run_out.txt` (#426). Two mock launchers would have answered
-   it in two minutes; the misdiagnosis cost four hours. Corollary: when the numbers
-   disagree with the evidence, suspect our own instrumentation first.
+   it in two minutes; the session put the misdiagnosis at four hours (#434's retro note).
+   Corollary: when the numbers disagree with the evidence, suspect our own instrumentation
+   first.
 
 10. **Append CHANGELOG entries at the bottom of `## [Unreleased]`, not the top.** Five PRs
     on 2026-11-05 each added a line at the same position, so every squash-merge invalidated
