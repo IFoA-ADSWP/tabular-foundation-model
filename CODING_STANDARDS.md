@@ -53,3 +53,20 @@ write **unmeasured**, so the next reader knows to measure before relying on it.
 **Reviewer's test:** for every such claim the change adds or leans on, ask for the file, the figure
 or the command. "It says so in the design document" is the answer that should fail; the design
 document is where the claim was written, not where it was checked.
+
+## A result quotes the analysing tool, not a hand-assembled summary
+
+*Raised in the #436 review of the D18 result, and again in the 2026-11-05 retro (#443): the document
+reported mean +0.0009, between-seed SD 0.0081 and a 129-seed requirement — the 228-seed pool that
+existed before the final ten-seed batch landed — beside a count of 134/238 from the full pool. The
+committed evidence gives +0.0007, SD 0.0082 and 132 seeds. The reading was unchanged, but a signed
+document disagreed with its own evidence until the capture was committed.*
+
+The figures in a result document come from **one run of the analysing tool over the final evidence**,
+and the document carries the command that produced them. A figure copied from an earlier pool, or
+assembled from several runs, is **unmeasured** in the sense above — regenerate it or say so. Where the
+evidence supports it, a test parses the document and reproduces the mean, SD and interval, as
+`tests/test_d18_evidence.py` does; this rule covers the figures no test can reach.
+
+**Reviewer's test:** ask for the command behind every figure. A document that cannot name one run of
+the tool over the final evidence is quoting something other than its evidence.
