@@ -492,6 +492,48 @@ Owner: scotthawes  Date: 2026-11-04  Section: §3
 
 ---
 
+### D18 — Breadth, first dataset: the gain does not generalise — equivalence on `eudirectlapse`
+
+**What was run.** D17's replication, in twenty paid launches of twelve seeds (238 seeds, 93–330),
+two arms (`A_raw` + `B_ft30`), 10,000 training rows and 1,000 test rows, model line asserted as
+`tabpfn-v3-classifier-v3_default.ckpt` before every launch. Result published as
+`docs/analyses/finetuning_breadth_eudirectlapse_result.md`.
+
+**Result.**
+
+| | Value |
+|---|---|
+| Mean ΔAUC, 238 seeds | **+0.0009** |
+| 95% interval (between-seed SD 0.0081) | **[−0.0001, +0.0019]** |
+| Seeds positive | 134 / 238 (56%) |
+| ΔBrier, worst seed (guard ≤ +0.001) | +0.0010 |
+| Null: SD / false-positive rate | 0.0085 / 0.0000 |
+| Design needed at this SD | 129 seeds (the run carried 238) |
+
+**Decision (2026-11-05).** The reading is **equivalence**. The interval covers zero *and* its upper
+bound sits below δ = 0.002, so the effect is bounded under the bar rather than merely failing to reach
+it. The instrument check passes (false-positive rate 0.0000 under permutation).
+
+**What it settles.** On the one R1 dataset where a baseline beats TabPFN at full data — the only place
+fine-tuning had a *gap to close* rather than a lead to extend — adaptation closes nothing. The anchor's
++0.0035 on `uslapseagent` is therefore dataset-specific, not a property of the model.
+
+**What it does not settle, and what that means for the programme.** `coil2000` and
+`spanish_motor_lapse` remain unmeasured; the latter projects to ~512 seeds (~$14) against a balance that
+has ~$3.1 left. So breadth now stands at **one dataset answered, two unpriced**, and D16's question is
+answered for the dataset that mattered most. No further launch is authorised by this entry.
+
+**Cost, stated because it was not all well spent.** $4.30 across 29 launches, of which roughly a quarter
+produced nothing — poll overruns, a launcher concurrency defect that duplicated 36 seeds and silently
+attributed some batches' artifacts to others (#426), and one gated-fetch failure. The hardening is
+tracked in #428; that defect, not the provider, explains the "verified but nothing on disk" batches.
+
+DECISION: **breadth answers "no" on `eudirectlapse` (2026-11-05)** — +0.0009 AUC [−0.0001, +0.0019],
+equivalence at δ = 0.002; the remaining two datasets are unpriced and not authorised.
+Owner: scotthawes  Date: 2026-11-05  Section: §3
+
+---
+
 ## 2. Settled in the design — confirm, do not re-open
 
 | # | Settled | Where |
