@@ -494,21 +494,22 @@ Owner: scotthawes  Date: 2026-11-04  Section: §3
 
 ### D18 — Breadth, first dataset: the gain does not generalise — equivalence on `eudirectlapse`
 
-**What was run.** D17's replication, in twenty paid launches of twelve seeds (238 seeds, 93–330),
-two arms (`A_raw` + `B_ft30`), 10,000 training rows and 1,000 test rows, model line asserted as
-`tabpfn-v3-classifier-v3_default.ckpt` before every launch. Result published as
-`docs/analyses/finetuning_breadth_eudirectlapse_result.md`.
+**What was run.** D17's replication, in twenty paid launches — nineteen of twelve seeds, the last of
+ten (238 seeds, 93–330) — two arms (`A_raw` + `B_ft30`), 10,000 training rows and 1,000 test rows,
+model line asserted as `tabpfn-v3-classifier-v3_default.ckpt` before every launch. Result published as
+`docs/analyses/finetuning_breadth_eudirectlapse_result.md`; evidence committed as twenty run
+directories under `results/`.
 
 **Result.**
 
 | | Value |
 |---|---|
-| Mean ΔAUC, 238 seeds | **+0.0009** |
-| 95% interval (between-seed SD 0.0081) | **[−0.0001, +0.0019]** |
+| Mean ΔAUC, 238 seeds | **+0.0007** |
+| 95% interval (between-seed SD 0.0082) | **[−0.0003, +0.0018]** |
 | Seeds positive | 134 / 238 (56%) |
 | ΔBrier, worst seed (guard ≤ +0.001) | +0.0010 |
 | Null: SD / false-positive rate | 0.0085 / 0.0000 |
-| Design needed at this SD | 129 seeds (the run carried 238) |
+| Design needed at this SD | 132 seeds (the run carried 238) |
 
 **Decision (2026-11-05).** The reading is **equivalence**. The interval covers zero *and* its upper
 bound sits below δ = 0.002, so the effect is bounded under the bar rather than merely failing to reach
@@ -528,7 +529,7 @@ produced nothing — poll overruns, a launcher concurrency defect that duplicate
 attributed some batches' artifacts to others (#426), and one gated-fetch failure. The hardening is
 tracked in #428; that defect, not the provider, explains the "verified but nothing on disk" batches.
 
-DECISION: **breadth answers "no" on `eudirectlapse` (2026-11-05)** — +0.0009 AUC [−0.0001, +0.0019],
+DECISION: **breadth answers "no" on `eudirectlapse` (2026-11-05)** — +0.0007 AUC [−0.0003, +0.0018],
 equivalence at δ = 0.002; the remaining two datasets are unpriced and not authorised.
 Owner: scotthawes  Date: 2026-11-05  Section: §3
 

@@ -63,12 +63,12 @@ D14 the line stops here: published, not expanded. Evidence: `results/20261104T12
 `docs/analyses/finetuning_replication_result.md`. The paragraph below records the state before the run.
 
 **Breadth has its first answer, and it is negative (2026-11-05, D18).** On `eudirectlapse` — the one R1
-dataset where a GLM beats TabPFN at full data — 30-epoch fine-tuning moves ROC AUC by **+0.0009**
-[−0.0001, +0.0019] across **238 seeds**: below the pre-registered δ = 0.002 and not separable from zero.
+dataset where a GLM beats TabPFN at full data — 30-epoch fine-tuning moves ROC AUC by **+0.0007**
+[−0.0003, +0.0018] across **238 seeds**: below the pre-registered δ = 0.002 and not separable from zero.
 That is an **equivalence** reading, not a failure to reach the bar. The anchor's +0.0035 on
 `uslapseagent` therefore looks dataset-specific. `coil2000` and `spanish_motor_lapse` remain unmeasured;
 the second needs ~512 seeds (~$14), which the remaining balance does not cover. Result:
-`docs/analyses/finetuning_breadth_eudirectlapse_result.md`.
+`docs/analyses/finetuning_breadth_eudirectlapse_result.md`; evidence committed under `results/`.
 
 **Breadth reopened as a specification (2026-11-04, D16).** The owner has amended D14's "no expansion
 even on a pass" so that the full value of fine-tuning can be quantified: whether the gain holds on
