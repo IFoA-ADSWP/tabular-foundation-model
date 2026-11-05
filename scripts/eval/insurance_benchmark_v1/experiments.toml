@@ -88,8 +88,9 @@ drop = []
 metric = "rmse"
 
 # ---- pilot datasets (#238) ---------------------------------------------------
-# Their own section: the pilot drops no columns and scores through its arm runner, so a
-# frontier dataset's metric would be a claim the pilot never uses. Keeping them out of
+# Their own section: file and target only. The pilot's leak-drops live in its runner's dataset
+# table and are applied there (#444), so this section stays a registry view with no metric --
+# a frontier dataset's metric would be a claim the pilot never uses. Keeping them out of
 # [datasets] also keeps #235's rule true -- every frontier dataset has one experiment.
 
 [pilot_datasets.eudirectlapse]

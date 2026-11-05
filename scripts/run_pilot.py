@@ -124,7 +124,14 @@ DATASETS = {
     "coil2000": {"file": "coil2000.csv", "target": "CARAVAN"},
     "uslapseagent": {"file": "uslapseagent.csv", "target": "surrender"},
     "eudirectlapse": {"file": "eudirectlapse.csv", "target": "lapse"},
-    "spanish_motor_lapse": {"file": "spanish_motor_lapse.csv", "target": "LapseB"},
+    "spanish_motor_lapse": {
+        "file": "spanish_motor_lapse.csv",
+        "target": "LapseB",
+        # Post-outcome columns: both describe claims during the policy year whose end state is
+        # the label. The readiness study measured 0.023 AUC from them and P2 requires their
+        # exclusion (#444). Applied by `load_dataset`, recorded by `dataset_fingerprint`.
+        "drop": ("N_claims_year", "Cost_claims_year"),
+    },
 }
 
 DATA_DIR = REPO_ROOT / "data" / "raw"
@@ -219,6 +226,15 @@ def _host_info():
     return info
 
 
+def declared_drop(name):
+    """The leak-drops a dataset declaration applies, before encoding and in the record.
+
+    One declaration, read by both `load_dataset` and `dataset_fingerprint`, so the matrix a run
+    trains on and the `drop` its record names cannot drift apart (#241, #444).
+    """
+    return tuple(DATASETS[name].get("drop") or ())
+
+
 def dataset_fingerprint(name, *, frame=None, drop=None, source=None):
     """Pilot adapter over `provenance.dataset_fingerprint` (PR-6, moved by #211).
 
@@ -231,7 +247,9 @@ def dataset_fingerprint(name, *, frame=None, drop=None, source=None):
 
     `drop` comes from the dataset declaration unless the caller names its own, so the leak-drops
     a run actually applied are recorded by the runner that applied them. A dataset with no
-    declaration drop records `[]`.
+    declaration drop records `[]`; a declared drop is read through `declared_drop`, the same
+    helper `load_dataset` uses, so the record and the matrix share one declaration. The entry's
+    `columns` and `n_cols` describe the source file, not the encoded matrix.
 
     A table that is not on disk is STATE, not an error: the shared helper returns
     `exists: false` rather than omitting the dataset, so a run that could not find its data is
@@ -240,7 +258,7 @@ def dataset_fingerprint(name, *, frame=None, drop=None, source=None):
     info = DATASETS[name]
     path = DATA_DIR / info["file"]
     if drop is None:
-        drop = tuple(info.get("drop") or ())
+        drop = declared_drop(name)
     return _shared_dataset_fingerprint(
         name,
         frame=frame,
@@ -479,19 +497,31 @@ def check_data():
 def load_dataset(name, target_col, max_rows=None):
     """Load and encode a dataset.
 
+    A dataset declaration may carry leak-drops; they are applied here, before encoding, through
+    the same `declared_drop` helper `dataset_fingerprint` records, so the matrix a run trains on
+    and the `drop` its record names share one declaration (#241, #444). A declared drop whose
+    column is absent fails closed rather than silently leaving a leak in the matrix.
+
     Note (PR-6): the row cap is a *uniform* sample, not stratified, so the sampled
     class balance can differ from the population. This is recorded in the
     fingerprint rather than hidden.
     """
     path = DATA_DIR / f"{name}.csv"
     df = pd.read_csv(path)
+    drop = declared_drop(name)
+    absent = [column for column in drop if column not in df.columns]
+    if absent:
+        raise ValueError(
+            f"{name}: declared drop column(s) {absent} are not in {path.name}; "
+            "a declared leak-drop that is not applied is a leak"
+        )
     sampled = False
     if max_rows is not None and len(df) > max_rows:
         df = df.sample(n=max_rows, random_state=DEFAULT_SEED)
         sampled = True
     y = df[target_col].values.astype(int)
     X = (
-        pd.get_dummies(df.drop(columns=[target_col]), drop_first=False)
+        pd.get_dummies(df.drop(columns=[target_col, *drop]), drop_first=False)
         .fillna(0)
         .values.astype(np.float64)
     )

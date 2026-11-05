@@ -115,7 +115,8 @@ def dataset_fingerprint(name, *, frame=None, target, drop=(), path=None, repo_ro
     because they define the feature matrix: the same bytes with a different leak-drop is a
     different experiment, and a reader comparing two records has to be able to see that.
     `drop` is the set of columns **as applied by the runner**, not a claim about what should
-    have been dropped.
+    have been dropped. `columns` and `n_cols` describe the frame as supplied (the source file),
+    so a runner that drops before encoding states the removal in `drop` rather than in `columns`.
 
     A table that is not on disk is STATE, not an error: the original behaviour, kept so a run
     that could not find its data is legible instead of absent. With `frame` supplied the frame
