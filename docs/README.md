@@ -150,6 +150,6 @@ The report-level index is `docs/REPORT_REGISTRY.md` and is deliberately not rest
 
 ## Outside docs/
 
-- **Skills (the junior loop's execution step):** `.github/skills/` + `.opencode/` runbooks — see `KNOWLEDGE-PATH-JUNIOR.md` for which skill maps to which task.
+- **Skills (the junior loop's execution step):** `.opencode/skills/` + `.opencode/agents/` — see `KNOWLEDGE-PATH-JUNIOR.md` for which skill maps to which task.
 - **Reproducibility notebooks:** `notebooks/reproducibility/README.md` (referenced by runbook §§A.7–A.9).
 - **Live benchmark code:** `scripts/eval/insurance_benchmark_v1/`, `scripts/benchmarks/`.
