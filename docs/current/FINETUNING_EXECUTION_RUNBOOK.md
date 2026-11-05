@@ -96,7 +96,7 @@ startup allowance, that is about **ten seeds**, not twelve and not twenty.
 |---|---|
 | `scripts/gpu_helpers/lease.sh` | a launch's identity and release; a failed destroy prints the one-line command to finish it |
 | `scripts/gpu_helpers/fetch_weights.py` | the checkpoint and its sha256, into the record |
-| `scripts/gpu_helpers/verify_artifacts.py` | after the pull: `predictions verified=N mismatched=0` |
+| `scripts/gpu_helpers/verify_artifacts.py` | after the pull: `predictions verified=N mismatched=0`, then the same `SEEDS requested=… written=…` line — a batch that wrote another range is refused, not reported as verified (#429) |
 | `scripts/analyses/verdict.py` | per-seed deltas, null band, resolution — `--run` repeats to pool batches |
 | `scripts/analyses/rescore.py`, `make_capture.py`, `export_predictions.py` | recompute, manifest, and publish a run's predictions |
 

@@ -897,9 +897,18 @@ else
     # log -- already captured in $RUN_OUT -- IS the transfer channel.
     # (`vastai execute` cannot read files; it only runs ls/rm/du.)
     cp $RUN_OUT $ARTIFACTS_RAW 2>/dev/null || : > $ARTIFACTS_RAW
+    # The seeds this launch was GIVEN, not the ones the box says it ran. Without this
+    # comparison a batch that wrote another launch's range reports `verified=24` and
+    # exits 0 -- the payload is genuine, just somebody else's (#429).
+    # The `[@]+...` form, not `"${SEED_ARGS[@]}"`: on macOS's bash 3.2 an empty array
+    # expanded under `set -u` is an unbound-variable error, and an unseeded launch has
+    # exactly that shape.
+    SEED_ARGS=()
+    if [ -n "$SEEDS" ]; then SEED_ARGS=(--expect-seeds "$SEEDS"); fi
     python3 "$REPO_DIR/scripts/gpu_helpers/verify_artifacts.py" \
         --raw $ARTIFACTS_RAW \
-        --dest "$RUN_OUTDIR"
+        --dest "$RUN_OUTDIR" \
+        "${SEED_ARGS[@]+"${SEED_ARGS[@]}"}"
     ART_RC=$?
     case "$ART_RC" in
         0) : ;;
@@ -909,6 +918,10 @@ else
            echo "         log captured at $RUN_OUT" >&2 ;;
         5) echo "WARNING: predictions arrived but failed hash verification - see above" >&2
            echo "         the run's metrics are NOT recomputable from these files" >&2 ;;
+        6) echo "REFUSING: the batch did not write the seeds it was asked for." >&2
+           echo "          Evidence kept at $RUN_OUTDIR for inspection; do not publish" >&2
+           echo "          from it and do not retry into the same range." >&2
+           RUN_RC=1 ;;
         *) echo "WARNING: artifact verification exited $ART_RC" >&2 ;;
     esac
 fi
@@ -916,3 +929,6 @@ fi
 echo
 echo "=== done (rc=$RUN_RC) ==="
 ls -l "$OUTDIR" 2>/dev/null | head -20
+# Exit with the run's status, not `ls`'s. A launcher that printed `rc=1` and then exited 0
+# is how a refused batch looked like a success to everything downstream (#429).
+exit "$RUN_RC"
