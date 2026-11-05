@@ -24,10 +24,10 @@ So this does three things, in order, and refuses to report success unless all pa
      check that makes a returned metric recomputable by a third party.
 
   4. IDENTITY (`--expect-seeds`). The seeds in the restored tree's `meta.json` files are
-     compared against the seeds the launch was given. (3) proves a batch is internally
-     consistent; only this proves it is the batch that was asked for. On 2026-11-05 two
-     launches asked for 225-236 and 237-248, both wrote 141-152, and both reported
-     `verified=24 mismatched=0` (#429).
+     compared against the seeds the launch was given, per `(dataset, arm)`. (3) proves a
+     batch is internally consistent; only this proves it is the batch that was asked for.
+     On 2026-11-05 two launches asked for 225-236 and 237-248, both wrote 141-152, and both
+     reported `verified=24 mismatched=0` (#429).
 
 Note the subtlety in (3): `meta.json` records the hash of the ARRAY's bytes
 (`array.tobytes()`), not of the `.npy` container, so hashing the file directly would
@@ -184,16 +184,25 @@ def verify_predictions(dest: str) -> tuple[int, int, int, list[str]]:
 
 
 def parse_seeds(spec: str) -> list[int]:
-    """Turn `225,226,227` or `225-236` (or a mix) into an ordered list of ints."""
+    """Turn `225,226,227` or `225-236` (or a mix) into an ordered list of ints.
+
+    A reversed range is an error rather than an empty list: `236-225` silently expanding
+    to nothing would report every written seed as unexpected and hide the real mistake.
+    """
     seeds: list[int] = []
     for item in spec.replace(" ", ",").split(","):
         if not item:
             continue
         if "-" in item:
             lo, _, hi = item.partition("-")
-            seeds.extend(range(int(lo), int(hi) + 1))
+            start, end = int(lo), int(hi)
+            if end < start:
+                raise ValueError(f"reversed range {item!r}")
+            seeds.extend(range(start, end + 1))
         else:
             seeds.append(int(item))
+    if not seeds:
+        raise ValueError("no seeds in the list")
     return seeds
 
 
@@ -213,13 +222,15 @@ def seed_ranges(seeds) -> str:
     )
 
 
-def written_seeds(dest: str) -> set[int]:
-    """Every seed the restored tree's `meta.json` files record.
+def written_seeds(dest: str) -> dict[tuple[str, str], set[int]]:
+    """The seeds each `(dataset, arm)` in the restored tree actually wrote.
 
-    A multi-fold run writes one meta per fold for the same seed, so this is a set: the
-    unit the launch asked for is a seed, not a record.
+    Grouped per arm rather than pooled: a batch whose `B_in_domain` died at seed 142 of
+    141-143 has the right *union* and the wrong evidence, and the issue's "partial run is
+    refused" has to hold one level below the batch too. A multi-fold run writes one meta
+    per fold for the same seed, so each group is a set.
     """
-    seeds: set[int] = set()
+    groups: dict[tuple[str, str], set[int]] = {}
     for root, _dirs, files in os.walk(dest):
         if "meta.json" not in files:
             continue
@@ -228,10 +239,13 @@ def written_seeds(dest: str) -> set[int]:
                 meta = json.load(f)
         except Exception:
             continue
-        seed = meta.get("seed")
-        if isinstance(seed, int):
-            seeds.add(seed)
-    return seeds
+        try:
+            seed = int(meta.get("seed"))
+        except (TypeError, ValueError):
+            continue  # absent or non-numeric: the group simply does not record it
+        key = (str(meta.get("dataset") or "?"), str(meta.get("arm") or "?"))
+        groups.setdefault(key, set()).add(seed)
+    return groups
 
 
 def main() -> int:
@@ -254,7 +268,9 @@ def main() -> int:
     args = ap.parse_args()
 
     try:
-        expected = parse_seeds(args.expect_seeds) if args.expect_seeds else None
+        # An explicitly empty list is a mistake, not a request to skip the check --
+        # `vast_run.sh` refuses `--seeds ""` for the same reason.
+        expected = parse_seeds(args.expect_seeds) if args.expect_seeds is not None else None
     except ValueError as e:
         print(f"FAIL --expect-seeds is not a seed list: {e}")
         return 2
@@ -280,16 +296,27 @@ def main() -> int:
 
     seed_mismatch = False
     if expected is not None:
-        written = written_seeds(args.dest)
+        expected_set = set(expected)
+        groups = written_seeds(args.dest)
+        written = set().union(*groups.values()) if groups else set()
         print(f"SEEDS requested={seed_ranges(expected)} written={seed_ranges(written)}")
         absent = [seed for seed in expected if seed not in written]
-        extra = sorted(written - set(expected))
+        extra = sorted(written - expected_set)
         if absent or extra:
             seed_mismatch = True
             if absent:
                 print(f"  MISSING seeds: {seed_ranges(absent)} (requested, never written)")
             if extra:
                 print(f"  UNEXPECTED seeds: {seed_ranges(extra)} (written, never requested)")
+        for (dataset, arm), seeds in sorted(groups.items()):
+            if seeds != expected_set:
+                seed_mismatch = True
+                gap = seed_ranges(expected_set - seeds)
+                print(
+                    f"  INCOMPLETE {dataset}/{arm}: requested={seed_ranges(expected)} "
+                    f"written={seed_ranges(seeds)} (missing {gap})"
+                )
+        if seed_mismatch:
             print("FAIL this batch did not write the seeds it was asked for")
 
     if verified == 0:

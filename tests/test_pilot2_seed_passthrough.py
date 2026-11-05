@@ -520,6 +520,107 @@ def test_a_tree_that_records_no_seeds_is_a_mismatch_not_a_pass(tmp_path):
     assert "MISSING seeds: 141" in result.stdout
 
 
+def test_an_arm_that_missed_a_seed_is_refused(tmp_path):
+    """The union can be right while an arm is short: B_at seed 142 of 141-143.
+
+    That is the same failure the issue records one level up -- a batch that looks complete
+    and is not -- so the group compared is `(dataset, arm)`, not the whole tree.
+    """
+    tree = tmp_path / "arm-tree"
+    _box_tree(tree, seeds=[141, 142, 143], arm="A_raw")
+    _box_tree(tree, seeds=[141, 142], arm="B_in_domain")
+
+    result = subprocess.run(
+        [sys.executable, str(VERIFIER), "--verify-only", "--raw", "/dev/null",
+         "--dest", str(tree), "--expect-seeds", "141-143"],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 6, result.stdout + result.stderr
+    assert "INCOMPLETE eudirectlapse/B_in_domain" in result.stdout
+    assert "missing 143" in result.stdout
+
+
+def test_a_seed_recorded_as_a_string_is_still_that_seed(tmp_path):
+    """A schema variant writing "141" must not read as "no seed written"."""
+    import json
+
+    tree = _box_tree(tmp_path / "string-seed-tree", seeds=[141])
+    meta_path = next(tree.rglob("meta.json"))
+    meta = json.loads(meta_path.read_text())
+    meta["seed"] = "141"
+    meta_path.write_text(json.dumps(meta))
+
+    result = subprocess.run(
+        [sys.executable, str(VERIFIER), "--verify-only", "--raw", "/dev/null",
+         "--dest", str(tree), "--expect-seeds", "141"],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "written=141" in result.stdout
+
+
+def test_an_unusable_seed_list_is_a_usage_error_not_a_skipped_check(tmp_path):
+    """`--expect-seeds ""` must not quietly mean "don't check".
+
+    That is the failure `vast_run.sh` already refuses for `--seeds ""` (#429's guard), and
+    a reversed range would otherwise expand to nothing and blame every written seed.
+    """
+    tree = _box_tree(tmp_path / "usage-tree", seeds=[141])
+    for spec in ("", "236-225", "141,abc"):
+        result = subprocess.run(
+            [sys.executable, str(VERIFIER), "--verify-only", "--raw", "/dev/null",
+             "--dest", str(tree), "--expect-seeds", spec],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 2, f"{spec!r}: {result.stdout}{result.stderr}"
+        assert "not a seed list" in result.stdout, result.stdout
+
+
+def test_a_batch_whose_hashes_do_not_match_is_refused_too(tmp_path):
+    """Exit 5 was a warning while exit 6 is a refusal; both mean "do not trust this set"."""
+    import json
+
+    tree = _box_tree(tmp_path / "bad-hash-tree", seeds=[141])
+    meta_path = next(tree.rglob("meta.json"))
+    meta = json.loads(meta_path.read_text())
+    meta["predictions_sha256"] = "0" * 64
+    meta_path.write_text(json.dumps(meta))
+
+    _, result = _launch(
+        tmp_path,
+        "--arms", "A_raw",
+        "--seeds", "141",
+        extra_env={"MOCK_OUTPUT_TREE": str(tree)},
+    )
+    combined = result.stdout + result.stderr
+
+    assert result.returncode != 0, combined
+    assert "REFUSING: predictions arrived but failed hash verification" in result.stderr
+
+
+def test_the_ssh_transport_is_verified_too():
+    """Both transports have to answer "is this the batch I asked for".
+
+    The ssh path pulls files directly and has nothing to unpack, so it was the one place
+    where no verification ran at all -- not even the hash check that predates #429.
+    """
+    script = VAST_RUN.read_text()
+    pull = script.split("=== pulling artifacts ===", 1)[1]
+    ssh_branch = pull.split('if [ "$TRANSPORT" = "ssh" ]; then', 1)[1].split(
+        "\nelse", 1
+    )[0]
+
+    assert "--verify-only" in ssh_branch, ssh_branch
+    assert '--raw /dev/null' in ssh_branch, ssh_branch
+    # ...and the call itself is shared, after the branch, so the seed list reaches it.
+    assert '"${SEED_ARGS[@]+"${SEED_ARGS[@]}"}"' in script
+
+
 # --------------------------------------------------------------------------
 # 5. A launch owns its temp files (#426)
 # --------------------------------------------------------------------------

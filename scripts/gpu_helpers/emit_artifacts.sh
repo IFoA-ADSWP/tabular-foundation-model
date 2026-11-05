@@ -85,8 +85,14 @@ if [ -z "$ART_SHA" ]; then
     ART_SHA="$(shasum -a 256 "$TARBALL" 2>/dev/null | cut -d' ' -f1)"
 fi
 [ -n "$ART_SHA" ] || ART_SHA="-"
-ART_B64="$(wc -c < "$B64FILE" | tr -d ' ')"
-ART_LINES=$(( (ART_B64 + LINE_WIDTH - 1) / LINE_WIDTH ))
+# Count the lines the emitter ACTUALLY produces. This used to divide the base64 BYTE
+# count by the width, which is wrong whenever the payload length is an exact multiple of
+# it: `base64` terminates with a newline, so the file is one byte longer than the payload
+# and the ceiling declared one line more than `fold` emitted. The receiver refuses a short
+# read, so such a batch was discarded as truncated -- an intermittent, paid-for failure
+# rather than a loud one, and it surfaced only when a twelve-seed mock run landed on the
+# boundary.
+ART_LINES="$(fold -w "$LINE_WIDTH" "$B64FILE" | wc -l | tr -d ' ')"
 
 echo "__ARTIFACTS_INFO__ bytes=$ART_BYTES sha256=$ART_SHA lines=$ART_LINES files=$FILE_COUNT"
 echo "__ARTIFACTS_BEGIN__"
