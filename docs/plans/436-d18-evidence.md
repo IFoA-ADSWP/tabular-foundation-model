@@ -1,7 +1,8 @@
 # Plan — commit the evidence D18 cites
 
-**Issue:** #436 (a child of the paid-run hardening tracking issue #428). **Branch:** stacked on
-`docs/414-breadth-result` (#435), which carries the result this evidence belongs to.
+**Status:** current — 2026-11-05. **Issue:** #436 (a child of the paid-run hardening tracking issue
+#428). **Branch:** stacked on `docs/414-breadth-result` (#435), which carries the result this evidence
+belongs to.
 
 ## What and why
 

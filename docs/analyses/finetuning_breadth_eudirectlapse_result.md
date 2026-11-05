@@ -28,8 +28,9 @@ sample was large enough to bound the effect under the bar rather than merely fai
 
 These figures are recomputed from the committed captures (see Reproduction). An earlier draft quoted
 the mean, between-seed SD and seed requirement of the 228-seed pool that existed before the final
-ten-seed batch landed, beside the 238-seed count; the mean moves from +0.0009 to +0.0007, the reading
-is unchanged, and the correction is recorded because the document and its evidence must agree.
+ten-seed batch landed, beside the 238-seed count; the draft's interval was derived from those rounded
+figures, and the mean moves from +0.0009 to +0.0007. The reading is unchanged, and the correction is
+recorded because the document and its evidence must agree.
 
 The null band is the instrument check: under permuted labels the rule fires essentially never, so the
 reading is not an artefact of its own thresholds. The run was **over-powered** — 238 seeds against a
@@ -69,11 +70,11 @@ Twenty paid launches — nineteen of twelve seeds, the last of ten — two arms 
 batches are independent and pool by seed; the verdict tool refuses a repeated seed precisely so that a
 batch cannot be counted twice.
 
-Records are committed under `results/<run_id>/` — one directory per launch, named by its launch id —
-with one `meta.json`, `predictions.npy` and `ground_truth.npy` per arm × seed, and a `capture.json`
-per run written by `scripts/analyses/make_capture.py`. The verdict reads those arrays and verifies
-each against both the capture and the record, so the numbers below can be recomputed from the tree
-rather than trusted.
+Records are committed under `results/<run_id>/` — one directory per launch, keyed by the run id — with
+one `meta.json`, `predictions.npy` and `ground_truth.npy` per arm × seed, and a `capture.json` per run
+written by `scripts/analyses/make_capture.py`. The verdict reads those arrays and verifies each against
+both the capture and the record, so the numbers below can be recomputed from the tree rather than
+trusted.
 
 **Cost: $4.30** across 29 launches, of which roughly a quarter produced nothing: three batches lost to
 poll overruns, 36 seeds measured twice through a launcher concurrency defect, and one batch killed at a
@@ -99,8 +100,8 @@ scored.
 
 ## Evidence Files
 
-One run directory per launch under `results/`, named by the launch id, each with a `capture.json` and
-one `meta.json` / `predictions.npy` / `ground_truth.npy` per arm × seed. Three seed ranges were
+Each launch's directory carries a `capture.json` and one
+`meta.json` / `predictions.npy` / `ground_truth.npy` per arm × seed. Three seed ranges were
 launched more than once while #426 was live; only one directory per range is committed here, so the
 table names one and the pool stays seed-disjoint.
 
@@ -120,12 +121,13 @@ table names one and the pool stays seed-disjoint.
 | `20261105T124205Z` | 225–236 | | |
 | `20261105T140236Z` | 237–248 | | |
 
-The launch manifests (`manifest_*.json`) and the two parquet records are committed beside the arrays,
-as they are for the anchor, so a reviewer can read a launch's git sha, host and clock without leaving
-the tree. Two launches in the 201–224 range started within the same second on different hosts, so their
-on-box manifests share filenames while recording different hosts, run stamps and seeds; each seeded
-record and its capture hash are authoritative. Cost and lease records stay under `outputs/` and are
-not committed.
+The launch manifests (`manifest_*.json`) and the metrics parquet are committed beside the arrays, as
+they are for the anchor, so a reviewer can read a launch's git sha, host and clock without leaving the
+tree. The predictions parquet is the dataset-level export the launcher wrote; the per-seed arrays are
+the evidence the reading uses. Two launches in the 201–224 range started within the same second on
+different hosts, so their on-box manifests share filenames while recording different hosts,
+`run_stamp` values and seeds; each seeded record and its capture hash are authoritative. Cost and lease
+records stay under `outputs/` and are not committed.
 
 ## Reading it beside the anchor
 
