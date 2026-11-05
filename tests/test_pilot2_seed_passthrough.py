@@ -24,6 +24,7 @@ Run:  python -m pytest tests/test_pilot2_seed_passthrough.py -v
 import shutil
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +32,7 @@ GH = REPO_ROOT / "scripts" / "gpu_helpers"
 VAST_RUN = GH / "vast_run.sh"
 BOOTSTRAP = GH / "bootstrap_pilot.sh"
 MOCK = GH / "mock_vastai.sh"
+VERIFIER = GH / "verify_artifacts.py"
 
 
 # --------------------------------------------------------------------------
@@ -371,7 +373,256 @@ def test_the_estimate_can_be_lowered_for_a_faster_rung(tmp_path):
 
 
 # --------------------------------------------------------------------------
-# 4. A launch owns its temp files (#426)
+# 4. A batch proves the seeds it wrote (#429)
+# --------------------------------------------------------------------------
+def _box_tree(root, seeds, dataset="eudirectlapse", arm="A_raw"):
+    """A returned tree the verifier accepts, whose metas record `seeds`.
+
+    Every seed gets its own predictions/meta pair with a hash the verifier can recompute,
+    so the only thing the seed check has to object to is the seed set itself. That keeps
+    the test honest: it cannot pass because the hashes failed first.
+    """
+    import hashlib
+    import json
+
+    import numpy as np
+
+    for seed in seeds:
+        d = root / dataset / arm / f"seed{seed}_foldNone"
+        d.mkdir(parents=True)
+        y = np.linspace(0.0, 1.0, 16, dtype=np.float32) + seed
+        np.save(d / "predictions.npy", y)
+        np.save(d / "ground_truth.npy", (y > 0.5).astype(np.int64))
+        (d / "meta.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 4,
+                    "run_id": f"{dataset}_{arm}_seed{seed}",
+                    "dataset": dataset,
+                    "arm": arm,
+                    "seed": seed,
+                    "fold": None,
+                    "predictions_sha256": hashlib.sha256(
+                        np.ascontiguousarray(y).tobytes()
+                    ).hexdigest(),
+                }
+            )
+        )
+    return root
+
+
+def _requested(*seeds):
+    return ",".join(str(seed) for seed in seeds)
+
+
+def test_a_batch_that_wrote_another_launchs_seeds_is_refused(tmp_path):
+    """Measured 2026-11-05: two launches asked for one range and wrote another's.
+
+    `waveC-3` asked 225-236 and `waveC-4` asked 237-248; both wrote 141-152, and both
+    reported `verified=24 mismatched=0`. Every existing check passed. The count was right,
+    the hashes were right, the range was wrong -- so the only way to catch it is to compare
+    the seed set against the launch's request.
+    """
+    tree = _box_tree(tmp_path / "wrong-tree", seeds=range(141, 153))
+    requested = _requested(*range(225, 237))
+
+    _, result = _launch(
+        tmp_path,
+        "--arms", "A_raw",
+        "--seeds", requested,
+        "--poll-minutes", "60",
+        extra_env={"MOCK_OUTPUT_TREE": str(tree)},
+    )
+    combined = result.stdout + result.stderr
+
+    assert result.returncode != 0, combined
+    assert "requested=225-236" in combined, combined
+    assert "written=141-152" in combined, combined
+    assert "REFUSING" in result.stderr, combined
+    # The pull happened first, so the wrong tree is on disk for inspection rather than
+    # destroyed with the instance.
+    returned = list((tmp_path / "returned").rglob("meta.json"))
+    assert len(returned) == 12, returned
+
+
+def test_a_correct_batch_passes_unchanged(tmp_path):
+    """The new check must not cost a good batch its exit code.
+
+    A guard that refuses everything is indistinguishable from a broken pipeline, so the
+    healthy path is pinned beside the refusal: same tree, requested seeds, exit 0.
+    """
+    tree = _box_tree(tmp_path / "right-tree", seeds=[141, 142, 143])
+    _, result = _launch(
+        tmp_path,
+        "--arms", "A_raw",
+        "--seeds", _requested(141, 142, 143),
+        extra_env={"MOCK_OUTPUT_TREE": str(tree)},
+    )
+    combined = result.stdout + result.stderr
+
+    assert result.returncode == 0, combined
+    assert "SEEDS requested=141-143 written=141-143" in combined, combined
+
+
+def test_a_partial_batch_is_refused_not_silently_accepted(tmp_path):
+    """Fewer seeds than requested is the same failure as the wrong range, one shape on.
+
+    A stopped batch that wrote 2 of 3 seeds used to pass every check: the two records were
+    consistent, and the count was never compared with the request.
+    """
+    tree = _box_tree(tmp_path / "partial-tree", seeds=[141, 142])
+    _, result = _launch(
+        tmp_path,
+        "--arms", "A_raw",
+        "--seeds", _requested(141, 142, 143),
+        extra_env={"MOCK_OUTPUT_TREE": str(tree)},
+    )
+    combined = result.stdout + result.stderr
+
+    assert result.returncode != 0, combined
+    assert "requested=141-143 written=141-142" in combined, combined
+    assert "MISSING seeds: 143" in combined, combined
+
+
+def test_the_verifier_renders_a_sparse_seed_set_as_ranges(tmp_path):
+    """Twelve numbers a reader has to diff by eye is how 141-152 went unnoticed."""
+    tree = _box_tree(tmp_path / "sparse-tree", seeds=[141, 143, 150, 151, 152])
+    result = subprocess.run(
+        [sys.executable, str(VERIFIER), "--verify-only", "--raw", "/dev/null",
+         "--dest", str(tree), "--expect-seeds", "141,143,150-152"],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "requested=141,143,150-152 written=141,143,150-152" in result.stdout
+
+
+def test_a_tree_that_records_no_seeds_is_a_mismatch_not_a_pass(tmp_path):
+    """Absence is not agreement: an older meta schema must not read as "requested satisfied"."""
+    import json
+
+    tree = _box_tree(tmp_path / "unseeded-tree", seeds=[141])
+    meta_path = next(tree.rglob("meta.json"))
+    meta = json.loads(meta_path.read_text())
+    del meta["seed"]
+    meta_path.write_text(json.dumps(meta))
+
+    result = subprocess.run(
+        [sys.executable, str(VERIFIER), "--verify-only", "--raw", "/dev/null",
+         "--dest", str(tree), "--expect-seeds", "141"],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 6, result.stdout + result.stderr
+    assert "written=(none)" in result.stdout
+    assert "MISSING seeds: 141" in result.stdout
+
+
+def test_an_arm_that_missed_a_seed_is_refused(tmp_path):
+    """The union can be right while an arm is short: B_at seed 142 of 141-143.
+
+    That is the same failure the issue records one level up -- a batch that looks complete
+    and is not -- so the group compared is `(dataset, arm)`, not the whole tree.
+    """
+    tree = tmp_path / "arm-tree"
+    _box_tree(tree, seeds=[141, 142, 143], arm="A_raw")
+    _box_tree(tree, seeds=[141, 142], arm="B_in_domain")
+
+    result = subprocess.run(
+        [sys.executable, str(VERIFIER), "--verify-only", "--raw", "/dev/null",
+         "--dest", str(tree), "--expect-seeds", "141-143"],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 6, result.stdout + result.stderr
+    assert "INCOMPLETE eudirectlapse/B_in_domain" in result.stdout
+    assert "missing 143" in result.stdout
+
+
+def test_a_seed_recorded_as_a_string_is_still_that_seed(tmp_path):
+    """A schema variant writing "141" must not read as "no seed written"."""
+    import json
+
+    tree = _box_tree(tmp_path / "string-seed-tree", seeds=[141])
+    meta_path = next(tree.rglob("meta.json"))
+    meta = json.loads(meta_path.read_text())
+    meta["seed"] = "141"
+    meta_path.write_text(json.dumps(meta))
+
+    result = subprocess.run(
+        [sys.executable, str(VERIFIER), "--verify-only", "--raw", "/dev/null",
+         "--dest", str(tree), "--expect-seeds", "141"],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "written=141" in result.stdout
+
+
+def test_an_unusable_seed_list_is_a_usage_error_not_a_skipped_check(tmp_path):
+    """`--expect-seeds ""` must not quietly mean "don't check".
+
+    That is the failure `vast_run.sh` already refuses for `--seeds ""` (#429's guard), and
+    a reversed range would otherwise expand to nothing and blame every written seed.
+    """
+    tree = _box_tree(tmp_path / "usage-tree", seeds=[141])
+    for spec in ("", "236-225", "141,abc"):
+        result = subprocess.run(
+            [sys.executable, str(VERIFIER), "--verify-only", "--raw", "/dev/null",
+             "--dest", str(tree), "--expect-seeds", spec],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 2, f"{spec!r}: {result.stdout}{result.stderr}"
+        assert "not a seed list" in result.stdout, result.stdout
+
+
+def test_a_batch_whose_hashes_do_not_match_is_refused_too(tmp_path):
+    """Exit 5 was a warning while exit 6 is a refusal; both mean "do not trust this set"."""
+    import json
+
+    tree = _box_tree(tmp_path / "bad-hash-tree", seeds=[141])
+    meta_path = next(tree.rglob("meta.json"))
+    meta = json.loads(meta_path.read_text())
+    meta["predictions_sha256"] = "0" * 64
+    meta_path.write_text(json.dumps(meta))
+
+    _, result = _launch(
+        tmp_path,
+        "--arms", "A_raw",
+        "--seeds", "141",
+        extra_env={"MOCK_OUTPUT_TREE": str(tree)},
+    )
+    combined = result.stdout + result.stderr
+
+    assert result.returncode != 0, combined
+    assert "REFUSING: predictions arrived but failed hash verification" in result.stderr
+
+
+def test_the_ssh_transport_is_verified_too():
+    """Both transports have to answer "is this the batch I asked for".
+
+    The ssh path pulls files directly and has nothing to unpack, so it was the one place
+    where no verification ran at all -- not even the hash check that predates #429.
+    """
+    script = VAST_RUN.read_text()
+    pull = script.split("=== pulling artifacts ===", 1)[1]
+    ssh_branch = pull.split('if [ "$TRANSPORT" = "ssh" ]; then', 1)[1].split(
+        "\nelse", 1
+    )[0]
+
+    assert "--verify-only" in ssh_branch, ssh_branch
+    assert '--raw /dev/null' in ssh_branch, ssh_branch
+    # ...and the call itself is shared, after the branch, so the seed list reaches it.
+    assert '"${SEED_ARGS[@]+"${SEED_ARGS[@]}"}"' in script
+
+
+# --------------------------------------------------------------------------
+# 5. A launch owns its temp files (#426)
 # --------------------------------------------------------------------------
 def test_the_launcher_shares_no_temp_file_between_launches():
     """The container log IS the artifact transfer channel, so a shared path is a data bug.
