@@ -134,8 +134,9 @@ Neither is built yet, so each rule states the practice and names the ticket that
    #430's measurement and the reason its harness removes the failure mode rather than the
    symptom.
 
-4. **Only run concurrently once the smoke test passes (#431).** Two launchers shared
-   `/tmp/vast_run_out.txt` and pulled each other's artifacts; both reported success, with
+4. **Only run concurrently once the smoke test passes (#431).** Two launchers shared one
+   fixed output file under `/tmp` — `vast_run_out.txt` — and pulled each other's artifacts;
+   both reported success, with
    `verified=24` over a payload that was genuine but belonged to another launch (#426). A
    launch now owns a `mktemp -d` and `tests/test_pilot2_seed_passthrough.py` fails if a fixed
    `/tmp/vast_*` path returns; #431 is the test that two live launchers do not share state.
@@ -165,7 +166,8 @@ Neither is built yet, so each rule states the practice and names the ticket that
 9. **When a symptom contradicts the model, reproduce under the mock before blaming an
    external service.** Two symptoms on this campaign — "verified but nothing on disk" and
    "a range ran twice" — were attributed to the provider and to restarts. Both were the
-   launcher sharing `/tmp/vast_run_out.txt` (#426). Two mock launchers would have answered
+   launcher sharing one fixed `/tmp` output file (`vast_run_out.txt`, #426). Two mock
+   launchers would have answered
    it in two minutes; the session put the misdiagnosis at four hours (#434's retro note).
    Corollary: when the numbers disagree with the evidence, suspect our own instrumentation
    first.

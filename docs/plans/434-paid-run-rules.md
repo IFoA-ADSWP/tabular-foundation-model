@@ -32,7 +32,7 @@ rule 2 the measured GPU pair, so the corrections stay in the rules themselves.
 | 1. Measure per-seed time and boot before sizing | `vast_run.sh` defaults (90 → 110 → 170 s, 180 → 900 s boot), the 46 min run against a 40 min ceiling, #414 |
 | 2. Pin a GPU class whose timing was measured | 753–837 s vs 158 s on the 30-epoch fit |
 | 3. The missing set is the queue | #430; a fixed queue skipped a dead range, and a quarter of the spend bought nothing (#430's measurement) |
-| 4. Concurrency only after the smoke test | #426, `/tmp/vast_run_out.txt`, #431 |
+| 4. Concurrency only after the smoke test | #426, the shared `/tmp` output file, #431 |
 | 5. Never edit a running script | `line 863: $'in. >&2…': command not found` in a live launcher |
 | 6. Range lists go in a file | zsh does not split `$RANGES`; `FATAL: --seeds was given an empty value` |
 | 7. Trust `meta.json`, not log lines | #429, #432; `for f in */meta.json` matched nothing |
