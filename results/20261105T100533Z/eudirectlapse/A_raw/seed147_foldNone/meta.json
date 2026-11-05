@@ -1,0 +1,251 @@
+{
+  "schema_version": 4,
+  "run_id": "eudirectlapse_A_raw_seed147",
+  "dataset": "eudirectlapse",
+  "arm": "A_raw",
+  "seed": 147,
+  "fold": null,
+  "n_folds": null,
+  "train_rows": 10000,
+  "row_epochs": null,
+  "test_rows": 1000,
+  "device": "cuda",
+  "device_name": "NVIDIA RTX PRO 4000 Blackwell",
+  "run_time_seconds": 2.9216654300689697,
+  "timestamp": "2026-11-05T10:08:45.598633+00:00",
+  "status": "success",
+  "versions": {
+    "python": "3.11.12",
+    "torch": "2.7.0+cu128",
+    "numpy": "2.2.5",
+    "tabpfn": "8.5.0",
+    "scikit-learn": "1.9.1",
+    "pandas": "2.3.3",
+    "catboost": "1.2.10"
+  },
+  "checkpoints": [
+    "tabpfn-v3-classifier-v3_default.ckpt"
+  ],
+  "weights": {
+    "path": "/root/.cache/tabpfn/tabpfn-v3-classifier-v3_default.ckpt",
+    "sha256": "d0d865d54dfbc524f5703104be90620182dca7e5fb2c16de72e9959ea18f3988",
+    "bytes": 212804803,
+    "cached_before": true,
+    "downloaded": true,
+    "source": "Prior-Labs/tabpfn_3",
+    "manifest_file": "/tmp/tfm_weights.json"
+  },
+  "container": {
+    "image_ref": "pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime",
+    "run_stamp": "20261105T100533Z",
+    "machine_id": null,
+    "host_id": null
+  },
+  "estimator_class": "tabpfn.classifier.TabPFNClassifier",
+  "inference_context": {
+    "rows": 10000,
+    "mechanism": "TabPFNClassifier.fit(X_train) -- full training split"
+  },
+  "provenance": {
+    "dataset": {
+      "name": "eudirectlapse",
+      "path": "data/raw/eudirectlapse.csv",
+      "file": "eudirectlapse.csv",
+      "target": "lapse",
+      "drop": [],
+      "sha256": "c05777d10cdc18f55b2562f732212ddb61d8ffe56c9403f2b352cde008098850",
+      "n_rows": 23060,
+      "n_cols": 19,
+      "columns": [
+        "lapse",
+        "polholder_age",
+        "polholder_BMCevol",
+        "polholder_diffdriver",
+        "polholder_gender",
+        "polholder_job",
+        "policy_age",
+        "policy_caruse",
+        "policy_nbcontract",
+        "prem_final",
+        "prem_freqperyear",
+        "prem_last",
+        "prem_market",
+        "prem_pure",
+        "vehicl_age",
+        "vehicl_agepurchase",
+        "vehicl_garage",
+        "vehicl_powerkw",
+        "vehicl_region"
+      ],
+      "positive_rate": 0.128101,
+      "n_positive": 2954,
+      "source_url": "https://raw.githubusercontent.com/IFoA-ADSWP/tabular-foundation-model/main/data/raw/eudirectlapse.csv",
+      "source_repo": "IFoA-ADSWP/tabular-foundation-model",
+      "source_ref": "main",
+      "source_ref_is_pinned": false,
+      "rows_used": 11500,
+      "load_info": {
+        "row_cap": 11500,
+        "row_cap_applied": true,
+        "rows_loaded": 11500
+      },
+      "pos_rate_used": 0.128087
+    },
+    "split": {
+      "n_folds": null,
+      "seed": 147,
+      "sha256": "4d03e3e2c844ca4f42da77a21f4bb8ae015c8e4150584c0da6ffaf75096f150e",
+      "rule": {
+        "constructor": "train_test_split",
+        "params": {
+          "random_state": 147,
+          "stratify": "y",
+          "test_size": 1000,
+          "train_size": 10000
+        }
+      }
+    },
+    "model": {
+      "version": "auto",
+      "version_source": "auto",
+      "weights_sha256": "d0d865d54dfbc524f5703104be90620182dca7e5fb2c16de72e9959ea18f3988",
+      "client_version": "8.5.0"
+    },
+    "code": {
+      "git_sha": "85ae191e09bf8661717377a0ca00a200e8bc2cda",
+      "dirty": false,
+      "runtime": {
+        "python": "3.11.12",
+        "torch": "2.7.0+cu128",
+        "numpy": "2.2.5",
+        "tabpfn": "8.5.0",
+        "scikit-learn": "1.9.1",
+        "pandas": "2.3.3",
+        "catboost": "1.2.10"
+      },
+      "image": "pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime"
+    }
+  },
+  "dataset_fingerprint": {
+    "name": "eudirectlapse",
+    "path": "data/raw/eudirectlapse.csv",
+    "file": "eudirectlapse.csv",
+    "target": "lapse",
+    "drop": [],
+    "sha256": "c05777d10cdc18f55b2562f732212ddb61d8ffe56c9403f2b352cde008098850",
+    "n_rows": 23060,
+    "n_cols": 19,
+    "columns": [
+      "lapse",
+      "polholder_age",
+      "polholder_BMCevol",
+      "polholder_diffdriver",
+      "polholder_gender",
+      "polholder_job",
+      "policy_age",
+      "policy_caruse",
+      "policy_nbcontract",
+      "prem_final",
+      "prem_freqperyear",
+      "prem_last",
+      "prem_market",
+      "prem_pure",
+      "vehicl_age",
+      "vehicl_agepurchase",
+      "vehicl_garage",
+      "vehicl_powerkw",
+      "vehicl_region"
+    ],
+    "positive_rate": 0.128101,
+    "n_positive": 2954,
+    "source_url": "https://raw.githubusercontent.com/IFoA-ADSWP/tabular-foundation-model/main/data/raw/eudirectlapse.csv",
+    "source_repo": "IFoA-ADSWP/tabular-foundation-model",
+    "source_ref": "main",
+    "source_ref_is_pinned": false,
+    "rows_used": 11500,
+    "load_info": {
+      "row_cap": 11500,
+      "row_cap_applied": true,
+      "rows_loaded": 11500
+    },
+    "pos_rate_used": 0.128087
+  },
+  "split_fingerprint": {
+    "policy": "holdout_then_train_cap",
+    "seed": 147,
+    "fold": null,
+    "n_folds": null,
+    "rule": {
+      "constructor": "train_test_split",
+      "params": {
+        "random_state": 147,
+        "stratify": "y",
+        "test_size": 1000,
+        "train_size": 10000
+      }
+    },
+    "n_train": 10000,
+    "n_test": 1000,
+    "pos_train": 1281,
+    "pos_test": 128,
+    "train_index_sha256": "4d03e3e2c844ca4f42da77a21f4bb8ae015c8e4150584c0da6ffaf75096f150e",
+    "test_index_sha256": "c95eda2abd962225170a1962a8d426e15923f4b4919892c4566e0f85e2833f3b",
+    "test_rows_excluded_from_fit": true,
+    "n_dropped": 500,
+    "dropped_index_sha256": "dc072bd18218caddad9b251c18ee0918d3bdaf4aa1aa7b74a9b34661315ed612",
+    "leakage_assertion": {
+      "train_test_disjoint": true,
+      "dropped_test_disjoint": true,
+      "n_dropped": 500,
+      "context_source": "explicit_indices_checked",
+      "checked": "constructed_split_only",
+      "n_context": 10000,
+      "context_test_disjoint": true,
+      "context_allowed_checked": true
+    }
+  },
+  "predictions_sha256": "db33d91100a23c3aa78125ea800fa3a591510ed1f412eee5c7f5cd0fafc5aaa8",
+  "effective_config": {
+    "arm": "A_raw",
+    "kwargs": {
+      "ignore_pretraining_limits": true,
+      "n_estimators": 2,
+      "fit_mode": "batched",
+      "inference_precision": "float32"
+    },
+    "passed_params": [
+      "n_estimators",
+      "fit_mode"
+    ],
+    "library_defaulted_params": [
+      "ignore_pretraining_limits",
+      "inference_precision"
+    ],
+    "legacy_config_keys_ignored": [
+      "context_samples"
+    ],
+    "source_config": {
+      "epochs": 3,
+      "early_stopping": false,
+      "n_estimators": 2,
+      "learning_rate": 1e-05,
+      "fit_mode": "batched",
+      "context_samples": 64
+    }
+  },
+  "config": {
+    "epochs": 3,
+    "early_stopping": false,
+    "n_estimators": 2,
+    "learning_rate": 1e-05,
+    "fit_mode": "batched",
+    "context_samples": 64
+  },
+  "roc_auc": 0.611534188646789,
+  "brier": 0.11002613604068756,
+  "pr_auc": 0.18619031042011247,
+  "log_loss": 0.3761269450187683,
+  "ece": 0.020974574193358412,
+  "model_saved": false,
+  "model_save_note": "not requested (--save-models)"
+}
