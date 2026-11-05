@@ -33,11 +33,13 @@ before, and the ssh pull — which had no verification at all — runs `--verify
 files it just copied.
 
 `scripts/gpu_helpers/emit_artifacts.sh` also needed a fix, found while making the wrong-tree
-test reliable: it declared `lines=` by dividing the base64 byte count, so a payload whose
-length was an exact multiple of the fold width declared one line more than it emitted, and
-the receiver refused the batch as truncated — roughly once in 440 runs, invisible until a
-twelve-seed mock run landed on the boundary. The declaration now counts the lines the
-emitter actually produces.
+test reliable. It declared `lines=` by arithmetic rather than by counting what it sends, and
+was wrong in both directions: dividing the base64 byte count declared one line too many when
+the payload length was an exact multiple of the fold width, and `fold | wc -l` declared one
+too few when the final line had no trailing newline. Either way the receiver refuses a good
+batch as truncated — the first roughly once in 440 runs, the second on whichever platform
+leaves the last line unterminated. The emitter now materialises the folded lines once and
+declares their count, so declaration and transmission cannot disagree.
 
 `vast_run.sh` passes `--expect-seeds "$SEEDS"` only when the launch was given seeds, so an
 unseeded launch is unchanged. On exit `6` it prints `REFUSING` to stderr, names the evidence
