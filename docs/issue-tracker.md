@@ -18,8 +18,19 @@ Exactly one category label (`bug`/`enhancement`) and one state label on every tr
 
 ## External PR rule
 
-`external` = pull request whose author is NOT `IFoA-ADSWP` (the repo owner). Internal PRs are
-out of scope for triage discovery. An explicitly named PR is always triaged regardless of author.
+`external` = pull request whose author is NOT a collaborator on this repository. Resolve the
+list with:
+
+```
+gh api repos/IFoA-ADSWP/tabular-foundation-model/collaborators --paginate --jq '.[].login'
+```
+
+The author-is-owner form (`author != IFoA-ADSWP`) is unusable here: the owner is an
+organisation, so no PR author can ever satisfy it and every PR reads as external. The
+collaborator test is the intended filter.
+
+Internal PRs are out of scope for triage discovery. An explicitly named PR is always triaged
+regardless of author.
 
 ## Operations
 
@@ -70,4 +81,35 @@ Issue reference resolution: bare `#N` resolves against `IFoA-ADSWP/tabular-found
 Run `gh --version` and record it here on setup:
 - gh version: 2.101.0 (2026-09-15)
 
-External-PR rule repeated for triage: external = author != owner.
+External-PR rule repeated for triage: external = author is not a repository collaborator
+(org-owned repo, so the author-is-owner form cannot apply).
+
+## Local vocabulary
+
+The canonical roles above are the **only** state labels the skills route on:
+`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`.
+This repo also uses the labels below. They annotate or park work; none of them
+substitutes for a state label, and none of them routes anything.
+
+**Rule.** An issue that could be picked up carries **exactly one** canonical
+state label, plus any number of the labels below. An issue carrying only a label
+from this table is invisible to the workflow: `implement` cannot pick it up,
+`triage` treats it as untriaged, and the `doctor` counts it as queued but
+unroutable (49 of 81 open issues were in that state on 2026-10-31). If an
+issue's state is unknown, it is `needs-triage`.
+
+### Priority and parking
+
+| Label | Role | Effect on routing |
+| --- | --- | --- |
+| `priority: now` | priority | None. It still needs a state label; this only says "before the rest". |
+| `priority: backlog` | **parking** | Parked on purpose. Remove `ready-for-agent` / `ready-for-human` when applying it. |
+| `blocked` | **parking** | Waiting on something outside this repo (#22 GPU access, #57 a decision). Not actionable until the blocker clears; do not also carry a ready-for-* label. |
+
+### Work type
+
+| Label | Means |
+| --- | --- |
+| `tracking` | The spec or parent issue a set of tickets hangs off (#240, #252, #300, #324). Structural: it tracks children, so it is not itself implementable. |
+| `deliverable` | Conference output work (#42–#45): abstract, writing, targeting, submission draft. |
+| `documentation` | Docs-only change. |
