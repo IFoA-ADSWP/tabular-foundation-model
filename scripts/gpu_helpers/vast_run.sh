@@ -41,7 +41,7 @@
 
 set -uo pipefail
 
-# Temp files below (/tmp/vast_*.json, /tmp/vast_run_out.txt, artifacts) are created
+# Temp files below ($LAUNCH_TMP/*.json, $RUN_OUT, artifacts) are created
 # world-readable by default. This run handles a licence token and experiment data, so
 # keep everything owner-only. The token itself is never written to disk here -- it is
 # only ever exported into the remote command.
@@ -294,6 +294,16 @@ fi
 BRANCH="${BRANCH:-main}"
 RUN_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 
+# Every temporary file this launch writes lives under ONE directory named for the launch.
+# The container log IS the artifact transfer channel in `--transport onstart`, so two launches
+# sharing $RUN_OUT pull each other's payloads: measured 2026-11-05, two of three
+# concurrent batches wrote another batch's seeds and reported `verified=24` while doing it (#426).
+LAUNCH_TMP="$(mktemp -d "${TMPDIR:-/tmp}/tfm-launch.XXXXXX")"
+RUN_OUT="$LAUNCH_TMP/run_out.txt"
+LOG_NEXT="$LAUNCH_TMP/log_next.txt"
+ARTIFACTS_RAW="$LAUNCH_TMP/artifacts.raw"
+cleanup_launch_tmp() { [ -n "${LAUNCH_TMP:-}" ] && rm -rf "$LAUNCH_TMP"; }
+
 # Record what a run actually cost, so the cost model in the runbook can be
 # replaced with measurements instead of assumptions. Writes one JSON per run
 # plus an appended CSV ledger we can aggregate across runs.
@@ -426,6 +436,8 @@ cleanup() {
             fi
         fi
     fi
+    # The launch's temp directory dies with it. Nothing outside it is shared with another launch.
+    cleanup_launch_tmp
     exit "$status"
 }
 trap cleanup EXIT
@@ -552,12 +564,12 @@ fi
 echo "=== 2/7 selecting offer (pick=$PICK ceiling=\$$MAX_DPH/hr min-vram=${MIN_VRAM}GB) ==="
 
 if [ -z "$OFFER_ID" ]; then
-    vastai search offers "$QUERY" -o dph --raw 2>/dev/null > /tmp/vast_candidates.json
+    vastai search offers "$QUERY" -o dph --raw 2>/dev/null > "$LAUNCH_TMP/candidates.json"
     # The 6th argument is the machine_id skip-list. On a retry that is the host
     # that just failed; without it the (stable) ranking re-picks it and we pay to
     # rediscover the same bad pull.
     SELECTOR_OUT="$(python3 "$REPO_DIR/scripts/gpu_helpers/select_offer.py" \
-        "$PICK" "$MAX_DPH" "$GPU_ALLOW" "$MIN_VRAM" /tmp/vast_candidates.json \
+        "$PICK" "$MAX_DPH" "$GPU_ALLOW" "$MIN_VRAM" $LAUNCH_TMP/candidates.json \
         "$(printf '%s' "$EXCLUDE_MACHINES" | tr ' ' ',')")"
     read -r OFFER_ID GPU_NAME DPH CUDA DLPERF CPU_RAM GPU_RAM DISK_SP REL <<< "$SELECTOR_OUT"
     if [ -z "$OFFER_ID" ]; then
@@ -819,7 +831,7 @@ else
     # The bootstrap already started at container boot via --onstart, so there is
     # nothing to launch here: watch the container log until it reports completion.
     echo "running via: --onstart (bootstrap began at container boot)"
-    : > /tmp/vast_run_out.txt
+    : > $RUN_OUT
     BOOTSTRAP_DONE=0
     EMPTY_STREAK=0
     for i in $(seq 1 $(( POLL_MINUTES * 3 ))); do   # 20s per poll
@@ -834,9 +846,9 @@ else
         # box declares its payload's line count and sha256, and the receiver refuses a
         # short read, so a mis-sized window now fails loudly instead of silently.
         # Do not raise this to the 200000 range that caused the original leak.
-        ERR="$(vastai logs "$INSTANCE_ID" --tail 20000 2>&1 > /tmp/vast_log_next.txt)"
-        if [ -s /tmp/vast_log_next.txt ]; then
-            cp /tmp/vast_log_next.txt /tmp/vast_run_out.txt
+        ERR="$(vastai logs "$INSTANCE_ID" --tail 20000 2>&1 > $LOG_NEXT)"
+        if [ -s $LOG_NEXT ]; then
+            cp $LOG_NEXT $RUN_OUT
             EMPTY_STREAK=0
         else
             EMPTY_STREAK=$(( EMPTY_STREAK + 1 ))
@@ -844,12 +856,12 @@ else
                 echo "  WARNING: log capture empty 3x -- $(printf '%s' "$ERR" | cut -c1-80)" >&2
             fi
         fi
-        if grep -q "BOOTSTRAP FINISHED" /tmp/vast_run_out.txt 2>/dev/null; then
+        if grep -q "BOOTSTRAP FINISHED" $RUN_OUT 2>/dev/null; then
             BOOTSTRAP_DONE=1
             break
         fi
         # Surface progress without flooding: the most recent milestone line.
-        PROG="$(grep -aE '^##########|PILOT RESULTS|ROC=|EXITED rc=' /tmp/vast_run_out.txt 2>/dev/null | tail -1)"
+        PROG="$(grep -aE '^##########|PILOT RESULTS|ROC=|EXITED rc=' $RUN_OUT 2>/dev/null | tail -1)"
         [ -n "$PROG" ] && echo "  [$i] $PROG"
         sleep 20
     done
@@ -861,7 +873,7 @@ else
         RUN_RC=1
     fi
     echo "--- log tail ---"
-    tail -40 /tmp/vast_run_out.txt
+    tail -40 $RUN_OUT
 fi
 
 BOOTSTRAP_RC="$RUN_RC"
@@ -882,19 +894,19 @@ if [ "$TRANSPORT" = "ssh" ]; then
         echo "WARNING: scp failed -- re-run with --keep" >&2
 else
     # The bootstrap printed its payload between markers on stdout, so the container
-    # log -- already captured in /tmp/vast_run_out.txt -- IS the transfer channel.
+    # log -- already captured in $RUN_OUT -- IS the transfer channel.
     # (`vastai execute` cannot read files; it only runs ls/rm/du.)
-    cp /tmp/vast_run_out.txt /tmp/vast_artifacts.raw 2>/dev/null || : > /tmp/vast_artifacts.raw
+    cp $RUN_OUT $ARTIFACTS_RAW 2>/dev/null || : > $ARTIFACTS_RAW
     python3 "$REPO_DIR/scripts/gpu_helpers/verify_artifacts.py" \
-        --raw /tmp/vast_artifacts.raw \
+        --raw $ARTIFACTS_RAW \
         --dest "$RUN_OUTDIR"
     ART_RC=$?
     case "$ART_RC" in
         0) : ;;
         3) echo "WARNING: no usable artifact payload in the container log" >&2
-           echo "         log captured at /tmp/vast_run_out.txt; use --keep to inspect" >&2 ;;
+           echo "         log captured at $RUN_OUT; use --keep to inspect" >&2 ;;
         4) echo "WARNING: the payload was present but incomplete - see above" >&2
-           echo "         log captured at /tmp/vast_run_out.txt" >&2 ;;
+           echo "         log captured at $RUN_OUT" >&2 ;;
         5) echo "WARNING: predictions arrived but failed hash verification - see above" >&2
            echo "         the run's metrics are NOT recomputable from these files" >&2 ;;
         *) echo "WARNING: artifact verification exited $ART_RC" >&2 ;;

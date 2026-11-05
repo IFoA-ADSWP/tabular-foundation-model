@@ -368,3 +368,23 @@ def test_the_estimate_can_be_lowered_for_a_faster_rung(tmp_path):
     )
     assert "cannot finish inside the poll window" not in result.stderr
     assert (state / "created.txt").exists(), result.stdout + result.stderr
+
+
+# --------------------------------------------------------------------------
+# 4. A launch owns its temp files (#426)
+# --------------------------------------------------------------------------
+def test_the_launcher_shares_no_temp_file_between_launches():
+    """The container log IS the artifact transfer channel, so a shared path is a data bug.
+
+    Measured 2026-11-05: two of three concurrent batches wrote another batch's seeds and still
+    reported `verified=24`, because both launchers read/wrote /tmp/vast_run_out.txt. A launch that
+    names its own directory cannot do that.
+    """
+    script = VAST_RUN.read_text()
+
+    assert "/tmp/vast_" not in script, (
+        "a fixed /tmp/vast_* path is shared by every concurrent launcher; "
+        "route it through $LAUNCH_TMP instead (#426)"
+    )
+    assert 'LAUNCH_TMP="$(mktemp -d' in script
+    assert 'RUN_OUT="$LAUNCH_TMP/run_out.txt"' in script
