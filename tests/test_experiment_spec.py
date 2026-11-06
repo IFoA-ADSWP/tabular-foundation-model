@@ -575,7 +575,10 @@ def test_the_spanish_cell_resolves_to_its_pre_registered_design():
     cell = registry.pilot_experiment("spanish_motor_lapse_cell")
 
     assert cell.dataset == "spanish_motor_lapse"
-    assert cell.seeds == tuple(range(331, 341))
+    # 331-340 is the probe; 341-356 the replication, amended after the probe's k (#466).
+    assert cell.seeds == tuple(range(331, 357))
+    assert set(range(331, 341)) < set(cell.seeds), "the probe's seeds must remain declared"
+    assert not (set(range(331, 341)) & set(range(341, 357))), "probe and replication stay disjoint"
     assert cell.arms == ("A_raw", "B_ft3", "B_ft10", "B_ft30")
     assert (cell.train_size, cell.test_size) == (10000, 10000)
     assert cell.model_version == "v3_default"
