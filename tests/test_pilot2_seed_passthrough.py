@@ -31,6 +31,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 GH = REPO_ROOT / "scripts" / "gpu_helpers"
 VAST_RUN = GH / "vast_run.sh"
 BOOTSTRAP = GH / "bootstrap_pilot.sh"
+PILOT = REPO_ROOT / "scripts" / "run_pilot.py"
 MOCK = GH / "mock_vastai.sh"
 VERIFIER = GH / "verify_artifacts.py"
 
@@ -671,3 +672,85 @@ def test_every_runner_invocation_forwards_the_launchs_seeds():
         assert '${SEEDS:+--seeds "$SEEDS"}' in line, (
             "a run_pilot.py invocation drops the launch's seeds: " + line.strip()
         )
+
+
+# ---------------------------------------------------------------------------
+# The environment seam (#450) -- the class, not the instances
+# ---------------------------------------------------------------------------
+# Variables the box computes for itself, or the launcher sets from its own arguments. Everything
+# else the box READS must be forwarded when the operator sets it, or the box silently substitutes
+# its default and the operator's setting is a belief rather than a fact.
+_LAUNCHER_OWNED = {
+    "TABPFN_TOKEN", "EXPERIMENT", "ARMS", "DATASET", "TRAIN_SIZE", "TEST_SIZE", "SEEDS",
+    "TFM_DRY_RUN", "TFM_RUN_STAMP", "TFM_COMMIT_SHA", "BRANCH", "TFM_IMAGE_REF",
+    "TFM_MACHINE_ID", "TFM_HOST_ID", "TFM_BOOTSTRAP_B64",
+}
+_BOX_COMPUTED = {
+    "WORKDIR", "REPO", "MISSING", "PREFLIGHT_RC", "WEIGHTS_CACHED", "WEIGHTS_JSON",
+    "WEIGHTS_OUT", "WEIGHTS_RC", "ARMS_OK", "ARMS_FAILED", "_BOOTSTRAP_DONE", "TMPDIR",
+}
+# Read by the box and deliberately overridden there: forwarding them would be a control that
+# cannot move, which reads like a control. Each is listed with why, so removing the entry is a
+# decision rather than a tidy-up.
+_BOX_ENFORCED = {
+    "TFM_REQUIRE_CLEAN_TREE",  # hard-exported to 1 by bootstrap_pilot.sh; the box always wants it
+}
+
+
+def _env_reads(path):
+    """Every $VAR / ${VAR} a shell script reads."""
+    import re
+
+    text = path.read_text()
+    return set(re.findall(r"\$\{?([A-Z_][A-Z0-9_]{2,})\}?", text))
+
+
+def _python_env_reads(path):
+    import re
+
+    return set(re.findall(r'os\.environ(?:\.get)?\(?"([A-Z_][A-Z0-9_]{2,})"', path.read_text()))
+
+
+def _launcher_forwards():
+    """The names the launcher's pass-through loop covers."""
+    import re
+
+    text = VAST_RUN.read_text()
+    block = text[text.index("for _passthrough in"):]
+    block = block[: block.index("done")]
+    return set(re.findall(r"\b(TFM_[A-Z0-9_]+|TABPFN_[A-Z0-9_]+|[A-Z][A-Z0-9_]*_PIN)\b", block))
+
+
+def test_every_variable_the_box_reads_is_forwarded_or_launcher_owned():
+    """One audit, so a new setting cannot be silently dropped at the seam.
+
+    This is the class behind both defects shipped on 2026-11-06: `bootstrap_pilot.sh` accepted
+    `--seeds` and dropped it, and a diagnostic's `main` accepted `--seed-range` and dropped it.
+    Both ends were individually correct; only the seam was wrong, so nothing failed.
+
+    `TFM_EXPECT_CHECKPOINT` was a third instance: the box defaults it to v3_default and the
+    launcher never forwarded it, so an operator who set it was overridden without a word -- which
+    is why D18's "asserted before every launch" was an assertion of the default.
+    """
+    reads = _env_reads(BOOTSTRAP) | _python_env_reads(PILOT)
+    forwarded = _launcher_forwards()
+
+    dropped = {
+        name for name in reads
+        if (name.startswith(("TFM_", "TABPFN_")) or name.endswith("_PIN"))
+        and name not in forwarded
+        and name not in _LAUNCHER_OWNED
+        and name not in _BOX_COMPUTED
+        and name not in _BOX_ENFORCED
+    }
+    assert not dropped, (
+        "the box reads variables the launcher never forwards, so each falls back to a default "
+        f"silently: {sorted(dropped)}"
+    )
+
+
+def test_the_passthrough_list_has_no_dead_entries():
+    """A forwarded name the box never reads is a comment pretending to be a control."""
+    reads = _env_reads(BOOTSTRAP) | _python_env_reads(PILOT)
+    dead = {name for name in _launcher_forwards() if name not in reads}
+    assert not dead, f"forwarded but never read by the box: {sorted(dead)}"
