@@ -111,7 +111,8 @@ for when a campaign is a queue of batches over hours rather than one launch over
 the shape the 2026-11-04/05 D18 campaign took (#414, tracked by #428). Every rule below was
 learned by paying for it, none is enforceable by a linter, and where a mechanism exists it
 is named rather than restated: `batch_run.sh` is #430's and `watch_run.sh --plan` is #432's.
-Neither is built yet, so each rule states the practice and names the ticket that enforces it.
+The first is built; the second is not, so the rules that depend on it still state the
+practice and name the ticket that will enforce it.
 
 1. **Size a batch from a measured per-seed time and a slow startup allowance.** The launcher
    now budgets 170 s per seed and 900 s to the first arm, and both numbers moved in the same
@@ -132,7 +133,15 @@ Neither is built yet, so each rule states the practice and names the ticket that
    moves on, and the missing set is then invisible until someone diffs the run directories
    against the design — on this campaign that was a quarter of the spend buying nothing,
    #430's measurement and the reason its harness removes the failure mode rather than the
-   symptom.
+   symptom. It is built: `batch_run.sh START END BATCH_SIZE --dataset D --arms LIST` asks the
+   run directories what is banked and launches only what is missing, retrying a dead range on
+   the next pass. Name the window a batch needs — at the 170 s/900 s defaults a 12-seed batch
+   needs about 49 minutes, so `--poll-minutes 120` for twelve, and a 40-minute window admits
+   eight. It needs the design named (`--dataset`, `--arms`) because a harness that guessed
+   would report COMPLETE over a range nobody ran; a comma dataset list is one launch per
+   dataset, because the launcher runs one; it refuses `--parallel` above 1 until rule 4 has a
+   test; and it stops after two passes that banked nothing, rather than renting for the same
+   nothing again.
 
 4. **Only run concurrently once the smoke test passes (#431).** Two launchers shared one
    fixed output file under `/tmp` — `vast_run_out.txt` — and pulled each other's artifacts;
@@ -196,8 +205,10 @@ Neither is built yet, so each rule states the practice and names the ticket that
     the artifact's seeds and hashes against the launch's request, not the verifier's exit
     code. The mechanics are #429 (a batch proves the seeds it wrote), #430 (the missing set
     is the queue), #431 (two launchers at once), #432 (progress, stalls and burn) and #433
-    (abort when the box stops progressing); until those land, these rules are checked by
-    the person running the batch.
+    (abort when the box stops progressing). #429 and #430 are built: the launcher now exits
+    non-zero on a seed-identity refusal, and the harness stops the pass when nothing banked
+    instead of paying for the same nothing twice. #431–#433 are still checked by the person
+    running the batch.
 
 ## Evidence obligations, unchanged
 
