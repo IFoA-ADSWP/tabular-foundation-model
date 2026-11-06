@@ -315,3 +315,33 @@ def test_a_malformed_or_inverted_range_is_refused(d5):
 def test_a_repeated_seed_is_refused(d5):
     with pytest.raises(SystemExit):
         d5._regime_seeds(None, "42,42")
+
+
+def test_main_forwards_the_seed_range_to_measure(d5, monkeypatch, tmp_path):
+    """A flag that is parsed and not forwarded is worse than a flag that does not exist.
+
+    This is the exact defect the first power run hit: `--seed-range` was accepted, `_regime_seeds`
+    expanded it, and `measure` was called without `seeds` -- so the run reported five seeds under a
+    sixty-six-seed request. It looked like a result, which is the failure mode.
+    """
+    captured = {}
+
+    def fake_measure(frame, *, skip_regimes=False, regimes=(), model_path=None, seeds=()):
+        captured["seeds"] = seeds
+        captured["regimes"] = regimes
+        return {
+            "reproduction": {"passed": True, "delta": {"Linear": 0.0}},
+            "premium_collinearity": {"max_abs_correlation": 0.99},
+            "ladder": {"auc_by_k": {"1": {"mean_auc": 0.5}}},
+            "regimes": None,
+            "tabpfn": None,
+            "not_tested": {},
+        }
+
+    monkeypatch.setattr(d5, "measure", fake_measure)
+    monkeypatch.setattr(d5, "write_diagnostic_record", lambda record, root=None: tmp_path)
+
+    d5.main(["--run-id", "t", "--seed-range", "42-44", "--regime", "benchmark"])
+
+    assert captured["seeds"] == (42, 43, 44)
+    assert captured["regimes"] == ("benchmark",)

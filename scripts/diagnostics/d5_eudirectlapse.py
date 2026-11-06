@@ -665,7 +665,7 @@ def main(argv: list[str] | None = None) -> int:
     frame = load_dataset()
     model_path = args.model_path or os.environ.get("TABPFN_MODEL_PATH") or None
     measurements = measure(frame, skip_regimes=args.skip_regimes, regimes=regimes,
-                           model_path=model_path)
+                           model_path=model_path, seeds=seeds)
 
     provenance_tabpfn = measurements["tabpfn"] or tabpfn_provenance(model_path)
     record = DiagnosticRecord(
