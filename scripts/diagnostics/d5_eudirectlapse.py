@@ -44,6 +44,7 @@ correlation matrix, so the reader can discount that reading.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import warnings
 from pathlib import Path
@@ -392,13 +393,17 @@ def regime_frame(train: pd.DataFrame, test: pd.DataFrame, regime: str) -> tuple[
     raise ValueError(f"unknown regime {regime!r}")
 
 
-def _tabpfn():
+def _tabpfn(model_path: str | None = None):
     from tabpfn import TabPFNClassifier
 
-    return TabPFNClassifier(n_estimators=TABPFN_ESTIMATORS, random_state=0, fit_mode=TABPFN_FIT_MODE)
+    kwargs = {"n_estimators": TABPFN_ESTIMATORS, "random_state": 0, "fit_mode": TABPFN_FIT_MODE}
+    if model_path:
+        kwargs["model_path"] = model_path
+    return TabPFNClassifier(**kwargs)
 
 
-def run_regimes(frame: pd.DataFrame, *, regimes: tuple[str, ...] = REGIMES, seeds: tuple[int, ...] = REGIME_SEEDS) -> dict:
+def run_regimes(frame: pd.DataFrame, *, regimes: tuple[str, ...] = REGIMES,
+                seeds: tuple[int, ...] = REGIME_SEEDS, model_path: str | None = None) -> dict:
     """TabPFN and the linear model on identical rows, one feature set changed at a time."""
     results: dict[str, dict] = {}
     for regime in regimes:
@@ -408,7 +413,7 @@ def run_regimes(frame: pd.DataFrame, *, regimes: tuple[str, ...] = REGIMES, seed
             train_r, test_r, detail = regime_frame(train, test, regime)
             X_train, y_train, names = coded(train_r)
             X_test, y_test, _ = coded(test_r)
-            model = _tabpfn()
+            model = _tabpfn(model_path)
             model.fit(X_train, y_train)
             tabpfn_auc = float(roc_auc_score(y_test, model.predict_proba(X_test)[:, 1]))
             linear = _logit(X_train, y_train)
@@ -520,21 +525,45 @@ def verdict(regimes: dict) -> dict:
     }
 
 
-def tabpfn_provenance() -> dict:
-    """What the TabPFN arm loaded, named rather than assumed."""
+def tabpfn_provenance(model_path: str | None = None) -> dict:
+    """What the TabPFN arm loaded, named rather than assumed.
+
+    The label is derived from the checkpoint that was actually loaded, not from the package
+    version and not from what the caller asked for. That distinction is the whole point of
+    ADR 0003: a v2.5 run and a v3 run differ in the model, and `auto` records intent rather
+    than observation.
+    """
     try:
         import tabpfn
 
         version = getattr(tabpfn, "__version__", None)
     except Exception as error:  # pragma: no cover - environment dependent
         return {"package_version": None, "error": str(error)}
+
+    resolved = model_path or "auto"
+    name = Path(resolved).name if model_path else ""
+    if "v3_default" in name:
+        label, source = "v3_default", "pinned"
+    elif model_path:
+        label, source = name or None, "pinned"
+    else:
+        # `auto` with no path: 6.x resolves to v2.5; nothing here can observe v3.
+        label, source = ("v2_5" if str(version).startswith("6.") else None), "auto"
+
+    sha = None
+    if model_path and Path(model_path).is_file():
+        sha = sha256_file(Path(model_path))
+
     return {
         "package_version": version,
-        "requested": "auto",
-        "version_source": "auto",
+        "requested": "auto" if model_path is None else model_path,
+        "checkpoint": name or None,
+        "checkpoint_sha256": sha,
+        "resolved_version": label,
+        "version_source": source,
         "note": (
-            "the local package resolves `auto` to v2.5 and enumerates no V3 checkpoint, so this "
-            "record is v2.5-era; the §14.10 baselines it reproduces are v3_default"
+            "the label is derived from the checkpoint that loaded; with no path the package's "
+            "`auto` resolves v2.5 on 6.x and nothing here can observe v3"
         ),
     }
 
@@ -557,14 +586,18 @@ def not_tested_block() -> dict:
     }
 
 
-def measure(frame: pd.DataFrame, *, skip_regimes: bool = False, regimes: tuple[str, ...] = REGIMES) -> dict:
+def measure(frame: pd.DataFrame, *, skip_regimes: bool = False,
+            regimes: tuple[str, ...] = REGIMES, model_path: str | None = None) -> dict:
     X, y, names = coded(frame)
     measurements: dict = {
         "reproduction": reproduction(committed_baselines()),
         "premium_collinearity": premium_collinearity(frame),
         "ladder": additivity_ladder(X, y, names),
-        "regimes": run_regimes(frame, regimes=regimes) if not skip_regimes else None,
-        "tabpfn": None if skip_regimes else tabpfn_provenance(),
+        "regimes": (
+            run_regimes(frame, regimes=regimes, model_path=model_path)
+            if not skip_regimes else None
+        ),
+        "tabpfn": None if skip_regimes else tabpfn_provenance(model_path),
         "not_tested": not_tested_block(),
     }
     if not skip_regimes:
@@ -578,6 +611,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--root", type=Path, default=None, help="record root (default: outputs/diagnostics)")
     parser.add_argument("--skip-regimes", action="store_true", help="baselines and ladder only ($0, seconds)")
     parser.add_argument(
+        "--model-path", default=None,
+        help="checkpoint to load (default: $TABPFN_MODEL_PATH, else the package's `auto`). "
+             "Pass the v3_default .ckpt to measure on the line the baselines were measured on.",
+    )
+    parser.add_argument(
         "--regime", action="append", dest="regimes", default=None,
         help=f"subset of {REGIMES}; repeat for several",
     )
@@ -589,16 +627,18 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(f"unknown regime(s) {unknown}; choose from {REGIMES}")
 
     frame = load_dataset()
-    measurements = measure(frame, skip_regimes=args.skip_regimes, regimes=regimes)
+    model_path = args.model_path or os.environ.get("TABPFN_MODEL_PATH") or None
+    measurements = measure(frame, skip_regimes=args.skip_regimes, regimes=regimes,
+                           model_path=model_path)
 
-    provenance_tabpfn = measurements["tabpfn"] or tabpfn_provenance()
+    provenance_tabpfn = measurements["tabpfn"] or tabpfn_provenance(model_path)
     record = DiagnosticRecord(
         diagnostic=DIAGNOSTIC,
         run_id=args.run_id,
-        # ADR 0003: a diagnostic that runs no model still records the label this environment
-        # resolves to. The local package (6.4.1) enumerates `V2` and `V2_5` only, and resolves
-        # `auto` to v2.5 -- which is why nothing here is quoted beside a v3 number as one table.
-        model_version="v2_5",
+        # ADR 0003: the label is the RESOLVED checkpoint's, not the package's and not the
+        # request. A diagnostic that runs no model still records the label this environment
+        # resolves to, because its output is read against model runs.
+        model_version=provenance_tabpfn.get("resolved_version"),
         seed=REGIME_SEEDS[0] if not args.skip_regimes else CV_SEED,
         dataset_name=DATASET,
         dataset_sha256=sha256_file(DATA_FILE),

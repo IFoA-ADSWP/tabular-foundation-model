@@ -130,3 +130,26 @@ disagreement about information.
   writes once and refuses a second write to the same run id.
 - `python scripts/diagnostics/d5_eudirectlapse.py --run-id <id>` writes one record under
   `outputs/diagnostics/d5_eudirectlapse/<id>/` (git-ignored, as D1–D3's are).
+
+## Amendment — measured at `v3_default`, not only `v2_5` (2026-11-06)
+
+**What the plan got wrong.** It treated "the local package has no V3" as a fixed constraint and made
+the regime comparison a `v2_5`-only experiment. That was the repo pin (`tabpfn>=6,<7`) described as a
+capability limit, and the pilot had already deviated from the pin to run v3 on rented boxes. The
+constraint was one install deep.
+
+**What closed it.** `tabpfn` 8.5.0 in an isolated environment (`--system-site-packages`, so the repo's
+pin is untouched) enumerates `V2, V2_5, V2_6, V3`, and the gated checkpoint is **212 MB**, not the
+multi-gigabyte download the 6 GiB of free disk made risky to assume. `TABPFN_MODEL_PATH` selects it; a
+fit at 1,500 rows takes 46 s on MPS against 21 s at v2.5.
+
+**The consequence for the plan's own claims.** The regimes were re-run on the programme's line. The
+mechanism reproduces: the engineered residual is `+0.0037` at v3 against `+0.0031` at v2.5, closing
+82% and 88% of the benchmark gap respectively. One earlier reading does **not** survive — `glm_top5`
+was reported as "fewer features is not the lever" on 3/5 seeds at v2.5, and at v3 it is 2/5 seeds with
+a standard error that swamps the estimate. It is now reported as inconclusive, which is the honest
+result of the run that disagrees with it.
+
+**A rule this produced.** The tool no longer hardcodes a model label. `model_version` is derived from
+the checkpoint that actually loaded, with its sha256, which is ADR 0003's rule and was the one place
+the diagnostic violated it.
