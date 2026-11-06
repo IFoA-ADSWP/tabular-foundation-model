@@ -207,15 +207,15 @@ def test_a_seed_subset_selects_within_the_declaration():
 
 def test_a_seed_outside_the_declaration_is_refused():
     with pytest.raises(mod.InvocationError) as raised:
-        resolve("--experiment", CELL, "--seeds", "331,341")
+        resolve("--experiment", CELL, "--seeds", "331,357")
 
     message = str(raised.value)
-    assert CELL in message and "--seeds" in message and "341" in message
+    assert CELL in message and "--seeds" in message and "357" in message
 
 
 def test_a_seedless_cell_resolves_to_the_whole_declared_range():
     (_d, _a, seeds, _t, _te, _f, _c, _b, _id, _dd, _v, _pre) = resolve("--experiment", CELL)
-    assert seeds == list(range(331, 341))
+    assert seeds == list(range(331, 357))
 
 
 def test_a_single_seed_experiment_still_resolves_to_one_seed():

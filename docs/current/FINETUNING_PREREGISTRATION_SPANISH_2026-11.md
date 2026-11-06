@@ -143,3 +143,50 @@ after a pass. The #428 hardening tickets are prerequisites in time, not work in 
 | Date | Change |
 |---|---|
 | 2026-11-05 | Filed. `k` is blank until the probe reports; filling it is an amendment to this table, not an edit to the rule |
+
+## Amendment — the probe's reading, and the replication's `k` (2026-11-06)
+
+**This is the amendment D19 anticipated.** Stage 2 says `k` is filled in after the probe; this fills it.
+
+### What the probe measured
+
+The probe launch — one launch, four arms × seeds 331–340, 10,000 train / 10,000 test, `v3_default`,
+`RTX 3090`, bootstrap rc 0. Forty records, predictions verified, instance destroyed.
+
+| Arm | Mean ΔAUC | Between-seed SD | 95% interval |
+|---|---|---|---|
+| `B_ft3` | −0.0006 | 0.0016 | [−0.0018, +0.0005] |
+| `B_ft10` | −0.0002 | 0.0010 | [−0.0009, +0.0005] |
+| **`B_ft30`** | **+0.0008** | **0.0012** | **[−0.0001, +0.0016]** |
+
+**No gain is demonstrated.** The top rung's interval covers zero. What the probe establishes is the
+*variance*, which is what it was for.
+
+### `k`, and why it is not 512
+
+Stage 2's rule on the measured SD: `k = ceil((0.0012 / 0.000714)²) = 3`.
+
+The ≈512 projection in D18 came from the **1,000-test-row** half-width (0.0163) that the readiness study
+measured and **rejected**. That number describes resolution at a test size this cell does not use, standing
+in for a between-seed SD that had never been measured. At the pre-registered 10,000 test rows the half-width
+is 0.0051 (≈51 seeds), and against the measured SD the rule gives 3.
+
+**Ten seeds estimate an SD; they do not establish one.** At n = 10 the SD estimate carries roughly 24%
+relative error, so the replication runs at **k = 16**, not 3:
+
+- at the measured SD 0.0012, half-width ≈ 0.00084;
+- even if the true SD is twice the measurement (0.0024), half-width ≈ 0.0017, still under δ = 0.002.
+
+### What the replication runs
+
+**Arms `A_raw` and `B_ft30` only.** The probe singled out the top rung; the two lower rungs would add 35%
+to the cost for a comparison already answered. **Seeds 341–356**, fresh under D13 — disjoint from the
+probe's 331–340 and from the D18 replication's 93–330.
+
+**Ceiling: $0.15**, well inside this document's $3.00 replication ceiling. At the measured rate (87 s of
+compute per seed for two arms, 191 s of boot) sixteen seeds project to ~$0.15.
+
+### What this does not change
+
+The arms declared for the cell, the 10,000/10,000 row sizes, `v3_default`, and δ = 0.002 all stand. Only
+`k` and the seed range are amended, which is what Stage 2 says happens here.
