@@ -687,3 +687,45 @@ worth a team decision now, and leaving them open would imply a programme the fir
 
 **Still live:** the calibration tolerance (D6). If a follow-up asks about probabilities rather than ranking,
 that number has to be set in advance -- an unset tolerance is not a pre-registration.
+
+### D20 — Breadth, second dataset: equivalence on `spanish_motor_lapse`
+
+**What was run.** D19's cell, amended after the probe (#466). A probe of four arms × seeds 331–340 to
+measure the between-seed SD and the real cost, then a replication of arms `A_raw` + `B_ft30` over fresh
+seeds **341–356**, 10,000 train / 10,000 test, `v3_default` asserted before each launch. Result published
+as `docs/analyses/finetuning_breadth_spanish_result.md`.
+
+**Result.**
+
+| | Value |
+|---|---|
+| Mean ΔAUC, 16 seeds | **+0.00029** |
+| Between-seed SD | 0.00093 |
+| 95% interval | **[−0.00021, +0.00078]** |
+| Seeds positive | 11 / 16 |
+| ΔBrier, worst seed (guard ≤ +0.001) | +0.00034 |
+
+**Decision (2026-11-06).** The reading is **equivalence**: the interval covers zero *and* its upper bound
+sits below δ = 0.002, so the effect is bounded under the bar rather than merely failing to reach it.
+
+**What it settles.** Two of the three datasets now measured bound the effect under δ — `eudirectlapse`
+(D18) and this one — against a single gain on `uslapseagent` (+0.0035). The anchor's effect is twelve times
+this dataset's point estimate, so it reads as **dataset-specific rather than a property of the model**.
+
+**What it corrects.** D18 projected **~512 seeds (~$9.50)** for this dataset, from the **1,000-test-row**
+half-width the readiness study measured and **rejected**. The probe measured the between-seed SD at
+**0.0012**, which the pre-registered rule turns into `k = 3`; the replication ran at 16 for margin over SD
+uncertainty and completed for **$0.065**. The projection was wrong by roughly two orders of magnitude
+because it substituted a *resolution* figure from a configuration nobody runs for a *variance* figure
+nobody had measured.
+
+**Cost.** $0.3315 across the cell (balance $3.1127 → $2.7812): $0.043 to measure one seed, $0.153 for the
+probe across five attempts of which three failed on selection rather than on the infrastructure, and $0.065
+for the replication. **The ledger is not a reliable cost record** — it disagreed with the credit balance in
+both directions across the two launches, so figures here come from the balance.
+
+DECISION: **breadth answers "no" on `spanish_motor_lapse` (2026-11-06)** — +0.00029 AUC [−0.00021,
++0.00078], equivalence at δ = 0.002; `coil2000` remains unmeasured.
+Owner: scotthawes  Date: 2026-11-06  Section: §3
+
+---
