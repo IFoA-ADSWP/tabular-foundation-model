@@ -88,3 +88,21 @@ have to learn.
 - `shellcheck` on the launcher, because the paid path is touched if any flag changes.
 - The Spanish cell resolves: `--experiment spanish_motor_lapse_cell` reports 10,000 / 10,000, four arms,
   seeds 331–340, and the pre-registration path.
+
+## Amendment — the launcher seam, found by auditing the class (2026-11-06)
+
+**What the plan claimed and got wrong.** It said *"The launcher needed no change: it already accepts
+`--experiment` with `--seeds`."* That is true of the flag and false of the seam. `bootstrap_pilot.sh`
+runs the runner two ways, and the declaration path — the one this cell uses, because it names its own
+arms — dropped `--seeds`, so a batch the launcher pre-flighted at three seeds ran all ten.
+
+**Why an audit rather than a patch.** That defect and a diagnostic's dropped `--seed-range` were the
+same shape within a day, so the class was audited. Three more turned up: `TFM_EXPECT_CHECKPOINT`,
+`TFM_DATA_REF`/`TFM_DATA_REPO`, `TFM_WEIGHTS_MANIFEST` and the package pins are read by the box and
+were never forwarded, so an operator who set them was silently overridden by the box's default. The
+first means D18's "model line asserted before every launch" asserted the default, not the claim.
+
+**Scope, stated because the review called it.** That fix is #454's work, not #450's, and it is recorded
+there. It ships in the same pull request as this cell's change because both came out of one sitting,
+which is a convenience rather than a reason — the pull request names both tickets so the two are not
+read as one change.

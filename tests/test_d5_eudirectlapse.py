@@ -361,7 +361,7 @@ def test_verdict_says_so_when_the_benchmark_gap_is_not_established(d5):
         "engineered": _regime_block([-0.006, 0.004] * 33),
     })
     assert block["conclusion"] == "no gap is established at this row cap"
-    assert block["benchmark_gap_established"] is False
+    assert block["benchmark_gap_favours_linear"] is False
 
 
 def test_verdict_reports_a_reversal_as_parity_not_a_win(d5):
@@ -374,3 +374,38 @@ def test_verdict_reports_a_reversal_as_parity_not_a_win(d5):
     })
     assert block["conclusion"].startswith("the engineered gap reverses")
     assert "parity" in block["reason"]
+
+
+def test_a_multi_seed_run_does_not_stamp_a_single_split_seed(d5, monkeypatch, tmp_path):
+    """ADR 0003: `seed` is the run's SPLIT seed, so a 66-seed run records the absence, not `42`.
+
+    A record claiming seed=42 for a run that covered 42-107 is a field the artifact cannot back --
+    the same class of error as a dropped parameter, one layer up.
+    """
+    captured = {}
+
+    def fake_measure(frame, *, skip_regimes=False, regimes=(), model_path=None, seeds=()):
+        return {
+            "reproduction": {"passed": True, "delta": {"Linear": 0.0}},
+            "premium_collinearity": {"max_abs_correlation": 0.99},
+            "ladder": {"auc_by_k": {"1": {"mean_auc": 0.5}}},
+            "seeds": list(seeds),
+            "regimes": None,
+            "tabpfn": None,
+            "not_tested": {},
+        }
+
+    def capture(record, root=None):
+        captured["record"] = record
+        return tmp_path
+
+    monkeypatch.setattr(d5, "measure", fake_measure)
+    monkeypatch.setattr(d5, "write_diagnostic_record", capture)
+
+    d5.main(["--run-id", "many", "--seed-range", "42-44", "--regime", "benchmark"])
+    assert captured["record"].seed is None
+    assert captured["record"].measurements["seeds"] == [42, 43, 44]
+
+    d5.main(["--run-id", "one", "--regime-seeds", "42", "--regime", "benchmark"])
+    assert captured["record"].seed == 42
+    assert captured["record"].measurements["seeds"] == [42]

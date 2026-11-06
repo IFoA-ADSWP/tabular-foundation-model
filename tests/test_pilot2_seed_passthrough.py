@@ -735,10 +735,11 @@ def test_every_variable_the_box_reads_is_forwarded_or_launcher_owned():
     reads = _env_reads(BOOTSTRAP) | _python_env_reads(PILOT)
     forwarded = _launcher_forwards()
 
+    # Membership, not a name-prefix filter. The filter meant every allowlist entry whose name did
+    # not start TFM_/TABPFN_ could never match -- a list that reads like a control and cannot fire.
     dropped = {
         name for name in reads
-        if (name.startswith(("TFM_", "TABPFN_")) or name.endswith("_PIN"))
-        and name not in forwarded
+        if name not in forwarded
         and name not in _LAUNCHER_OWNED
         and name not in _BOX_COMPUTED
         and name not in _BOX_ENFORCED

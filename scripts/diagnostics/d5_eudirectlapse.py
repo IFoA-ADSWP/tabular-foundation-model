@@ -448,6 +448,22 @@ def run_regimes(frame: pd.DataFrame, *, regimes: tuple[str, ...] = REGIMES,
 T95 = {1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571, 6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228}
 
 
+def _mean_and_interval(values: np.ndarray) -> tuple[float, float, float]:
+    """Mean and two-sided 95% t interval over seeds.
+
+    One definition because it is computed twice -- once for the engineered residual, once to ask
+    whether the benchmark gap is established at all -- and two copies could drift apart in the
+    number a reader is asked to trust.
+    """
+    n = int(values.size)
+    mean = float(values.mean())
+    if n < 2:
+        return mean, float("nan"), float("nan")
+    se = float(values.std(ddof=1) / np.sqrt(n))
+    margin = T95.get(n - 1, 1.96) * se
+    return mean, mean - margin, mean + margin
+
+
 def verdict(regimes: dict) -> dict:
     """Turn the three measured deltas into the one statement the ticket asks for.
 
@@ -465,11 +481,8 @@ def verdict(regimes: dict) -> dict:
         return {"conclusion": "not tested", "reason": "the engineered regime was skipped"}
 
     deltas = np.array([row["delta_linear_minus_tabpfn"] for row in engineered["per_seed"]], dtype=float)
+    mean, low, high = _mean_and_interval(deltas)
     n = int(deltas.size)
-    mean = float(deltas.mean())
-    se = float(deltas.std(ddof=1) / np.sqrt(n)) if n > 1 else float("nan")
-    margin = T95.get(n - 1, 1.96) * se
-    low, high = mean - margin, mean + margin
 
     benchmark = regimes.get("benchmark")
     benchmark_delta = float(benchmark["mean_delta"]) if benchmark else None
@@ -481,14 +494,14 @@ def verdict(regimes: dict) -> dict:
     # the sixty-six-seed version reports +0.0054 with an interval covering zero -- so the check is
     # not decorative.
     benchmark_interval = None
-    benchmark_established = None
+    benchmark_gap_favours_linear = None
     if benchmark is not None:
         bench = np.array([r["delta_linear_minus_tabpfn"] for r in benchmark["per_seed"]], dtype=float)
-        bn = int(bench.size)
-        bse = float(bench.std(ddof=1) / np.sqrt(bn)) if bn > 1 else float("nan")
-        bmargin = T95.get(bn - 1, 1.96) * bse
-        benchmark_interval = [round(float(bench.mean() - bmargin), 6), round(float(bench.mean() + bmargin), 6)]
-        benchmark_established = bool(benchmark_interval[0] > 0)
+        _bmean, b_low, b_high = _mean_and_interval(bench)
+        benchmark_interval = [round(b_low, 6), round(b_high, 6)]
+        # One-sided on purpose, and named for it: a gap that reversed would also be "not > 0", so
+        # the name says which way the evidence points rather than whether a gap merely exists.
+        benchmark_gap_favours_linear = bool(b_low > 0)
 
     reading = {
         "benchmark_delta": benchmark_delta,
@@ -496,13 +509,13 @@ def verdict(regimes: dict) -> dict:
         "engineered_interval": [round(low, 6), round(high, 6)],
         "gap_closed_fraction": closed,
         "benchmark_interval": benchmark_interval,
-        "benchmark_gap_established": benchmark_established,
+        "benchmark_gap_favours_linear": benchmark_gap_favours_linear,
         "seeds_linear_ahead": int((deltas > 0).sum()),
         "n_seeds": n,
         "rule": "a 95% t interval over seeds; the point estimate and its interval decide the sentence",
     }
 
-    if benchmark_established is False:
+    if benchmark_gap_favours_linear is False:
         return {
             **reading,
             "conclusion": "no gap is established at this row cap",
@@ -659,6 +672,7 @@ def measure(frame: pd.DataFrame, *, skip_regimes: bool = False,
         "reproduction": reproduction(committed_baselines()),
         "premium_collinearity": premium_collinearity(frame),
         "ladder": additivity_ladder(X, y, names),
+        "seeds": list(seeds),
         "regimes": (
             run_regimes(frame, regimes=regimes, seeds=seeds, model_path=model_path)
             if not skip_regimes else None
@@ -715,7 +729,10 @@ def main(argv: list[str] | None = None) -> int:
         # request. A diagnostic that runs no model still records the label this environment
         # resolves to, because its output is read against model runs.
         model_version=provenance_tabpfn.get("resolved_version"),
-        seed=(seeds[0] if not args.skip_regimes else CV_SEED),
+        # ADR 0003: `seed` is the run's SPLIT seed. A multi-seed run has no single split, and D1's
+        # precedent is to record the absence as None rather than borrow the first one -- a 66-seed
+        # run stamping `42` is a field the artifact cannot back. The set is in `measurements`.
+        seed=(seeds[0] if (not args.skip_regimes and len(seeds) == 1) else None),
         dataset_name=DATASET,
         dataset_sha256=sha256_file(DATA_FILE),
         matched_context=matched_context_evidence(),
