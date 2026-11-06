@@ -729,3 +729,50 @@ DECISION: **breadth answers "no" on `spanish_motor_lapse` (2026-11-06)** — +0.
 Owner: scotthawes  Date: 2026-11-06  Section: §3
 
 ---
+
+### D21 — Breadth stops on `coil2000`: resolution, not money
+
+**What was run.** Nothing. A resolution measurement on the committed CSV:
+`scripts/analyses/proxy_resolution.py --csv data/raw/coil2000.csv --target CARAVAN`, three split seeds per
+size, 2,000 paired bootstrap resamples. Cost: **$0**.
+
+**Why it was measured at all.** D20's cell completed for $0.065 after a $0.10 probe replaced a projection
+that had been wrong by two orders of magnitude. The cheapest lesson from that is to check resolution
+*before* declaring or funding a cell, so `coil2000` was checked before any spend.
+
+**Result — the floor is not reachable at any size this dataset allows.**
+
+| Train / test | Median half-width | Max | Against the 0.006 floor |
+|---|---|---|---|
+| 7,200 / 1,000 | 0.0240 | 0.0266 | 4.0× |
+| 6,200 / 2,000 | 0.0202 | 0.0205 | 3.4× |
+| 5,200 / 3,000 | 0.0183 | 0.0183 | 3.1× |
+| **4,200 / 4,000** | **0.0149** | **0.0158** | **2.5×** |
+
+**Decision (2026-11-06).** **Stop.** `coil2000` cannot be measured at the resolution the breadth design
+requires, and no budget changes that.
+
+**Why money cannot fix it.** The binding constraint is **586 positives** in a 9,822-row dataset. The Spanish
+cell reached 0.0051 with 3,540 positives at 10,000 test rows; `coil2000` has a sixth of that, and the
+half-width moves only 0.024 → 0.015 as the test set quadruples. Between-seed replication (`k`) tightens the
+*seed* variance, not the *test-set* floor, so no seed count resolves a cell whose floor sits at 0.015 against
+a δ of 0.002. Every outcome would read "unresolved" by construction.
+
+**What breadth now says, complete.**
+
+| Dataset | ΔAUC | 95% interval | Reading |
+|---|---|---|---|
+| `uslapseagent` (anchor) | +0.0035 | [+0.00272, +0.00428] | gain |
+| `eudirectlapse` (D18) | +0.0007 | [−0.0003, +0.0018] | equivalence |
+| `spanish_motor_lapse` (D20) | +0.0003 | [−0.0002, +0.0008] | equivalence |
+| `coil2000` | — | — | **unresolvable; stopped on resolution** |
+
+Three of four datasets are answered and two of those bound the effect under δ. `coil2000` is closed on a
+property of the dataset rather than a property of the experiment — a different and more durable reason to
+stop, which is why it is recorded here rather than left as an unstarted ticket.
+
+DECISION: **breadth closes — `coil2000` stopped on resolution (2026-11-06)** — median half-width 0.0149 at
+the largest usable split against a 0.006 floor and δ = 0.002; 586 positives, so no budget resolves it.
+Owner: scotthawes  Date: 2026-11-06  Section: §3
+
+---
