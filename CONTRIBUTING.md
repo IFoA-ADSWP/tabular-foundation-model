@@ -111,18 +111,44 @@ Every contribution should satisfy these before review:
 
 ## Pre-commit Setup
 
-Install once after cloning:
+**Option A — the pre-commit framework.** Install once after cloning:
 
 ```bash
 pip install pre-commit
 pre-commit install
 ```
 
-This runs ruff (format + lint), commitizen (commit message convention), and other checks automatically on every commit. Run against all files manually when first setting up:
+This runs ruff (format + lint), commitizen (commit message convention), and other checks
+automatically on every commit. Run against all files manually when first setting up:
 
 ```bash
 pre-commit run --all-files
 ```
+
+**Option B — the repo hook, when `core.hooksPath` is set.** A machine with a global
+`core.hooksPath` (this one has `~/.config/git/hooks`) makes `pre-commit install` fight the
+global configuration, so nothing gets installed and the config above silently never runs.
+That is not hypothetical: on 2026-11-06 two pull requests failed in CI for faults — 146 files
+staged from `outputs/`, and a run id cited with no capture — that a local gate would have
+refused in about two seconds.
+
+For that setup, install the repo's own hook, which the global hook chains to:
+
+```bash
+cp scripts/git-hooks/pre-commit.local "$(git rev-parse --git-common-dir)/hooks/pre-commit.local"
+chmod +x "$(git rev-parse --git-common-dir)/hooks/pre-commit.local"
+```
+
+It runs `ruff`, `evidence` and `citation` only — the checks that can fail from a commit. It
+deliberately does not run `pytest`: the suite takes over 40 minutes locally and four of its
+tests abort sandboxed shells on macOS, so a local full run is not a gate. CI runs everything.
+
+`$(git rev-parse --git-common-dir)` and not `.git/hooks`, because in a worktree `.git` is a
+file and that path never exists.
+
+**Escapes.** `EVIDENCE_CHANGE_OK=1 git commit …` for a deliberate evidence change (runtime
+artefacts under `outputs/` are exactly that). `git commit --no-verify` for anything else — and
+say why in the message.
 
 To run ruff directly:
 
