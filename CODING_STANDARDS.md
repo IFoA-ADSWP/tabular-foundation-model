@@ -92,3 +92,24 @@ evidence supports it, a test parses the document and reproduces the mean, SD and
 
 **Reviewer's test:** ask for the command behind every figure. A document that cannot name one run of
 the tool over the final evidence is quoting something other than its evidence.
+
+## A projection names the quantity it substituted, and where that number was measured
+
+*Raised twice on the paid path, and both times the projection decided the spend. D18 projected
+**~512 seeds (~$9.50)** for `spanish_motor_lapse` by putting the **1,000-test-row half-width** the
+readiness study measured and **rejected** (0.0163) where a **between-seed variance** belonged — a
+resolution figure from a configuration nobody runs, in place of a variance nobody had measured. The
+probe put the SD at **0.0012** and the cell completed for **$0.065**, two orders of magnitude under
+the projection (D20). Earlier, a **$0.122** cost projection used the probe's **38.9 s/seed on an RTX
+4090** while the replication ran at **~62 s/seed on an RTX PRO 4000** and came in **54% over** —
+"a projection built on one host's timings does not transfer".*
+
+A projection is arithmetic over named inputs, and it is only as good as each input being the quantity
+it stands for. Name both: the quantity, and where that quantity was measured. The failure is not a
+wrong number — it is a number that was right about something else. A half-width is not a variance; a
+timing is not a timing on another host; a rounded figure is not the figure. If an input has not been
+measured, write **unmeasured** and probe it: the probe costs a fraction of the projection it replaces,
+and it replaces an assumption with the quantity itself.
+
+**Reviewer's test:** for each projected figure, match every input to a measurement of *that* quantity.
+A projection whose inputs cannot be matched is not an estimate — it is arithmetic on an assumption.
