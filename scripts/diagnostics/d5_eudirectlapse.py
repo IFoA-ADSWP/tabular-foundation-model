@@ -568,6 +568,31 @@ def tabpfn_provenance(model_path: str | None = None) -> dict:
     }
 
 
+def _regime_seeds(seed_range: str | None, explicit: str | None) -> tuple[int, ...]:
+    """Split seeds for the regime comparison: a range, a list, or the default five.
+
+    The power run is the reason this exists. Five seeds cannot resolve an effect of 0.002; a design
+    that needs sixty-six should say so on the command line rather than in a comment.
+    """
+    if seed_range and explicit:
+        raise SystemExit("give --seed-range or --regime-seeds, not both")
+    if explicit:
+        seeds = tuple(int(part) for part in explicit.replace(" ", "").split(",") if part)
+    elif seed_range:
+        try:
+            low, high = (int(part) for part in seed_range.split("-", 1))
+        except ValueError:
+            raise SystemExit(f"--seed-range must be A-B, got {seed_range!r}") from None
+        if high < low:
+            raise SystemExit(f"--seed-range is empty: {seed_range!r}")
+        seeds = tuple(range(low, high + 1))
+    else:
+        return REGIME_SEEDS
+    if len(set(seeds)) != len(seeds):
+        raise SystemExit("--seed-range/--regime-seeds lists a seed twice")
+    return seeds
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -587,14 +612,15 @@ def not_tested_block() -> dict:
 
 
 def measure(frame: pd.DataFrame, *, skip_regimes: bool = False,
-            regimes: tuple[str, ...] = REGIMES, model_path: str | None = None) -> dict:
+            regimes: tuple[str, ...] = REGIMES, model_path: str | None = None,
+            seeds: tuple[int, ...] = REGIME_SEEDS) -> dict:
     X, y, names = coded(frame)
     measurements: dict = {
         "reproduction": reproduction(committed_baselines()),
         "premium_collinearity": premium_collinearity(frame),
         "ladder": additivity_ladder(X, y, names),
         "regimes": (
-            run_regimes(frame, regimes=regimes, model_path=model_path)
+            run_regimes(frame, regimes=regimes, seeds=seeds, model_path=model_path)
             if not skip_regimes else None
         ),
         "tabpfn": None if skip_regimes else tabpfn_provenance(model_path),
@@ -611,6 +637,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--root", type=Path, default=None, help="record root (default: outputs/diagnostics)")
     parser.add_argument("--skip-regimes", action="store_true", help="baselines and ladder only ($0, seconds)")
     parser.add_argument(
+        "--seed-range", default=None,
+        help="inclusive A-B of split seeds (e.g. 42-107). The power run needs ~66 seeds to bound "
+             "the engineered residual below delta 0.002; the default five cannot.",
+    )
+    parser.add_argument(
+        "--regime-seeds", default=None,
+        help="explicit comma-separated split seeds, instead of --seed-range",
+    )
+    parser.add_argument(
         "--model-path", default=None,
         help="checkpoint to load (default: $TABPFN_MODEL_PATH, else the package's `auto`). "
              "Pass the v3_default .ckpt to measure on the line the baselines were measured on.",
@@ -622,6 +657,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     regimes = tuple(args.regimes) if args.regimes else REGIMES
+    seeds = _regime_seeds(args.seed_range, args.regime_seeds)
     unknown = sorted(set(regimes) - set(REGIMES))
     if unknown:
         raise SystemExit(f"unknown regime(s) {unknown}; choose from {REGIMES}")
@@ -639,7 +675,7 @@ def main(argv: list[str] | None = None) -> int:
         # request. A diagnostic that runs no model still records the label this environment
         # resolves to, because its output is read against model runs.
         model_version=provenance_tabpfn.get("resolved_version"),
-        seed=REGIME_SEEDS[0] if not args.skip_regimes else CV_SEED,
+        seed=(seeds[0] if not args.skip_regimes else CV_SEED),
         dataset_name=DATASET,
         dataset_sha256=sha256_file(DATA_FILE),
         matched_context=matched_context_evidence(),

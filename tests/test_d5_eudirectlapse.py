@@ -283,3 +283,35 @@ def test_record_fields_are_the_contract(d5):
         matched_context={},
     )
     assert set(DIAGNOSTIC_RECORD_FIELDS) == set(record.__dataclass_fields__)
+
+
+# ---------------------------------------------------------------------------
+# The power-run flag (#306 §9)
+# ---------------------------------------------------------------------------
+def test_seed_range_expands_inclusively(d5):
+    assert d5._regime_seeds("42-46", None) == (42, 43, 44, 45, 46)
+    assert d5._regime_seeds("331-332", None) == (331, 332)
+
+
+def test_default_stays_five_seeds_when_no_range_is_given(d5):
+    assert d5._regime_seeds(None, None) == d5.REGIME_SEEDS
+
+
+def test_explicit_seed_list_is_parsed(d5):
+    assert d5._regime_seeds(None, "42, 44 ,46") == (42, 44, 46)
+
+
+def test_both_seed_forms_at_once_is_refused(d5):
+    with pytest.raises(SystemExit):
+        d5._regime_seeds("42-46", "42,43")
+
+
+def test_a_malformed_or_inverted_range_is_refused(d5):
+    for bad in ("42", "46-42", "a-b"):
+        with pytest.raises(SystemExit):
+            d5._regime_seeds(bad, None)
+
+
+def test_a_repeated_seed_is_refused(d5):
+    with pytest.raises(SystemExit):
+        d5._regime_seeds(None, "42,42")
