@@ -311,9 +311,11 @@ if [ -z "$EXPERIMENT" ] && [ -z "$ARMS" ]; then
     ARMS="A_raw,B_in_domain,E_glm,F_catboost"
 fi
 if [ -n "$EXPERIMENT" ] && [ -z "$ARMS" ]; then
-    # No arm list given: let the declaration name them, in one process.
+    # No arm list given: let the declaration name them, in one process. The seeds still come
+    # from this launch: dropping them here ran the whole declared range, so a batch that the
+    # pre-flight sized at three seeds fitted the poll window and then ran ten (#450).
     echo; echo "########## EXPERIMENT $EXPERIMENT (declared arms) ##########"
-    python3 scripts/run_pilot.py --experiment "$EXPERIMENT"
+    python3 scripts/run_pilot.py --experiment "$EXPERIMENT" ${SEEDS:+--seeds "$SEEDS"}
     rc=$?
     if [ "$rc" -ne 0 ]; then
         echo "########## EXPERIMENT EXITED rc=$rc (137 = OOM SIGKILL) ##########"

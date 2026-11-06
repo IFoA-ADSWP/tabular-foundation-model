@@ -639,3 +639,35 @@ def test_the_launcher_shares_no_temp_file_between_launches():
     )
     assert 'LAUNCH_TMP="$(mktemp -d' in script
     assert 'RUN_OUT="$LAUNCH_TMP/run_out.txt"' in script
+
+
+# ---------------------------------------------------------------------------
+# Every path on the box forwards the seeds (#450)
+# ---------------------------------------------------------------------------
+def test_every_runner_invocation_forwards_the_launchs_seeds():
+    """The seed subset must survive BOTH paths, not just the per-arm one.
+
+    `bootstrap_pilot.sh` runs the runner two ways: one process per named arm, and one
+    process letting the declaration name them. The second dropped `--seeds`, so a batch the
+    launcher pre-flighted at three seeds ran the whole declared range -- ten of them, at four
+    arms -- inside a poll window sized for three. Nothing failed; the run was simply eight
+    times the compute it was authorised for.
+
+    Asserted over the source because the alternative is provisioning a box to watch a number.
+    """
+    text = BOOTSTRAP.read_text()
+    # Join backslash continuations, so a command split across lines is judged as one.
+    joined = text.replace("\\\n", " ")
+    invocations = [
+        line for line in joined.splitlines()
+        if "run_pilot.py" in line
+        and not line.lstrip().startswith("#")
+        # The aggregator reads finished records; it runs no arm and takes no seeds.
+        and "--aggregate" not in line
+    ]
+    assert len(invocations) >= 2, invocations
+
+    for line in invocations:
+        assert '${SEEDS:+--seeds "$SEEDS"}' in line, (
+            "a run_pilot.py invocation drops the launch's seeds: " + line.strip()
+        )
