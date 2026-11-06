@@ -6,7 +6,9 @@ tree a colleague would open — not the functions inside the script.
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import json
 import sys
 from pathlib import Path
@@ -136,3 +138,20 @@ def test_mentions_outside_docs_are_not_scanned(tmp_path):
     root = make_repo(tmp_path, manifest=manifest(entry()))
     (root / "README.md").write_text(f"A run {RUN} mentioned in the root readme.\n")
     assert run(root) == 0
+
+
+def test_a_failure_names_the_file_and_line_that_cited_the_id(tmp_path):
+    """The operator's next action is to open the document, so name the line.
+
+    Before this, a refusal said only `20261102T101010Z: cited but no capture.json` and finding
+    the offending sentence meant grepping `docs/` — twice per occurrence, because the id also
+    appears under `results/`.
+    """
+    root = make_repo(tmp_path, manifest=None)
+    stderr = io.StringIO()
+    with contextlib.redirect_stderr(stderr):
+        assert run(root) == 1
+
+    message = stderr.getvalue()
+    assert "docs/analysis.md:1" in message, message
+    assert "cited at" in message, message

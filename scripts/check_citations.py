@@ -30,9 +30,13 @@ LEGACY = Path("docs/analyses/legacy_citations.txt")
 SCANNED_SUFFIXES = {".md", ".csv", ".txt"}
 
 
-def cited(root: Path) -> dict[str, set[str]]:
-    """Every run id mentioned under docs/, with the files that mention it."""
-    found: dict[str, set[str]] = {}
+def cited(root: Path) -> dict[str, set[tuple[str, int]]]:
+    """Every run id mentioned under docs/, with the `(file, line)` that mention it.
+
+    The line matters as much as the file: when the check refuses a citation the operator's next
+    action is to open the document, and an id can appear several times in one note.
+    """
+    found: dict[str, set[tuple[str, int]]] = {}
     docs = root / "docs"
     if not docs.is_dir():
         return found
@@ -41,8 +45,11 @@ def cited(root: Path) -> dict[str, set[str]]:
             continue
         if path.name == LEGACY.name:
             continue  # the list itself names ids; it is not a citation
-        for run_id in RUN_ID.findall(path.read_text(errors="ignore")):
-            found.setdefault(run_id, set()).add(str(path.relative_to(root)))
+        text = path.read_text(errors="ignore")
+        relative = str(path.relative_to(root))
+        for match in RUN_ID.finditer(text):
+            line = text.count("\n", 0, match.start()) + 1
+            found.setdefault(match.group(), set()).add((relative, line))
     return found
 
 
@@ -131,7 +138,13 @@ def main(argv: list[str] | None = None) -> int:
         if run_id in exempt:
             continue
         checked += 1
-        problems.extend(check_run(root, run_id))
+        reasons = check_run(root, run_id)
+        if not reasons:
+            continue
+        # check_run reports *why* the run cannot be re-derived; the location is where it was
+        # cited, which check_run has no reason to know. Kept separate so each stays testable.
+        where = ", ".join(f"{path}:{line}" for path, line in sorted(mentions[run_id]))
+        problems.extend(f"{reason}\n    — cited at {where}" for reason in reasons)
 
     exempt_count = len(set(mentions) & exempt)
     print(f"citations: {len(mentions)} cited, {exempt_count} exempt, {checked} checked")
