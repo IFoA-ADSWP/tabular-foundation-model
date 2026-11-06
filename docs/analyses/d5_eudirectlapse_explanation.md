@@ -130,12 +130,42 @@ than any effect it could have measured; at v3 it put the linear model ahead on 2
 90 minutes to confirm that a five-feature regime is underdetermined was not the best use of the time,
 and the regime is recorded as inconclusive rather than quietly dropped.
 
+## 4b. The non-circular falsifier, and why it could not bite (#460)
+
+The `engineered` regime closed the gap by handing TabPFN the linear model's fitted log-odds — the
+competitor's own output, which nobody could ship without already having that model. A fourth regime
+supplies an **authored** summary instead, pre-registered before the run: the four premium columns
+replaced by `premium_sum_z`, the sum of their z-scored values, scaler fitted on training rows only,
+no labels and no fitted model contributing.
+
+Sixty-six seeds, `v3_default`, same rows and folds:
+
+| Regime | Linear | TabPFN | Δ (linear − TabPFN) | 95% interval | TabPFN ahead |
+|---|---|---|---|---|---|
+| `benchmark` | 0.5938 | 0.5896 | +0.0054 ± 0.0033 | [−0.0012, +0.0120] | 29/66 |
+| `authored` | 0.5938 | 0.5915 | **+0.0024 ± 0.0037** | **[−0.0051, +0.0098]** | 33/66 |
+
+**Both intervals cover zero**, and the pre-registered table said what that means before the numbers
+existed: *neither closes it — there is no gap at this row cap to close.*
+
+The authored summary moves the point estimate further towards parity (+0.0024 against +0.0054), as an
+additive feature that captures the premium level should. But it cannot be reported as closing
+anything, because there is no established gap for it to close. **The circularity question is
+therefore unresolved at 2,000 rows** rather than answered: the circular regime's apparent success and
+the authored regime's near-parity are both measured against a gap that is itself indistinguishable
+from zero.
+
+This is the honest limit of the design, and it was written down before the run precisely so that a
+favourable-looking point estimate could not be promoted into a finding afterwards.
+
 ## 5. What this says about the two explanations
 
 The ticket asked which is true: *"the linear method is the right method here"* or *"TabPFN needs these
 features"*.
 
-**Neither is supportable at this row cap**, because both presuppose a gap:
+**Neither is supportable at this row cap**, because both presuppose a gap — and the authored
+regime (§4b) was added specifically to test E1 without the circularity, and could not, for the same
+reason:
 
 - **E1, feature coverage** — the engineered regime supplies the linear form explicitly and the point
   estimate crosses zero. That is the direction E1 predicts, and the interval does not exclude zero, so

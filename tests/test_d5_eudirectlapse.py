@@ -450,3 +450,25 @@ def test_the_authored_sum_is_fitted_on_train_rows_only(d5):
 
 def test_the_authored_regime_is_listed(d5):
     assert "authored" in d5.REGIMES
+
+
+def test_authored_only_reports_no_gap_rather_than_a_failure_to_close(d5):
+    """#460's measured shape: the benchmark gap covers zero, so there is nothing to close.
+
+    Reporting "the authored transform did not close the gap" would imply a gap it failed to close.
+    """
+    block = d5.verdict({
+        "benchmark": _regime_block([0.05, -0.04] * 33),
+        "authored": _regime_block([0.03, -0.02] * 33),
+    })
+    assert block["conclusion"] == "no gap is established at this row cap"
+    assert block["authored"]["circularity"].startswith("not resolvable here")
+
+
+def test_authored_only_without_a_benchmark_says_so(d5):
+    block = d5.verdict({"authored": _regime_block([0.01] * 10)})
+    assert block["conclusion"] == "the authored regime ran without a comparator"
+
+
+def test_verdict_says_not_tested_when_neither_regime_ran(d5):
+    assert d5.verdict({"benchmark": _regime_block([0.02])})["conclusion"] == "not tested"
