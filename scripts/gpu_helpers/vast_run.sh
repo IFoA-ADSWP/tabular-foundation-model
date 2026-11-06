@@ -62,6 +62,10 @@ OUTDIR="${VAST_OUTDIR:-$REPO_DIR/outputs/gpu-pilot}"
 # retry path; sourced, not executed.
 # shellcheck source=lease.sh
 . "$REPO_DIR/scripts/gpu_helpers/lease.sh"
+# The poll-window arithmetic is shared with batch_run.sh (#430) so the harness's pre-spend
+# refusal and this launcher's refusal cannot disagree about what fits.
+# shellcheck source=fit_guard.sh
+. "$REPO_DIR/scripts/gpu_helpers/fit_guard.sh"
 
 DEFAULT_QUERY='num_gpus=1 gpu_ram>=23 cpu_ram>=32 disk_space>=60 reliability>=0.98 inet_down>200 dph<0.80'
 # Ampere / Ada / Hopper only. Deliberately excludes Volta (V100), Pascal
@@ -549,15 +553,17 @@ if [ -n "$SEEDS" ]; then
 else
     SEED_COUNT=1
 fi
-EST_SECONDS=$(( SEED_COUNT * EST_SEC_PER_SEED + BOOT_EST_SECONDS ))
-POLL_SECONDS=$(( POLL_MINUTES * 60 ))
-if [ "$EST_SECONDS" -gt "$POLL_SECONDS" ]; then
-    echo "REFUSING: this batch cannot finish inside the poll window." >&2
-    echo "  ${SEED_COUNT} seed(s) x ${EST_SEC_PER_SEED}s + ${BOOT_EST_SECONDS}s boot = ${EST_SECONDS}s" >&2
-    echo "  poll window is ${POLL_MINUTES} min = ${POLL_SECONDS}s" >&2
-    echo "  Past that window the launcher destroys the instance and the artifacts are lost," >&2
-    echo "  because the box ships its payload only on completion." >&2
-    echo "  Fix one of: fewer seeds, --poll-minutes N, --estimate-sec-per-seed N." >&2
+# An estimate of 0 makes every batch fit and disables the guard while looking applied.
+case "$EST_SEC_PER_SEED" in
+    ''|*[!0-9]*|0)
+        echo "FATAL: --estimate-sec-per-seed must be a positive integer of seconds." >&2
+        echo "  0 disables the poll guard silently; measure the per-seed time instead." >&2
+        exit 2 ;;
+esac
+# The sum and the refusal live in fit_guard.sh, which batch_run.sh sources too: a harness
+# that sized a batch differently from this guard would reintroduce #414 at the batch level.
+if ! batch_fits "$SEED_COUNT" "$EST_SEC_PER_SEED" "$BOOT_EST_SECONDS" "$POLL_MINUTES"; then
+    batch_refuse "$SEED_COUNT" "$EST_SEC_PER_SEED" "$BOOT_EST_SECONDS" "$POLL_MINUTES"
     exit 2
 fi
 
