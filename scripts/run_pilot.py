@@ -1527,7 +1527,7 @@ def resolve_invocation(args):
             if value is not None:
                 config[key] = value
         return (args.dataset, arms or list(ARMS), seeds or [DEFAULT_SEED], train_size,
-                test_size, args.folds, config, None, None, None, None)
+                test_size, args.folds, config, None, None, None, None, None)
 
     registry = load_registry(REGISTRY_TOML)
     declared = registry.pilot_experiment(args.experiment)
@@ -1544,7 +1544,15 @@ def resolve_invocation(args):
                 f"--arms selects within the declaration"
             )
     if seeds is not None:
-        _refuse(declared.id, "--seeds", [declared.seed], seeds)
+        # A subset SELECTS within the declaration -- the launcher splits a probe across launches,
+        # so each launch carries part of the declared range by design (#450). A seed the
+        # declaration does not name is a contradiction, exactly as an undeclared arm is.
+        undeclared = [seed for seed in seeds if seed not in declared.seeds]
+        if undeclared:
+            raise InvocationError(
+                f"--experiment {declared.id!r} declares seeds {list(declared.seeds)}, but "
+                f"--seeds named {undeclared} outside it; --seeds selects within the declaration"
+            )
     if args.folds is not None:
         _refuse(declared.id, "--folds", declared.folds, args.folds)
     if args.train_size is not None:
@@ -1567,9 +1575,10 @@ def resolve_invocation(args):
         for method in registry.pilot_methods_of(declared)
     }
     base_config = _config_dict(declared.config)
-    return (declared.dataset, list(arms or declared.arms), [declared.seed],
+    return (declared.dataset, list(arms or declared.arms), list(seeds or declared.seeds),
             declared.train_size, declared.test_size, declared.folds,
-            base_config, budgets, declared.id, base_config, declared.model_version)
+            base_config, budgets, declared.id, base_config, declared.model_version,
+            declared.preregistration)
 
 
 def make_parser():
@@ -1640,11 +1649,12 @@ def main():
     global ARM_BUDGETS, DECLARED_EXPERIMENT
     try:
         (dataset, arms, seeds, train_size, test_size, folds, config, ARM_BUDGETS,
-         experiment_id, declared_config, declared_version) = resolve_invocation(args)
+         experiment_id, declared_config, declared_version, preregistration) = resolve_invocation(args)
     except (InvocationError, RegistryError) as exc:
         parser.error(str(exc))
     DECLARED_EXPERIMENT = (
-        {"id": experiment_id, "config": declared_config, "model_version": declared_version}
+        {"id": experiment_id, "config": declared_config, "model_version": declared_version,
+         "preregistration": preregistration}
         if experiment_id else None
     )
     rung_name = args.rung
@@ -1770,6 +1780,10 @@ def main():
         "epochs": config["epochs"],
         "legacy_config_keys_ignored": list(LEGACY_UNUSED_KEYS),
         "seeds": seeds,
+        # The document a multi-seed design was fixed against (#450). null is an absence, not a
+        # pass: a single-seed experiment declares no seed count, and a multi-seed one cannot parse
+        # without this, so a record that carries null here was not a replication.
+        "preregistration": (DECLARED_EXPERIMENT or {}).get("preregistration"),
         "folds": folds,
         "rung": rung_name,
         "train_size": train_size,

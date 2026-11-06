@@ -50,8 +50,8 @@ _EXPERIMENT_KEYS = ("dataset", "methods", "n_folds", "seed", "model_version", "r
 # than a discriminator every frontier reader would have to branch on.
 _PILOT_DATASET_KEYS = ("file", "target")
 _PILOT_METHOD_KEYS = ("epochs",)
-_PILOT_EXPERIMENT_KEYS = ("dataset", "arms", "seed", "folds", "train_size", "test_size",
-                          "model_version", "config")
+_PILOT_EXPERIMENT_KEYS = ("dataset", "arms", "seed", "seeds", "folds", "train_size",
+                          "test_size", "model_version", "preregistration", "config")
 _CONFIG_KEYS = ("epochs", "early_stopping", "n_estimators", "learning_rate", "fit_mode",
                 "context_samples")
 
@@ -165,17 +165,32 @@ class PilotConfig:
 
 @dataclass(frozen=True)
 class PilotExperiment:
-    """A declared pilot experiment: dataset, arms, split sizes and base config (#238)."""
+    """A declared pilot experiment: dataset, arms, split sizes and base config (#238).
+
+    `seeds` is a tuple because a probe declares a range and the launcher runs it in batches
+    (#450). A single-seed experiment is a one-element tuple, so no caller has to branch.
+
+    `preregistration` is the document a multi-seed design was fixed against. It is `None` for a
+    single-seed reproduction -- there is no seed count to choose -- and required otherwise, because
+    a replication whose power was decided after seeing its first result is the failure D19 exists to
+    prevent.
+    """
 
     id: str
     dataset: str
     arms: tuple[str, ...]
-    seed: int
+    seeds: tuple[int, ...]
     folds: int | None
     train_size: int
     test_size: int
     model_version: str
+    preregistration: str | None
     config: PilotConfig
+
+    @property
+    def seed(self) -> int:
+        """The first declared seed. Kept because a single-seed experiment reads more clearly."""
+        return self.seeds[0]
 
 
 def arm_epoch_budget(experiment: PilotExperiment, method: PilotMethod) -> int:
@@ -460,6 +475,17 @@ def _experiment(
     )
 
 
+def _optional_text(loc: str, entry: Mapping[str, Any], key: str) -> str | None:
+    """An optional string field: absent means "not declared", not an empty string.
+
+    An empty string is refused rather than stored, so "declared nothing" has exactly one spelling
+    (absent) and a record cannot carry a pre-registration that names no document.
+    """
+    if key not in entry:
+        return None
+    return _text(loc, entry, key)
+
+
 def _optional_integer(loc: str, entry: Mapping[str, Any], key: str,
                       minimum: int) -> int | None:
     """An optional integer field: absent means "not declared", not a default."""
@@ -537,19 +563,62 @@ def _pilot_experiment(
         if arm not in pilot_methods:
             _fail(loc, f"references unknown pilot arm {arm!r}")
 
+    seeds = _pilot_seeds(loc, entry)
+    preregistration = _optional_text(loc, entry, "preregistration")
+    if len(seeds) > 1 and preregistration is None:
+        _fail(
+            loc,
+            f"declares {len(seeds)} seeds {list(seeds)} but no preregistration; a multi-seed "
+            "design names the document its seed count was fixed against (#450), because a seed "
+            "count chosen after the first result is not a pre-registration",
+        )
+
     return PilotExperiment(
         id=name,
         dataset=dataset_name,
         arms=tuple(names),
-        seed=_integer(loc, entry, "seed", minimum=0),
+        seeds=seeds,
         folds=_optional_integer(loc, entry, "folds", minimum=2),
         # Required: a size left out would fall back to the pilot's module constant, which
         # is exactly the duplicate declaration #238 removes.
         train_size=_integer(loc, entry, "train_size", minimum=1),
         test_size=_integer(loc, entry, "test_size", minimum=1),
         model_version=_text(loc, entry, "model_version"),
+        preregistration=preregistration,
         config=_pilot_config(loc, _require(loc, entry, "config")),
     )
+
+
+def _pilot_seeds(loc: str, entry: Mapping[str, Any]) -> tuple[int, ...]:
+    """The seeds a pilot experiment declares: `seed = N` or `seeds = [N, ...]`, exactly one.
+
+    Both spellings exist because the common case is one seed and writing a list for it reads worse
+    than the thing it is. Accepting both at once is refused rather than resolved by precedence:
+    two spellings that can disagree is the drift #238 exists to remove, and a reader could not tell
+    which one the run used.
+    """
+    has_seed = "seed" in entry
+    has_seeds = "seeds" in entry
+    if has_seed and has_seeds:
+        _fail(loc, "declares both 'seed' and 'seeds'; declare one, not both (#450)")
+    if not has_seed and not has_seeds:
+        _fail(loc, "declares neither 'seed' nor 'seeds'; one is required (#450)")
+
+    if has_seed:
+        return (_integer(loc, entry, "seed", minimum=0),)
+
+    raw = entry["seeds"]
+    if not isinstance(raw, list) or not raw:
+        _fail(loc, f"seeds must be a non-empty list of integers, got {raw!r}")
+    for value in raw:
+        if isinstance(value, bool) or not isinstance(value, int):
+            _fail(loc, f"seeds must contain integers, got {value!r}")
+        if value < 0:
+            _fail(loc, f"seeds must be non-negative, got {value!r}")
+    duplicates = sorted({value for value in raw if raw.count(value) > 1})
+    if duplicates:
+        _fail(loc, f"lists seed {duplicates[0]!r} more than once")
+    return tuple(raw)
 
 
 FOLD_KINDS = ("stratified", "kfold")

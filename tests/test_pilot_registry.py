@@ -33,7 +33,8 @@ def resolve(*argv):
 # ---- without an id: exactly the pre-#238 behaviour ---------------------------
 
 def test_without_an_experiment_the_module_defaults_are_unchanged():
-    dataset, arms, seeds, train_size, test_size, folds, config, budgets, experiment_id, declared, version = resolve()
+    (dataset, arms, seeds, train_size, test_size, folds, config, budgets, experiment_id,
+     declared, version, preregistration) = resolve()
 
     assert dataset is None  # every dataset
     assert arms == list(mod.ARMS)
@@ -46,7 +47,8 @@ def test_without_an_experiment_the_module_defaults_are_unchanged():
 
 
 def test_without_an_experiment_flags_still_override_the_defaults():
-    _dataset, _arms, seeds, train_size, test_size, folds, config, _budgets, experiment_id, declared, _version = resolve(
+    (_dataset, _arms, seeds, train_size, test_size, folds, config, _budgets, experiment_id,
+     declared, _version, _preregistration) = resolve(
         "--seeds", "42,43", "--rung", "P1b", "--folds", "5",
         "--epochs", "10", "--learning-rate", "1e-4", "--n-estimators", "4",
     )
@@ -66,7 +68,8 @@ def test_without_an_experiment_an_unknown_arm_is_refused():
 # ---- with an id: the registry owns the values -------------------------------
 
 def test_an_experiment_supplies_every_value_without_a_flag():
-    dataset, arms, seeds, train_size, test_size, folds, config, budgets, experiment_id, declared, version = resolve(
+    (dataset, arms, seeds, train_size, test_size, folds, config, budgets, experiment_id,
+     declared, version, preregistration) = resolve(
         "--experiment", "coil2000_p1a")
 
     assert dataset == "coil2000"
@@ -84,7 +87,8 @@ def test_an_experiment_supplies_every_value_without_a_flag():
 
 
 def test_a_flag_that_repeats_the_declaration_is_accepted():
-    _dataset, _arms, seeds, train_size, test_size, _folds, config, _budgets, experiment_id, declared, _version = resolve(
+    (_dataset, _arms, seeds, train_size, test_size, _folds, config, _budgets, experiment_id,
+     declared, _version, _preregistration) = resolve(
         "--experiment", "coil2000_p1a", "--seeds", "42", "--epochs", "3",
         "--train-size", "2000", "--test-size", "1000", "--rung", "P1a",
         "--dataset", "coil2000", "--arms", "A_raw,B_in_domain,E_glm,F_catboost",
@@ -118,7 +122,7 @@ def test_a_contradicting_flag_is_refused_naming_the_id_and_the_flag(argv, flag):
 def test_arms_select_within_the_declaration():
     # The launcher runs one arm per process, so a subset is a selection, not a
     # contradiction; an arm the declaration does not name is refused.
-    _dataset, arms, _seeds, _t, _te, _f, _c, _b, _id, _d, _v = resolve(
+    _dataset, arms, _seeds, _t, _te, _f, _c, _b, _id, _d, _v, _pre = resolve(
         "--experiment", "coil2000_p1a", "--arms", "E_glm")
     assert arms == ["E_glm"]
 
@@ -173,4 +177,116 @@ def test_the_registry_declares_the_pilots_datasets_and_experiments():
         assert entry is not None, name
         assert entry.file == declared["file"], name
         assert entry.target == declared["target"], name
-    assert set(registry.pilot_experiments) == {f"{name}_p1a" for name in mod.DATASETS}
+    # The reproductions, plus the pre-registered cells a probe runs (#450). Asserted as an exact
+    # set so a new experiment cannot appear in the file without a reader being told it exists.
+    assert set(registry.pilot_experiments) == {
+        *(f"{name}_p1a" for name in mod.DATASETS),
+        "spanish_motor_lapse_cell",
+    }
+
+
+# ---------------------------------------------------------------------------
+# A seed range, and the pre-registration it is fixed against (#450)
+# ---------------------------------------------------------------------------
+CELL = "spanish_motor_lapse_cell"
+
+
+def test_a_seed_subset_selects_within_the_declaration():
+    """The launcher splits a probe across launches, so a subset is a selection (#450).
+
+    Ten seeds at four arms will not fit one poll window, so every real invocation of this cell
+    carries part of 331-340. Refusing a subset would make the design unrunnable.
+    """
+    (_dataset, _arms, seeds, _t, _te, _f, _c, _b, experiment_id,
+     _d, _v, preregistration) = resolve("--experiment", CELL, "--seeds", "331,332,333")
+
+    assert seeds == [331, 332, 333]
+    assert experiment_id == CELL
+    assert preregistration == "docs/current/FINETUNING_PREREGISTRATION_SPANISH_2026-11.md"
+
+
+def test_a_seed_outside_the_declaration_is_refused():
+    with pytest.raises(mod.InvocationError) as raised:
+        resolve("--experiment", CELL, "--seeds", "331,341")
+
+    message = str(raised.value)
+    assert CELL in message and "--seeds" in message and "341" in message
+
+
+def test_a_seedless_cell_resolves_to_the_whole_declared_range():
+    (_d, _a, seeds, _t, _te, _f, _c, _b, _id, _dd, _v, _pre) = resolve("--experiment", CELL)
+    assert seeds == list(range(331, 341))
+
+
+def test_a_single_seed_experiment_still_resolves_to_one_seed():
+    """The four committed reproductions must not change meaning (#238 preserved)."""
+    (_d, _a, seeds, _t, _te, _f, _c, _b, _id, _dd, _v, preregistration) = resolve(
+        "--experiment", "coil2000_p1a")
+    assert seeds == [42]
+    assert preregistration is None
+
+
+def test_the_cell_resolves_to_the_pre_registered_rows_and_arms():
+    (_d, arms, _s, train_size, test_size, _f, _c, _b, _id, _dd, version, _pre) = resolve(
+        "--experiment", CELL)
+    assert (train_size, test_size) == (10000, 10000)
+    assert arms == ["A_raw", "B_ft3", "B_ft10", "B_ft30"]
+    assert version == "v3_default"
+
+
+def test_an_undeclared_arm_on_the_cell_is_refused():
+    with pytest.raises(mod.InvocationError) as raised:
+        resolve("--experiment", CELL, "--arms", "E_glm")
+    assert "E_glm" in str(raised.value)
+
+
+def test_the_run_manifest_names_the_preregistration(monkeypatch, tmp_path):
+    """The record, not just the resolver: D19 requires a launch record to name the document.
+
+    `main` is stopped at the manifest write, which happens before any arm runs -- so this asserts
+    the field a reader would open the record to find, and costs no compute.
+    """
+    import sys
+
+    captured = {}
+
+    def capture(manifest, output_dir):
+        captured.update(manifest)
+        raise SystemExit(0)
+
+    monkeypatch.setattr(mod, "write_run_manifest", capture)
+    monkeypatch.setattr(mod, "OUTPUT_DIR", tmp_path)
+    monkeypatch.setattr(sys, "argv", [
+        "run_pilot.py", "--experiment", CELL, "--seeds", "331,332",
+    ])
+
+    with pytest.raises(SystemExit):
+        mod.main()
+
+    assert captured["preregistration"] == (
+        "docs/current/FINETUNING_PREREGISTRATION_SPANISH_2026-11.md")
+    # The subset is what this launch asked for, so two launches of one cell cannot both claim
+    # the whole range.
+    assert captured["seeds"] == [331, 332]
+    assert captured["train_size"] == captured["test_size"] == 10000
+
+
+def test_a_reproduction_manifest_carries_a_null_preregistration(monkeypatch, tmp_path):
+    """null is an absence, not a pass: a single-seed experiment declares no seed count."""
+    import sys
+
+    captured = {}
+
+    def capture(manifest, output_dir):
+        captured.update(manifest)
+        raise SystemExit(0)
+
+    monkeypatch.setattr(mod, "write_run_manifest", capture)
+    monkeypatch.setattr(mod, "OUTPUT_DIR", tmp_path)
+    monkeypatch.setattr(sys, "argv", ["run_pilot.py", "--experiment", "coil2000_p1a"])
+
+    with pytest.raises(SystemExit):
+        mod.main()
+
+    assert captured["preregistration"] is None
+    assert captured["seeds"] == [42]
