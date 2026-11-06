@@ -153,3 +153,22 @@ result of the run that disagrees with it.
 **A rule this produced.** The tool no longer hardcodes a model label. `model_version` is derived from
 the checkpoint that actually loaded, with its sha256, which is ADR 0003's rule and was the one place
 the diagnostic violated it.
+
+## Amendment — the seed count, after five seeds proved insufficient (2026-11-06)
+
+**What the plan got wrong.** It fixed five split seeds for the regime comparison and never asked what
+five seeds could resolve. They could not resolve an effect of 0.002: the run reported a benchmark gap
+of `+0.0205 ± 0.0069` and an engineered residual of `+0.0037 ± 0.0026`, and at sixty-six seeds the same
+code on the same data reported `+0.0054 ± 0.0033` and `−0.0015 ± 0.0011` — both intervals covering zero.
+
+**What changed.** `--seed-range A-B` and `--regime-seeds a,b,c` set the count, refusing both at once,
+an inverted range, and a repeated seed. The power run used `42-107`.
+
+**The consequence for the plan's claims.** The plan's central claim — that the engineered regime shows
+feature coverage closing the gap — does not survive. The document is rewritten as a negative result.
+This is recorded here rather than only in the result, because the plan asserted the opposite.
+
+**A second defect, caught by the record rather than the exit code.** The first power run accepted
+`--seed-range` in `main` and called `measure` without it, so a sixty-six-seed request ran five and
+wrote a plausible record. `CODING_STANDARDS.md` now carries the rule this earned: a parameter crossing
+a seam is forwarded, not re-defaulted, and a new seam gets a wiring test at that seam.

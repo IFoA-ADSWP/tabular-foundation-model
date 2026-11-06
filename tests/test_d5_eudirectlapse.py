@@ -283,3 +283,129 @@ def test_record_fields_are_the_contract(d5):
         matched_context={},
     )
     assert set(DIAGNOSTIC_RECORD_FIELDS) == set(record.__dataclass_fields__)
+
+
+# ---------------------------------------------------------------------------
+# The power-run flag (#306 §9)
+# ---------------------------------------------------------------------------
+def test_seed_range_expands_inclusively(d5):
+    assert d5._regime_seeds("42-46", None) == (42, 43, 44, 45, 46)
+    assert d5._regime_seeds("331-332", None) == (331, 332)
+
+
+def test_default_stays_five_seeds_when_no_range_is_given(d5):
+    assert d5._regime_seeds(None, None) == d5.REGIME_SEEDS
+
+
+def test_explicit_seed_list_is_parsed(d5):
+    assert d5._regime_seeds(None, "42, 44 ,46") == (42, 44, 46)
+
+
+def test_both_seed_forms_at_once_is_refused(d5):
+    with pytest.raises(SystemExit):
+        d5._regime_seeds("42-46", "42,43")
+
+
+def test_a_malformed_or_inverted_range_is_refused(d5):
+    for bad in ("42", "46-42", "a-b"):
+        with pytest.raises(SystemExit):
+            d5._regime_seeds(bad, None)
+
+
+def test_a_repeated_seed_is_refused(d5):
+    with pytest.raises(SystemExit):
+        d5._regime_seeds(None, "42,42")
+
+
+def test_main_forwards_the_seed_range_to_measure(d5, monkeypatch, tmp_path):
+    """A flag that is parsed and not forwarded is worse than a flag that does not exist.
+
+    This is the exact defect the first power run hit: `--seed-range` was accepted, `_regime_seeds`
+    expanded it, and `measure` was called without `seeds` -- so the run reported five seeds under a
+    sixty-six-seed request. It looked like a result, which is the failure mode.
+    """
+    captured = {}
+
+    def fake_measure(frame, *, skip_regimes=False, regimes=(), model_path=None, seeds=()):
+        captured["seeds"] = seeds
+        captured["regimes"] = regimes
+        return {
+            "reproduction": {"passed": True, "delta": {"Linear": 0.0}},
+            "premium_collinearity": {"max_abs_correlation": 0.99},
+            "ladder": {"auc_by_k": {"1": {"mean_auc": 0.5}}},
+            "regimes": None,
+            "tabpfn": None,
+            "not_tested": {},
+        }
+
+    monkeypatch.setattr(d5, "measure", fake_measure)
+    monkeypatch.setattr(d5, "write_diagnostic_record", lambda record, root=None: tmp_path)
+
+    d5.main(["--run-id", "t", "--seed-range", "42-44", "--regime", "benchmark"])
+
+    assert captured["seeds"] == (42, 43, 44)
+    assert captured["regimes"] == ("benchmark",)
+
+
+def test_verdict_says_so_when_the_benchmark_gap_is_not_established(d5):
+    """The sixty-six-seed result: a gap whose interval covers zero has nothing to explain.
+
+    Five seeds put this at +0.0205 and sixty-six put it at +0.0054 with an interval covering zero.
+    Saying "the linear form closes the gap" would then describe a gap that is not established.
+    """
+    # A gap of +0.005 with a spread wide enough that its interval covers zero -- which is what
+    # sixty-six seeds produced. A fixture with no spread would pass this branch for the wrong reason.
+    wide = [0.05, -0.04] * 33
+    block = d5.verdict({
+        "benchmark": _regime_block(wide),
+        "engineered": _regime_block([-0.006, 0.004] * 33),
+    })
+    assert block["conclusion"] == "no gap is established at this row cap"
+    assert block["benchmark_gap_favours_linear"] is False
+
+
+def test_verdict_reports_a_reversal_as_parity_not_a_win(d5):
+    """An engineered interval that covers zero with a negative point estimate is parity."""
+    # The benchmark gap is established here (tight, positive), so this reaches the parity branch
+    # rather than the "no gap" one; the engineered interval then covers zero with a negative mean.
+    block = d5.verdict({
+        "benchmark": _regime_block([0.020, 0.022] * 20),
+        "engineered": _regime_block([-0.006, 0.004] * 20),
+    })
+    assert block["conclusion"].startswith("the engineered gap reverses")
+    assert "parity" in block["reason"]
+
+
+def test_a_multi_seed_run_does_not_stamp_a_single_split_seed(d5, monkeypatch, tmp_path):
+    """ADR 0003: `seed` is the run's SPLIT seed, so a 66-seed run records the absence, not `42`.
+
+    A record claiming seed=42 for a run that covered 42-107 is a field the artifact cannot back --
+    the same class of error as a dropped parameter, one layer up.
+    """
+    captured = {}
+
+    def fake_measure(frame, *, skip_regimes=False, regimes=(), model_path=None, seeds=()):
+        return {
+            "reproduction": {"passed": True, "delta": {"Linear": 0.0}},
+            "premium_collinearity": {"max_abs_correlation": 0.99},
+            "ladder": {"auc_by_k": {"1": {"mean_auc": 0.5}}},
+            "seeds": list(seeds),
+            "regimes": None,
+            "tabpfn": None,
+            "not_tested": {},
+        }
+
+    def capture(record, root=None):
+        captured["record"] = record
+        return tmp_path
+
+    monkeypatch.setattr(d5, "measure", fake_measure)
+    monkeypatch.setattr(d5, "write_diagnostic_record", capture)
+
+    d5.main(["--run-id", "many", "--seed-range", "42-44", "--regime", "benchmark"])
+    assert captured["record"].seed is None
+    assert captured["record"].measurements["seeds"] == [42, 43, 44]
+
+    d5.main(["--run-id", "one", "--regime-seeds", "42", "--regime", "benchmark"])
+    assert captured["record"].seed == 42
+    assert captured["record"].measurements["seeds"] == [42]

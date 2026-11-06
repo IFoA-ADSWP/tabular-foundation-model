@@ -690,6 +690,23 @@ BOOTSTRAP_B64="$(gzip -9c "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh" | b
     printf 'export TFM_IMAGE_REF=%q\n' "$IMAGE"
     printf 'export TFM_MACHINE_ID=%q\n' "${MACHINE_ID:-}"
     printf 'export TFM_HOST_ID=%q\n' "${HOST_ID:-}"
+    # ---- operator-set pass-throughs ---------------------------------------------
+    # Every variable the box READS and the operator may set is forwarded here. A name missing
+    # from this list is not an error the box can see: bootstrap substitutes its own default, so
+    # a pin the operator believes they set becomes the default, silently. That is the class this
+    # block exists to close (#450): `--seeds` was dropped by the bootstrap, `--seed-range` by a
+    # diagnostic's main, and TFM_EXPECT_CHECKPOINT was never forwarded at all -- the last one
+    # meaning D18's "asserted before every launch" was an assertion of the default, not of the
+    # claimed line. Empty values are NOT exported, so the box's defaults still apply.
+    # Only names the box actually honours: `TFM_REQUIRE_CLEAN_TREE` is hard-exported to 1 by the
+    # bootstrap, so forwarding it would be a control that cannot move. A dead entry is worse than
+    # no entry, because it reads like one.
+    for _passthrough in TFM_EXPECT_CHECKPOINT TFM_DATA_REF TFM_DATA_REPO TFM_WEIGHTS_MANIFEST \
+                       TABPFN_PIN SKLEARN_PIN PANDAS_PIN PYARROW_PIN CATBOOST_PIN; do
+        if [ -n "${!_passthrough:-}" ]; then
+            printf 'export %s=%q\n' "$_passthrough" "${!_passthrough}"
+        fi
+    done
     printf 'export TFM_BOOTSTRAP_B64=%q\n' "$BOOTSTRAP_B64"
     echo 'echo "$TFM_BOOTSTRAP_B64" | base64 -d | gzip -dc > /tmp/tfm-bootstrap.sh'
 

@@ -22,6 +22,28 @@ is the rule that prevents it.
 code path that reads it, or the scope note that limits it. "It is only a record" is the
 answer that should fail.
 
+## A parameter that crosses a seam is *forwarded*, not re-defaulted
+
+*Raised by three findings in one day, 2026-11-06: `bootstrap_pilot.sh` accepted `--seeds` and
+dropped it before the runner (#454); a diagnostic's `main` accepted `--seed-range` and dropped it
+before `measure`, so a 66-seed request ran five and wrote a plausible record; and
+`TFM_EXPECT_CHECKPOINT` was never forwarded by the launcher at all, so the box asserted its own
+default — which made D18's "asserted before every launch" an assertion of the default, not of the
+claimed line.*
+
+A value crossing a seam — launcher to box, CLI to library, `main` to a worker — either arrives or
+stops the run. It does not quietly become the callee's default. The failure is invisible from both
+ends: each side is individually correct, the run succeeds, and the record describes an experiment
+nobody asked for.
+
+The mechanical half is now a check: `tests/test_pilot2_seed_passthrough.py` asserts that every
+variable the box reads is either forwarded by the launcher or on a named list of launcher-owned and
+box-enforced names, and that no forwarded name is dead. The judgement half is what review adds:
+**a new seam gets a wiring test at that seam**, not an end-to-end test that happens to cover it.
+
+**Reviewer's test:** name the call site that receives the value. If the answer is "it is in the
+environment" or "it is on the object", that is the belief to check, not the answer.
+
 ## Tests sit at a named seam
 
 *Raised in the #230 review: coverage was argued per file rather than per boundary.*
