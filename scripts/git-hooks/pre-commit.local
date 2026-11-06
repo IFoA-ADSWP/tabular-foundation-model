@@ -15,8 +15,10 @@
 #
 # What is deliberately absent, and why:
 #
-#   * `pytest` — the full suite took over 40 minutes locally and four of its tests abort sandboxed
-#     shells on macOS. A gate that slow stops being a gate; CI runs it.
+#   * `pytest` — the suite is 667 tests and takes about 28 minutes locally (measured 2026-11-06: 1720s,
+#     all passing). A gate that slow stops being a gate, and CI runs it. It was once blamed on
+#     "macOS aborting sandboxed shells" — that was a machine-local `python3` wrapper, not the tests.
+#     See CONTRIBUTING.md (#476).
 #   * `shellcheck` — only meaningful when a `.sh` changes, and it is seconds there. Skipped here to
 #     keep the hook cheap; CI still runs it on every change.
 #   * `doclinks`/`docstatus`/`verdict` — cheap, but they cannot fail from a code-only commit, and

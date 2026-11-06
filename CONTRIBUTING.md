@@ -140,8 +140,16 @@ chmod +x "$(git rev-parse --git-common-dir)/hooks/pre-commit.local"
 ```
 
 It runs `ruff`, `evidence` and `citation` only — the checks that can fail from a commit. It
-deliberately does not run `pytest`: the suite takes over 40 minutes locally and four of its
-tests abort sandboxed shells on macOS, so a local full run is not a gate. CI runs everything.
+deliberately does not run `pytest`: 667 tests take about 28 minutes locally (measured 2026-11-06),
+so a local full run is not a gate. CI runs everything.
+
+That exclusion was once justified here by "four of its tests abort sandboxed shells on macOS". It
+was wrong, and the correction belongs where the claim lived: those four `test_pilot2_seed_passthrough`
+tests are correct. The abort came from a machine-local `python3` wrapper that re-injected a
+`$HOME`-relative `DYLD_INSERT_LIBRARIES` on every call — and the tests sandbox `HOME`, so dyld chased
+a dylib that did not exist there. Run the same four with that wrapper off `PATH` and they pass. A
+`Darwin skip` would have hidden four real tests on every Mac while CI stayed green, so: if a test
+fails on your machine, check the machine before you skip the test.
 
 `$(git rev-parse --git-common-dir)` and not `.git/hooks`, because in a worktree `.git` is a
 file and that path never exists.
