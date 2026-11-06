@@ -475,16 +475,45 @@ def verdict(regimes: dict) -> dict:
     benchmark_delta = float(benchmark["mean_delta"]) if benchmark else None
     closed = None if not benchmark_delta else round(1.0 - mean / benchmark_delta, 4)
 
+    # Does the benchmark gap itself survive at this row cap? If it does not, there is nothing for
+    # the engineered regime to explain, and saying "the linear form closes it" would describe a
+    # gap that is not established. The five-seed version of this experiment reported +0.0205 and
+    # the sixty-six-seed version reports +0.0054 with an interval covering zero -- so the check is
+    # not decorative.
+    benchmark_interval = None
+    benchmark_established = None
+    if benchmark is not None:
+        bench = np.array([r["delta_linear_minus_tabpfn"] for r in benchmark["per_seed"]], dtype=float)
+        bn = int(bench.size)
+        bse = float(bench.std(ddof=1) / np.sqrt(bn)) if bn > 1 else float("nan")
+        bmargin = T95.get(bn - 1, 1.96) * bse
+        benchmark_interval = [round(float(bench.mean() - bmargin), 6), round(float(bench.mean() + bmargin), 6)]
+        benchmark_established = bool(benchmark_interval[0] > 0)
+
     reading = {
         "benchmark_delta": benchmark_delta,
         "engineered_delta": round(mean, 6),
         "engineered_interval": [round(low, 6), round(high, 6)],
         "gap_closed_fraction": closed,
+        "benchmark_interval": benchmark_interval,
+        "benchmark_gap_established": benchmark_established,
         "seeds_linear_ahead": int((deltas > 0).sum()),
         "n_seeds": n,
         "rule": "a 95% t interval over seeds; the point estimate and its interval decide the sentence",
     }
 
+    if benchmark_established is False:
+        return {
+            **reading,
+            "conclusion": "no gap is established at this row cap",
+            "feature_coverage": "not testable here",
+            "reason": (
+                f"the benchmark gap is {benchmark_delta:+.4f} with interval {benchmark_interval}, "
+                "which covers zero; there is no established gap for the engineered regime to "
+                "explain, so the explanation belongs to the full-data comparison and not to this "
+                "row cap"
+            ),
+        }
     if high < 0:
         return {
             **reading,
@@ -510,6 +539,17 @@ def verdict(regimes: dict) -> dict:
             "reason": (
                 f"the residual {mean:+.4f} still excludes zero, but it is a small fraction of the "
                 "benchmark gap and TabPFN does not overtake the linear method"
+            ),
+        }
+    if mean < 0:
+        return {
+            **reading,
+            "conclusion": "the engineered gap reverses, but not beyond noise",
+            "feature_coverage": "supported at this resolution",
+            "reason": (
+                f"with the linear form supplied, TabPFN is ahead by {mean:+.4f} on "
+                f"{int((deltas < 0).sum())} of {n} seeds; the interval covers zero, so this is "
+                "parity rather than a win -- and it is the opposite sign to the benchmark regime"
             ),
         }
     return {

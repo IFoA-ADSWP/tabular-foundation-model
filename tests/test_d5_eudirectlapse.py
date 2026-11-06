@@ -345,3 +345,32 @@ def test_main_forwards_the_seed_range_to_measure(d5, monkeypatch, tmp_path):
 
     assert captured["seeds"] == (42, 43, 44)
     assert captured["regimes"] == ("benchmark",)
+
+
+def test_verdict_says_so_when_the_benchmark_gap_is_not_established(d5):
+    """The sixty-six-seed result: a gap whose interval covers zero has nothing to explain.
+
+    Five seeds put this at +0.0205 and sixty-six put it at +0.0054 with an interval covering zero.
+    Saying "the linear form closes the gap" would then describe a gap that is not established.
+    """
+    # A gap of +0.005 with a spread wide enough that its interval covers zero -- which is what
+    # sixty-six seeds produced. A fixture with no spread would pass this branch for the wrong reason.
+    wide = [0.05, -0.04] * 33
+    block = d5.verdict({
+        "benchmark": _regime_block(wide),
+        "engineered": _regime_block([-0.006, 0.004] * 33),
+    })
+    assert block["conclusion"] == "no gap is established at this row cap"
+    assert block["benchmark_gap_established"] is False
+
+
+def test_verdict_reports_a_reversal_as_parity_not_a_win(d5):
+    """An engineered interval that covers zero with a negative point estimate is parity."""
+    # The benchmark gap is established here (tight, positive), so this reaches the parity branch
+    # rather than the "no gap" one; the engineered interval then covers zero with a negative mean.
+    block = d5.verdict({
+        "benchmark": _regime_block([0.020, 0.022] * 20),
+        "engineered": _regime_block([-0.006, 0.004] * 20),
+    })
+    assert block["conclusion"].startswith("the engineered gap reverses")
+    assert "parity" in block["reason"]
