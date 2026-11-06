@@ -140,8 +140,8 @@ chmod +x "$(git rev-parse --git-common-dir)/hooks/pre-commit.local"
 ```
 
 It runs `ruff`, `evidence` and `citation` only — the checks that can fail from a commit. It
-deliberately does not run `pytest`: the suite is 667 tests and too slow locally to run on every
-commit, so a local full run is not a gate. CI runs everything.
+deliberately does not run `pytest`: 667 tests take about 28 minutes locally (measured 2026-11-06),
+so a local full run is not a gate. CI runs everything.
 
 That exclusion was once justified here by "four of its tests abort sandboxed shells on macOS". It
 was wrong, and the correction belongs where the claim lived: those four `test_pilot2_seed_passthrough`
