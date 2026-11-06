@@ -409,3 +409,66 @@ def test_a_multi_seed_run_does_not_stamp_a_single_split_seed(d5, monkeypatch, tm
     d5.main(["--run-id", "one", "--regime-seeds", "42", "--regime", "benchmark"])
     assert captured["record"].seed == 42
     assert captured["record"].measurements["seeds"] == [42]
+
+
+# ---------------------------------------------------------------------------
+# The non-circular regime (#460)
+# ---------------------------------------------------------------------------
+def test_the_authored_regime_uses_no_fitted_model(d5):
+    """The point of #460: the feature must be one someone could ship.
+
+    `engineered` supplies the linear model's fitted log-odds, so it cannot show that a feature
+    would help -- the feature *is* the competitor. The authored regime replaces the premium block
+    with a summary computed from raw values, and this test is what keeps it that way.
+    """
+    frame = d5.load_dataset()
+    train, test = frame.iloc[:300], frame.iloc[300:400]
+    out_train, out_test, detail = d5.regime_frame(train, test, "authored")
+
+    assert "premium_sum_z" in out_train.columns
+    assert "glm_logit" not in out_train.columns, "the authored regime must not carry the model's output"
+    for column in d5.PREMIUM_COLUMNS:
+        assert column not in out_train.columns
+    assert len(out_train) == len(train)
+
+
+def test_the_authored_sum_is_fitted_on_train_rows_only(d5):
+    """Changing the test rows must not move a single training-row value."""
+    frame = d5.load_dataset()
+    train, test = frame.iloc[:400], frame.iloc[400:500]
+    original, _, _ = d5.regime_frame(train, test, "authored")
+
+    scrambled = test.copy()
+    scrambled["prem_final"] = scrambled["prem_final"] * 3
+    scrambled["lapse"] = 1 - scrambled["lapse"]
+    replayed, _, _ = d5.regime_frame(train, scrambled, "authored")
+
+    np.testing.assert_allclose(
+        original["premium_sum_z"].to_numpy(), replayed["premium_sum_z"].to_numpy(),
+    )
+
+
+def test_the_authored_regime_is_listed(d5):
+    assert "authored" in d5.REGIMES
+
+
+def test_authored_only_reports_no_gap_rather_than_a_failure_to_close(d5):
+    """#460's measured shape: the benchmark gap covers zero, so there is nothing to close.
+
+    Reporting "the authored transform did not close the gap" would imply a gap it failed to close.
+    """
+    block = d5.verdict({
+        "benchmark": _regime_block([0.05, -0.04] * 33),
+        "authored": _regime_block([0.03, -0.02] * 33),
+    })
+    assert block["conclusion"] == "no gap is established at this row cap"
+    assert block["authored"]["circularity"].startswith("not resolvable here")
+
+
+def test_authored_only_without_a_benchmark_says_so(d5):
+    block = d5.verdict({"authored": _regime_block([0.01] * 10)})
+    assert block["conclusion"] == "the authored regime ran without a comparator"
+
+
+def test_verdict_says_not_tested_when_neither_regime_ran(d5):
+    assert d5.verdict({"benchmark": _regime_block([0.02])})["conclusion"] == "not tested"

@@ -120,7 +120,7 @@ PREDICT_BATCH = 10
 # features a family uses, and these four are the ones D2's top-tens disagree about.
 PREMIUM_COLUMNS = ("prem_final", "prem_last", "prem_market", "prem_pure")
 LADDER_KS = (1, 2, 3, 5, 10)
-REGIMES = ("benchmark", "glm_top5", "engineered")
+REGIMES = ("benchmark", "glm_top5", "engineered", "authored")
 TOP_K = 5
 
 
@@ -360,6 +360,27 @@ def regime_frame(train: pd.DataFrame, test: pd.DataFrame, regime: str) -> tuple[
         detail["dropped"] = [c for c in train.columns if c not in keep]
         return train[keep], test[keep], detail
 
+    if regime == "authored":
+        # The NON-CIRCULAR falsifier (#460). `engineered` closes the gap by handing TabPFN the
+        # fitted log-odds of the model it is being compared against -- a feature nobody could ship
+        # without already having the linear model. This regime supplies an AUTHORED additive
+        # summary instead: the premium block collapsed to the sum of its standardised columns,
+        # computed from raw values with a scaler fitted on training rows only. No labels, no fitted
+        # model, nothing the competitor produced.
+        train_out, test_out = train.copy(), test.copy()
+        premium = [column for column in PREMIUM_COLUMNS if column in train.columns]
+        scaler = StandardScaler().fit(train_out[premium])
+        train_out["premium_sum_z"] = scaler.transform(train_out[premium]).sum(axis=1)
+        test_out["premium_sum_z"] = scaler.transform(test_out[premium]).sum(axis=1)
+        train_out = train_out.drop(columns=premium)
+        test_out = test_out.drop(columns=premium)
+        detail["features"] = [column for column in train_out.columns if column != TARGET]
+        detail["transforms"] = {
+            "premium": f"{premium} -> premium_sum_z (sum of z-scored columns, fitted on train)",
+            "note": "authored from raw values; no labels and no fitted model contribute to it",
+        }
+        return train_out, test_out, detail
+
     if regime == "engineered":
         train_out, test_out = train.copy(), test.copy()
         premium = [column for column in PREMIUM_COLUMNS if column in train.columns]
@@ -464,6 +485,68 @@ def _mean_and_interval(values: np.ndarray) -> tuple[float, float, float]:
     return mean, mean - margin, mean + margin
 
 
+def _verdict_without_the_circular_regime(regimes: dict) -> dict:
+    """The authored-only reading (#460).
+
+    The non-circular falsifier is run alone when the circular one is not the point. It still needs
+    the same prior question answered: is there a gap here to close at all? At sixty-six seeds the
+    benchmark interval covers zero, so an authored summary cannot be tested against a gap that is
+    not established -- and saying it "did not close it" would imply a gap it failed to close.
+    """
+    authored = regimes.get("authored")
+    if authored is None:
+        return {"conclusion": "not tested", "reason": "neither the engineered nor the authored regime ran"}
+
+    benchmark = regimes.get("benchmark")
+    if benchmark is None:
+        return {
+            "conclusion": "the authored regime ran without a comparator",
+            "reason": "no benchmark regime, so the gap it would close is unmeasured",
+        }
+
+    bench = np.array([r["delta_linear_minus_tabpfn"] for r in benchmark["per_seed"]], dtype=float)
+    _bmean, b_low, b_high = _mean_and_interval(bench)
+    a = np.array([r["delta_linear_minus_tabpfn"] for r in authored["per_seed"]], dtype=float)
+    a_mean, a_low, a_high = _mean_and_interval(a)
+
+    authored_block = {
+        "authored_mean": round(a_mean, 6),
+        "authored_interval": [round(a_low, 6), round(a_high, 6)],
+        "authored_closes_gap": bool(a_low <= 0 <= a_high),
+        "gap_closed_fraction": (
+            None if not b_low > 0 else round(1.0 - a_mean / float(bench.mean()), 4)
+        ),
+        "seeds_tabpfn_ahead": int((a < 0).sum()),
+        "n_seeds": int(a.size),
+        "circularity": (
+            "not resolvable here: the benchmark gap covers zero at this row cap, so an authored "
+            "summary has no established gap to close"
+            if b_low <= 0
+            else "an authored summary closes it, so the deficit does not depend on the competitor"
+        ),
+    }
+    if b_low <= 0:
+        return {
+            "conclusion": "no gap is established at this row cap",
+            "feature_coverage": "not testable here",
+            "benchmark_interval": [round(b_low, 6), round(b_high, 6)],
+            "benchmark_gap_favours_linear": False,
+            "authored": authored_block,
+            "reason": (
+                f"the benchmark gap is {bench.mean():+.4f} with interval "
+                f"[{b_low:+.4f}, {b_high:+.4f}], which covers zero; the authored regime measured "
+                f"{a_mean:+.4f} against it, so neither the circular nor the non-circular question "
+                "has a gap to answer at 2,000 rows"
+            ),
+        }
+    return {
+        "conclusion": "the authored summary closes the gap",
+        "feature_coverage": "supported without circularity",
+        "authored": authored_block,
+        "reason": "an authored additive feature closes an established gap; nothing from the competitor was used",
+    }
+
+
 def verdict(regimes: dict) -> dict:
     """Turn the three measured deltas into the one statement the ticket asks for.
 
@@ -478,7 +561,7 @@ def verdict(regimes: dict) -> dict:
     """
     engineered = regimes.get("engineered")
     if engineered is None:
-        return {"conclusion": "not tested", "reason": "the engineered regime was skipped"}
+        return _verdict_without_the_circular_regime(regimes)
 
     deltas = np.array([row["delta_linear_minus_tabpfn"] for row in engineered["per_seed"]], dtype=float)
     mean, low, high = _mean_and_interval(deltas)
@@ -503,6 +586,41 @@ def verdict(regimes: dict) -> dict:
         # the name says which way the evidence points rather than whether a gap merely exists.
         benchmark_gap_favours_linear = bool(b_low > 0)
 
+    # The NON-CIRCULAR reading (#460). `engineered` closes the gap using the linear model's own
+    # fitted log-odds, so it cannot show that a feature someone could ship would help. `authored`
+    # supplies an additive summary built from raw values, so this comparison is the one that can
+    # distinguish "the input was missing" from "the competitor's output was the only lever".
+    authored = regimes.get("authored")
+    authored_block = None
+    if authored is not None:
+        a = np.array([r["delta_linear_minus_tabpfn"] for r in authored["per_seed"]], dtype=float)
+        a_mean, a_low, a_high = _mean_and_interval(a)
+        authored_closes = bool(a_low <= 0 <= a_high)
+        engineered_closes = bool(low <= 0 <= high)
+        if not engineered_closes:
+            circularity = "the circular regime does not close it, so the question does not arise"
+        elif authored_closes:
+            circularity = (
+                "an authored additive summary closes it too: the deficit is the input, and it does "
+                "not depend on the competitor's output"
+            )
+        else:
+            circularity = (
+                "only the fitted log-odds close it; the authored summary does not, so the closing "
+                "feature is the competitor's output and the finding stays circular"
+            )
+        authored_block = {
+            "authored_mean": round(a_mean, 6),
+            "authored_interval": [round(a_low, 6), round(a_high, 6)],
+            "authored_closes_gap": authored_closes,
+            "gap_closed_fraction": (
+                None if not benchmark_delta else round(1.0 - a_mean / benchmark_delta, 4)
+            ),
+            "seeds_tabpfn_ahead": int((a < 0).sum()),
+            "n_seeds": int(a.size),
+            "circularity": circularity,
+        }
+
     reading = {
         "benchmark_delta": benchmark_delta,
         "engineered_delta": round(mean, 6),
@@ -511,6 +629,7 @@ def verdict(regimes: dict) -> dict:
         "benchmark_interval": benchmark_interval,
         "benchmark_gap_favours_linear": benchmark_gap_favours_linear,
         "seeds_linear_ahead": int((deltas > 0).sum()),
+        "authored": authored_block,
         "n_seeds": n,
         "rule": "a 95% t interval over seeds; the point estimate and its interval decide the sentence",
     }
