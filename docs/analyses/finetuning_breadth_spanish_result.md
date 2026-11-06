@@ -77,8 +77,13 @@ and from D18's 93–330), same rows and model version. Sixteen seeds, 32 records
 
 Both launches asserted `tabpfn-v3-classifier-v3_default.ckpt` through `TFM_EXPECT_CHECKPOINT`, and both
 records name the pre-registration. The launch is cited here by description rather than by run id: its
-artifacts are runtime evidence under `outputs/gpu-pilot/`, which is git-ignored, and a run id in `docs/`
-requires a committed capture.
+artifacts are runtime evidence under `outputs/gpu-pilot/` on the launch machine and were never captured
+under `results/` — no fine-tune arm exists there for this dataset — and a run id in `docs/` requires a
+committed `results/<id>/capture.json`.
+
+For the next author: `outputs/gpu-pilot/` is **not** git-ignored (only `outputs/gpu-pilot/leases/` is;
+the rules at `.gitignore:210-211` are negations for an ignore that does not exist above them). What
+guards those trees is the `evidence` check, not `.gitignore`.
 
 **Reproduction.**
 
