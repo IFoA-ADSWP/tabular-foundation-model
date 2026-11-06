@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
@@ -54,7 +54,7 @@ jobs:
       # launcher to check a commit against `origin/main` (#256), and a shallow checkout has
       # no such ref. That is a property of the test's question, not of the code under test --
       # fetch-depth: 0 gives the runner the same refs a developer has.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -76,7 +76,7 @@ jobs:
     steps:
       # vast_run.sh and bootstrap_pilot.sh are the paid-run path. A syntax error there
       # fails on a rented box, mid-run, at cost -- and away from anyone's terminal.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: check
         run: ./scripts/check.sh shellcheck
@@ -88,7 +88,7 @@ jobs:
     # Deliberate changes to committed evidence are allowed, but they must be labelled:
     # the label is the difference between a decision and a stray `git add -A`.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -133,7 +133,7 @@ jobs:
     timeout-minutes: 5
     # A reader who clicks and finds nothing is the failure this prevents.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: check
         run: ./scripts/check.sh doclinks
@@ -144,7 +144,7 @@ jobs:
     timeout-minutes: 5
     # A report that does not say what it is cannot be trusted to be current.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: check
         run: ./scripts/check.sh docstatus
@@ -155,7 +155,7 @@ jobs:
     timeout-minutes: 5
     # A run cited in docs/ must have a capture that can re-derive its numbers (#364).
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: check
         run: ./scripts/check.sh citation
 
@@ -166,7 +166,7 @@ jobs:
     # The tool must still reproduce the null band the decision log cites (#398). It reads a run's
     # arrays, so it needs numpy and scikit-learn -- the same install the pytest job uses.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
