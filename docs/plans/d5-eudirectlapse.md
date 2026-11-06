@@ -172,3 +172,34 @@ This is recorded here rather than only in the result, because the plan asserted 
 `--seed-range` in `main` and called `measure` without it, so a sixty-six-seed request ran five and
 wrote a plausible record. `CODING_STANDARDS.md` now carries the rule this earned: a parameter crossing
 a seam is forwarded, not re-defaulted, and a new seam gets a wiring test at that seam.
+
+## Amendment — the non-circular falsifier, pre-registered before the run (#460)
+
+**Why it is needed.** The `engineered` regime closes the gap by handing TabPFN the fitted log-odds of
+the model it is being compared against. That shows TabPFN can *use* a strong additive summary; it
+cannot show TabPFN could *construct* one, so "TabPFN needs these features" is true only circularly —
+the feature is the competitor's output, which nobody could ship without already having the linear
+model.
+
+**The transform, fixed here before any measurement.** A fourth regime, `authored`:
+
+- the four premium columns (`prem_final`, `prem_last`, `prem_market`, `prem_pure`) are replaced by
+  **`premium_sum_z`**, the sum of their z-scored values;
+- the scaler is fitted on **training rows only**;
+- **no labels and no fitted model contribute to it.** It is arithmetic on raw columns.
+
+This is deliberately the weakest honest version of the hypothesis: one human-authored additive
+summary, not a search over transforms. A stronger transform that worked would not settle the question
+any better, and a weaker one that failed would not be a finding.
+
+**What each outcome means, written before the numbers exist:**
+
+| Outcome | Reading |
+|---|---|
+| `authored` closes the gap too | the deficit is the input; feature coverage is supported without circularity |
+| only `engineered` closes it | the closing feature is the competitor's output; the finding stays circular and is reported as such |
+| neither closes it | there is no gap at this row cap to close, which is the 66-seed result already recorded |
+
+**Seeds and rows.** The same 66 seeds (42–107), the same 2,000-row working set, the same folds. Five
+seeds produced a four-fold error once already, and repeating that here would make the comparison
+unreadable.
