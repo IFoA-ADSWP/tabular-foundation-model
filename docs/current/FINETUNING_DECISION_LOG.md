@@ -775,4 +775,64 @@ DECISION: **breadth closes — `coil2000` stopped on resolution (2026-11-06)** �
 the largest usable split against a 0.006 floor and δ = 0.002; 586 positives, so no budget resolves it.
 Owner: scotthawes  Date: 2026-11-06  Section: §3
 
+### D22 — Phase 2 closes: the threshold is a resolution stop, and D21's seed inference is withdrawn
+
+**What was run.** Four resolution measurements on the committed CSVs, at the 2,000-row cells' own
+configuration — 2,000 train / 1,000 test rows, three split seeds, 2,000 paired bootstrap resamples, via
+`scripts/analyses/proxy_resolution.py`. Cost: **$0**. The 10,000-row cells were not re-run; their results
+stand (D14, D18, D20, D21).
+
+| Dataset | Median half-width at 2,000 / 1,000 | Max | Against the 0.006 floor |
+|---|---:|---:|---|
+| `uslapseagent` | **0.0058** | 0.0060 | **clears it** — the only dataset that does |
+| `spanish_motor_lapse` | 0.0167 | 0.0196 | 2.8× |
+| `coil2000` | 0.0298 | 0.0307 | 5.0× |
+| `eudirectlapse` | 0.0341 | 0.0382 | 5.7× |
+
+**What it settles — Phase 2 is complete as run.** The pilot design's matrix asks two things: does in-domain
+fine-tuning generalise, and where does the row-scale threshold sit. The first is answered at 10,000 rows on
+three of four datasets. The second is answered only for `uslapseagent`, whose 2,000-row probe already lost
+(−0.0025 on `B_ft3`) against its 10,000-row gain (+0.0035); for the other three the threshold cell cannot
+resolve δ = 0.002 at the design's 1,000 test rows, so running it would not answer the question.
+
+| Dataset | 10,000-row cell | Reading |
+|---|---|---|
+| `uslapseagent` | +0.0035 | gain |
+| `eudirectlapse` | +0.0007 | equivalence |
+| `spanish_motor_lapse` | +0.0003 | equivalence |
+| `coil2000` | — | stopped on resolution (D21) |
+
+**What it corrects.** D21 closes with "586 positives, so no budget resolves it", and its body argues that
+"no seed count resolves a cell whose floor sits at 0.015 against a δ of 0.002". That inference puts a
+**resolution half-width** where a **between-seed SD** belongs. They are different quantities, and D20 already
+records what happens when they are confused: substituting a 1,000-test-row half-width for an unmeasured SD
+inflated this programme's seed projection from `k` = 3 to ~512, and the cell then completed for **$0.065**.
+`coil2000` was never probed — D21's own first line is "What was run. Nothing." — so its between-seed SD is
+**unmeasured**, not infinite.
+
+What survives is the part that never needed the seed argument: `coil2000` fails the design's P1 gate (paired
+half-width ≤ 0.006) at every size the dataset allows — 0.0240 at 1,000 test rows down to 0.0149 at 4,000. The
+stop is correct on resolution alone. **D21 is left untouched as history**; this entry records the correction,
+the way D20 recorded its correction to D18.
+
+**What this does not do.** It does not reopen or probe `coil2000`: a four-arm ten-seed probe would cost about
+what the Spanish one did ($0.153), and the resolution gate refuses the cell before a probe would be
+informative. It does not run the 2,000-row cells — three cannot resolve, and the one that can has already
+answered negatively. It does not run a synthetic ablation: the scope map places that in "Phase 1 /
+confirmatory follow-up, where diagnostics justify it", and D3/D4 have never run.
+
+**Recorded limitation — the `eudirectlapse` rung.** Its equivalence (+0.0007) was replicated at `B_ft30`
+only. The probe measured all three rungs — `B_ft3` +0.0012, `B_ft10` +0.0005, `B_ft30` +0.0037 — but every
+interval covers zero and the ladder is non-monotone, so "30 was highest" sits inside the noise of a ten-seed
+estimate. A `B_ft3` replication would settle it at `k` = 61 against 238, and is **not funded**; the result
+stands as a statement about `B_ft30`. `spanish_motor_lapse` does not share this weakness — its ladder was
+monotone (−0.0006 / −0.0002 / +0.0008), so carrying the top rung was the conservative choice.
+
+DECISION: **Phase 2 closes (2026-11-07)** — the 10,000-row question is answered on three of four datasets;
+the 2,000-row threshold is a resolution stop for three of four (0.0167 / 0.0298 / 0.0341 measured against a
+0.006 floor at 1,000 test rows) and already answered negatively for `uslapseagent`; and D21's seed-cost
+inference is withdrawn as a resolution-for-variance substitution, leaving the `coil2000` stop resting on the
+P1 gate alone.
+Owner: scotthawes  Date: 2026-11-07  Section: §3
+
 ---
