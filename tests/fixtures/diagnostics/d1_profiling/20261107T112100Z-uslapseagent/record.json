@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "diagnostic": "d1_profiling",
+  "run_id": "20261107T112100Z-uslapseagent",
+  "created_utc": "2026-11-07T11:21:04Z",
+  "git_sha": "a5d1f06df39f1eb704a70422b3f952290666fc62",
+  "git_dirty": false,
+  "model_version": "v3_default",
+  "seed": null,
+  "dataset_name": "uslapseagent",
+  "dataset_sha256": "c56e7c9a3d6d03579f89e5da140007394ed357cb1481f21419700b6d39aa1112",
+  "matched_context": {
+    "checked": false,
+    "baseline_arm": "A_raw",
+    "arms": {}
+  },
+  "runtime": {
+    "python": "3.12.7",
+    "numpy": "1.26.4",
+    "pandas": "2.3.3",
+    "scikit-learn": "1.6.1",
+    "torch": "2.7.1",
+    "tabpfn": "6.4.1",
+    "catboost": "1.2.10"
+  },
+  "measurements": {
+    "missing_by_column": {},
+    "n_rows": 29317,
+    "n_cols": 11,
+    "n_features": 10,
+    "n_numeric_features": 4,
+    "n_categorical_features": 6,
+    "numeric_to_categorical_ratio": 0.666667,
+    "max_vif": 1.709979,
+    "vif_reason": null,
+    "n_features_after_one_hot": 19,
+    "feature_row_ratio": 0.000648,
+    "missing_rate": 0.0,
+    "n_cols_with_missing": 0,
+    "max_col_missing_rate": 0.0,
+    "n_high_cardinality_features": 0,
+    "max_abs_feature_correlation": 0.615279,
+    "target": {
+      "kind": "binary",
+      "positive_rate": 0.378552,
+      "n_positive": 11098,
+      "entropy_bits": 0.957013
+    }
+  }
+}

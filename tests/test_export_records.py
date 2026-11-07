@@ -28,9 +28,14 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from anchor_datasets import load_anchor_datasets  # noqa: E402  (importable after the src path insert above)
+
 SCRIPT = REPO_ROOT / "scripts" / "diagnostics" / "export_records.py"
 FIXTURES = REPO_ROOT / "tests" / "fixtures" / "diagnostics" / "d2_importance"
 COMMITTED = REPO_ROOT / "docs" / "analyses" / "data" / "d2_importance.csv"
+D1_FIXTURES = REPO_ROOT / "tests" / "fixtures" / "diagnostics" / "d1_profiling"
+D1_COMMITTED = REPO_ROOT / "docs" / "analyses" / "data" / "d1_profiling.csv"
+REPRO_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "diagnostics" / "d1_profiling-repro"
 MANIFEST = REPO_ROOT / "data" / "raw" / "MANIFEST.sha256"
 
 D2_COLUMNS = [
@@ -341,6 +346,68 @@ def test_no_better_than_chance_flags_the_families_whose_ranking_is_noise():
 # ---------------------------------------------------------------------------
 # D1: one row per dataset, the nested blocks kept machine-readable
 # ---------------------------------------------------------------------------
+def test_committed_d1_table_is_a_fresh_export_of_the_fixtures(tmp_path):
+    out = tmp_path / "data"
+    result = _export(D1_FIXTURES, out)
+    assert result.returncode == 0, result.stderr
+    assert (out / "d1_profiling.csv").read_bytes() == D1_COMMITTED.read_bytes()
+
+
+def test_every_d1_row_is_anchored_and_one_per_dataset():
+    rows = _rows(D1_COMMITTED)
+    assert {row["dataset"] for row in rows} == {
+        "coil2000",
+        "eudirectlapse",
+        "spanish_motor_lapse",
+        "uslapseagent",
+    }
+    manifest = _manifest()
+    for row in rows:
+        assert row["dataset_sha256"] == manifest[f"{row['dataset']}.csv"]
+        assert row["record_sha"] == _record_sha(D1_FIXTURES / row["run_id"] / "record.json")
+        # The nested blocks are JSON a reader can parse, not a flattened string.
+        assert json.loads(row["target"])["kind"] == "binary"
+        assert json.loads(row["missing_by_column"]) == {}
+        # The counts hold together, so a reader can trust the widths without the record.
+        assert int(row["n_features"]) + 1 == int(row["n_cols"])
+        assert int(row["n_numeric_features"]) + int(row["n_categorical_features"]) == int(
+            row["n_features"]
+        )
+
+
+def test_d1_agrees_with_a_recomputation_from_the_raw_csv():
+    """#302's wrongness check: the record must match the file it names, not only hash it."""
+    rows = {row["dataset"]: row for row in _rows(D1_COMMITTED)}
+    for dataset, row in rows.items():
+        frame = pd.read_csv(REPO_ROOT / "data" / "raw" / f"{dataset}.csv")
+        target = json.loads(row["target"])
+
+        assert int(row["n_rows"]) == len(frame)
+        assert int(row["n_cols"]) == frame.shape[1]
+        assert int(row["n_cols_with_missing"]) == int(frame.isna().any().sum())
+        assert float(row["missing_rate"]) == round(float(frame.isna().to_numpy().mean()), 6)
+        # The target is named per dataset in the registry, so recompute against that column.
+        column = load_anchor_datasets()[dataset]["target"]
+        values = frame[column].dropna()
+        assert int(target["n_positive"]) == int((values.astype(float) == 1).sum())
+        assert float(target["positive_rate"]) == round(float(values.astype(float).mean()), 6)
+
+
+def test_a_second_run_reproduces_every_measurement():
+    """#302: "a second run with the same inputs produces the same values" — checked, not asserted."""
+    first = json.loads((D1_FIXTURES / "20261107T112100Z-eudirectlapse" / "record.json").read_text())
+    second = json.loads(
+        (REPRO_FIXTURE / "20261106T-d5-cites-d1-eudirectlapse" / "record.json").read_text()
+    )
+    assert first["measurements"] == second["measurements"]
+    assert first["dataset_sha256"] == second["dataset_sha256"]
+    # Different files, so the hashes differ: `record_sha` names the record, not the measurement.
+    assert _record_sha(D1_FIXTURES / "20261107T112100Z-eudirectlapse" / "record.json") != _record_sha(
+        REPRO_FIXTURE / "20261106T-d5-cites-d1-eudirectlapse" / "record.json"
+    )
+    assert first["created_utc"] != second["created_utc"]
+
+
 def _d1_record(d1, tmp_path: Path, name: str = "uslapseagent") -> tuple[Path, dict]:
     frame = pd.DataFrame(
         {
