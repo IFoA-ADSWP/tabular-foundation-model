@@ -1,0 +1,1688 @@
+{
+  "schema_version": 1,
+  "diagnostic": "d2_importance",
+  "run_id": "20261104T1725Z-coil2000",
+  "created_utc": "2026-11-04T18:09:37Z",
+  "git_sha": "23681b0fdfa23cda7dc2af6a521c7ee7bdb9aa56",
+  "git_dirty": false,
+  "model_version": "auto",
+  "seed": 42,
+  "dataset_name": "coil2000",
+  "dataset_sha256": "1b5669ac0181bcd0450a3b740f5dc65ed3b789b39418f1394dd6703a331b7225",
+  "matched_context": {
+    "checked": false,
+    "baseline_arm": "A_raw",
+    "arms": {}
+  },
+  "runtime": {
+    "python": "3.12.7",
+    "numpy": "1.26.4",
+    "pandas": "2.3.3",
+    "scikit-learn": "1.6.1",
+    "torch": "2.7.1",
+    "tabpfn": "6.4.1",
+    "catboost": "1.2.10"
+  },
+  "measurements": {
+    "question": "which features does each family use, and where do they disagree",
+    "subsample": {
+      "cap_rows": 2000,
+      "rows_available": 9822,
+      "rows_sampled": 2000,
+      "train_rows": 1500,
+      "test_rows": 500,
+      "seed": 42,
+      "train_positive_rate": 0.059333,
+      "test_positive_rate": 0.06,
+      "note": "importance is estimated from a 2000-row subsample (1500 train / 500 test) and is therefore an approximation; the full table was not used"
+    },
+    "preprocessing": {
+      "regime": "R1 default -- per-column category codes, missing to 0",
+      "note": "categories come from the training rows only; a categorical's code ordering is arbitrary, which D4 tests rather than assumes",
+      "n_features": 85,
+      "n_dropped_constant": 0,
+      "dropped_constant": []
+    },
+    "tabpfn": {
+      "requested_model_path": "auto",
+      "resolved_version": "v2.5",
+      "checkpoint": "tabpfn-v2.5-classifier-v2.5_default.ckpt",
+      "resolution_reason": null,
+      "package_version": "6.4.1",
+      "n_estimators": 1,
+      "fit_mode": "fit_preprocessors",
+      "fit_mode_note": "the pilot fits with n_estimators=2 and fit_mode='batched'; this diagnostic uses one estimator and the library default because a permutation run makes features x repeats predictions against one context on CPU. fit_with_cache was measured and rejected -- see docs/plans/d2-feature-importance.md, measurement B."
+    },
+    "importance": {
+      "method": "permutation on the held-out rows",
+      "metric": "drop in ROC AUC",
+      "repeats": 3,
+      "seed": 42,
+      "predict_batch": 10,
+      "top_k": 10
+    },
+    "families": {
+      "tabpfn": {
+        "test_auc": 0.738511,
+        "no_better_than_chance": false,
+        "solver": null,
+        "top_k": [
+          "PPERSAUT",
+          "PBRAND",
+          "APERSAUT",
+          "MINKM30",
+          "MBERBOER",
+          "MFWEKIND",
+          "ALEVEN",
+          "ABROM",
+          "MINK123M",
+          "PWAPART"
+        ],
+        "ranking": [
+          {
+            "feature": "PPERSAUT",
+            "importance": 0.15435,
+            "std": 0.007447
+          },
+          {
+            "feature": "PBRAND",
+            "importance": 0.025106,
+            "std": 0.002158
+          },
+          {
+            "feature": "APERSAUT",
+            "importance": 0.016548,
+            "std": 0.01001
+          },
+          {
+            "feature": "MINKM30",
+            "importance": 0.008251,
+            "std": 0.001442
+          },
+          {
+            "feature": "MBERBOER",
+            "importance": 0.004492,
+            "std": 0.003329
+          },
+          {
+            "feature": "MFWEKIND",
+            "importance": 0.003333,
+            "std": 0.001976
+          },
+          {
+            "feature": "ALEVEN",
+            "importance": 0.002979,
+            "std": 0.001044
+          },
+          {
+            "feature": "ABROM",
+            "importance": 0.002837,
+            "std": 0.000739
+          },
+          {
+            "feature": "MINK123M",
+            "importance": 0.002482,
+            "std": 0.001462
+          },
+          {
+            "feature": "PWAPART",
+            "importance": 0.001773,
+            "std": 0.001462
+          },
+          {
+            "feature": "MFGEKIND",
+            "importance": 0.001608,
+            "std": 0.002074
+          },
+          {
+            "feature": "MBERHOOG",
+            "importance": 0.001584,
+            "std": 0.0007
+          },
+          {
+            "feature": "APERSONG",
+            "importance": 0.001513,
+            "std": 0.001285
+          },
+          {
+            "feature": "MGEMOMV",
+            "importance": 0.001489,
+            "std": 0.001357
+          },
+          {
+            "feature": "MRELSA",
+            "importance": 0.001418,
+            "std": 0.003241
+          },
+          {
+            "feature": "PMOTSCO",
+            "importance": 0.001395,
+            "std": 0.001306
+          },
+          {
+            "feature": "MAUT1",
+            "importance": 0.001348,
+            "std": 0.002566
+          },
+          {
+            "feature": "PBROM",
+            "importance": 0.001253,
+            "std": 0.000698
+          },
+          {
+            "feature": "MOSTYPE",
+            "importance": 0.001182,
+            "std": 0.004183
+          },
+          {
+            "feature": "MHHUUR",
+            "importance": 0.000946,
+            "std": 0.002028
+          },
+          {
+            "feature": "AWAPART",
+            "importance": 0.000922,
+            "std": 0.001324
+          },
+          {
+            "feature": "PBESAUT",
+            "importance": 0.000733,
+            "std": 0.001012
+          },
+          {
+            "feature": "AINBOED",
+            "importance": 0.000615,
+            "std": 0.000177
+          },
+          {
+            "feature": "MRELGE",
+            "importance": 0.000591,
+            "std": 0.000538
+          },
+          {
+            "feature": "AMOTSCO",
+            "importance": 0.000473,
+            "std": 0.000538
+          },
+          {
+            "feature": "PINBOED",
+            "importance": 0.000449,
+            "std": 0.000234
+          },
+          {
+            "feature": "APLEZIER",
+            "importance": 0.00026,
+            "std": 0.000186
+          },
+          {
+            "feature": "MBERMIDD",
+            "importance": 0.00026,
+            "std": 0.001472
+          },
+          {
+            "feature": "ABESAUT",
+            "importance": 0.000236,
+            "std": 0.000386
+          },
+          {
+            "feature": "PWAOREG",
+            "importance": 0.000236,
+            "std": 3.3e-05
+          },
+          {
+            "feature": "AWAOREG",
+            "importance": 0.000189,
+            "std": 0.000134
+          },
+          {
+            "feature": "PGEZONG",
+            "importance": 0.000189,
+            "std": 8.8e-05
+          },
+          {
+            "feature": "PWALAND",
+            "importance": 0.000189,
+            "std": 0.000472
+          },
+          {
+            "feature": "AAANHANG",
+            "importance": 0.000165,
+            "std": 0.000186
+          },
+          {
+            "feature": "PPERSONG",
+            "importance": 0.000165,
+            "std": 3.3e-05
+          },
+          {
+            "feature": "AGEZONG",
+            "importance": 0.000118,
+            "std": 0.000219
+          },
+          {
+            "feature": "PPLEZIER",
+            "importance": 0.000118,
+            "std": 0.000177
+          },
+          {
+            "feature": "AWABEDR",
+            "importance": 9.5e-05,
+            "std": 6.7e-05
+          },
+          {
+            "feature": "AVRAAUT",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "AWERKT",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "PVRAAUT",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "PWERKT",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "ABRAND",
+            "importance": -2.4e-05,
+            "std": 0.002828
+          },
+          {
+            "feature": "PAANHANG",
+            "importance": -2.4e-05,
+            "std": 6.7e-05
+          },
+          {
+            "feature": "PWABEDR",
+            "importance": -7.1e-05,
+            "std": 5.8e-05
+          },
+          {
+            "feature": "PTRACTOR",
+            "importance": -0.000142,
+            "std": 0.000232
+          },
+          {
+            "feature": "ATRACTOR",
+            "importance": -0.000307,
+            "std": 0.000121
+          },
+          {
+            "feature": "MGEMLEEF",
+            "importance": -0.000449,
+            "std": 0.002978
+          },
+          {
+            "feature": "MKOOPKLA",
+            "importance": -0.000496,
+            "std": 0.002152
+          },
+          {
+            "feature": "AWALAND",
+            "importance": -0.000615,
+            "std": 0.000121
+          },
+          {
+            "feature": "AZEILPL",
+            "importance": -0.000662,
+            "std": 3.3e-05
+          },
+          {
+            "feature": "PLEVEN",
+            "importance": -0.000662,
+            "std": 0.000525
+          },
+          {
+            "feature": "MAANTHUI",
+            "importance": -0.000697,
+            "std": 0.001117
+          },
+          {
+            "feature": "MSKC",
+            "importance": -0.000804,
+            "std": 0.000339
+          },
+          {
+            "feature": "MAUT2",
+            "importance": -0.000851,
+            "std": 0.002143
+          },
+          {
+            "feature": "MZFONDS",
+            "importance": -0.000875,
+            "std": 0.00109
+          },
+          {
+            "feature": "PZEILPL",
+            "importance": -0.000898,
+            "std": 3.3e-05
+          },
+          {
+            "feature": "MAUT0",
+            "importance": -0.000969,
+            "std": 0.00229
+          },
+          {
+            "feature": "MINKGEM",
+            "importance": -0.001277,
+            "std": 0.001655
+          },
+          {
+            "feature": "MOSHOOFD",
+            "importance": -0.001277,
+            "std": 0.001948
+          },
+          {
+            "feature": "MSKB2",
+            "importance": -0.001773,
+            "std": 0.000301
+          },
+          {
+            "feature": "MINK7512",
+            "importance": -0.00182,
+            "std": 0.000499
+          },
+          {
+            "feature": "MGODGE",
+            "importance": -0.001891,
+            "std": 0.002176
+          },
+          {
+            "feature": "MSKD",
+            "importance": -0.001962,
+            "std": 0.001125
+          },
+          {
+            "feature": "PBYSTAND",
+            "importance": -0.00208,
+            "std": 0.004049
+          },
+          {
+            "feature": "MBERZELF",
+            "importance": -0.002175,
+            "std": 0.001689
+          },
+          {
+            "feature": "MINK3045",
+            "importance": -0.002199,
+            "std": 0.000352
+          },
+          {
+            "feature": "MHKOOP",
+            "importance": -0.0026,
+            "std": 0.002179
+          },
+          {
+            "feature": "ABYSTAND",
+            "importance": -0.003475,
+            "std": 0.002106
+          },
+          {
+            "feature": "MOPLLAAG",
+            "importance": -0.003522,
+            "std": 0.002565
+          },
+          {
+            "feature": "MBERARBO",
+            "importance": -0.003546,
+            "std": 0.001783
+          },
+          {
+            "feature": "MGODOV",
+            "importance": -0.003688,
+            "std": 0.002425
+          },
+          {
+            "feature": "MRELOV",
+            "importance": -0.003948,
+            "std": 0.001303
+          },
+          {
+            "feature": "MOPLMIDD",
+            "importance": -0.003995,
+            "std": 0.001656
+          },
+          {
+            "feature": "MZPART",
+            "importance": -0.004184,
+            "std": 0.00183
+          },
+          {
+            "feature": "MSKB1",
+            "importance": -0.004303,
+            "std": 0.000869
+          },
+          {
+            "feature": "MSKA",
+            "importance": -0.004563,
+            "std": 0.002357
+          },
+          {
+            "feature": "MINK4575",
+            "importance": -0.004634,
+            "std": 0.000936
+          },
+          {
+            "feature": "MOPLHOOG",
+            "importance": -0.004752,
+            "std": 0.003672
+          },
+          {
+            "feature": "MGODPR",
+            "importance": -0.004894,
+            "std": 0.000783
+          },
+          {
+            "feature": "MFALLEEN",
+            "importance": -0.006052,
+            "std": 0.001864
+          },
+          {
+            "feature": "AFIETS",
+            "importance": -0.006217,
+            "std": 0.003615
+          },
+          {
+            "feature": "MGODRK",
+            "importance": -0.010095,
+            "std": 0.000813
+          },
+          {
+            "feature": "MBERARBG",
+            "importance": -0.011466,
+            "std": 0.005082
+          },
+          {
+            "feature": "PFIETS",
+            "importance": -0.012364,
+            "std": 0.002904
+          }
+        ]
+      },
+      "glm": {
+        "test_auc": 0.604681,
+        "no_better_than_chance": false,
+        "solver": {
+          "iterations": 1262,
+          "max_iter": 20000,
+          "converged": true
+        },
+        "top_k": [
+          "MHHUUR",
+          "MAUT1",
+          "PBRAND",
+          "MGODGE",
+          "PPERSAUT",
+          "MOSHOOFD",
+          "MOPLMIDD",
+          "AWAPART",
+          "MOPLLAAG",
+          "MAUT0"
+        ],
+        "ranking": [
+          {
+            "feature": "MHHUUR",
+            "importance": 0.16818,
+            "std": 0.047051
+          },
+          {
+            "feature": "MAUT1",
+            "importance": 0.100946,
+            "std": 0.008996
+          },
+          {
+            "feature": "PBRAND",
+            "importance": 0.068652,
+            "std": 0.007372
+          },
+          {
+            "feature": "MGODGE",
+            "importance": 0.059527,
+            "std": 0.013846
+          },
+          {
+            "feature": "PPERSAUT",
+            "importance": 0.058676,
+            "std": 0.019606
+          },
+          {
+            "feature": "MOSHOOFD",
+            "importance": 0.042199,
+            "std": 0.034862
+          },
+          {
+            "feature": "MOPLMIDD",
+            "importance": 0.041868,
+            "std": 0.011003
+          },
+          {
+            "feature": "AWAPART",
+            "importance": 0.035934,
+            "std": 0.012828
+          },
+          {
+            "feature": "MOPLLAAG",
+            "importance": 0.035201,
+            "std": 0.021314
+          },
+          {
+            "feature": "MAUT0",
+            "importance": 0.033286,
+            "std": 0.014635
+          },
+          {
+            "feature": "MOSTYPE",
+            "importance": 0.026572,
+            "std": 0.01385
+          },
+          {
+            "feature": "MBERBOER",
+            "importance": 0.022931,
+            "std": 0.011498
+          },
+          {
+            "feature": "MRELGE",
+            "importance": 0.018629,
+            "std": 0.020843
+          },
+          {
+            "feature": "PBESAUT",
+            "importance": 0.01591,
+            "std": 0.012345
+          },
+          {
+            "feature": "PMOTSCO",
+            "importance": 0.014681,
+            "std": 0.003888
+          },
+          {
+            "feature": "MOPLHOOG",
+            "importance": 0.014019,
+            "std": 0.026851
+          },
+          {
+            "feature": "MINK7512",
+            "importance": 0.012128,
+            "std": 0.010068
+          },
+          {
+            "feature": "MZFONDS",
+            "importance": 0.009764,
+            "std": 0.002757
+          },
+          {
+            "feature": "MINKGEM",
+            "importance": 0.009645,
+            "std": 0.00182
+          },
+          {
+            "feature": "MINKM30",
+            "importance": 0.009338,
+            "std": 0.009092
+          },
+          {
+            "feature": "PWALAND",
+            "importance": 0.008534,
+            "std": 0.012349
+          },
+          {
+            "feature": "MKOOPKLA",
+            "importance": 0.007612,
+            "std": 0.00285
+          },
+          {
+            "feature": "APERSONG",
+            "importance": 0.006336,
+            "std": 0.005727
+          },
+          {
+            "feature": "AINBOED",
+            "importance": 0.005437,
+            "std": 0.000635
+          },
+          {
+            "feature": "MAUT2",
+            "importance": 0.005106,
+            "std": 0.012111
+          },
+          {
+            "feature": "MGEMLEEF",
+            "importance": 0.004704,
+            "std": 0.005027
+          },
+          {
+            "feature": "MINK4575",
+            "importance": 0.004161,
+            "std": 0.008509
+          },
+          {
+            "feature": "MGODRK",
+            "importance": 0.003475,
+            "std": 0.004249
+          },
+          {
+            "feature": "ATRACTOR",
+            "importance": 0.003215,
+            "std": 0.006603
+          },
+          {
+            "feature": "ABESAUT",
+            "importance": 0.003191,
+            "std": 0.005117
+          },
+          {
+            "feature": "MINK123M",
+            "importance": 0.002695,
+            "std": 0.00278
+          },
+          {
+            "feature": "MRELSA",
+            "importance": 0.00208,
+            "std": 0.002391
+          },
+          {
+            "feature": "MINK3045",
+            "importance": 0.002057,
+            "std": 0.002257
+          },
+          {
+            "feature": "PGEZONG",
+            "importance": 0.002033,
+            "std": 0.000571
+          },
+          {
+            "feature": "ABRAND",
+            "importance": 0.00104,
+            "std": 0.018792
+          },
+          {
+            "feature": "MFALLEEN",
+            "importance": 0.00104,
+            "std": 0.001916
+          },
+          {
+            "feature": "MBERMIDD",
+            "importance": 0.000898,
+            "std": 0.00055
+          },
+          {
+            "feature": "PBROM",
+            "importance": 0.000898,
+            "std": 0.002033
+          },
+          {
+            "feature": "ABROM",
+            "importance": 0.000544,
+            "std": 0.000614
+          },
+          {
+            "feature": "PPLEZIER",
+            "importance": 0.000426,
+            "std": 0.0001
+          },
+          {
+            "feature": "AWABEDR",
+            "importance": 0.000331,
+            "std": 0.002324
+          },
+          {
+            "feature": "MFWEKIND",
+            "importance": 0.000236,
+            "std": 0.000971
+          },
+          {
+            "feature": "APLEZIER",
+            "importance": 0.000189,
+            "std": 0.000377
+          },
+          {
+            "feature": "ALEVEN",
+            "importance": 2.4e-05,
+            "std": 0.000522
+          },
+          {
+            "feature": "AVRAAUT",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "AWERKT",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "MFGEKIND",
+            "importance": -0.0,
+            "std": 5.8e-05
+          },
+          {
+            "feature": "PVRAAUT",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "PWERKT",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "MSKA",
+            "importance": -2.4e-05,
+            "std": 3.3e-05
+          },
+          {
+            "feature": "AWAOREG",
+            "importance": -0.000118,
+            "std": 6.7e-05
+          },
+          {
+            "feature": "MGEMOMV",
+            "importance": -0.000118,
+            "std": 0.000435
+          },
+          {
+            "feature": "MBERZELF",
+            "importance": -0.000213,
+            "std": 0.000531
+          },
+          {
+            "feature": "PBYSTAND",
+            "importance": -0.000236,
+            "std": 0.002774
+          },
+          {
+            "feature": "MGODOV",
+            "importance": -0.000402,
+            "std": 0.000486
+          },
+          {
+            "feature": "AZEILPL",
+            "importance": -0.000473,
+            "std": 0.000167
+          },
+          {
+            "feature": "MSKC",
+            "importance": -0.00052,
+            "std": 0.000261
+          },
+          {
+            "feature": "PWAOREG",
+            "importance": -0.000615,
+            "std": 0.000442
+          },
+          {
+            "feature": "MSKB2",
+            "importance": -0.000851,
+            "std": 0.000821
+          },
+          {
+            "feature": "AGEZONG",
+            "importance": -0.000993,
+            "std": 0.000501
+          },
+          {
+            "feature": "AAANHANG",
+            "importance": -0.001087,
+            "std": 0.000869
+          },
+          {
+            "feature": "PLEVEN",
+            "importance": -0.001087,
+            "std": 0.001237
+          },
+          {
+            "feature": "PWABEDR",
+            "importance": -0.001206,
+            "std": 0.000783
+          },
+          {
+            "feature": "MBERARBO",
+            "importance": -0.001253,
+            "std": 0.000666
+          },
+          {
+            "feature": "MAANTHUI",
+            "importance": -0.001383,
+            "std": 0.000712
+          },
+          {
+            "feature": "MBERHOOG",
+            "importance": -0.001939,
+            "std": 0.005297
+          },
+          {
+            "feature": "PTRACTOR",
+            "importance": -0.002151,
+            "std": 0.011373
+          },
+          {
+            "feature": "MZPART",
+            "importance": -0.002364,
+            "std": 0.002473
+          },
+          {
+            "feature": "MSKD",
+            "importance": -0.002813,
+            "std": 0.002464
+          },
+          {
+            "feature": "PPERSONG",
+            "importance": -0.002955,
+            "std": 0.00058
+          },
+          {
+            "feature": "AWALAND",
+            "importance": -0.003097,
+            "std": 0.000121
+          },
+          {
+            "feature": "PFIETS",
+            "importance": -0.003995,
+            "std": 0.005002
+          },
+          {
+            "feature": "MSKB1",
+            "importance": -0.005319,
+            "std": 0.002587
+          },
+          {
+            "feature": "PAANHANG",
+            "importance": -0.008345,
+            "std": 0.016215
+          },
+          {
+            "feature": "MHKOOP",
+            "importance": -0.008747,
+            "std": 0.04001
+          },
+          {
+            "feature": "PZEILPL",
+            "importance": -0.01383,
+            "std": 0.00038
+          },
+          {
+            "feature": "MRELOV",
+            "importance": -0.013901,
+            "std": 0.016011
+          },
+          {
+            "feature": "ABYSTAND",
+            "importance": -0.01617,
+            "std": 0.011535
+          },
+          {
+            "feature": "PWAPART",
+            "importance": -0.019551,
+            "std": 0.009741
+          },
+          {
+            "feature": "APERSAUT",
+            "importance": -0.022742,
+            "std": 0.014543
+          },
+          {
+            "feature": "MGODPR",
+            "importance": -0.02591,
+            "std": 0.007991
+          },
+          {
+            "feature": "MBERARBG",
+            "importance": -0.026667,
+            "std": 0.006277
+          },
+          {
+            "feature": "PINBOED",
+            "importance": -0.030331,
+            "std": 0.00104
+          },
+          {
+            "feature": "AMOTSCO",
+            "importance": -0.03974,
+            "std": 0.01584
+          },
+          {
+            "feature": "AFIETS",
+            "importance": -0.046548,
+            "std": 0.010781
+          }
+        ]
+      },
+      "lgbm": {
+        "test_auc": 0.639929,
+        "no_better_than_chance": false,
+        "solver": {
+          "iterations": 100,
+          "max_iter": null,
+          "converged": null
+        },
+        "top_k": [
+          "PPERSAUT",
+          "PBRAND",
+          "PWAPART",
+          "MFWEKIND",
+          "MRELGE",
+          "MBERBOER",
+          "MHHUUR",
+          "MAUT0",
+          "MOSTYPE",
+          "MSKD"
+        ],
+        "ranking": [
+          {
+            "feature": "PPERSAUT",
+            "importance": 0.096418,
+            "std": 0.019035
+          },
+          {
+            "feature": "PBRAND",
+            "importance": 0.063475,
+            "std": 0.007043
+          },
+          {
+            "feature": "PWAPART",
+            "importance": 0.014988,
+            "std": 0.009089
+          },
+          {
+            "feature": "MFWEKIND",
+            "importance": 0.005981,
+            "std": 0.007171
+          },
+          {
+            "feature": "MRELGE",
+            "importance": 0.005957,
+            "std": 0.002597
+          },
+          {
+            "feature": "MBERBOER",
+            "importance": 0.005792,
+            "std": 0.006637
+          },
+          {
+            "feature": "MHHUUR",
+            "importance": 0.005721,
+            "std": 0.002885
+          },
+          {
+            "feature": "MAUT0",
+            "importance": 0.00539,
+            "std": 0.003033
+          },
+          {
+            "feature": "MOSTYPE",
+            "importance": 0.004374,
+            "std": 0.011121
+          },
+          {
+            "feature": "MSKD",
+            "importance": 0.004232,
+            "std": 0.001409
+          },
+          {
+            "feature": "MZFONDS",
+            "importance": 0.003262,
+            "std": 0.004864
+          },
+          {
+            "feature": "MSKC",
+            "importance": 0.002931,
+            "std": 0.003051
+          },
+          {
+            "feature": "PBROM",
+            "importance": 0.002648,
+            "std": 0.000696
+          },
+          {
+            "feature": "MINK7512",
+            "importance": 0.001537,
+            "std": 0.000756
+          },
+          {
+            "feature": "MINK123M",
+            "importance": 0.001324,
+            "std": 0.000973
+          },
+          {
+            "feature": "MFGEKIND",
+            "importance": 0.000757,
+            "std": 0.001796
+          },
+          {
+            "feature": "ABROM",
+            "importance": 0.000662,
+            "std": 0.000354
+          },
+          {
+            "feature": "ALEVEN",
+            "importance": 0.000284,
+            "std": 0.001568
+          },
+          {
+            "feature": "MBERMIDD",
+            "importance": 0.000189,
+            "std": 0.000419
+          },
+          {
+            "feature": "PWALAND",
+            "importance": 0.000165,
+            "std": 0.000291
+          },
+          {
+            "feature": "ATRACTOR",
+            "importance": 9.5e-05,
+            "std": 0.000386
+          },
+          {
+            "feature": "AAANHANG",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "ABESAUT",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "ABRAND",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "ABYSTAND",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "AFIETS",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "AGEZONG",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "AINBOED",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "AMOTSCO",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "APERSONG",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "APLEZIER",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "AVRAAUT",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "AWABEDR",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "AWALAND",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "AWAOREG",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "AWERKT",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "AZEILPL",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "MAUT1",
+            "importance": 0.0,
+            "std": 0.003875
+          },
+          {
+            "feature": "MOSHOOFD",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "PAANHANG",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "PBESAUT",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "PFIETS",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "PGEZONG",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "PINBOED",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "PPERSONG",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "PPLEZIER",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "PVRAAUT",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "PWABEDR",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "PWAOREG",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "PWERKT",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "PZEILPL",
+            "importance": 0.0,
+            "std": 0.0
+          },
+          {
+            "feature": "PTRACTOR",
+            "importance": -0.000284,
+            "std": 0.001667
+          },
+          {
+            "feature": "APERSAUT",
+            "importance": -0.000307,
+            "std": 0.002477
+          },
+          {
+            "feature": "MBERHOOG",
+            "importance": -0.000307,
+            "std": 0.003721
+          },
+          {
+            "feature": "AWAPART",
+            "importance": -0.000426,
+            "std": 0.0
+          },
+          {
+            "feature": "PLEVEN",
+            "importance": -0.000827,
+            "std": 0.000297
+          },
+          {
+            "feature": "MKOOPKLA",
+            "importance": -0.000993,
+            "std": 0.005972
+          },
+          {
+            "feature": "MGODOV",
+            "importance": -0.001702,
+            "std": 0.003648
+          },
+          {
+            "feature": "MBERZELF",
+            "importance": -0.001915,
+            "std": 0.00254
+          },
+          {
+            "feature": "MZPART",
+            "importance": -0.00208,
+            "std": 0.003782
+          },
+          {
+            "feature": "MAANTHUI",
+            "importance": -0.00221,
+            "std": 0.003959
+          },
+          {
+            "feature": "MINKM30",
+            "importance": -0.002506,
+            "std": 0.00116
+          },
+          {
+            "feature": "MAUT2",
+            "importance": -0.002648,
+            "std": 0.002133
+          },
+          {
+            "feature": "MINKGEM",
+            "importance": -0.002648,
+            "std": 0.000803
+          },
+          {
+            "feature": "MGEMLEEF",
+            "importance": -0.003901,
+            "std": 0.004141
+          },
+          {
+            "feature": "MSKB1",
+            "importance": -0.003995,
+            "std": 0.001822
+          },
+          {
+            "feature": "PMOTSCO",
+            "importance": -0.004019,
+            "std": 0.003023
+          },
+          {
+            "feature": "MBERARBO",
+            "importance": -0.004965,
+            "std": 0.007128
+          },
+          {
+            "feature": "MHKOOP",
+            "importance": -0.005035,
+            "std": 0.000437
+          },
+          {
+            "feature": "MSKB2",
+            "importance": -0.005083,
+            "std": 0.007339
+          },
+          {
+            "feature": "MRELSA",
+            "importance": -0.00565,
+            "std": 0.00127
+          },
+          {
+            "feature": "PBYSTAND",
+            "importance": -0.006288,
+            "std": 0.01274
+          },
+          {
+            "feature": "MGEMOMV",
+            "importance": -0.006312,
+            "std": 0.004796
+          },
+          {
+            "feature": "MGODGE",
+            "importance": -0.006548,
+            "std": 0.011986
+          },
+          {
+            "feature": "MRELOV",
+            "importance": -0.006927,
+            "std": 0.001946
+          },
+          {
+            "feature": "MGODPR",
+            "importance": -0.007967,
+            "std": 0.006046
+          },
+          {
+            "feature": "MINK4575",
+            "importance": -0.008345,
+            "std": 0.00139
+          },
+          {
+            "feature": "MGODRK",
+            "importance": -0.009031,
+            "std": 0.003749
+          },
+          {
+            "feature": "MFALLEEN",
+            "importance": -0.011064,
+            "std": 0.005669
+          },
+          {
+            "feature": "MOPLLAAG",
+            "importance": -0.011395,
+            "std": 0.009519
+          },
+          {
+            "feature": "MINK3045",
+            "importance": -0.011418,
+            "std": 0.002029
+          },
+          {
+            "feature": "MOPLMIDD",
+            "importance": -0.015721,
+            "std": 0.004352
+          },
+          {
+            "feature": "MSKA",
+            "importance": -0.017754,
+            "std": 0.004595
+          },
+          {
+            "feature": "MBERARBG",
+            "importance": -0.023853,
+            "std": 0.008001
+          },
+          {
+            "feature": "MOPLHOOG",
+            "importance": -0.02747,
+            "std": 0.00322
+          }
+        ]
+      }
+    },
+    "univariate": {
+      "MOSTYPE": 0.39818,
+      "MAANTHUI": 0.537427,
+      "MGEMOMV": 0.584254,
+      "MGEMLEEF": 0.44179,
+      "MOSHOOFD": 0.390969,
+      "MGODRK": 0.557784,
+      "MGODPR": 0.513183,
+      "MGODOV": 0.518952,
+      "MGODGE": 0.453213,
+      "MRELGE": 0.581662,
+      "MRELSA": 0.450808,
+      "MRELOV": 0.437422,
+      "MFALLEEN": 0.435459,
+      "MFGEKIND": 0.474837,
+      "MFWEKIND": 0.576219,
+      "MOPLHOOG": 0.597779,
+      "MOPLMIDD": 0.567201,
+      "MOPLLAAG": 0.396643,
+      "MBERHOOG": 0.572859,
+      "MBERZELF": 0.526123,
+      "MBERBOER": 0.423036,
+      "MBERMIDD": 0.579771,
+      "MBERARBG": 0.388437,
+      "MBERARBO": 0.4525,
+      "MSKA": 0.583832,
+      "MSKB1": 0.578106,
+      "MSKB2": 0.514338,
+      "MSKC": 0.41929,
+      "MSKD": 0.429439,
+      "MHHUUR": 0.395743,
+      "MHKOOP": 0.60315,
+      "MAUT1": 0.574021,
+      "MAUT2": 0.527636,
+      "MAUT0": 0.411924,
+      "MZFONDS": 0.432895,
+      "MZPART": 0.566134,
+      "MINKM30": 0.356413,
+      "MINK3045": 0.511722,
+      "MINK4575": 0.600678,
+      "MINK7512": 0.5476,
+      "MINK123M": 0.516376,
+      "MINKGEM": 0.613729,
+      "MKOOPKLA": 0.643002,
+      "PWAPART": 0.561224,
+      "PWABEDR": 0.495039,
+      "PWALAND": 0.490432,
+      "PPERSAUT": 0.674946,
+      "PBESAUT": 0.495748,
+      "PMOTSCO": 0.486184,
+      "PVRAAUT": 0.499646,
+      "PAANHANG": 0.499259,
+      "PTRACTOR": 0.493518,
+      "PWERKT": 0.498228,
+      "PBROM": 0.472507,
+      "PLEVEN": 0.518462,
+      "PPERSONG": 0.497874,
+      "PGEZONG": 0.508102,
+      "PWAOREG": 0.498583,
+      "PBRAND": 0.586336,
+      "PZEILPL": 0.498937,
+      "PPLEZIER": 0.515433,
+      "PFIETS": 0.49605,
+      "PINBOED": 0.502047,
+      "PBYSTAND": 0.532533,
+      "AWAPART": 0.55862,
+      "AWABEDR": 0.495039,
+      "AWALAND": 0.490432,
+      "APERSAUT": 0.637523,
+      "ABESAUT": 0.495748,
+      "AMOTSCO": 0.486116,
+      "AVRAAUT": 0.499646,
+      "AAANHANG": 0.499236,
+      "ATRACTOR": 0.493546,
+      "AWERKT": 0.498228,
+      "ABROM": 0.472555,
+      "ALEVEN": 0.518594,
+      "APERSONG": 0.497874,
+      "AGEZONG": 0.508047,
+      "AWAOREG": 0.498583,
+      "ABRAND": 0.545195,
+      "AZEILPL": 0.498937,
+      "APLEZIER": 0.515452,
+      "AFIETS": 0.49603,
+      "AINBOED": 0.50207,
+      "ABYSTAND": 0.532593
+    },
+    "readings": {
+      "same_features_ranked_differently": [
+        {
+          "a": "tabpfn",
+          "b": "glm",
+          "spearman_all_features": 0.262595,
+          "shared_top_k": 2,
+          "largest_rank_moves": [
+            {
+              "feature": "PPERSAUT",
+              "rank_a": 1,
+              "rank_b": 5,
+              "rank_delta": 4
+            },
+            {
+              "feature": "PBRAND",
+              "rank_a": 2,
+              "rank_b": 3,
+              "rank_delta": 1
+            }
+          ]
+        },
+        {
+          "a": "tabpfn",
+          "b": "lgbm",
+          "spearman_all_features": 0.568908,
+          "shared_top_k": 5,
+          "largest_rank_moves": [
+            {
+              "feature": "PWAPART",
+              "rank_a": 10,
+              "rank_b": 3,
+              "rank_delta": 7
+            },
+            {
+              "feature": "MFWEKIND",
+              "rank_a": 6,
+              "rank_b": 4,
+              "rank_delta": 2
+            },
+            {
+              "feature": "MBERBOER",
+              "rank_a": 5,
+              "rank_b": 6,
+              "rank_delta": 1
+            }
+          ]
+        },
+        {
+          "a": "glm",
+          "b": "lgbm",
+          "spearman_all_features": 0.153938,
+          "shared_top_k": 4,
+          "largest_rank_moves": [
+            {
+              "feature": "MHHUUR",
+              "rank_a": 1,
+              "rank_b": 7,
+              "rank_delta": 6
+            },
+            {
+              "feature": "PPERSAUT",
+              "rank_a": 5,
+              "rank_b": 1,
+              "rank_delta": 4
+            },
+            {
+              "feature": "MAUT0",
+              "rank_a": 10,
+              "rank_b": 8,
+              "rank_delta": 2
+            }
+          ]
+        }
+      ],
+      "different_features": [
+        {
+          "a": "tabpfn",
+          "b": "glm",
+          "only_a": [
+            "APERSAUT",
+            "MINKM30",
+            "MBERBOER",
+            "MFWEKIND",
+            "ALEVEN",
+            "ABROM",
+            "MINK123M",
+            "PWAPART"
+          ],
+          "only_b": [
+            "MHHUUR",
+            "MAUT1",
+            "MGODGE",
+            "MOSHOOFD",
+            "MOPLMIDD",
+            "AWAPART",
+            "MOPLLAAG",
+            "MAUT0"
+          ],
+          "jaccard_top_k": 0.111111
+        },
+        {
+          "a": "tabpfn",
+          "b": "lgbm",
+          "only_a": [
+            "APERSAUT",
+            "MINKM30",
+            "ALEVEN",
+            "ABROM",
+            "MINK123M"
+          ],
+          "only_b": [
+            "MRELGE",
+            "MHHUUR",
+            "MAUT0",
+            "MOSTYPE",
+            "MSKD"
+          ],
+          "jaccard_top_k": 0.333333
+        },
+        {
+          "a": "glm",
+          "b": "lgbm",
+          "only_a": [
+            "MAUT1",
+            "MGODGE",
+            "MOSHOOFD",
+            "MOPLMIDD",
+            "AWAPART",
+            "MOPLLAAG"
+          ],
+          "only_b": [
+            "PWAPART",
+            "MFWEKIND",
+            "MRELGE",
+            "MBERBOER",
+            "MOSTYPE",
+            "MSKD"
+          ],
+          "jaccard_top_k": 0.25
+        }
+      ],
+      "interaction_only": {
+        "compared_against": [
+          "tabpfn",
+          "glm"
+        ],
+        "rule": "an LGBM top-k feature outside every other family's top-k whose univariate AUC is within 0.02 of 0.5 -- no marginal signal, so any value the tree model finds comes from a combination",
+        "tree_only_features": [
+          "MRELGE",
+          "MOSTYPE",
+          "MSKD"
+        ],
+        "candidates": [],
+        "detail": [
+          {
+            "feature": "MRELGE",
+            "lgbm_rank": 5,
+            "ranks": {
+              "tabpfn": 24,
+              "glm": 13
+            },
+            "univariate_auc": 0.581662,
+            "marginal": false
+          },
+          {
+            "feature": "MOSTYPE",
+            "lgbm_rank": 9,
+            "ranks": {
+              "tabpfn": 19,
+              "glm": 11
+            },
+            "univariate_auc": 0.39818,
+            "marginal": false
+          },
+          {
+            "feature": "MSKD",
+            "lgbm_rank": 10,
+            "ranks": {
+              "tabpfn": 64,
+              "glm": 69
+            },
+            "univariate_auc": 0.429439,
+            "marginal": false
+          }
+        ]
+      }
+    },
+    "control": null,
+    "limitations": [
+      "importance is measured on a 2000-row subsample, not the whole table",
+      "permutation importance credits a correlated pair twice: a feature with a near-duplicate can look unimportant because the model can fall back on its twin",
+      "the TabPFN arm is the local open checkpoint, not the v3 the frontier numbers used"
+    ]
+  }
+}

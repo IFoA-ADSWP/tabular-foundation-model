@@ -1,0 +1,454 @@
+{
+  "schema_version": 1,
+  "diagnostic": "d2_importance",
+  "run_id": "20261104T1725Z-uslapseagent",
+  "created_utc": "2026-11-04T18:11:23Z",
+  "git_sha": "23681b0fdfa23cda7dc2af6a521c7ee7bdb9aa56",
+  "git_dirty": false,
+  "model_version": "auto",
+  "seed": 42,
+  "dataset_name": "uslapseagent",
+  "dataset_sha256": "c56e7c9a3d6d03579f89e5da140007394ed357cb1481f21419700b6d39aa1112",
+  "matched_context": {
+    "checked": false,
+    "baseline_arm": "A_raw",
+    "arms": {}
+  },
+  "runtime": {
+    "python": "3.12.7",
+    "numpy": "1.26.4",
+    "pandas": "2.3.3",
+    "scikit-learn": "1.6.1",
+    "torch": "2.7.1",
+    "tabpfn": "6.4.1",
+    "catboost": "1.2.10"
+  },
+  "measurements": {
+    "question": "which features does each family use, and where do they disagree",
+    "subsample": {
+      "cap_rows": 2000,
+      "rows_available": 29317,
+      "rows_sampled": 2000,
+      "train_rows": 1500,
+      "test_rows": 500,
+      "seed": 42,
+      "train_positive_rate": 0.378667,
+      "test_positive_rate": 0.378,
+      "note": "importance is estimated from a 2000-row subsample (1500 train / 500 test) and is therefore an approximation; the full table was not used"
+    },
+    "preprocessing": {
+      "regime": "R1 default -- per-column category codes, missing to 0",
+      "note": "categories come from the training rows only; a categorical's code ordering is arbitrary, which D4 tests rather than assumes",
+      "n_features": 10,
+      "n_dropped_constant": 0,
+      "dropped_constant": []
+    },
+    "tabpfn": {
+      "requested_model_path": "auto",
+      "resolved_version": "v2.5",
+      "checkpoint": "tabpfn-v2.5-classifier-v2.5_default.ckpt",
+      "resolution_reason": null,
+      "package_version": "6.4.1",
+      "n_estimators": 1,
+      "fit_mode": "fit_preprocessors",
+      "fit_mode_note": "the pilot fits with n_estimators=2 and fit_mode='batched'; this diagnostic uses one estimator and the library default because a permutation run makes features x repeats predictions against one context on CPU. fit_with_cache was measured and rejected -- see docs/plans/d2-feature-importance.md, measurement B."
+    },
+    "importance": {
+      "method": "permutation on the held-out rows",
+      "metric": "drop in ROC AUC",
+      "repeats": 3,
+      "seed": 42,
+      "predict_batch": 10,
+      "top_k": 10
+    },
+    "families": {
+      "tabpfn": {
+        "test_auc": 0.928954,
+        "no_better_than_chance": false,
+        "solver": null,
+        "top_k": [
+          "allcause",
+          "annual.premium",
+          "DJIA",
+          "premium.frequency",
+          "duration",
+          "risk.state",
+          "gender",
+          "living.place",
+          "acc.death.rider",
+          "underwriting.age"
+        ],
+        "ranking": [
+          {
+            "feature": "allcause",
+            "importance": 0.241577,
+            "std": 0.034086
+          },
+          {
+            "feature": "annual.premium",
+            "importance": 0.016871,
+            "std": 0.004303
+          },
+          {
+            "feature": "DJIA",
+            "importance": 0.002172,
+            "std": 0.001266
+          },
+          {
+            "feature": "premium.frequency",
+            "importance": 0.002019,
+            "std": 0.000851
+          },
+          {
+            "feature": "duration",
+            "importance": 0.001548,
+            "std": 0.006114
+          },
+          {
+            "feature": "risk.state",
+            "importance": 0.00025,
+            "std": 0.000667
+          },
+          {
+            "feature": "gender",
+            "importance": 5.7e-05,
+            "std": 0.000133
+          },
+          {
+            "feature": "living.place",
+            "importance": -0.000198,
+            "std": 0.000347
+          },
+          {
+            "feature": "acc.death.rider",
+            "importance": -0.001055,
+            "std": 0.000541
+          },
+          {
+            "feature": "underwriting.age",
+            "importance": -0.001129,
+            "std": 0.000924
+          }
+        ]
+      },
+      "glm": {
+        "test_auc": 0.925688,
+        "no_better_than_chance": false,
+        "solver": {
+          "iterations": 145,
+          "max_iter": 20000,
+          "converged": true
+        },
+        "top_k": [
+          "allcause",
+          "annual.premium",
+          "gender",
+          "risk.state",
+          "duration",
+          "premium.frequency",
+          "DJIA",
+          "underwriting.age",
+          "living.place",
+          "acc.death.rider"
+        ],
+        "ranking": [
+          {
+            "feature": "allcause",
+            "importance": 0.307882,
+            "std": 0.034515
+          },
+          {
+            "feature": "annual.premium",
+            "importance": 0.011557,
+            "std": 0.00445
+          },
+          {
+            "feature": "gender",
+            "importance": 0.003907,
+            "std": 0.002421
+          },
+          {
+            "feature": "risk.state",
+            "importance": 0.00279,
+            "std": 0.001295
+          },
+          {
+            "feature": "duration",
+            "importance": 0.001378,
+            "std": 0.004682
+          },
+          {
+            "feature": "premium.frequency",
+            "importance": 0.001055,
+            "std": 6.1e-05
+          },
+          {
+            "feature": "DJIA",
+            "importance": 0.000471,
+            "std": 0.001122
+          },
+          {
+            "feature": "underwriting.age",
+            "importance": -7.4e-05,
+            "std": 0.002491
+          },
+          {
+            "feature": "living.place",
+            "importance": -0.000278,
+            "std": 0.000855
+          },
+          {
+            "feature": "acc.death.rider",
+            "importance": -0.002705,
+            "std": 0.001535
+          }
+        ]
+      },
+      "lgbm": {
+        "test_auc": 0.926913,
+        "no_better_than_chance": false,
+        "solver": {
+          "iterations": 100,
+          "max_iter": null,
+          "converged": null
+        },
+        "top_k": [
+          "allcause",
+          "DJIA",
+          "annual.premium",
+          "duration",
+          "underwriting.age",
+          "gender",
+          "risk.state",
+          "acc.death.rider",
+          "living.place",
+          "premium.frequency"
+        ],
+        "ranking": [
+          {
+            "feature": "allcause",
+            "importance": 0.274287,
+            "std": 0.034905
+          },
+          {
+            "feature": "DJIA",
+            "importance": 0.018085,
+            "std": 0.001265
+          },
+          {
+            "feature": "annual.premium",
+            "importance": 0.008331,
+            "std": 0.00132
+          },
+          {
+            "feature": "duration",
+            "importance": 0.002955,
+            "std": 0.006352
+          },
+          {
+            "feature": "underwriting.age",
+            "importance": 0.001406,
+            "std": 0.00219
+          },
+          {
+            "feature": "gender",
+            "importance": -0.000125,
+            "std": 0.001378
+          },
+          {
+            "feature": "risk.state",
+            "importance": -0.000635,
+            "std": 0.000473
+          },
+          {
+            "feature": "acc.death.rider",
+            "importance": -0.000664,
+            "std": 0.001141
+          },
+          {
+            "feature": "living.place",
+            "importance": -0.000715,
+            "std": 0.000837
+          },
+          {
+            "feature": "premium.frequency",
+            "importance": -0.003703,
+            "std": 0.002179
+          }
+        ]
+      }
+    },
+    "univariate": {
+      "duration": 0.202183,
+      "acc.death.rider": 0.474476,
+      "gender": 0.467868,
+      "premium.frequency": 0.540627,
+      "risk.state": 0.480736,
+      "underwriting.age": 0.458795,
+      "living.place": 0.492889,
+      "annual.premium": 0.611762,
+      "DJIA": 0.766883,
+      "allcause": 0.899142
+    },
+    "readings": {
+      "same_features_ranked_differently": [
+        {
+          "a": "tabpfn",
+          "b": "glm",
+          "spearman_all_features": 0.721212,
+          "shared_top_k": 10,
+          "largest_rank_moves": [
+            {
+              "feature": "DJIA",
+              "rank_a": 3,
+              "rank_b": 7,
+              "rank_delta": 4
+            },
+            {
+              "feature": "gender",
+              "rank_a": 7,
+              "rank_b": 3,
+              "rank_delta": 4
+            },
+            {
+              "feature": "premium.frequency",
+              "rank_a": 4,
+              "rank_b": 6,
+              "rank_delta": 2
+            }
+          ]
+        },
+        {
+          "a": "tabpfn",
+          "b": "lgbm",
+          "spearman_all_features": 0.587879,
+          "shared_top_k": 10,
+          "largest_rank_moves": [
+            {
+              "feature": "premium.frequency",
+              "rank_a": 4,
+              "rank_b": 10,
+              "rank_delta": 6
+            },
+            {
+              "feature": "underwriting.age",
+              "rank_a": 10,
+              "rank_b": 5,
+              "rank_delta": 5
+            },
+            {
+              "feature": "DJIA",
+              "rank_a": 3,
+              "rank_b": 2,
+              "rank_delta": 1
+            }
+          ]
+        },
+        {
+          "a": "glm",
+          "b": "lgbm",
+          "spearman_all_features": 0.551515,
+          "shared_top_k": 10,
+          "largest_rank_moves": [
+            {
+              "feature": "DJIA",
+              "rank_a": 7,
+              "rank_b": 2,
+              "rank_delta": 5
+            },
+            {
+              "feature": "premium.frequency",
+              "rank_a": 6,
+              "rank_b": 10,
+              "rank_delta": 4
+            },
+            {
+              "feature": "gender",
+              "rank_a": 3,
+              "rank_b": 6,
+              "rank_delta": 3
+            }
+          ]
+        }
+      ],
+      "different_features": [
+        {
+          "a": "tabpfn",
+          "b": "glm",
+          "only_a": [],
+          "only_b": [],
+          "jaccard_top_k": 1.0
+        },
+        {
+          "a": "tabpfn",
+          "b": "lgbm",
+          "only_a": [],
+          "only_b": [],
+          "jaccard_top_k": 1.0
+        },
+        {
+          "a": "glm",
+          "b": "lgbm",
+          "only_a": [],
+          "only_b": [],
+          "jaccard_top_k": 1.0
+        }
+      ],
+      "interaction_only": {
+        "compared_against": [
+          "tabpfn",
+          "glm"
+        ],
+        "rule": "an LGBM top-k feature outside every other family's top-k whose univariate AUC is within 0.02 of 0.5 -- no marginal signal, so any value the tree model finds comes from a combination",
+        "tree_only_features": [],
+        "candidates": [],
+        "detail": []
+      }
+    },
+    "control": {
+      "rule": "the label-permuted run's top feature must not be as important as the real run's top feature in any family; if it is, the measurement is picking up leakage or an artefact",
+      "k": 10,
+      "families": [
+        {
+          "family": "tabpfn",
+          "real_top_feature": "allcause",
+          "real_top_importance": 0.241577,
+          "control_top_feature": "allcause",
+          "control_top_importance": 0.014302,
+          "ratio_to_real_top": 0.059203,
+          "clears_threshold": false
+        },
+        {
+          "family": "glm",
+          "real_top_feature": "allcause",
+          "real_top_importance": 0.307882,
+          "control_top_feature": "DJIA",
+          "control_top_importance": 0.011234,
+          "ratio_to_real_top": 0.036488,
+          "clears_threshold": false
+        },
+        {
+          "family": "lgbm",
+          "real_top_feature": "allcause",
+          "real_top_importance": 0.274287,
+          "control_top_feature": "duration",
+          "control_top_importance": 0.017364,
+          "ratio_to_real_top": 0.063306,
+          "clears_threshold": false
+        }
+      ],
+      "passed": true,
+      "permuted_test_auc": {
+        "tabpfn": 0.466017,
+        "glm": 0.511764,
+        "lgbm": 0.496759
+      },
+      "note": "a permuted target leaves no signal, so every family should sit at chance and no feature should dominate; a dominance here would mean the real run measured an artefact"
+    },
+    "limitations": [
+      "importance is measured on a 2000-row subsample, not the whole table",
+      "permutation importance credits a correlated pair twice: a feature with a near-duplicate can look unimportant because the model can fall back on its twin",
+      "the TabPFN arm is the local open checkpoint, not the v3 the frontier numbers used"
+    ]
+  }
+}
