@@ -2,8 +2,8 @@
 
 This repository is the evidence base for applying tabular foundation models to insurance modelling: a
 benchmark, a fine-tuning programme, and the diagnostics behind both. Phase 2 of the fine-tuning programme has
-closed — a small gain on one lapse dataset, no gain we can detect on two others, and one dataset stopped
-because it could not be measured at the precision the design required. The outcome is in
+closed — a small gain on one of the four anchor datasets, no gain we can detect on two others, and one dataset
+stopped because it could not be measured at the precision the design required. The outcome is in
 [current/FINETUNING_PHASE2_OUTCOME.md](current/FINETUNING_PHASE2_OUTCOME.md), and where its numbers come from
 is in [EVIDENCE_MAP.md](EVIDENCE_MAP.md).
 
@@ -16,7 +16,8 @@ is in [EVIDENCE_MAP.md](EVIDENCE_MAP.md).
 | **The method and the decisions** | [FINETUNING_PILOT_DESIGN.md](current/FINETUNING_PILOT_DESIGN.md) (what was proposed and why) and [FINETUNING_DECISION_LOG.md](current/FINETUNING_DECISION_LOG.md) (what was decided, with its caveats) |
 | **Something specific** | the role table below, or the tier list that follows it |
 
-Every finding is version-pinned — see [MODEL_VERSIONS.md](MODEL_VERSIONS.md) before citing a number.
+Every finding names the model version it was measured under — see [MODEL_VERSIONS.md](MODEL_VERSIONS.md)
+before citing a number.
 
 ## How this documentation is organised
 

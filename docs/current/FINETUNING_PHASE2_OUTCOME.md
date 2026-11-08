@@ -1,12 +1,14 @@
-# Fine-tuning TabPFN on lapse data — the Phase 2 outcome
+# Fine-tuning TabPFN on insurance data — the Phase 2 outcome
 
 > **Status:** current as of 2026-11-08. This is the closing statement of Phase 2. The pre-result narrative
 > — how the programme arrived here — remains in `docs/current/FINETUNING_STATUS_BRIEF.md`, kept as history.
 
 ## 1. The answer
 
-Fine-tuning TabPFN produced a real but very small gain on one of four lapse datasets, and no gain we can
-detect on two others; the fourth could not be measured at the precision the design required.
+Fine-tuning TabPFN produced a real but very small gain on one of four insurance datasets, and no gain we
+can detect on two others; the fourth could not be measured at the precision the design required. (Three of
+the four targets are lapse outcomes; `coil2000` predicts caravan-insurance take-up, so "the lapse datasets"
+is a convenience name for this family, not a description of all four.)
 
 | Dataset | Δ ROC AUC | 95% interval | Reading |
 | --- | --- | --- | --- |
@@ -15,12 +17,13 @@ detect on two others; the fourth could not be measured at the precision the desi
 | `spanish_motor_lapse` | +0.0003 | [−0.0002, +0.0008] | **equivalence** — bounded inside δ |
 | `coil2000` | — | — | **stopped** — not measurable at this design |
 
-The bar was **δ = 0.002 ROC AUC**, fixed before any of these runs. A cell is a gain when its whole interval
-sits above δ, an equivalence when its whole interval sits inside ±δ, and unresolved otherwise. One cell
-cleared the bar, two were bounded inside it, and one never ran because it could not be bounded.
+The bar was **δ = 0.002 ROC AUC**, agreed on 2026-11-03 — before the replication and both breadth cells, and
+after the anchor's first pass had failed. A cell is a gain when its whole interval sits above δ, an
+equivalence when its whole interval sits inside ±δ, and unresolved otherwise. One cell cleared the bar, two
+were bounded inside it, and one never ran because it could not be bounded.
 
 What this says: adapting the weights helps on one dataset, by an amount you would not notice in a
-deployment decision. What it does not say: that it helps on lapse data generally.
+deployment decision. What it does not say: that it helps on these datasets generally.
 
 ## 2. Should you care?
 
