@@ -6,6 +6,12 @@
 > Date: 2026-09-24 | Status: **Two probes complete; funded diagnostics and full pilot defined**
 > Related: #22 | Stakeholder summary; full design in `docs/current/FINETUNING_PILOT_DESIGN.md`
 
+> **Superseded for the outcome (2026-11-08).** This page is the pre-result narrative — how the programme
+> arrived at the Phase 2 answer. The answer itself is owned by the closing report, not by this page. Note one
+> thing before quoting it: the summary table below still says the anchor rests on one seed, and the
+> replication further down this same page supersedes that sentence. The table is left as it was written,
+> because a document that edits its own history cannot be checked against it.
+
 ---
 
 ## What we found — two probes, two answers
@@ -147,7 +153,7 @@ is whether the 10K result exists at all, on a design that can see it.
 |---|---|---|
 | `docs/current/FINETUNING_PILOT_DESIGN.md` | Technical | Complete funded diagnostics-plus-pilot design and decision framework |
 | `docs/archive/PILOT_2_BRIEFING.md` | Anyone | Historical five-step programme; use the full pilot design for the current scope |
-| `docs/current/FINETUNING_FINDINGS.md` | Anyone | What the repository currently believes (F1–F6, L1–L3) |
+| `docs/current/FINETUNING_FINDINGS.md` | Anyone | What the repository currently believes, and which document owns each claim |
 | `docs/current/FINETUNING_EXPERIMENT_REFERENCE.md` | Technical | The full experiment design and decision rules |
 | `docs/current/FINETUNING_COST_AND_CONTROLS.md` | Technical | Every cost figure, in units of a run we have already done |
 | `docs/current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md` | Statistician | How the numbers will be computed |
