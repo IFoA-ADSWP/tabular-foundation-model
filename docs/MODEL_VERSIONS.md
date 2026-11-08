@@ -71,6 +71,11 @@ for the replication on `uslapseagent` — the same line the anchor ran, now name
 than inferred from the checkpoint field. The pin matters because the library default is `auto` and the
 **hosted server's** default has moved, so an unpinned run can no longer be *assumed* to be v3.
 
+> **Corrected 2026-11-08.** The pin could not be carried: the launcher had no route for one (#402), and the
+> replication resolved `version: auto` to `v3_default`. Read the paragraph above as the intent, not as a
+> description of the run: the replication result states plainly that it was **unpinned**, and warns against
+> the claim this paragraph makes. The line is right — v3_default is what ran — but "pinned" is not.
+
 **v3.5 cannot be used for this work.** It exists on the **hosted client** line (`tabpfn-client 0.6.0`,
 regression/count datasets). The local package at the pilot's version — `tabpfn 8.5.0`, the version the
 anchor ran on — enumerates only `V2, V2_5, V2_6, V3` and exposes no v3.5 classifier checkpoint, and the

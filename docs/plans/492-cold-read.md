@@ -62,3 +62,24 @@ is recorded on the ticket rather than assumed.
 
 It does not add the figure the report still lacks, move any document between tiers, or settle the pilot's
 disposition. It does not substitute a model for a human reader, and says so in the resolution.
+
+## Second pass, after the fixes landed
+
+The cold read was repeated in a second fresh context. It passed the comprehension questions again, and it
+found two more defects in pages this map had touched — both fixed here:
+
+- **The report attributed four cost figures to one page that contains one of them.** Each now links its
+  actual owner, and the Spanish probe is stated at its measured $0.153 rather than the $0.10 ceiling that
+  D21 repeats.
+- **`MODEL_VERSIONS.md` still claimed the pilot "pins `v3_default`" and that the pin "passes a path, not a
+  label".** The run record says that is false. A dated correction sits under the paragraph: the line is
+  right, the word "pinned" is not.
+
+It also found nine further contradictions **between owning documents** — three different primaries across
+the design, the SAP and D12; the SAP forbidding a figure it then quotes forty lines later; the R3 gate
+recommended on one page and rejected on another; ~512 seeds priced four ways; the batch plan and the
+execution disagreeing on seed size; `v2.5` described as never run and as the resolved era of a committed
+diagnostic. None of those are presentation defects, and settling them needs decisions about which document
+is authoritative — not a rewrite. They are recorded on the ticket with the reader's quotes, and they belong
+to a follow-up effort rather than to this map, whose out-of-scope section forbids rewriting the owning
+documents' numbers.

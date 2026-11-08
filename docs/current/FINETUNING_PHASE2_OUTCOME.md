@@ -41,11 +41,12 @@ ratio — the owning analysis makes the same point. And the gain is **within-mod
 an improvement in TabPFN's own accuracy, not a narrowing of the gap to another method. Choosing whether to
 use a tabular foundation model at all remains a far larger decision than choosing whether to tune one.
 
-Costs, measured rather than modelled: the anchor's replication launch was **$0.188**; a four-arm launch at
-the larger training budget was **$0.0368**; the Spanish cell completed for **$0.065** after a **$0.10**
-probe replaced a projection that had been wrong by two orders of magnitude (all four in
-[`FINETUNING_COST_AND_CONTROLS.md`](FINETUNING_COST_AND_CONTROLS.md)). A programme-scale figure was
-withdrawn for being modelled rather than measured, and should not be quoted.
+Costs, measured rather than modelled: the anchor's replication launch was **$0.188**
+([the replication result](../analyses/finetuning_replication_result.md)); a four-arm launch at the larger
+training budget was **$0.0368** ([the cost page](FINETUNING_COST_AND_CONTROLS.md)); and the Spanish cell
+completed for **$0.065** after a probe that came in at **$0.153** across five attempts, three of which
+failed ([D20](FINETUNING_DECISION_LOG.md)). A programme-scale figure was withdrawn for being modelled rather
+than measured, and should not be quoted.
 
 ## 3. Dataset by dataset
 
