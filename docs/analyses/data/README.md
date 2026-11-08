@@ -73,6 +73,7 @@ per thing the diagnostic measured. Regenerate with:
 
 ```
 python3 scripts/diagnostics/export_records.py --run tests/fixtures/diagnostics/d2_importance
+python3 scripts/diagnostics/export_records.py --run tests/fixtures/diagnostics/d1_profiling
 ```
 
 **What the table is the rows of.** Exactly the records you name, sorted by dataset then family then
@@ -157,14 +158,61 @@ the record and in the regenerate command, and `importance` from it is an approxi
 whole-table measurement. The TabPFN arm is the local v2.5 checkpoint, not the v3 the frontier
 numbers used — that is why `model_resolved_version` is a column.
 
-### `d1_profiling.csv` — not present yet
+### `d1_profiling.csv`
 
-D1's profile table lands the first time D1 is run after #407. No D1 record exists on disk: the D1
-runs predate the exporter and `outputs/diagnostics/` is git-ignored, so there are no bytes to
-export. It will have one row per dataset and carry `n_rows`, the feature counts, the missingness
-and correlation summaries, `max_vif` with the reason it could not be computed, and the target's
-shape. `target` and `missing_by_column` are compact JSON in their columns rather than flattened,
-because the table is one row per dataset.
+D1 (#302), one row per dataset: the four anchor datasets, profiled from the committed CSVs. The
+record is `outputs/diagnostics/d1_profiling/<run id>-<dataset>/record.json`; the four this table was
+built from are committed under `tests/fixtures/diagnostics/d1_profiling/`, all from one run
+(`20261107T112100Z-<dataset>`), so `record_sha` is checkable with `shasum -a 256` as it is for D2.
+The run was $0 and fits nothing: D1 counts and correlates columns.
+
+| Column | Meaning |
+| --- | --- |
+| `run_id` | the diagnostic run: `20261107T112100Z-<dataset>` |
+| `dataset` | `coil2000`, `eudirectlapse`, `spanish_motor_lapse` or `uslapseagent` |
+| `n_rows` | rows in the committed CSV, before any split |
+| `n_cols` | columns including the target |
+| `n_features` | columns excluding the target |
+| `n_numeric_features`, `n_categorical_features` | the feature columns by pandas dtype |
+| `numeric_to_categorical_ratio` | numeric ÷ categorical; empty when there are no categoricals |
+| `n_features_after_one_hot` | the width a one-hot encoding would produce — what a linear method actually sees |
+| `feature_row_ratio` | `n_features_after_one_hot ÷ n_rows`: features per row, the shape that makes a full-data fit cheap or expensive |
+| `missing_rate` | mean per-cell missing rate across all columns |
+| `n_cols_with_missing`, `max_col_missing_rate` | how many columns miss anything, and the worst one |
+| `n_high_cardinality_features` | categorical columns with at least 50 distinct values (`HIGH_CARDINALITY` in the producer) |
+| `max_vif` | largest variance inflation factor over the numeric block, from the inverse correlation matrix |
+| `vif_reason` | why `max_vif` is empty, when it is — one of the producer's six: fewer than two numeric features, more than 200, too few complete rows, missing values in the correlation matrix, a singular matrix, or non-positive variance |
+| `max_abs_feature_correlation` | the largest absolute pairwise correlation among numeric features |
+| `target` | compact JSON: `kind` (`binary`, `categorical`, `numeric`), and for binary the `positive_rate`, `n_positive` and `entropy_bits` |
+| `missing_by_column` | compact JSON of every column with any missing value; `{}` when none has |
+| `dataset_sha256` | sha256 of the raw CSV — the checkable anchor above |
+| `record_sha` | sha256 of the `record.json` this row came from |
+
+**Two things visible in the four rows.** `coil2000` carries a near-duplicate pair — correlated at
+**0.999625**, with `max_vif` **1675** — a property of the data that any reading of its features has
+to live with. And every anchor dataset has `missing_rate` 0.0: missingness is not a lever in this
+pilot, which is a finding stated by the table rather than a column to go looking for.
+
+**What these profiles are of.** They are profiles of the committed CSVs, which is not always what the
+pilot fits: `spanish_motor_lapse` declares two leak-drops (`N_claims_year`, `Cost_claims_year`, #444),
+so the loader hands the model 20 features and a one-hot width of 22, against the 22 / 24 in this
+table. D2 read the same file the same way and also reports 22. The row is right about the file it
+names; it is not a claim about the fitted width.
+
+**D1 is deterministic given the CSV.** A second run of `eudirectlapse` — 6 November, for D5's
+citation — is committed beside this one at
+`tests/fixtures/diagnostics/d1_profiling-repro/`, and a test compares the two: all seventeen
+measurements and the dataset hash are identical, while `record_sha` differs because it hashes the
+record file (`created_utc`, `git_sha` and all), not the measurement. That record is not the table's
+source and is exported nowhere.
+
+A D1 record carries `model_version: v3_default` although D1 fits nothing: the record contract
+requires the field, and for D1 it attests the label this environment resolves to rather than
+anything about the numbers. The profile is the CSV's, not a model's.
+
+`max_abs_feature_correlation` on `eudirectlapse` also reproduces D5's 0.9905 between `prem_final` and
+`prem_pure` — two tools computing the same number by different routes, which is a consistency check
+rather than independent evidence.
 
 ### D3 and D5
 
