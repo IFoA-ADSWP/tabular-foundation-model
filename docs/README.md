@@ -1,6 +1,22 @@
 # Docs Index — what to read, in what order
 
-Start from your role, not the file list. Deliberately no document count here: this index held a stale one for as long as the work outgrew it, and a number nobody checks is a claim waiting to be false. Every finding is version-pinned — see [MODEL_VERSIONS.md](MODEL_VERSIONS.md) before citing a number.
+This repository is the evidence base for applying tabular foundation models to insurance modelling: a
+benchmark, a fine-tuning programme, and the diagnostics behind both. Phase 2 of the fine-tuning programme has
+closed — a small gain on one lapse dataset, no gain we can detect on two others, and one dataset stopped
+because it could not be measured at the precision the design required. The outcome is in
+[current/FINETUNING_PHASE2_OUTCOME.md](current/FINETUNING_PHASE2_OUTCOME.md), and where its numbers come from
+is in [EVIDENCE_MAP.md](EVIDENCE_MAP.md).
+
+## Start here
+
+| If you want… | Begin with |
+| --- | --- |
+| **The outcome** — did fine-tuning help, and by how much? | [FINETUNING_PHASE2_OUTCOME.md](current/FINETUNING_PHASE2_OUTCOME.md) — the canonical statement of what Phase 2 found |
+| **To check a number** — where does this figure come from? | [EVIDENCE_MAP.md](EVIDENCE_MAP.md) — which tree holds what, and what a citation must have |
+| **The method and the decisions** | [FINETUNING_PILOT_DESIGN.md](current/FINETUNING_PILOT_DESIGN.md) (what was proposed and why) and [FINETUNING_DECISION_LOG.md](current/FINETUNING_DECISION_LOG.md) (what was decided, with its caveats) |
+| **Something specific** | the role table below, or the tier list that follows it |
+
+Every finding is version-pinned — see [MODEL_VERSIONS.md](MODEL_VERSIONS.md) before citing a number.
 
 ## How this documentation is organised
 
@@ -15,38 +31,29 @@ the document is worth to you now.
 
 **The current line of work, by tier.**
 
-- **current** — `docs/current/FINETUNING_PILOT_DESIGN.md` (canonical proposal) · `docs/current/FINETUNING_STATUS_BRIEF.md` · `docs/current/FINETUNING_FINDINGS.md` · `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md` · `docs/current/FINETUNING_EXECUTION_RUNBOOK.md` · `docs/current/FINETUNING_COST_AND_CONTROLS.md` · `docs/current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md` · `docs/current/FINETUNING_DECISION_LOG.md` · `docs/current/FINETUNING_PREREQUISITES.md` · `docs/current/FINETUNING_PROBE_RESULTS.md` · `docs/current/FINETUNING_LITERATURE.md`
+- **current** — `docs/current/FINETUNING_PHASE2_OUTCOME.md` (the outcome) · `docs/current/FINETUNING_PILOT_DESIGN.md` (canonical proposal) · `docs/current/FINETUNING_FINDINGS.md` · `docs/current/FINETUNING_STATUS_BRIEF.md` · `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md` · `docs/current/FINETUNING_EXECUTION_RUNBOOK.md` · `docs/current/FINETUNING_COST_AND_CONTROLS.md` · `docs/current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md` · `docs/current/FINETUNING_DECISION_LOG.md` · `docs/current/FINETUNING_PREREQUISITES.md` · `docs/current/FINETUNING_PROBE_RESULTS.md` · `docs/current/FINETUNING_LITERATURE.md`
 - **historical** — `docs/archive/PILOT_2_BRIEFING.md`
 - **reference** — `docs/reference/PROBE_PLAN.md` · `docs/reference/PROBE_FIRST_RUN.md` · `docs/reference/PILOT_2_DESIGN.md` · `docs/reference/PILOT_2_DESIGN_ALTERNATIVE.md` · `docs/reference/PILOT_2_DECISION_GRAPH.md` (its step 0 fired) · `docs/reference/FINE_TUNING_PILOT_RESULTS.md` · the five v2-era fine-tuning pages listed in the literature record
 - **archive** — everything in the legacy tables further down this file: the earlier benchmark, analysis and session documents.
 
+**Programme history.** R1 (first pilot, no reliable gain) → Pilot 2 (the wider staged proposal) → the probe at
+the smaller budget, negative → **Phase 2 at the larger budget, closed 2026-11-07**: a small gain on one
+dataset, equivalences on two, and one dataset stopped on resolution. Earlier-era documents carry a status
+banner; where a banner and a front section disagree, the document the banner points at wins. (Code eras —
+fine-tuning, scripts, notebook — are a different axis; see *Era legend* below.)
+
 **The rule for adding a document:** it enters as **current** only if it carries content nothing else carries; otherwise it is `reference` from the start. When a current document stops being current it is amended with a dated note and its tier changes — never deleted, because the trail is the point.
 
-**Two folders are not tiered reports**, because they are read *before* a build rather than after one. Read them when the question is "should we build this, and how", not "what did we measure":
+**Not tiered reports.** Read these when the question is "should we build this, and how" or "where does this
+number live", not "what did we measure":
 
 - `docs/plans/` — one plan per task, written before non-trivial work and committed with it. **A plan outranks a fresh ticket**: check here before speccing or building, because the ticket you are about to write may already be covered.
 - `docs/adr/` — accepted decisions that constrain the code, one per decision, cited by the plans that rely on them.
+- `EVIDENCE_MAP.md`, `MODEL_VERSIONS.md` and `REPORT_REGISTRY.md` — lookup pages that sit at this level because a reader consults them beside a claim, not after one.
 
-**Enforcement.** `scripts/check_doc_status.py` asserts that every report in the three tiers declares a status in its first fifteen lines. It currently **fails**, and its output is the backfill list. The count lives in that output rather than in this sentence: a number nobody re-runs is a claim waiting to be false.
-
-## Start here — the current line of work (fine-tuning on lapse data)
-
-Everything below indexes the whole repository. **If you are here for the fine-tuning programme, read these first.**
-
-| Question | Document |
-| --- | --- |
-| What is being proposed, and why | `docs/current/FINETUNING_PILOT_DESIGN.md` — the canonical funded proposal and decision framework |
-| What is the short stakeholder summary? | `docs/current/FINETUNING_STATUS_BRIEF.md` |
-| What did the probes actually find? | `docs/current/FINETUNING_PROBE_RESULTS.md` — the 2,000-row result is superseded by the 10,000-row measurement |
-| What diagnostics are planned? | `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md` — Phase 1 methods |
-| What does the evidence registry say? | `docs/current/FINETUNING_FINDINGS.md` — current versus superseded claims |
-| What does the execution runbook contain? | `docs/current/FINETUNING_EXECUTION_RUNBOOK.md` — commands and acceptance procedure |
-| What did it cost? | `docs/current/FINETUNING_COST_AND_CONTROLS.md` — measured anchors and cost controls |
-| What is the statistical plan? | `docs/current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md` |
-| Where is the technical history? | `docs/current/FINETUNING_EXPERIMENT_REFERENCE.md` and `docs/reference/` |
-| Where is the raw evidence? | `../outputs/gpu-pilot/` — records, logs, manifests, and per-arm predictions under `runs/<run_id>/` |
-
-**Eras.** R1 (first pilot, no reliable gain) → Pilot 2 (the wider staged proposal) → the probe (2,000 rows, negative) → **the current funded diagnostics and full pilot**, where the row cap was lifted to 10,000 and every fine-tuning rung beat raw with intervals excluding zero. Earlier-era documents carry a status banner; where a banner and a front section disagree, the canonical pilot design wins.
+**Enforcement.** `scripts/check_doc_status.py` asserts that every report in the three tiers declares a status
+in its first fifteen lines, and that the findings registry carries no restated number. Run it with
+`./scripts/check.sh docstatus`.
 
 The report-level index is `docs/REPORT_REGISTRY.md` and is deliberately not restated here, so there is exactly one place to update when a report is added.
 
