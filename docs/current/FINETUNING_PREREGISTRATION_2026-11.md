@@ -6,6 +6,13 @@
 > D12–D14 in `FINETUNING_DECISION_LOG.md`. **Tickets:** #396 (this document), #398 (the verdict tool),
 > #399 (the probe).
 
+> **Amended 2026-11-08, after the run.** The pin this document specifies could not be carried: the launcher
+> had no way to pass one (#402), and `tabpfn` 8.5.0 defaulted `version: auto` to `ModelVersion.V3`. The run
+> therefore resolved to `v3_default` — the same line the anchor ran — but it was **not** pinned by checkpoint
+> path. The result document states this plainly and warns against the claim. Read "pinned by checkpoint path"
+> below as the intent the launch could not honour, not as a description of what ran. The body is left as it
+> was written, because a pre-registration that edits itself after the data is not a pre-registration.
+
 This document is the **dated amendment** the escalation rule requires: that rule forbids adding seeds
 after seeing data, and this fixes the seed count's formula before any data exists. A launch record
 must name this document.
