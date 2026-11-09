@@ -2,6 +2,11 @@
 
 > **Technical reference, not the canonical proposal.** The current funded diagnostics and full pilot are defined in `docs/current/FINETUNING_PILOT_DESIGN.md`. This document preserves the detailed experiment history and technical rationale. Where the two disagree, the full pilot design wins.
 
+> **Dated marker (2026-11-09).** Superseded for the outcome. The programme this reference describes has
+> run: Phase 2 closed on 2026-11-07 (D22), and the result is in
+> [`FINETUNING_PHASE2_OUTCOME.md`](FINETUNING_PHASE2_OUTCOME.md). Read this page for the design and the
+> measurement method; it is not the current answer.
+
 ---
 
 ## The design being proposed (read this first — everything below is reference)

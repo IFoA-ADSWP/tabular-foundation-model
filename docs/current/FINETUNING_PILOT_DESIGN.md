@@ -5,6 +5,11 @@
 > Diagnostics: `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md`
 > Status summary: `docs/current/FINETUNING_STATUS_BRIEF.md`
 
+> **Dated marker (2026-11-09).** Executed in part, deferred in part. Phase 2 closed on 2026-11-07 (D22);
+> Phase 3 — transfer and pooling — remains unrun and unauthorised. The outcome is in
+> [`FINETUNING_PHASE2_OUTCOME.md`](FINETUNING_PHASE2_OUTCOME.md). This page remains the authority for the
+> method and the gates, not for the result.
+
 > **Start here.** This is the canonical current proposal. The status brief is the short stakeholder summary; the diagnostics, cost, statistical, decision, and execution documents are supporting appendices. If another document appears to describe a different programme, this document takes precedence.
 
 ---
