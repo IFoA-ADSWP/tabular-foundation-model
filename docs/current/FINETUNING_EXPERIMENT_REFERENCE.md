@@ -494,7 +494,7 @@ Otherwise stop at R2 and report findings.
 
 From `requirements.txt`:
 - Python 3.12+
-- `tabpfn>=6,<7` (local weights, v3 default)
+- `tabpfn==8.5.0` (local weights, `v3_default`; the v2 path uses `requirements-legacy.txt`)
 - `torch>=2.0,<3`
 - `numpy`, `pandas`, `scikit-learn`
 - `pyarrow` (for Parquet I/O)
