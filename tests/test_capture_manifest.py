@@ -140,3 +140,42 @@ def test_nothing_is_written_outside_the_run_directory(tmp_path):
     assert _cli("--run", str(run)).returncode == 0
 
     assert {p for p in tmp_path.rglob("*")} - before == {run / "capture.json"}
+
+
+def _folded_run(tmp_path: Path) -> Path:
+    """A run with two folds, which the v1 shape refuses and v2 must carry."""
+    run = tmp_path / "20261109T000000Z"
+    for fold in (0, 1):
+        slot = run / "freMTPL2freq" / "A_raw" / f"seed0_fold{fold}"
+        slot.mkdir(parents=True)
+        np.save(slot / "predictions.npy", np.array([0.1, 0.2, 0.3]))
+        np.save(slot / "ground_truth.npy", np.array([0.0, 0.0, 1.0]))
+        (slot / "meta.json").write_text(
+            json.dumps({"arm": "A_raw", "seed": 0, "fold": fold, "test_rows": 3})
+        )
+    return run
+
+
+def test_a_folded_run_writes_schema_two_with_a_fold_per_entry(tmp_path):
+    run = _folded_run(tmp_path)
+
+    result = _cli("--run", str(run))
+    assert result.returncode == 0, result.stderr
+
+    manifest = json.loads((run / "capture.json").read_text())
+    assert manifest["schema_version"] == 2
+    assert [(c["fold"], c["seed"]) for c in manifest["captures"]] == [(0, 0), (1, 0)]
+    assert all("fold" in c for c in manifest["captures"])
+
+
+def test_a_non_integer_fold_label_refuses(tmp_path):
+    run = tmp_path / "20261109T000000Z"
+    slot = run / "freMTPL2freq" / "A_raw" / "seed0_foldA"
+    slot.mkdir(parents=True)
+    (slot / "meta.json").write_text("{}")
+
+    result = _cli("--run", str(run))
+
+    assert result.returncode == 1
+    assert "fold" in result.stderr
+

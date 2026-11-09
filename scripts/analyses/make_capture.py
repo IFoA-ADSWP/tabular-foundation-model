@@ -7,9 +7,11 @@ Offline over an existing run, no paid path involved:
 
 Reads `<run>/<dataset>/<arm>/seed<S>_fold<F>/`, hashes `predictions.npy` and
 `ground_truth.npy` as the record does, and writes `capture.json` at the run root. An arm whose
-array was not retained still gets an entry: null hashes and a reason naming the file. A run that
-cannot be described honestly — no slots, two datasets, a folded slot, a slot with no record —
-exits non-zero and names what is wrong.
+array was not retained still gets an entry: null hashes and a reason naming the file. A folded
+run writes `schema_version: 2` with a `fold` on every entry; a foldless run keeps the original
+`schema_version: 1` bytes. A run that cannot be described honestly — no slots, two datasets, a
+fold label that is neither `None` nor an integer, a slot with no record — exits non-zero and
+names what is wrong.
 """
 
 from __future__ import annotations

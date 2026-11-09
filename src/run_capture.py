@@ -1,8 +1,12 @@
 """The run capture manifest: what a run retained, and what it did not (#362).
 
-One `capture.json` per run directory, `schema_version: 1`, an entry per arm × seed carrying the
-row count and the hashes of the two arrays — or null hashes and a reason when an array was not
-retained. The shape was decided in #355; this module only writes it.
+One `capture.json` per run directory, an entry per arm × seed × fold carrying the row count and
+the hashes of the two arrays — or null hashes and a reason when an array was not retained. The
+shape was decided in #355; this module only writes it.
+
+Two schema versions exist. `schema_version: 1` is the original arm × seed shape and stays
+byte-identical, so the committed anchor still matches. `schema_version: 2` is written when any
+slot carries a real fold: every entry gains a `fold` key, which is an integer or null.
 
 **The hashes cover the array's contiguous bytes, not the `.npy` file's bytes.** The record
 already spells `predictions_sha256` that way (`provenance.sha256_array`), and the
@@ -26,6 +30,7 @@ import numpy as np
 from provenance import sha256_array
 
 CAPTURE_SCHEMA_VERSION = 1
+CAPTURE_SCHEMA_VERSION_FOLDED = 2
 
 _RUN_ID = re.compile(r"^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$")
 _SLOT = re.compile(r"^seed(\d+)_fold(\w+)$")
@@ -41,10 +46,11 @@ class CaptureRefused(Exception):
 
 @dataclass(frozen=True)
 class Slot:
-    """One arm × seed directory, and the files a manifest entry points at."""
+    """One arm × seed × fold directory, and the files a manifest entry points at."""
 
     arm: str
     seed: int
+    fold: int | None
     directory: Path
     record: Path
 
@@ -79,10 +85,11 @@ def created_utc_from_run_id(run_id: str) -> str:
 
 
 def discover_slots(run_dir: Path) -> tuple[str, list[Slot]]:
-    """The dataset name and every arm × seed slot under `<run>/<dataset>/<arm>/seed<S>_fold<F>`.
+    """The dataset name and every arm × seed × fold slot under
+    `<run>/<dataset>/<arm>/seed<S>_fold<F>`.
 
     Refuses rather than guessing: a run with no slots, more than one dataset, an unrecognised
-    slot name, a folded slot (the decided shape has no `fold` field), or a slot whose record is
+    slot name, a fold label that is neither `None` nor an integer, or a slot whose record is
     missing.
     """
     run_dir = Path(run_dir)
@@ -108,11 +115,15 @@ def discover_slots(run_dir: Path) -> tuple[str, list[Slot]]:
                     f"{slot_dir} is not an arm × seed slot (seed<S>_fold<F>); "
                     "the capture shape has no place for it"
                 )
-            seed, fold = int(match.group(1)), match.group(2)
-            if fold != "None":
+            seed, fold_label = int(match.group(1)), match.group(2)
+            if fold_label == "None":
+                fold: int | None = None
+            elif fold_label.isdigit():
+                fold = int(fold_label)
+            else:
                 raise CaptureRefused(
-                    f"{slot_dir} is fold {fold}; the capture shape is per arm × seed and carries "
-                    "no fold field, so two folds would collide"
+                    f"{slot_dir} has fold label {fold_label!r}; a folded capture needs an integer "
+                    "fold (or 'None' for the original arm × seed shape)"
                 )
             record = slot_dir / RECORD
             if not record.is_file():
@@ -120,7 +131,9 @@ def discover_slots(run_dir: Path) -> tuple[str, list[Slot]]:
                     f"{slot_dir} has no {RECORD}; a capture entry points at its record and a "
                     "pointer to nothing is not a manifest"
                 )
-            slots.append(Slot(arm=arm_dir.name, seed=seed, directory=slot_dir, record=record))
+            slots.append(
+                Slot(arm=arm_dir.name, seed=seed, fold=fold, directory=slot_dir, record=record)
+            )
 
     if not slots:
         raise CaptureRefused(f"{dataset_dir} holds no arm records; there is nothing to capture")
@@ -136,7 +149,7 @@ def _rows(slot: Slot, predictions, truth) -> int | None:
     return json.loads(slot.record.read_text(encoding="utf-8")).get("test_rows")
 
 
-def _entry(slot: Slot) -> dict:
+def _entry(slot: Slot, folded: bool) -> dict:
     predictions = np.load(slot.predictions) if slot.predictions.is_file() else None
     truth = np.load(slot.truth) if slot.truth.is_file() else None
 
@@ -149,27 +162,33 @@ def _entry(slot: Slot) -> dict:
     if missing:
         reason = " and ".join(f"{name} not retained" for name in missing)
 
-    return {
-        "arm": slot.arm,
-        "seed": slot.seed,
-        "rows": _rows(slot, predictions, truth),
-        "predictions_sha256": None if predictions is None else sha256_array(predictions),
-        "truth_sha256": None if truth is None else sha256_array(truth),
-        "record": slot.relative_record,
-        "reason": reason,
-    }
+    entry = {"arm": slot.arm, "seed": slot.seed}
+    if folded:
+        # v1 must stay byte-identical; v2 puts the fold after the seed.
+        entry["fold"] = slot.fold
+    entry.update(
+        {
+            "rows": _rows(slot, predictions, truth),
+            "predictions_sha256": None if predictions is None else sha256_array(predictions),
+            "truth_sha256": None if truth is None else sha256_array(truth),
+            "record": slot.relative_record,
+            "reason": reason,
+        }
+    )
+    return entry
 
 
 def build_capture(run_dir: Path) -> dict:
     """The manifest as data. Deterministic: the same directory yields the same dict."""
     run_dir = Path(run_dir)
     dataset, slots = discover_slots(run_dir)
+    folded = any(slot.fold is not None for slot in slots)
     return {
-        "schema_version": CAPTURE_SCHEMA_VERSION,
+        "schema_version": CAPTURE_SCHEMA_VERSION_FOLDED if folded else CAPTURE_SCHEMA_VERSION,
         "run_id": run_dir.resolve().name,
         "dataset": dataset,
         "created_utc": created_utc_from_run_id(run_dir.resolve().name),
-        "captures": [_entry(slot) for slot in slots],
+        "captures": [_entry(slot, folded) for slot in slots],
     }
 
 

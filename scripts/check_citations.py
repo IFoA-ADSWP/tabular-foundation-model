@@ -2,9 +2,11 @@
 """The citation check: a run cited in `docs/` must have a capture (#364).
 
 A **citation** is a bare run id (`YYYYMMDDTHHMMSSZ`) in any file under `docs/`. A cited run must
-have `results/<id>/capture.json` whose entries cover every arm × seed present in the run with
-non-null hashes. Ids predating the rule live in `docs/analyses/legacy_citations.txt`; that file is
-append-only and may not gain an id from after the rule date.
+have `results/<id>/capture.json` whose entries cover every arm × seed × fold present in the run
+with non-null hashes. A `schema_version: 2` capture also requires each record to name
+`versions.tabpfn`, `versions.python` and `weights.path` or `weights.sha256`. Ids predating the
+rule live in `docs/analyses/legacy_citations.txt`; that file is append-only and may not gain an id
+from after the rule date.
 
 Conversation is not citation: issue text and commit messages are not scanned, deliberately.
 
@@ -21,6 +23,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import NamedTuple, Optional
 
 # A run id, not a launch id: the lease label is `<run id>-<hex>`, so a trailing `-`
 # means this is a launch and the capture lives under the run it names.
@@ -65,16 +68,64 @@ def legacy_ids(root: Path) -> set[str]:
     return ids
 
 
-def expected_entries(run_dir: Path) -> set[tuple[str, int]]:
-    """The arm × seed pairs the run's own records declare."""
-    pairs: set[tuple[str, int]] = set()
+class Expected(NamedTuple):
+    """One arm × seed × fold record a capture must cover."""
+
+    arm: str
+    seed: int
+    fold: Optional[int]
+    record: Path
+
+
+def expected_entries(run_dir: Path) -> list[Expected]:
+    """The arm × seed × fold records the run's own records declare.
+
+    `fold` is null in the original arm × seed runs and an integer in a folded run. The field is
+    read from the record, never inferred from the directory name.
+    """
+    expected: list[Expected] = []
     for meta in run_dir.glob("**/seed*_fold*/meta.json"):
         record = json.loads(meta.read_text())
         arm = record.get("arm") or meta.parent.parent.name
         seed = record.get("seed")
-        if seed is not None:
-            pairs.add((arm, int(seed)))
-    return pairs
+        if seed is None:
+            continue
+        fold = record.get("fold")
+        expected.append(
+            Expected(
+                arm=arm,
+                seed=int(seed),
+                fold=None if fold is None else int(fold),
+                record=meta,
+            )
+        )
+    return expected
+
+
+def _environment_problems(run_id: str, exp: Expected, entry: dict) -> list[str]:
+    """The v2 record fields that make the environment checkable (#506).
+
+    A v2 capture entry points at a `meta.json`; that record must name the package that ran it,
+    the interpreter, and the weights. The field names are the existing provenance block's —
+    `versions.tabpfn`, `versions.python`, `weights.path`/`weights.sha256` — so the gate does not
+    invent a second spelling.
+    """
+    try:
+        record = json.loads(exp.record.read_text())
+    except json.JSONDecodeError as exc:
+        return [f"{run_id}: {exp.record} is not valid JSON ({exc})"]
+
+    versions = record.get("versions") or {}
+    weights = record.get("weights") or {}
+    where = f"{exp.arm} seed {exp.seed} fold {exp.fold}"
+    problems: list[str] = []
+    if not versions.get("tabpfn"):
+        problems.append(f"{run_id}: {where} record has no versions.tabpfn")
+    if not versions.get("python"):
+        problems.append(f"{run_id}: {where} record has no versions.python")
+    if not (weights.get("path") or weights.get("sha256")):
+        problems.append(f"{run_id}: {where} record has no weights.path or weights.sha256")
+    return problems
 
 
 def check_run(root: Path, run_id: str) -> list[str]:
@@ -90,23 +141,37 @@ def check_run(root: Path, run_id: str) -> list[str]:
     except json.JSONDecodeError as exc:
         return [f"{run_id}: capture.json is not valid JSON ({exc})"]
 
-    if manifest.get("schema_version") != 1:
+    if manifest.get("schema_version") not in (1, 2):
         return [
-            f"{run_id}: capture.json schema_version {manifest.get('schema_version')!r} is not 1"
+            f"{run_id}: capture.json schema_version {manifest.get('schema_version')!r} "
+            "is not 1 or 2"
         ]
 
-    entries = {(e.get("arm"), e.get("seed")): e for e in manifest.get("captures", [])}
+    entries = {
+        (e.get("arm"), e.get("seed"), e.get("fold")): e
+        for e in manifest.get("captures", [])
+    }
+    expected = expected_entries(run_dir)
     problems: list[str] = []
-    for arm, seed in sorted(expected_entries(run_dir)):
-        entry = entries.get((arm, seed))
+    for exp in sorted(
+        expected, key=lambda e: (e.arm, e.seed, -1 if e.fold is None else e.fold)
+    ):
+        entry = entries.get((exp.arm, exp.seed, exp.fold))
         if entry is None:
             problems.append(
-                f"{run_id}: capture.json has no entry for {arm} seed {seed}"
+                f"{run_id}: capture.json has no entry for "
+                f"{exp.arm} seed {exp.seed} fold {exp.fold}"
             )
-        elif not entry.get("predictions_sha256") or not entry.get("truth_sha256"):
+            continue
+        if not entry.get("predictions_sha256") or not entry.get("truth_sha256"):
             reason = entry.get("reason") or "no reason recorded"
-            problems.append(f"{run_id}: {arm} seed {seed} was not retained ({reason})")
-    if not expected_entries(run_dir):
+            problems.append(
+                f"{run_id}: {exp.arm} seed {exp.seed} fold {exp.fold} "
+                f"was not retained ({reason})"
+            )
+        if manifest.get("schema_version") == 2:
+            problems.extend(_environment_problems(run_id, exp, entry))
+    if not expected:
         problems.append(
             f"{run_id}: no arm records found, so the capture cannot be checked"
         )

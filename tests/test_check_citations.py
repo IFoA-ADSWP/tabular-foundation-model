@@ -155,3 +155,80 @@ def test_a_failure_names_the_file_and_line_that_cited_the_id(tmp_path):
     message = stderr.getvalue()
     assert "docs/analysis.md:1" in message, message
     assert "cited at" in message, message
+
+
+def make_folded_repo(
+    tmp_path: Path,
+    *,
+    schema: int = 2,
+    env: bool = True,
+    entry_fold: int | None = 0,
+    meta_fold: int = 0,
+) -> Path:
+    """A v2 capture over one folded slot, with the environment fields a real record carries."""
+    root = tmp_path / "repo"
+    (root / "docs").mkdir(parents=True)
+    (root / "docs" / "analysis.md").write_text(f"The run `{RUN}` produced these numbers.\n")
+    slot = root / "results" / RUN / "freMTPL2freq" / "A_raw" / f"seed43_fold{meta_fold}"
+    slot.mkdir(parents=True)
+    meta = {"arm": "A_raw", "seed": 43, "fold": meta_fold, "test_rows": 100}
+    if env:
+        meta["versions"] = {"tabpfn": "8.5.0", "python": "3.12.0"}
+        meta["weights"] = {
+            "path": "/cache/tabpfn-v3-regressor-v3_default.ckpt",
+            "sha256": "c" * 64,
+        }
+    (slot / "meta.json").write_text(json.dumps(meta))
+    capture = {
+        "arm": "A_raw",
+        "seed": 43,
+        "fold": entry_fold,
+        "rows": 100,
+        "predictions_sha256": "a" * 64,
+        "truth_sha256": "b" * 64,
+        "record": f"A_raw/seed43_fold{meta_fold}/meta.json",
+        "reason": None,
+    }
+    (root / "results" / RUN / "capture.json").write_text(
+        json.dumps(
+            {
+                "schema_version": schema,
+                "run_id": RUN,
+                "dataset": "freMTPL2freq",
+                "created_utc": "2026-11-02T10:10:00Z",
+                "captures": [capture],
+            }
+        )
+    )
+    return root
+
+
+def test_a_folded_v2_capture_with_environment_passes(tmp_path):
+    assert run(make_folded_repo(tmp_path)) == 0
+
+
+def test_a_folded_v2_capture_with_the_wrong_fold_fails(tmp_path):
+    assert run(make_folded_repo(tmp_path, entry_fold=1)) == 1
+
+
+def test_a_v2_capture_missing_the_tabpfn_version_fails(tmp_path):
+    root = make_folded_repo(tmp_path)
+    meta_path = (
+        root / "results" / RUN / "freMTPL2freq" / "A_raw" / "seed43_fold0" / "meta.json"
+    )
+    meta = json.loads(meta_path.read_text())
+    del meta["versions"]["tabpfn"]
+    meta_path.write_text(json.dumps(meta))
+    assert run(root) == 1
+
+
+def test_a_v2_capture_missing_the_model_path_and_hash_fails(tmp_path):
+    root = make_folded_repo(tmp_path)
+    meta_path = (
+        root / "results" / RUN / "freMTPL2freq" / "A_raw" / "seed43_fold0" / "meta.json"
+    )
+    meta = json.loads(meta_path.read_text())
+    del meta["weights"]
+    meta_path.write_text(json.dumps(meta))
+    assert run(root) == 1
+
