@@ -7,6 +7,10 @@
 > **Decision it applies:** D16's breadth programme and #444. **Data:** `spanish_motor_lapse.csv`,
 > two post-outcome columns dropped.
 
+> **Completed (2026-11-09).** The cell this document fixes the design for ran — sixteen seeds under D19/D20
+> — and returned an equivalence. The result is in
+> [`FINETUNING_PHASE2_OUTCOME.md`](FINETUNING_PHASE2_OUTCOME.md).
+
 This document is the dated pre-registration [#444](https://github.com/IFoA-ADSWP/tabular-foundation-model/issues/444)
 requires. It exists so that a Spanish result cannot be relaunched, resized or reinterpreted after its
 probe is seen. A launch record must name this document.

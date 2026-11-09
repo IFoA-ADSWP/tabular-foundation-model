@@ -4,6 +4,11 @@
 >
 > **Status: DRAFT for sign-off.** This plan fixes the analysis **before** any data exists, so that the
 > result cannot be chosen after seeing it. Any departure is recorded as a dated deviation (§10).
+
+> **Dated marker (2026-11-09).** Applied, not draft. The probes and the Phase 2 cells this plan governs have
+> run and the phase closed on 2026-11-07 (D22); the outcome is in
+> [`FINETUNING_PHASE2_OUTCOME.md`](FINETUNING_PHASE2_OUTCOME.md). Its sign-off is one pass by the owner, not
+> two independent reviewers — a limitation the plan records and this marker does not repair.
 > Related historical design: `docs/reference/PILOT_2_DESIGN.md` (§5, §6.5), `docs/current/FINETUNING_DECISION_LOG.md` (D4, D8), `docs/reference/PILOT_2_DECISION_GRAPH.md`.
 
 ## 1. Purpose and scope

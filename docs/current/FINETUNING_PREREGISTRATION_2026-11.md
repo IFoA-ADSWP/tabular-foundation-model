@@ -13,6 +13,10 @@
 > below as the intent the launch could not honour, not as a description of what ran. The body is left as it
 > was written, because a pre-registration that edits itself after the data is not a pre-registration.
 
+> **Completed (2026-11-09).** Both authorised launches ran; the replication closed the line (D15), and Phase 2
+> closed on 2026-11-07 (D22). The result is in
+> [`FINETUNING_PHASE2_OUTCOME.md`](FINETUNING_PHASE2_OUTCOME.md).
+
 This document is the **dated amendment** the escalation rule requires: that rule forbids adding seeds
 after seeing data, and this fixes the seed count's formula before any data exists. A launch record
 must name this document.
