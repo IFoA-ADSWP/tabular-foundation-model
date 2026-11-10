@@ -132,6 +132,20 @@ completeness:
 
 `docs/analyses/data/README.md` is in no group: it takes no amendment.
 
+## Added after review
+
+Three changes go beyond the rows above. Each was forced by a review finding, and each is recorded here
+rather than folded silently into the table:
+
+- **`current/FINETUNING_PILOT_DESIGN.md:13`** — the design's "supporting appendices … takes precedence"
+  sentence. The destination requires every losing passage amended, and this is the collision the page
+  resolves; no row existed for it.
+- **`current/FINETUNING_DECISION_LOG.md:490`** — the note gained a sentence marking `≈ $2.95` as a
+  projection. The row authorises the batch correction only, and this was a fifth price the table never listed.
+- **`MODEL_VERSIONS.md:89-96`** — the row asked for one entry covering "D1/D2". D1 is not a v2.5 run: its
+  four records say `v3_default`, dated 2026-11-07, and `docs/analyses/data/README.md` says it fits nothing.
+  The entry splits into two, one per diagnostic.
+
 ## Verification
 
 Run the full gate — `./scripts/check.sh` — and in particular:
@@ -147,4 +161,4 @@ Then check by hand, because the gate cannot:
 - Every site still contains its original phrase — in the text, or in the note that supersedes it.
 - The page's table has fourteen rows and carries no figure.
 - Each note names what won — a decision, a row or a passage — with its date and the ticket that decided it.
-- The per-file counts above sum to the 45 rows actually applied.
+- The per-file counts above sum to the 45 rows; a row that covers several passages may appear as several notes.

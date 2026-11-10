@@ -135,7 +135,8 @@ Does fine-tuning TabPFN on insurance data improve performance on **unseen insura
 *2026-11-09 (#521): this is **another repository's inventory**, marked rather than corrected — the rows keep that repository's counts. Counts for this repository are owned by `FINETUNING_COST_AND_CONTROLS.md` (its registered/not-registered table) and match the CSVs. Sizing a row cap from this table sizes it against a different repository.*
 
 > **2026-11-09** (#521). The "three datasets" above is the count of datasets with a **lapse target**, not the
-> pilot scope — and "as stated in the front section" is false: the front section states four.
+> pilot scope — and "as stated in the front section" is false: the front section states three; the design
+> states four.
 
 ### Classification targets (binary)
 

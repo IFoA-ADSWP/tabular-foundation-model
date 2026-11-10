@@ -12,6 +12,11 @@
 
 > **Start here.** This is the canonical current proposal. The status brief is the short stakeholder summary; the diagnostics, cost, statistical, decision, and execution documents are supporting appendices. If another document appears to describe a different programme, this document takes precedence.
 
+> **2026-11-09** (#518). "Supporting appendices" and "takes precedence" are scoped by subject, not by rank:
+> this document wins on the design, and the statistical analysis plan wins on analysis rules.
+> `docs/DOCUMENT_AUTHORITY.md` states the order. This sentence is the collision that left the metric rule
+> ambiguous.
+
 ---
 
 ## 1. Purpose

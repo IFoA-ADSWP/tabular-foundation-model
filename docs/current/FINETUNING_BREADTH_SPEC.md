@@ -104,7 +104,7 @@ against that seed's `A_raw`, the per-seed SD, and therefore `k`. This is what tu
 number, and it is the measurement D10 requires before a replication is approved.
 
 **Stage 2 — resolution gate, no spend.** Compute `k`. **Stop** if the power at δ = 0.002 is below 0.80,
-or if `k`'s cost exceeds the per-launch ceiling that applies to the run. A stop is reported as a stop;
+or if `k`'s cost exceeds the per-launch ceiling that D12 or D17 sets for the run. A stop is reported as a stop;
 the target effect is never relaxed to make a no-go look like a go.
 
 > **2026-11-09** (#520). This read "the per-launch ceiling that **D10** sets for the run". D10 sets no ceiling
