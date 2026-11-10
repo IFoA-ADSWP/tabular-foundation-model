@@ -51,8 +51,8 @@ run_pytest() {
 run_shellcheck() {
   need shellcheck "brew install shellcheck, or apt-get install shellcheck"
   echo "== shellcheck (severity >= ${SHELLCHECK_SEVERITY})"
-  # shellcheck disable=SC2086  # glob is deliberate: the paid-run scripts, by name
-  shellcheck --severity="${SHELLCHECK_SEVERITY}" scripts/gpu_helpers/*.sh
+  # shellcheck disable=SC2086  # globs are deliberate: the paid-run scripts and the repo's own
+  shellcheck --severity="${SHELLCHECK_SEVERITY}" scripts/*.sh scripts/gpu_helpers/*.sh
 }
 
 # The two trees that hold committed experiment evidence. A change here is not forbidden,

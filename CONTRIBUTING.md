@@ -32,13 +32,17 @@ Merge commits are allowed (we preserve commit SHAs as evidence anchors), squash 
 git clone https://github.com/IFoA-ADSWP/tabular-foundation-model.git
 cd tabular-foundation-model
 
-# 2. Create environment (conda or venv)
-python -m venv .venv
-source .venv/bin/activate   # or .venv\Scripts\activate on Windows
+# 2. Build the environment the tests are pinned to (Python 3.12)
+./scripts/bootstrap_dev.sh
 
-# 3. Install dependencies
-pip install -r requirements.txt
+# 3. Run the gate
+.venv/bin/pytest tests/ -q
 ```
+
+`bootstrap_dev.sh` installs `requirements.lock` and asserts the pins; `README.md` also documents a
+`uv` path. Creating a venv by hand and installing `requirements.txt` works for most scripts but can
+resolve a different scientific stack, which changes test results — see
+`docs/DEVELOPMENT_ENVIRONMENT.md`.
 
 ## Repository Layout
 
@@ -105,7 +109,7 @@ Every contribution should satisfy these before review:
 - [ ] **Reports registered** — any new file in `docs/reports/` must have a row in `docs/REPORT_REGISTRY.md` with topic_key, audience, source_workbooks, and evidence_files
 - [ ] **Changelog updated** — user-facing changes get an entry in `CHANGELOG.md` under `[Unreleased]`
 - [ ] **Pre-commit green** — see below
-- [ ] **Gate green** — `./scripts/check.sh` (ruff, pytest, shellcheck, evidence, citation, verdict)
+- [ ] **Gate green** — `./scripts/check.sh` (ruff, pytest, shellcheck, evidence, doclinks, docstatus, citation, verdict)
 - [ ] **Smoke test passes** — `pytest tests/` after any change to `src/`
 - [ ] **PR focused** — one experiment or fix per pull request
 

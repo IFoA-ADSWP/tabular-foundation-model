@@ -51,7 +51,7 @@ number live", not "what did we measure":
 
 - `docs/plans/` — one plan per task, written before non-trivial work and committed with it. **A plan outranks a fresh ticket**: check here before speccing or building, because the ticket you are about to write may already be covered.
 - `docs/adr/` — accepted decisions that constrain the code, one per decision, cited by the plans that rely on them.
-- `EVIDENCE_MAP.md`, `MODEL_VERSIONS.md`, `DOCUMENT_AUTHORITY.md` and `REPORT_REGISTRY.md` — lookup pages that sit at this level because a reader consults them beside a claim, not after one. `DOCUMENT_AUTHORITY.md` states which document wins when two disagree.
+- `EVIDENCE_MAP.md`, `MODEL_VERSIONS.md`, `DOCUMENT_AUTHORITY.md`, `DEVELOPMENT_ENVIRONMENT.md` and `REPORT_REGISTRY.md` — lookup pages that sit at this level because a reader consults them beside a claim, not after one. `DOCUMENT_AUTHORITY.md` states which document wins when two disagree; `DEVELOPMENT_ENVIRONMENT.md` says how to build the environment the gate runs in and which checkout you are in.
 
 **Enforcement.** `scripts/check_doc_status.py` asserts that every report in the three tiers declares a status
 in its first fifteen lines, and that the findings registry carries no restated number. Run it with

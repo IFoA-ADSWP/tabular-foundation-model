@@ -6,14 +6,19 @@
 #
 # A harness-created worktree can arrive with an unrelated commit and almost no files: the first
 # symptom is `ModuleNotFoundError` from a test, which reads as a missing module rather than a wrong
-# tree. This script builds the tree in one command and refuses to print a path it has not checked.
+# tree. This script builds the tree in one command, checks that the new tree is at origin/<base>,
+# and removes it (branch included) if the check fails, so a retry is not blocked by the leftovers.
 #
 # The worktree lands beside the repository as <repo>-worktrees/<branch-with-slashes-as-dashes>.
 
 set -euo pipefail
 
-if [ $# -lt 1 ]; then
+usage() {
   echo "usage: $(basename "$0") <branch> [base]" >&2
+}
+
+if [ $# -lt 1 ] || [ $# -gt 2 ]; then
+  usage
   exit 2
 fi
 
@@ -36,12 +41,19 @@ fi
 git -C "$ROOT" fetch origin "$BASE"
 git -C "$ROOT" worktree add "$PATH_OUT" -b "$BRANCH" "origin/$BASE"
 
-# Refuse a tree that cannot run this repository's tests. The check is the point of the script.
-if [ ! -f "$PATH_OUT/tests/conftest.py" ] || [ ! -f "$PATH_OUT/AGENTS.md" ]; then
-  echo "error: $PATH_OUT is incomplete; the worktree was not created from origin/$BASE" >&2
+# Refuse a tree that is not what was asked for, and leave nothing behind that blocks a retry.
+expected="$(git -C "$ROOT" rev-parse "origin/$BASE")"
+actual="$(git -C "$PATH_OUT" rev-parse HEAD 2>/dev/null || true)"
+if [ "$actual" != "$expected" ] || [ ! -f "$PATH_OUT/tests/conftest.py" ]; then
+  echo "error: $PATH_OUT is not origin/$BASE (expected $expected, found ${actual:-nothing})" >&2
+  echo "       removing the worktree and branch so the command can be retried" >&2
+  git -C "$ROOT" worktree remove --force "$PATH_OUT" || true
+  git -C "$ROOT" branch -D "$BRANCH" || true
   exit 1
 fi
 
 echo "worktree ready: $PATH_OUT"
 echo "  cd \"$PATH_OUT\""
-echo "  ./scripts/bootstrap_dev.sh   # if .venv is absent in the new tree"
+if [ ! -f "$PATH_OUT/.venv/bin/python" ]; then
+  echo "  ./scripts/bootstrap_dev.sh   # this tree has no .venv yet (about 1.9 GB)"
+fi

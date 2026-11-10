@@ -1,7 +1,7 @@
 # Plan — a reproducible local environment and a worktree that works
 
 **Issue:** #530 (retro on #516 / #526).
-**Status:** Proposed.
+**Status:** Current — implemented and verified; the review findings are addressed in the same branch.
 
 ## What and why
 
@@ -35,9 +35,11 @@ Each cost a diagnosis that a checked-in command removes.
 
 ## Judgement calls
 
-1. **The lock, not the ranges.** `requirements.txt` says `pandas>=2,<3`; a fresh resolve can leave
-   that range, and did. The lock is the only thing that makes "the gate" mean the same locally as
-   in CI.
+1. **The lock, not the ranges.** `requirements.txt` says `pandas>=2,<3`, and a resolve *within* that
+   range can still move scipy (1.10 vs 1.17) or lightgbm (two majors), so two machines can both
+   satisfy the file and disagree on the numbers. The lock fixes one set of bytes. It does not make
+   today's local environment equal to CI's, which installs the ranges; the page says so rather than
+   implying more.
 2. **The worktree script checks for `conftest.py`.** The failure it prevents is invisible: an
    incomplete tree presents as a missing module, not as the wrong tree. The check is one line and
    converts a diagnosis into a refusal.
@@ -51,10 +53,12 @@ Each cost a diagnosis that a checked-in command removes.
 ## Verification
 
 - `./scripts/bootstrap_dev.sh` run end to end: Python 3.12.2, `tabpfn 8.5.0`, numpy 1.26.4,
-  pandas 2.3.3, scipy 1.17.1, sklearn 1.6.1 — the lock's versions.
+  pandas 2.3.3, scipy 1.17.1, sklearn 1.6.1 — the lock's versions. The script now asserts those
+  pins and exits non-zero on a mismatch, which is what the first review found it did not do.
 - `.venv/bin/pytest tests/ -q` in the new environment — the full gate, not a targeted suite, because
   the point of the change is that the full gate becomes runnable.
-- `shellcheck --severity=warning scripts/bootstrap_dev.sh scripts/new_worktree.sh` — clean.
+- `shellcheck --severity=warning` — run by hand during development, and now by `./scripts/check.sh`,
+  which lints `scripts/*.sh` as well as the paid-run scripts.
 - `./scripts/new_worktree.sh chore/530-script-smoke` created a complete tree at `origin/main`
-  (conftest and `AGENTS.md` present); the worktree and branch were removed afterwards.
+  (conftest and `AGENTS.md` present); re-run after the review to exercise the cleanup path.
 - `./scripts/check.sh` — the eight checks.
