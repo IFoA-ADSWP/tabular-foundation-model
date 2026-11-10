@@ -44,9 +44,9 @@ use a tabular foundation model at all remains a far larger decision than choosin
 Costs, measured rather than modelled: the anchor's replication launch was **$0.188**
 ([the replication result](../analyses/finetuning_replication_result.md)); a four-arm launch at the larger
 training budget was **$0.0368** ([the cost page](FINETUNING_COST_AND_CONTROLS.md)); and the Spanish cell
-completed for **$0.065** after a probe that came in at **$0.153** across five attempts, three of which
-failed ([D20](FINETUNING_DECISION_LOG.md)). A programme-scale figure was withdrawn for being modelled rather
-than measured, and should not be quoted.
+cost **$0.3315** — a **$0.065** replication, a **$0.153** probe across five attempts of which three failed,
+and a **$0.043** single-seed measurement ([D20](FINETUNING_DECISION_LOG.md)). A programme-scale figure was
+withdrawn for being modelled rather than measured, and should not be quoted.
 
 ## 3. Dataset by dataset
 
