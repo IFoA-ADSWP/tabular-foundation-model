@@ -14,6 +14,7 @@ is in [EVIDENCE_MAP.md](EVIDENCE_MAP.md).
 | **The outcome** — did fine-tuning help, and by how much? | [FINETUNING_PHASE2_OUTCOME.md](current/FINETUNING_PHASE2_OUTCOME.md) — the canonical statement of what Phase 2 found |
 | **To check a number** — where does this figure come from? | [EVIDENCE_MAP.md](EVIDENCE_MAP.md) — which tree holds what, and what a citation must have |
 | **The method and the decisions** | [FINETUNING_PILOT_DESIGN.md](current/FINETUNING_PILOT_DESIGN.md) (what was proposed and why) and [FINETUNING_DECISION_LOG.md](current/FINETUNING_DECISION_LOG.md) (what was decided, with its caveats) |
+| **Two documents disagree** — which one wins? | [DOCUMENT_AUTHORITY.md](DOCUMENT_AUTHORITY.md) — the order, the owner of each subject, and the fourteen settled disagreements |
 | **Something specific** | the role table below, or the tier list that follows it |
 
 Every finding names the model version it was measured under — see [MODEL_VERSIONS.md](MODEL_VERSIONS.md)
@@ -50,7 +51,7 @@ number live", not "what did we measure":
 
 - `docs/plans/` — one plan per task, written before non-trivial work and committed with it. **A plan outranks a fresh ticket**: check here before speccing or building, because the ticket you are about to write may already be covered.
 - `docs/adr/` — accepted decisions that constrain the code, one per decision, cited by the plans that rely on them.
-- `EVIDENCE_MAP.md`, `MODEL_VERSIONS.md` and `REPORT_REGISTRY.md` — lookup pages that sit at this level because a reader consults them beside a claim, not after one.
+- `EVIDENCE_MAP.md`, `MODEL_VERSIONS.md`, `DOCUMENT_AUTHORITY.md` and `REPORT_REGISTRY.md` — lookup pages that sit at this level because a reader consults them beside a claim, not after one. `DOCUMENT_AUTHORITY.md` states which document wins when two disagree.
 
 **Enforcement.** `scripts/check_doc_status.py` asserts that every report in the three tiers declares a status
 in its first fifteen lines, and that the findings registry carries no restated number. Run it with

@@ -55,6 +55,7 @@ cannot verify a prediction hash against it. When a future run is cited, capture 
 
 ## If two documents disagree
 
-The capture decides, then the owning document, then any summary. A summary that restates a number it does
-not own is the known failure mode here; the findings registry is written to forbid it, and the page you are
-reading exists so the walk from summary to capture is always the same walk.
+The order is stated once, in [DOCUMENT_AUTHORITY.md](DOCUMENT_AUTHORITY.md) — for a number it ends at the
+capture. A summary that restates a number it does not own is the known failure mode here; the findings
+registry is written to forbid it, and this page exists so the walk from summary to capture is always the
+same walk.
