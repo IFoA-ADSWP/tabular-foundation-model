@@ -8,7 +8,10 @@
 ## Answer
 
 **Yes.** Fine-tuning at 30 epochs beats the in-run raw baseline by **+0.0035 ROC AUC**, 95% interval
-**[+0.00272, +0.00428]**, with Brier no worse (+0.0003 against a +0.001 allowance).
+**[+0.00272, +0.00428]**, with Brier no more than 0.001 worse (+0.0003 against a +0.001 allowance).
+
+> **2026-11-09.** Corrected: this read "Brier no worse", which contradicts its own parenthesis — +0.0003 is an
+> increase, and an increase is what the guard caps.
 
 | | Value |
 |---|---|
