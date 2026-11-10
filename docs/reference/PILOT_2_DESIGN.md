@@ -345,6 +345,9 @@ criterion cannot discriminate the hypothesis and must be replaced before the run
 **Rejected:** the `R3 gate` in `docs/current/FINETUNING_EXPERIMENT_REFERENCE.md` — its second criterion (B > E)
 is satisfied by raw TabPFN, so it cannot discriminate the fine-tuning hypothesis.
 
+> **2026-11-09.** Binding. This rejection is why the gate does not appear in the Phase 2 outcome, and why
+> D12 was written as the claim rule.
+
 ### 6.6 Cost
 
 Stage 2 multiplies Stage 1's per-target cost by the number of targets and pool policies. At P1a
