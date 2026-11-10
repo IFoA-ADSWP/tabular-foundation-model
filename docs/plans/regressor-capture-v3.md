@@ -32,7 +32,8 @@ through `src/run_capture.py`.
 ## Judgement calls
 
 1. **Raw CSV rows, not prepared-frame positions.** A reader must be able to `read_csv` and join
-   without repository code; the loader's own order is recorded by the fold seed.
+   without repository code; the index is absolute in that file, so no loader order has to be
+   reconstructed.
 2. **The index is the fold's, not the slot's.** Fifteen slots carry it; a disagreement is a bug, and
    a test asserts they agree rather than trusting the writer.
 3. **Quantiles are stored pre-clip and on the trained scale.** A rescoring reader chooses its own

@@ -74,12 +74,13 @@ claim to be comparable while missing the field that makes a comparison meaningfu
 _Avoid_: status, score, pass/fail
 
 **Metric**:
-A number computed from a run's retained evidence — its truth and predictions, and any
-source column its stored `test_index` joins — under a named definition. A **registered
-metric** carries a version in `docs/analyses/METRIC_REGISTRY.md` and can be cited; an
-ad-hoc score computed from the same arrays is a metric too, but it is not citable until
-it is registered. Distinct from the **training objective**, which the fit minimises, and
-from the **decision rule**, which applies registered metrics to reach a verdict.
+A number computed from a run's retained evidence — its truth and predictions, its retained
+predictive distribution, and any source column its stored `test_index` joins — under a
+named definition. A **registered metric** carries a version in
+`docs/analyses/METRIC_REGISTRY.md` and can be cited; an ad-hoc score computed from the
+same arrays is a metric too, but it is not citable until it is registered. Distinct
+from the **training objective**, which the fit minimises, and from the **decision rule**,
+which applies registered metrics to reach the pre-registered decision state.
 _Avoid_: score, measure, loss (for a scored quantity)
 
 **Frontier**:

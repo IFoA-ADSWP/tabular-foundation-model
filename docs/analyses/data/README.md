@@ -13,7 +13,7 @@ One row per prediction from the fine-tuning anchor's run: 4 arms × 2 seeds × 1
 | `dataset` | `uslapseagent` |
 | `arm` | the training configuration: `A_raw`, `B_ft3`, `B_ft10`, `B_ft30` |
 | `seed` | 43 or 44 — each seed is its own split and its own fit |
-| `row` | position in the test array, 0-based. **Not** the row in `data/raw/uslapseagent.csv` |
+| `row` | position in the test array, 0-based. **Not** the row in `data/raw/uslapseagent.csv` — a v3 capture carries that mapping in `test_index.npy` (#538); this v1 anchor does not |
 | `y_true` | the true label, 0 or 1 |
 | `probability` | the model's positive-class probability for that row |
 | `capture_sha` | sha256 of the predictions array this row came from |
@@ -40,10 +40,12 @@ against labels. To check a row against the raw evidence, `capture_sha` matches t
 binning, cost-weighted thresholds, precision–recall at a chosen operating point, bootstrap
 intervals, per-row loss distributions.
 
-**You cannot** attach these rows to customer attributes. The capture stores the two arrays and
-their hashes, not the test indices, so `row` identifies a prediction within an arm and seed but
-not a row of the source table. Segment, fairness and "error by age band" analyses need the test
-indices stored first (out of scope of #387).
+**You cannot** attach these rows to customer attributes. This table is exported from a v1 capture,
+which stores the two arrays and their hashes and nothing else, so `row` identifies a prediction
+within an arm and seed but not a row of the source table. A v3 capture (#538) adds
+`test_index.npy`, whose values are the `data/raw/<dataset>.csv` row numbers, so segment, fairness and
+"error by age band" analyses become possible for runs recorded after that contract; this anchor
+predates it and cannot be retrofitted.
 
 ## Explore or cite
 
@@ -56,7 +58,8 @@ The run id you cite must have a `capture.json`; a cited run without one fails th
 
 ## Rescore tables
 
-`rescore` writes `<run_id>-rescore-<metricset>.csv` here, one row per arm × seed × metric, with
+`rescore` writes `<run_id>-rescore-<metricset>.csv` here, one row per arm × seed (× fold, for a
+folded capture) × metric, with
 the metric version, the capture hash, the tool version, the record's value and whether the two
 agree. Regenerate with:
 

@@ -148,11 +148,13 @@ Poisson deviance was named, and others will follow: a metric that needs a source
 predictive distribution cannot be computed from `y` and `ŷ` alone. Exposure is stored as a
 convenience — with `test_index` it is joinable from the pinned CSV — so scoring needs no join.
 
-**Schema v3, and when it applies.** A *folded* run writes `schema_version: 3` when **every** slot
-carries `test_index.npy` and `quantiles.npy`. `exposure.npy` is required when and only when the
-dataset is `freMTPL2freq`; its absence on severity and VehValue is neither a null hash nor a
-refusal. A folded run without the new arrays stays v2; a foldless run stays v1. v3 has no partial
-form: a slot that owes a required array and lacks it is refused, not recorded with a null hash.
+**Schema v3, and when it applies.** A run *declares* v3 by writing `test_index.npy` in its first
+slot. From that declaration every slot must carry `test_index.npy` and `quantiles.npy`;
+`exposure.npy` is required when and only when the dataset is `freMTPL2freq`, and its absence on
+severity and VehValue is neither a null hash nor a refusal. A partial run is **refused**, not
+demoted to v2 — otherwise one missing array turns fourteen faithful slots into an unhashed capture
+that passes the older gate — and a foldless run may not write the arrays at all, because a v1
+manifest has no place to hash them. A folded run that never declares v3 stays v2.
 
 | Array | Shape, dtype | What it is |
 |---|---|---|
@@ -172,17 +174,19 @@ collapses fifteen entries per arm into three and refuses honest runs. The v2 fol
 in #501 is already unreadable, and #538 fixes it before v3 exists.
 
 **The record.** Every slot's `meta.json` gains `verdict_metric` (the name: `poisson_deviance` for
-`freMTPL2freq`, `rmse` for the other two), `verdict_metric_value`, and `rmse`. The v3 gate requires
-all three keys.
+`freMTPL2freq`, `rmse` for the other two), `verdict_metric_value`, `rmse` and `quantile_levels`.
+The v3 gate requires all four keys. `rescore` compares a metric only when its name equals
+`verdict_metric`; `rmse` duplicates `verdict_metric_value` on severity and VehValue by design, so a
+rescorer that reads `verdict_metric_value` as a deviance would be reading RMSE.
 
 **The metrics.** Six registry rows, each with its definition and the finding that put it there:
 
 | Metric | Definition |
 |---|---|
 | `rmse/1`, `mae/1`, `medae/1` | over all rows, on the stored target scale |
-| `rmsle/1` | over rows with `y ≥ 0`; `log1p` applied to both sides |
-| `poisson_deviance/1` | deviance of **counts**: `2·Σ[y·log(y/ŷ) − (y − ŷ)]`, the `y = 0` term taken as `ŷ`, `ŷ` clipped below at `1e-12` (the capture spec's scoring convention). Exposure is a *feature*, not an offset, in this metric; a rate-scale variant is a different name and version. |
-| `gini/1` | the normalised Gini, `2·AUC − 1`, where AUC is the concordance between `ŷ` and `y` |
+| `rmsle/1` | `log1p` applied to both sides, with `ŷ` clipped below at 0; rows with `y < 0` are excluded, and none of the three targets has one |
+| `poisson_deviance/1` | deviance of **counts**: `2·Σ[y·log(y/ŷ) − (y − ŷ)]`, with `ŷ` clipped below at `1e-12` (the capture spec's scoring convention) and `y = 0` handled by the limit: the bracket is `ŷ`, so that row contributes `2ŷ`. Exposure is a *feature*, not an offset; a rate-scale variant is a different name and version. |
+| `gini/1` | the normalised Gini, `2·AUC − 1`, where AUC is the concordance of `ŷ` against `y` over all row pairs with `y_i ≠ y_j` (pairs tied on `y` are excluded), a pair tied on `ŷ` scores one half, and a constant `ŷ` scores 0 |
 
 `tests/test_metric_registry.py` asserts today that the table holds exactly the metrics `rescore`
 computes; #538 redefines that assertion to cover both the classifier set and the regression set
@@ -193,10 +197,12 @@ Storing more is not scoring more. The verdict still uses Poisson deviance for `C
 the other two targets, and the trainer still minimises MSE, so a deviance null remains inconclusive
 unless `X_log1p` also nulls.
 
-The writer, the manifest's hashes and the gate's v3 requirement land with #538, and the capture
-carries roughly 35 MB of quantiles per target under `results/`, so that PR needs the
-`evidence-change` label. Until #538 lands, no run may claim this schema: the contract is stated here
-so the runner is built against it, not so a record can cite it early.
+The writer, the manifest's hashes and the gate's v3 requirement land with #538, and the capture is
+large: `quantiles.npy` is 720 kB per slot under the stated float64, which is about 76 MB for
+freMTPL2freq's seven Arms and 54 MB for each of the other two targets — roughly 185 MB of quantiles
+across the fair test, plus about 20 MB of index and exposure. That PR needs the `evidence-change`
+label if anything lands under `results/`. Until #538 lands, no run may claim this schema: the
+contract is stated here so the runner is built against it, not so a record can cite it early.
 
 ## Environment and implementation preconditions
 
