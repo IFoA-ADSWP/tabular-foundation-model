@@ -59,8 +59,8 @@ from each dataset's own probe rather than chosen.
 ### `uslapseagent` — the anchor
 
 Twenty-eight fresh seeds, 55–82, disjoint from the ten probe seeds that sized the run. The interval sits
-entirely above δ, so this is a clearing rather than a marginal pass. Brier's worst seed was +0.0003 against
-an allowance of +0.001; the null control's false-positive rate was 0.0000 over 5,000 label permutations per
+entirely above δ, so this is a clearing rather than a marginal pass. Brier's worst seed was 0.0003 worse against
+an allowance of 0.001; the null control's false-positive rate was 0.0000 over 5,000 label permutations per
 seed, as pre-registered.
 
 Evidence: `results/20261104T123839Z/`, and the owning analysis
@@ -115,6 +115,11 @@ loses the only cell in which the intervention worked.
 target the model never saw — has never been run. The `C` and `D` pooled arms and the shuffled-label control
 are unexecuted, not unsuccessful. Phase 3 was cancelled before breadth began and was never reinstated for
 transfer, so there is no result in either direction.
+
+**A missing estimand is not a null.** The statistical analysis plan names the paired difference in log loss
+as its primary estimand; this report carries no log-loss figure, because none was computed for Phase 2. The
+claim was tested on ROC AUC with a Brier veto, which is what the tables above report. The absence is a gap in
+the reporting, not evidence that the effect is absent on that measure.
 
 ## 5. What would change our mind
 
