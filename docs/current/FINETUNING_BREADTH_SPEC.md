@@ -104,8 +104,12 @@ against that seed's `A_raw`, the per-seed SD, and therefore `k`. This is what tu
 number, and it is the measurement D10 requires before a replication is approved.
 
 **Stage 2 — resolution gate, no spend.** Compute `k`. **Stop** if the power at δ = 0.002 is below 0.80,
-or if `k`'s cost exceeds the per-launch ceiling that D10 sets for the run. A stop is reported as a stop;
+or if `k`'s cost exceeds the per-launch ceiling that applies to the run. A stop is reported as a stop;
 the target effect is never relaxed to make a no-go look like a go.
+
+> **2026-11-09.** This read "the per-launch ceiling that **D10** sets for the run". D10 sets no ceiling
+> (`FINETUNING_DECISION_LOG.md:177-178`). The ceilings that exist are D12's $0.15 and D17's $0.60, and a cell
+> may set its own — D19 set $0.50 for its probe and $3.00 for its replication.
 
 **Stage 3 — replication.** `A_raw` plus the chosen rung over `k` fresh seeds, random-effects (REML)
 interval, aggregated exactly as the anchor's was. A fresh permutation null on the replication's own
