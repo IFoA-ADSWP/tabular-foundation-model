@@ -137,6 +137,73 @@ training rows, test rows, `tabpfn_version`, `python_version`, `model_path` and c
 The evidence gate **fails** a run with a missing field. The runner produces the Capture through
 `src/run_capture.py`; the library is not patched.
 
+### Amendment 2026-11-10 — the capture carries row identity, exposure and quantiles
+
+> Added after a grilling with the owner; ticket #538. The decision rule, the 2% floor and the power
+> analysis are unchanged.
+
+The capture above was written for evidence: two arrays and their hashes prove that a prediction
+existed. It is not enough for a reader who wants a metric other than the pre-registered one.
+Poisson deviance was named, and others will follow: a metric that needs a source column or a
+predictive distribution cannot be computed from `y` and `ŷ` alone. Exposure is stored as a
+convenience — with `test_index` it is joinable from the pinned CSV — so scoring needs no join.
+
+**Schema v3, and when it applies.** A run *declares* v3 by writing `test_index.npy` in its first
+slot. From that declaration every slot must carry `test_index.npy` and `quantiles.npy`;
+`exposure.npy` is required when and only when the dataset is `freMTPL2freq`, and its absence on
+severity and VehValue is neither a null hash nor a refusal. A partial run is **refused**, not
+demoted to v2 — otherwise one missing array turns fourteen faithful slots into an unhashed capture
+that passes the older gate — and a foldless run may not write the arrays at all, because a v1
+manifest has no place to hash them. A folded run that never declares v3 stays v2.
+
+| Array | Shape, dtype | What it is |
+|---|---|---|
+| `test_index.npy` | `(n,)`, int64 | 0-based positions in `data/raw/<dataset>.csv` **as read, before any `dropna` or `reset_index`**. The record's `provenance.dataset.sha256` is what makes the join checkable. It is the fold's index, so every slot of one fold carries identical values. |
+| `exposure.npy` | `(n,)`, float64 | the raw `Exposure` column for the same rows; `freMTPL2freq` only |
+| `quantiles.npy` | `(9, n)`, float64 | nine rows in ascending level order `0.1…0.9`, one column per test row. Values are on the scale the Arm trained on (for `X_log1p`, `log1p` of the target) and are stored before any clip. `meta.json` records `quantile_levels`. |
+
+**The manifest and the gate.** v3 keeps every v2 requirement — `versions.tabpfn`, `versions.python`
+and `weights.path`/`weights.sha256` — and adds `test_index_sha256` and `quantiles_sha256` to every
+entry, plus `exposure_sha256` for `freMTPL2freq`. The citation gate applies the environment check to
+v2 and v3 alike and requires the array hashes for v3.
+
+**The reader and rescore.** `src/capture_reader.py` becomes version-aware and keys slots by
+`(arm, seed, fold)`; `VerifiedSlot` gains `fold` and `src/rescore.py` gains a `fold` column. This is
+not optional: today the reader accepts only schema 1 and keys by `(arm, seed)`, so a folded capture
+collapses fifteen entries per arm into three and refuses honest runs. The v2 folded capture shipped
+in #501 is already unreadable, and #538 fixes it before v3 exists.
+
+**The record.** Every slot's `meta.json` gains `verdict_metric` (the name: `poisson_deviance` for
+`freMTPL2freq`, `rmse` for the other two), `verdict_metric_value`, `rmse` and `quantile_levels`.
+The v3 gate requires all four keys. `rescore` compares a metric only when its name equals
+`verdict_metric`; `rmse` duplicates `verdict_metric_value` on severity and VehValue by design, so a
+rescorer that reads `verdict_metric_value` as a deviance would be reading RMSE.
+
+**The metrics.** Six registry rows, each with its definition and the finding that put it there:
+
+| Metric | Definition |
+|---|---|
+| `rmse/1`, `mae/1`, `medae/1` | over all rows, on the stored target scale |
+| `rmsle/1` | `log1p` applied to both sides, with `ŷ` clipped below at 0; rows with `y < 0` are excluded, and none of the three targets has one |
+| `poisson_deviance/1` | deviance of **counts**: `2·Σ[y·log(y/ŷ) − (y − ŷ)]`, with `ŷ` clipped below at `1e-12` (the capture spec's scoring convention) and `y = 0` handled by the limit: the bracket is `ŷ`, so that row contributes `2ŷ`. Exposure is a *feature*, not an offset; a rate-scale variant is a different name and version. |
+| `gini/1` | the normalised Gini, `2·AUC − 1`, where AUC is the concordance of `ŷ` against `y` over all row pairs with `y_i ≠ y_j` (pairs tied on `y` are excluded), a pair tied on `ŷ` scores one half, and a constant `ŷ` scores 0 |
+
+`tests/test_metric_registry.py` asserts today that the table holds exactly the metrics `rescore`
+computes; #538 redefines that assertion to cover both the classifier set and the regression set
+rather than weakening it. Further rows — pinball, Tweedie — are added when a document first needs
+their definition.
+
+Storing more is not scoring more. The verdict still uses Poisson deviance for `ClaimNb` and RMSE for
+the other two targets, and the trainer still minimises MSE, so a deviance null remains inconclusive
+unless `X_log1p` also nulls.
+
+The writer, the manifest's hashes and the gate's v3 requirement land with #538, and the capture is
+large: `quantiles.npy` is 720 kB per slot under the stated float64, which is about 76 MB for
+freMTPL2freq's seven Arms and 54 MB for each of the other two targets — roughly 185 MB of quantiles
+across the fair test, plus about 20 MB of index and exposure. That PR needs the `evidence-change`
+label if anything lands under `results/`. Until #538 lands, no run may claim this schema: the
+contract is stated here so the runner is built against it, not so a record can cite it early.
+
 ## Environment and implementation preconditions
 
 - `tabpfn==8.5.0` on Python 3.12, exact pin plus lock; a legacy requirements file keeps the v2
@@ -192,3 +259,4 @@ cannot, the implementation extends it rather than putting the treatment only in 
 | Date | Change |
 |---|---|
 | 2026-11-08 | Filed. VehValue's pooled membership is conditional on the fold-SD gate; `X_log1p` is co-primary for ClaimNb. |
+| 2026-11-10 | Capture v3: `test_index`, `exposure` and nine quantiles per slot, all hashed; six regression metrics registered. The decision rule and the 2% floor are unchanged (#538). |
