@@ -1,6 +1,7 @@
 # Fine-Tuning — What It Costs, and Why
 
-> **Status:** current as of 2026-10-31.
+> **Status:** current as of 2026-11-10 for the measured figures. The modelled scenarios are retained as
+> history and are labelled as such where they appear.
 
 
 > **Supporting cost appendix.** The canonical current proposal is `docs/current/FINETUNING_PILOT_DESIGN.md`. This page owns measured and modelled cost figures; it does not define the current pilot scope.
@@ -18,11 +19,45 @@ These are the figures currently supported by completed runs:
 | 2,000-row four-arm probe | **$0.0122** | Measured anchor for the low-data regime |
 | 10,000-row four-arm probe | **$0.0368** | Measured anchor for the positive regime |
 
-Transfer, breadth, and synthetic-ablation costs are not yet measured. Any new figure must be labelled measured or modelled before it is used in a proposal.
+Transfer and synthetic-ablation costs are not yet measured; the breadth cells' cost is measured, in D18 and D20. Any new figure must be labelled measured or modelled before it is used in a proposal.
+
+## Re-anchored on a measured unit (probe, 13 Sep)
+
+This is the section to use for cost. It supersedes the modelled scenarios further down, which are kept
+for provenance. The figures in those were modelled: a rate of $0.544-0.657/hr from the first pilot's GPUs,
+and per-arm times inferred from that run. The probe has now measured the same shape of experiment.
+
+| | |
+| --- | --- |
+| measured unit | `A_raw` + `B_ft3` + `B_ft10` + `B_ft30` on one dataset, 2,000 training rows |
+| wall | 2.53 min |
+| rate | $0.2893/hr (RTX PRO 4000, selected on value) |
+| **cost** | **$0.0122** |
+
+**Rate correction:** 1.9-2.3x below what the model assumed, so every modelled rung figure in the historical section is high by
+roughly that factor and should be re-derived rather than quoted.
+
+**Re-derived from the measured unit** (linear in datasets and seeds; modelled, not measured): the probe over
+all four registered datasets ~$0.049; an in-domain stage of 4 datasets x 3 seeds ~$0.146. **No figure for
+the transfer stage** -- pooling and the transfer arms are unbuilt and unmeasured, so there is nothing to
+scale.
+
+**Warm, not cold, and measured:** the unit above had weights already cached. A cold machine measured
+**$0.0429 for a pull that never finished**. Budget about $0.05 of overhead per cold attempt, separately
+from the science.
+
+**The number for the funding conversation:** seven runs on 13 Sep cost $0.0933 in total, of which the answer
+itself cost **$0.0122**. The account reports $0.5461 cumulative; the ledger's $0.6189 is an estimate.
+
+---
 
 ## Historical modelled scenarios
 
 The scenarios below are retained for provenance. They are not the current budget and must not be quoted as if they described the funded current programme.
+
+> **2026-11-10** (#537). These were modelled from a rate and per-arm timings the probe has since replaced;
+> they are high by 1.9–2.3× and every rung figure here should be re-derived rather than quoted. The measured
+> re-anchoring above is the number to use.
 
 | | Cost | In units of the run we have already done |
 | --- | --- | --- |
@@ -32,8 +67,9 @@ The scenarios below are retained for provenance. They are not the current budget
 | Pilot 2, and using the full datasets instead of a 2,000-row sample | ~$83 | about 1721 |
 | Credit available | $9.60 | |
 
-**The recommended path costs about a dollar fifty and fits the credit.** The two larger figures are
-what the same experiment costs with two optional extras, explained below.
+**As modelled, the recommended path cost about a dollar fifty and fitted the credit.** The two larger figures
+are what the same experiment costs with two optional extras, explained below. Neither was the price paid:
+the measured re-anchoring above is.
 
 ## Everything is priced in units of a run that already happened
 
@@ -322,29 +358,3 @@ It is worth **5p** to replace the assumption with a measurement — one small ru
 whether training longer helps at all. If it does not, the programme stops there for five pence
 rather than fifteen dollars.
 
-## Re-anchored on a measured unit (probe, 13 Sep) — supersedes the figures above
-
-The figures earlier in this document were modelled: a rate of $0.544-0.657/hr from the first pilot's GPUs,
-and per-arm times inferred from that run. The probe has now measured the same shape of experiment.
-
-| | |
-| --- | --- |
-| measured unit | `A_raw` + `B_ft3` + `B_ft10` + `B_ft30` on one dataset, 2,000 training rows |
-| wall | 2.53 min |
-| rate | $0.2893/hr (RTX PRO 4000, selected on value) |
-| **cost** | **$0.0122** |
-
-**Rate correction:** 1.9-2.3x below what the model assumed, so every modelled rung figure above is high by
-roughly that factor and should be re-derived rather than quoted.
-
-**Re-derived from the measured unit** (linear in datasets and seeds; modelled, not measured): the probe over
-all four registered datasets ~$0.049; an in-domain stage of 4 datasets x 3 seeds ~$0.146. **No figure for
-the transfer stage** -- pooling and the transfer arms are unbuilt and unmeasured, so there is nothing to
-scale.
-
-**Warm, not cold, and measured:** the unit above had weights already cached. A cold machine measured
-**$0.0429 for a pull that never finished**. Budget about $0.05 of overhead per cold attempt, separately
-from the science.
-
-**The number for the funding conversation:** seven runs on 13 Sep cost $0.0933 in total, of which the answer
-itself cost **$0.0122**. The account reports $0.5461 cumulative; the ledger's $0.6189 is an estimate.
