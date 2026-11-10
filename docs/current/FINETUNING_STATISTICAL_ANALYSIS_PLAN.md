@@ -68,11 +68,11 @@ AUC), positive means improvement. Every reported number states which convention 
   be set **in advance** — *an unset tolerance is not a pre-registration*. This is currently **TBD** and
   is flagged in §12 as a required number before sign-off.
 
-> **2026-11-09 — Brier and log loss.** Brier carries a **veto** under D12, so it has a decision role rather
+> **2026-11-09** (#518) — Brier and log loss. Brier carries a **veto** under D12, so it has a decision role rather
 > than none. Log loss keeps the primary reporting role stated above and is unreported in the Phase 2 outcome.
 >
-> **2026-11-09 — the calibration tolerance.** It is no longer TBD: set at sign-off on 2026-10-30, and §12.1
-> records the value. The paragraph above is stale, not an open question.
+> **2026-11-09** (#518) — the calibration tolerance. It is no longer TBD: set at sign-off on 2026-10-30, and §12
+> item 1 records the value. The paragraph above is stale, not an open question.
 
 All metrics are computed on the held-out test rows only. What the pipeline **asserts** is that no test row
 is in the training indices, the dropped remainder, the pool, or the inference **context** we construct

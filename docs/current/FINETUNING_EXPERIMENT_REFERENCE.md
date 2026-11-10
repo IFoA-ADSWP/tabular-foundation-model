@@ -44,7 +44,7 @@ all was settled for one configuration; what remains is the conditions under whic
 | analysis | paired bootstrap intervals, inverse-variance summary, Holm across the dataset family |
 | cost | measured, not modelled: about **$0.037** for a four-arm run at 10,000 rows |
 
-*2026-11-09 (#518): the `scope` row above counts datasets with a **lapse target**; it is not the pilot scope. The scope is the four-dataset family (`FINETUNING_PILOT_DESIGN.md:141`), and `coil2000` was stopped on resolution (D21), not excluded. The `primary metric` row is what Phase 2 **reported**; the claim rested on ROC AUC with a Brier veto (D12).*
+*2026-11-09 (#518): the `scope` row above counts datasets with a **lapse target**; it is not the pilot scope. The scope is the four-dataset family (`FINETUNING_PILOT_DESIGN.md:141`), and `coil2000` was stopped on resolution (D21), not excluded. The `primary metric` row is the design's **reporting priority**; log loss and ECE were not reported, and the claim rested on ROC AUC with a Brier veto (D12).*
 
 ### Relationship to the repository's own April protocol
 
@@ -427,7 +427,7 @@ Proceed to R3 if **any** of the following hold in R2 (seed 42):
 Otherwise stop at R2 and report findings.
 
 > **2026-11-09** (#519). Historical, and never evaluated: R2 never ran, so the gate was never applied. It is
-> rejected as a rule at `:778-797`, and `PILOT_2_DESIGN.md:345-346` rejects it for the same defect. Phase 2's
+> rejected as a rule in the gate-defect section below, and `PILOT_2_DESIGN.md:345-346` rejects it for the same defect. Phase 2's
 > rule is D12. Do not apply it to any later result.
 
 ---

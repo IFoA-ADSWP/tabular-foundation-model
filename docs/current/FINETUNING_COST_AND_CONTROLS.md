@@ -5,8 +5,9 @@
 
 > **Supporting cost appendix.** The canonical current proposal is `docs/current/FINETUNING_PILOT_DESIGN.md`. This page owns measured and modelled cost figures; it does not define the current pilot scope.
 
-> **2026-11-09** (#520). The breadth cells' cost is measured in D18 and D20. The four projections for the Spanish
-> cell are superseded by that measurement, and were never carried on this page.
+> **2026-11-09** (#520). The breadth cells' cost is measured in D18 and D20. The three projections for the
+> Spanish cell — and the misquoted fourth — are superseded by that measurement, and were never carried on this
+> page.
 
 ## Current measured anchors
 

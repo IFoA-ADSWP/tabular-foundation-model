@@ -496,7 +496,8 @@ DECISION: **`eudirectlapse` replication authorised (2026-11-04)** — `B_ft30`, 
 twelve batches planned, twenty launches run, $0.60 per launch ceiling, ≈ $2.95 and ≈ 11 h total.
 
 > **2026-11-09** (#520). Corrected: this line read "eight batches", which matches neither the body above (twelve)
-> nor the execution (twenty launches of twelve seeds, D18's "What was run").
+> nor the execution (twenty launches of twelve seeds, D18's "What was run"). The ≈ $2.95 here is also a
+> projection: the cell cost $0.3315, and the replication $0.065 (D20).
 Owner: scotthawes  Date: 2026-11-04  Section: §3
 
 ---

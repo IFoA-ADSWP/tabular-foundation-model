@@ -103,7 +103,8 @@ anchor's checkpoint field) and must not be re-described as v3.5.
 | `notebooks/adswp_project/REPLICATION_*` (seed 45, 70:30) | Apr 2026 | v2.0 via API (per paper) | Re-run on v3 before citing |
 | `outputs/current/tables/*revalidation*.csv` (2026-04-05) | 2026-04-05 | v2 era | Superseded by this repo's frontier runs |
 | `notebooks/baseline_experiments/01–08`, `scripts/*finetune*`, `scripts/run_*benchmark*` | Mar–Apr 2026 | v2 era | Methods reusable; numbers not portable |
-| `docs/analyses/data/*` (D1/D2 diagnostics) | 2026-11-04 | v2.5, local `tabpfn 6.4.1` | **v2.5 only — do not cite as v3** |
+| `docs/analyses/data/` — `d2_importance` | 2026-11-04 | v2.5, local `tabpfn 6.4.1` | **v2.5 only — do not cite as v3** |
+| `docs/analyses/data/` — `d1_profiling` | 2026-11-07 | record labels `v3_default`; **no model is fitted** | the profile is the CSV's, not a model's — the version label attests the environment, not the numbers |
 
 ## What to do
 

@@ -473,7 +473,7 @@ against a result, because it is specified on R2 and R2 has never run. The gap is
 recording, not design.
 
 > **2026-11-09** (#519). The gap is neither. The gate cannot refuse a null: its `B > E` branch is satisfied by raw
-> TabPFN, and its `B > A` branch failed in R1 (`FINETUNING_EXPERIMENT_REFERENCE.md:778-782`). It is rejected
+> TabPFN, and its `B > A` branch failed in R1 (the gate-defect section of `FINETUNING_EXPERIMENT_REFERENCE.md`). It is rejected
 > at `PILOT_2_DESIGN.md:345-346`, and Phase 2's rule is D12.
 
 ### 5d.6 What the test sets can actually resolve
