@@ -103,3 +103,8 @@ reset to `origin/main` and check for `tests/conftest.py` before the first edit.
   tree is preserved.
 - **Git operations on the `Documents` clone take minutes** — that volume is slow. Prefer the clone
   you are in; do not assume a 120 s `git ls-remote` timeout means the branch is gone.
+- **`git push` from a worktree whose git dir is on the `Documents` volume fails** with
+  `error: RPC failed; HTTP 400` and `send-pack: unexpected disconnect`, followed by the misleading
+  `Everything up-to-date`, even for a commit that is already on the server (measured 2026-11-10).
+  The checkout is the problem, not the branch: fetch the commit into a healthy clone and push from
+  there — `git fetch <worktree-path> <branch>:<branch> && git push origin <branch>`.
