@@ -143,32 +143,60 @@ The evidence gate **fails** a run with a missing field. The runner produces the 
 > analysis are unchanged.
 
 The capture above was written for evidence: two arrays and their hashes prove that a prediction
-existed. It is not enough for a reader who wants a metric other than the pre-registered one —
-Poisson deviance was named, and others will follow — because a metric that needs a source column,
-the exposure, or a predictive distribution cannot be computed from `y` and `ŷ` alone.
+existed. It is not enough for a reader who wants a metric other than the pre-registered one.
+Poisson deviance was named, and others will follow: a metric that needs a source column or a
+predictive distribution cannot be computed from `y` and `ŷ` alone. Exposure is stored as a
+convenience — with `test_index` it is joinable from the pinned CSV — so scoring needs no join.
 
-A folded run that carries the new arrays writes `schema_version: 3`:
+**Schema v3, and when it applies.** A *folded* run writes `schema_version: 3` when **every** slot
+carries `test_index.npy` and `quantiles.npy`. `exposure.npy` is required when and only when the
+dataset is `freMTPL2freq`; its absence on severity and VehValue is neither a null hash nor a
+refusal. A folded run without the new arrays stays v2; a foldless run stays v1. v3 has no partial
+form: a slot that owes a required array and lacks it is refused, not recorded with a null hash.
 
-| Array | What it is |
+| Array | Shape, dtype | What it is |
+|---|---|---|
+| `test_index.npy` | `(n,)`, int64 | 0-based positions in `data/raw/<dataset>.csv` **as read, before any `dropna` or `reset_index`**. The record's `provenance.dataset.sha256` is what makes the join checkable. It is the fold's index, so every slot of one fold carries identical values. |
+| `exposure.npy` | `(n,)`, float64 | the raw `Exposure` column for the same rows; `freMTPL2freq` only |
+| `quantiles.npy` | `(9, n)`, float64 | nine rows in ascending level order `0.1…0.9`, one column per test row. Values are on the scale the Arm trained on (for `X_log1p`, `log1p` of the target) and are stored before any clip. `meta.json` records `quantile_levels`. |
+
+**The manifest and the gate.** v3 keeps every v2 requirement — `versions.tabpfn`, `versions.python`
+and `weights.path`/`weights.sha256` — and adds `test_index_sha256` and `quantiles_sha256` to every
+entry, plus `exposure_sha256` for `freMTPL2freq`. The citation gate applies the environment check to
+v2 and v3 alike and requires the array hashes for v3.
+
+**The reader and rescore.** `src/capture_reader.py` becomes version-aware and keys slots by
+`(arm, seed, fold)`; `VerifiedSlot` gains `fold` and `src/rescore.py` gains a `fold` column. This is
+not optional: today the reader accepts only schema 1 and keys by `(arm, seed)`, so a folded capture
+collapses fifteen entries per arm into three and refuses honest runs. The v2 folded capture shipped
+in #501 is already unreadable, and #538 fixes it before v3 exists.
+
+**The record.** Every slot's `meta.json` gains `verdict_metric` (the name: `poisson_deviance` for
+`freMTPL2freq`, `rmse` for the other two), `verdict_metric_value`, and `rmse`. The v3 gate requires
+all three keys.
+
+**The metrics.** Six registry rows, each with its definition and the finding that put it there:
+
+| Metric | Definition |
 |---|---|
-| `test_index.npy` | 0-based positions in `data/raw/<dataset>.csv`, as `pandas.read_csv` returns it |
-| `exposure.npy` | the exposure per test row; freMTPL2freq only |
-| `quantiles.npy` | the library's nine deciles (0.1…0.9), for every Arm and the diagnostic |
+| `rmse/1`, `mae/1`, `medae/1` | over all rows, on the stored target scale |
+| `rmsle/1` | over rows with `y ≥ 0`; `log1p` applied to both sides |
+| `poisson_deviance/1` | deviance of **counts**: `2·Σ[y·log(y/ŷ) − (y − ŷ)]`, the `y = 0` term taken as `ŷ`, `ŷ` clipped below at `1e-12` (the capture spec's scoring convention). Exposure is a *feature*, not an offset, in this metric; a rate-scale variant is a different name and version. |
+| `gini/1` | the normalised Gini, `2·AUC − 1`, where AUC is the concordance between `ŷ` and `y` |
 
-The manifest hashes every array, and the citation gate requires those hashes for v3. v1 and v2 stay
-byte-identical, so the committed anchor is untouched. `meta.json` records the verdict metric per
-target plus RMSE for all three. Six regression metrics gain versioned rows in
-`docs/analyses/METRIC_REGISTRY.md` — `rmse/1`, `mae/1`, `medae/1`, `rmsle/1`, `poisson_deviance/1`,
-`gini/1` — and `src/rescore.py` gains a regression metric set. Pinball and Tweedie rows wait until a
-colleague cites one.
+`tests/test_metric_registry.py` asserts today that the table holds exactly the metrics `rescore`
+computes; #538 redefines that assertion to cover both the classifier set and the regression set
+rather than weakening it. Further rows — pinball, Tweedie — are added when a document first needs
+their definition.
 
 Storing more is not scoring more. The verdict still uses Poisson deviance for `ClaimNb` and RMSE for
 the other two targets, and the trainer still minimises MSE, so a deviance null remains inconclusive
 unless `X_log1p` also nulls.
 
-The writer, the manifest's hashes and the gate's v3 requirement land with #538. Until they do, no
-run may claim this schema: the contract is stated here so the runner is built against it, not so a
-record can cite it early.
+The writer, the manifest's hashes and the gate's v3 requirement land with #538, and the capture
+carries roughly 35 MB of quantiles per target under `results/`, so that PR needs the
+`evidence-change` label. Until #538 lands, no run may claim this schema: the contract is stated here
+so the runner is built against it, not so a record can cite it early.
 
 ## Environment and implementation preconditions
 

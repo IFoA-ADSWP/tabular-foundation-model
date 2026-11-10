@@ -37,8 +37,9 @@ once and referenced by name.
 _Avoid_: table, file, corpus
 
 **Capture**:
-The persisted per-fold predictions and true labels from a run, keyed by dataset, seed
-and model version.
+The persisted evidence from a run: per-row predictions, truth, and the row identity and
+predictive distributions the run retained, keyed by dataset, Arm, seed and fold, with
+hashes that prove the arrays.
 _Avoid_: prediction file, checkpoint, dump
 
 **Rescore**:
@@ -73,10 +74,12 @@ claim to be comparable while missing the field that makes a comparison meaningfu
 _Avoid_: status, score, pass/fail
 
 **Metric**:
-A number computed from a run's retained truth and predictions, under a named definition
-and a version recorded in `docs/analyses/METRIC_REGISTRY.md`. Distinct from the
-**training objective**, which is what the fit minimises, and from the **decision rule**,
-which turns metrics into a verdict.
+A number computed from a run's retained evidence — its truth and predictions, and any
+source column its stored `test_index` joins — under a named definition. A **registered
+metric** carries a version in `docs/analyses/METRIC_REGISTRY.md` and can be cited; an
+ad-hoc score computed from the same arrays is a metric too, but it is not citable until
+it is registered. Distinct from the **training objective**, which the fit minimises, and
+from the **decision rule**, which applies registered metrics to reach a verdict.
 _Avoid_: score, measure, loss (for a scored quantity)
 
 **Frontier**:
