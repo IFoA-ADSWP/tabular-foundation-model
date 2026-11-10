@@ -113,8 +113,8 @@ the target effect is never relaxed to make a no-go look like a go.
 
 **Stage 3 — replication.** `A_raw` plus the chosen rung over `k` fresh seeds, random-effects (REML)
 interval, aggregated exactly as the anchor's was. A fresh permutation null on the replication's own
-capture over the same 5,000 permutations per seed, with the pre-registered 0.03–0.07 false-positive
-band, voids the verdict on instrument failure.
+capture over the same 5,000 permutations per seed, with the pre-registered one-sided bound — the rule must
+not fire more often than 0.07 under the null — voids the verdict on instrument failure.
 
 **Order.** `eudirectlapse` first and `uslapseagent`'s 10,000-row cell is already done, so:
 
@@ -157,7 +157,7 @@ declared out of scope on the strength of its own probe.
 
 - **A probe whose `k` exceeds the per-launch ceiling** — the dataset is reported as unresolvable at δ
   rather than run underpowered.
-- **A replication whose fresh null falls outside 0.03–0.07** — instrument failure, verdict void.
+- **A replication whose fresh null fires more often than 0.07** — instrument failure, verdict void.
 - **A dataset that cannot supply the row count** — `coil2000` at 9,822 rows is the known case; the
   actual count is recorded, never substituted silently.
 

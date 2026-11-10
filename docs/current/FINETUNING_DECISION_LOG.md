@@ -297,9 +297,14 @@ z for 80% power.)
 
 Two safeguards, at two different moments: a **pre-spend resolution gate** stops the replication before
 any money if `k` cannot reach 0.002, and a **fresh permutation null** on the replication's own capture —
-whose acceptable **false-positive-rate band is 0.03–0.07** — voids the verdict on instrument failure
+whose acceptable **false-positive rate is at most 0.07** — voids the verdict on instrument failure
 after the capture but before the verdict is read. A failure claims equivalence only inside ±0.002. The design must be committed as a pre-registration before the
 probe launches — that document is also the dated amendment the escalation rule requires.
+
+> **2026-11-10** (#535). This sentence read "acceptable **false-positive-rate band is 0.03–0.07**". The
+> pre-registration that governs the run states a **one-sided** bound and gives the reason: a conjunction of
+> three conditions is deliberately conservative, and the anchor's rule fires at about 0.001. A lower bound
+> would void a *perfect* null — the anchor measured 0.0000 — which is backwards for an instrument check.
 
 Ruled out, with reasons: per-seed conjunction (power 1.3×10⁻⁴¹ at 57 seeds), pooling rows (SE understated
 1.69×, false-positive rate 0.25), and re-running the epoch ladder in the replication (three times the

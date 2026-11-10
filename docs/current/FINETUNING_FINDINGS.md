@@ -20,6 +20,9 @@ document, one link away, where it is amended when it changes. If you want a figu
 | **F6** A programme-scale cost figure was withdrawn because it was modelled rather than measured. | withdrawn | `docs/current/FINETUNING_COST_AND_CONTROLS.md` |
 | **F7** Synthetic-data and augmentation experiments, run before this pilot, degraded performance. | current | `docs/archive/PRE_FINETUNING_INVESTIGATIONS.md` |
 | **F8** The pooled-transfer arms and the shuffled-label control have not run. | current | `docs/reference/PILOT_2_DESIGN.md` |
+| **F9** On the breadth dataset where a baseline beats TabPFN at full data, fine-tuning's effect is bounded under δ — an equivalence, not a failure to reach the bar. | current | `docs/analyses/finetuning_breadth_eudirectlapse_result.md` |
+| **F10** On the Spanish lapse cell, the same: the effect is bounded under δ. | current | `docs/analyses/finetuning_breadth_spanish_result.md` |
+| **F11** The closing phase's outcome is one gain, two equivalences and one resolution stop, stated separately — flattening them loses the one cell where the intervention worked. | current | `docs/current/FINETUNING_PHASE2_OUTCOME.md` |
 | **L1** No lapse dataset carries a usable time index, so every result is conditional on a random split. | limitation | `docs/current/FINETUNING_EXPERIMENT_REFERENCE.md` |
 | **L2** The published fine-tuning studies predate the checkpoint this line of work runs; their guidance transfers, their numbers do not. | limitation | `docs/current/FINETUNING_LITERATURE.md` |
 | **L3** The early intervals were within-run, so seed variation was unestimated. | superseded | `docs/analyses/finetuning_replication_result.md` |
