@@ -42,7 +42,7 @@ The old pooled labels are retained only as implementation identifiers; they are 
 *arm − `A_raw`*, so **negative means the fine-tuned arm wins**. For discrimination metrics (ROC AUC, PR
 AUC), positive means improvement. Every reported number states which convention it uses.
 
-> **2026-11-09.** Brier was listed above as a metric where positive means improvement. It is a loss: every
+> **2026-11-09** (#518). Brier was listed above as a metric where positive means improvement. It is a loss: every
 > analysis reads ΔBrier as *arm − `A_raw`*, so a positive value is worse, and D12's veto is a ceiling on that
 > increase. Replaced wording: *"For discrimination and calibration metrics (ROC AUC, PR AUC, Brier),
 > positive means improvement."*
@@ -55,7 +55,7 @@ AUC), positive means improvement. Every reported number states which convention 
 | **Tertiary (ladder)** | Marginal differences between adjacent epoch rungs (30 vs 10 vs 3) — exploratory, not a decision |
 | **Interaction (off-ramp only)** | The difference-of-differences between two factors, with everything else held fixed |
 
-> **2026-11-09.** The claim measure for Phase 2 was ROC AUC, with a Brier veto (D12, 2026-11-03). The paired
+> **2026-11-09** (#518). The claim measure for Phase 2 was ROC AUC, with a Brier veto (D12, 2026-11-03). The paired
 > log-loss estimand named above as primary was **not carried into the Phase 2 report** — a stated gap, not a
 > silent demotion. See [`FINETUNING_PHASE2_OUTCOME.md`](FINETUNING_PHASE2_OUTCOME.md) §4.
 
@@ -243,7 +243,7 @@ Using R1's own **paired** 95% intervals on 1,000 test rows, each dataset resolve
 | uslapseagent | 1,000 | 369 | >= 0.009 |
 | **Pooled** (inverse-variance) | | | **~>= 0.008** |
 
-*2026-10-31: the `uslapseagent` resolution figure in this table is superseded by the reconciliation in §10 — it must not be quoted. The measured half-width is 0.0036. The two later sentences in §12.1 that repeat it are superseded with it.*
+*2026-10-31 (#518): the `uslapseagent` resolution figure in this table is superseded by the reconciliation in §10 — it must not be quoted. The measured half-width is 0.0036. The two later sentences in §12.1 that repeat it are superseded with it.*
 
 R1's observed in-domain deltas were **0.0008-0.0095**. So **three of the four datasets cannot resolve
 an effect of that size at 1,000 test rows**, and this design is a test for **large** effects
@@ -255,7 +255,7 @@ be discovered after a null.
 it. The 15x repeat structure therefore buys **stability, not sensitivity**, and should not be expected
 to convert a 0.005 effect into a detectable one.
 
-> **2026-11-09.** True of the **row-sampling floor**. Repeats do move the **between-split** variance, which is
+> **2026-11-09** (#518). True of the **row-sampling floor**. Repeats do move the **between-split** variance, which is
 > what the anchor's replication bought (D13); D22 names the conflation a "resolution-for-variance
 > substitution". The sentence is scoped, not withdrawn.
 
@@ -276,7 +276,7 @@ minimum detectable effect** -- it costs nothing at run time, and it is worth str
 additional repeats, which (above) buy no sensitivity at all. Recorded here as a candidate change
 rather than made, because it changes the split every existing number was computed on.
 
-*2026-10-31: the resolution figure in the sentence above is superseded by the reconciliation in §10; it must not be quoted.*
+*2026-10-31 (#518): the resolution figure in the sentence above is superseded by the reconciliation in §10; it must not be quoted.*
 
 **Decision (2026-10-30): the anchor keeps the uniform cap.** A stratified cap is the cheapest available
 improvement to the minimum detectable effect, but it changes the split every existing number was
@@ -285,7 +285,7 @@ computed on. Adopting it before the anchor would make the two-seed replication i
 change to adopt **after** the gate, as its own step. `uslapseagent` already resolves 0.009 ROC — the
 best of the four datasets — so the anchor pays least for the deferral.
 
-*2026-10-31: the figure in this sentence is superseded by the reconciliation in §10; it must not be quoted.*
+*2026-10-31 (#518): the figure in this sentence is superseded by the reconciliation in §10; it must not be quoted.*
 
 **What this means for the design's claims.** A positive result at these settings is evidence of a
 large effect; a null is *not* evidence that fine-tuning is worthless at the 0.001-0.010 scale. Every

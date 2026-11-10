@@ -63,7 +63,7 @@ entirely above δ, so this is a clearing rather than a marginal pass. Brier's wo
 an allowance of 0.001; the null control's false-positive rate was 0.0000 over 5,000 label permutations per
 seed, as pre-registered.
 
-> **2026-11-09.** This read "+0.0003 against an allowance of +0.001", which left the direction to the reader's
+> **2026-11-09** (#518). This read "+0.0003 against an allowance of +0.001", which left the direction to the reader's
 > knowledge of the sign convention. It is an increase of 0.0003 — worse, and inside the allowance.
 
 Evidence: `results/20261104T123839Z/`, and the owning analysis
@@ -104,7 +104,7 @@ This is a stop on a property of the dataset, not a null result and not an omissi
 decision log (D21, amended by D22, which withdrew the part of D21 that argued about seeds rather than
 resolution).
 
-## 4. Three ways to misread this
+## 4. Four ways to misread this
 
 **Equivalence is not "no effect found".** On `eudirectlapse` and `spanish_motor_lapse` the intervals bound
 the effect *under* the bar. That is a stronger statement than failing to reach it, and it is the difference

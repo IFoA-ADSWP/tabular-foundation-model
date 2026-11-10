@@ -473,7 +473,7 @@ only reason `k` is eight times the anchor's is noise — this dataset's per-seed
    ceiling is a property of the launcher, not of the design, and it is now the binding constraint on
    batch size until `vast_run.sh` can be told a run needs longer.
 
-> **2026-11-09.** This is the **plan**. Twenty launches of twelve seeds ran (D18 `:497`), and the change
+> **2026-11-09** (#520). This is the **plan**. Twenty launches of twelve seeds ran (D18's "What was run"), and the change
 > from twenty to twelve is recorded nowhere in the tree. See the note at D18.
 4. **Operational controls.** `caffeinate` around each launcher invocation, because a sleeping machine
    suspends the launcher and the instance keeps billing; and a `vastai show instances` check before and
@@ -489,14 +489,14 @@ claimed, and the fresh permutation null runs on the pooled capture.
 three-dataset programme still exceeds the $8.73 balance by some margin. This entry authorises **one**
 dataset's replication and nothing else.
 
-> **2026-11-09.** A projection, and wrong by two orders of magnitude: the cell completed for **$0.065**
+> **2026-11-09** (#520). A projection, and wrong by two orders of magnitude: the cell completed for **$0.065**
 > (D20), because it priced a resolution figure rather than a variance figure nobody had measured.
 
 DECISION: **`eudirectlapse` replication authorised (2026-11-04)** — `B_ft30`, 238 fresh seeds (93–330),
 twelve batches planned, twenty launches run, $0.60 per launch ceiling, ≈ $2.95 and ≈ 11 h total.
 
-> **2026-11-09.** Corrected: this line read "eight batches", which matches neither the body above (twelve)
-> nor the execution (twenty launches of twelve seeds, D18 `:497`).
+> **2026-11-09** (#520). Corrected: this line read "eight batches", which matches neither the body above (twelve)
+> nor the execution (twenty launches of twelve seeds, D18's "What was run").
 Owner: scotthawes  Date: 2026-11-04  Section: §3
 
 ---
@@ -509,7 +509,7 @@ model line asserted as `tabpfn-v3-classifier-v3_default.ckpt` before every launc
 `docs/analyses/finetuning_breadth_eudirectlapse_result.md`; evidence committed as twenty run
 directories under `results/`.
 
-> **2026-11-09.** This is the **execution record, and it governs** D17's plan: twenty run directories carry
+> **2026-11-09** (#520). This is the **execution record, and it governs** D17's plan: twenty run directories carry
 > nineteen batches of twelve seeds and one of ten. D17 planned twenty seeds per batch and never records the
 > change to twelve.
 
@@ -537,7 +537,7 @@ fine-tuning had a *gap to close* rather than a lead to extend — adaptation clo
 has ~$3.1 left. So breadth now stands at **one dataset answered, two unpriced**, and D16's question is
 answered for the dataset that mattered most. No further launch is authorised by this entry.
 
-> **2026-11-09.** A projection, superseded by the measured **$0.065** (D20): the cell completed inside the
+> **2026-11-09** (#520). A projection, superseded by the measured **$0.065** (D20): the cell completed inside the
 > balance.
 
 **Cost, stated because it was not all well spent.** $4.30 across 29 launches, of which roughly a quarter
@@ -568,8 +568,8 @@ Replication ceiling **$3.00**; `k` is filled by amendment after the probe. Docum
 replication is unfunded. Both projections in the tree — ≈$6.3 (D17) and ≈$18.8 (the breadth
 specification's per-dataset line) — exceed the $3.00 ceiling, so the documented default is a stop.
 
-> **2026-11-09.** ≈$18.8 is **derived**, not quoted: the breadth specification's `:140` programme line
-> divided by three datasets. The specification states no per-dataset line.
+> **2026-11-09** (#520). ≈$18.8 is **derived**, not quoted: the breadth specification's programme line for
+> three datasets at 512 seeds, divided by three. The specification states no per-dataset line.
 
 **What it settles.** The cell has a leak-safe dataset, a measured test size, and a pre-registered gate.
 
@@ -738,7 +738,7 @@ uncertainty and completed for **$0.065**. The projection was wrong by roughly tw
 because it substituted a *resolution* figure from a configuration nobody runs for a *variance* figure
 nobody had measured.
 
-> **2026-11-09.** This sentence read "~$9.50", which D18 never said — D18 projects **~$14**. Corrected so
+> **2026-11-09** (#520). This sentence read "~$9.50", which D18 never said — D18 projects **~$14**. Corrected so
 > that a reader tracing the figure to D18 finds it.
 
 **Cost.** $0.3315 across the cell (balance $3.1127 → $2.7812): $0.043 to measure one seed, $0.153 for the

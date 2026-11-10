@@ -20,7 +20,7 @@ New runs must record: model version (`tabpfn` / `tabpfn-client` + weights ID e.g
 | **16 Sep 2026: version-drift re-test — regression/count tier only** | **v3.5 (`v3.5_default`)** | `tabpfn-client 0.6.0`, `model_path="v3.5_default"` resolved via `src/model_version.py` (`TABPFN_MODEL_PATH`, defaults to `v3_default`); the **server default is now v3.5**, so an unpinned call no longer resolves to v3 | 1M rows / 200M cells / 160 classes / **20,000 cols** — 10× the v3 column cap (live-verified 2026-09-16 via `/tabpfn/get_settings`) | Master report **§16** (issue [#186](https://github.com/IFoA-ADSWP/tabular-foundation-model/issues/186)); 4 datasets × 5 folds, seed 42; per-fold predictions + manifests persisted under `predictions/` | **Current for `freMTPL2freq`, `spanish_motor_freq`, `bemtl97_amount`, `spanish_motor_severity` only.** Classification tiers and `eudirectlapse` are still v3 — do not cite v3.5 for those. Caveat: `scikit-learn` drifted 1.6.1 → 1.9.0, so the `ols` rows are **not** comparable to v3 (§16.4). |
 | **4 Nov 2026: D2 importance diagnostic** | **v2.5 (`v2.5_default`)** | local `tabpfn 6.4.1` | 2,000-row subsample | `tests/fixtures/diagnostics/d2_importance/20261104T1725Z-uslapseagent/record.json`; `docs/analyses/data/README.md` | **Current for that diagnostic only. Not a benchmark number; do not cite it as v3.** |
 
-*2026-11-09: the Apr row above says "never run". That is true of Apr 2026 and the benchmark era, and the imperative there is scoped to the v2-era **benchmark** numbers. A v2.5 run exists — the 4 Nov row.*
+*2026-11-09 (#522): the Apr row above says "never run". That is true of Apr 2026 and the benchmark era, and the imperative there is scoped to the v2-era **benchmark** numbers. A v2.5 run exists — the 4 Nov row.*
 
 **Pilot runs before #285 are not pinned.** Until 2026-10-30 the pilot constructed
 `TabPFNClassifier` (the **local package**, not the hosted client) without `model_path`, so it took the
@@ -49,7 +49,7 @@ timeline
     Nov 2026 : v2.5 local checkpoint — D2 importance diagnostic
 ```
 
-*2026-11-09: the Apr line above read "referenced in paper caveat, never run by us", and the diagram carried no Nov line. Both are corrected.*
+*2026-11-09 (#522): the Apr line above read "referenced in paper caveat, never run by us", and the diagram carried no Nov line. Both are corrected.*
 
 Tags: `paper-snapshot-2026-08-22` (pre-hygiene baseline backing §14.x verdicts), `v8.2.0` (benchmark suite + version-drift policy).
 
@@ -88,7 +88,7 @@ anchor ran on — enumerates only `V2, V2_5, V2_6, V3` and exposes no v3.5 class
 fine-tuning path is local-package only. A v3.5 pin is therefore **not expressible**, not merely
 unwired. The pin also passes a **path, not a label** (#285, #345).
 
-> **2026-11-09.** "The local package" here is scoped to the **fine-tuning pilot** (`tabpfn 8.5.0`). The
+> **2026-11-09** (#522). "The local package" here is scoped to the **fine-tuning pilot** (`tabpfn 8.5.0`). The
 > diagnostics ran on `tabpfn 6.4.1`, a different local-package line — see the 4 Nov row in the timeline.
 
 **Until a classification run lands on a newer version, do not cite v3.5 for any classification
@@ -107,6 +107,8 @@ anchor's checkpoint field) and must not be re-described as v3.5.
 
 ## What to do
 
-1. **Citing old numbers?** Quote with version: "TabPFN v2.0 via API (Mar–Apr 2026): lapse AUC 0.593 vs GLM 0.599". Never write "v2.6" unless you have a manifest proving the weights ID — `tabpfn==2.6.0` is the pip package, not the model. Cite **v2.5** only with a record naming the checkpoint — the same rule, for the same reason.
+1. **Citing old numbers?** Quote with version: "TabPFN v2.0 via API (Mar–Apr 2026): lapse AUC 0.593 vs GLM 0.599". Never write "v2.6" unless you have a manifest proving the weights ID — `tabpfn==2.6.0` is the pip package, not the model.
 2. **Running today?** Install, run, and write a `manifest.json` (model, package, date, seed, dataset SHA). If on v3, compare against `docs/archive/TABPFN_BENCHMARK_SUMMARY.md`, not the legacy v2-era tables.
 3. **Bumping versions?** Follow the re-test policy: trigger (new weights/client) → scope (canonical folds) → diff (paired per-fold tests) → addendum (append here + report header, never silently overwrite).
+
+> **2026-11-09** (#522). Item 1's rule extends to v2.5: cite it only with a record naming the checkpoint.

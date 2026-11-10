@@ -107,7 +107,7 @@ number, and it is the measurement D10 requires before a replication is approved.
 or if `k`'s cost exceeds the per-launch ceiling that applies to the run. A stop is reported as a stop;
 the target effect is never relaxed to make a no-go look like a go.
 
-> **2026-11-09.** This read "the per-launch ceiling that **D10** sets for the run". D10 sets no ceiling
+> **2026-11-09** (#520). This read "the per-launch ceiling that **D10** sets for the run". D10 sets no ceiling
 > (`FINETUNING_DECISION_LOG.md:177-178`). The ceilings that exist are D12's $0.15 and D17's $0.60, and a cell
 > may set its own — D19 set $0.50 for its probe and $3.00 for its replication.
 

@@ -146,5 +146,5 @@ Then check by hand, because the gate cannot:
 
 - Every site still contains its original phrase — in the text, or in the note that supersedes it.
 - The page's table has fourteen rows and carries no figure.
-- Each note names the winner and links the ticket.
-- The per-file counts above sum to the sites actually changed.
+- Each note names the decision, its date, and the ticket that decided it.
+- The per-file counts above sum to the 45 rows actually applied.

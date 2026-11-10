@@ -44,7 +44,7 @@ all was settled for one configuration; what remains is the conditions under whic
 | analysis | paired bootstrap intervals, inverse-variance summary, Holm across the dataset family |
 | cost | measured, not modelled: about **$0.037** for a four-arm run at 10,000 rows |
 
-*2026-11-09: the `scope` row above counts datasets with a **lapse target**; it is not the pilot scope. The scope is the four-dataset family (`FINETUNING_PILOT_DESIGN.md:141`), and `coil2000` was stopped on resolution (D21), not excluded. The `primary metric` row is what Phase 2 **reported**; the claim rested on ROC AUC with a Brier veto (D12).*
+*2026-11-09 (#518): the `scope` row above counts datasets with a **lapse target**; it is not the pilot scope. The scope is the four-dataset family (`FINETUNING_PILOT_DESIGN.md:141`), and `coil2000` was stopped on resolution (D21), not excluded. The `primary metric` row is what Phase 2 **reported**; the claim rested on ROC AUC with a Brier veto (D12).*
 
 ### Relationship to the repository's own April protocol
 
@@ -106,7 +106,7 @@ The 15-dataset sweep, the factorial N × train-ratio extension, regression/count
 > 15% validation split was not implemented; `context_samples` was recorded but used by neither
 > arm; arms C/D were not run; R1 cost $0.34 on Vast rather than $0 on Colab T4 (T4 was 503).
 
-> **2026-11-09.** The instruction in the second paragraph above stands, and is why the R1 results page's
+> **2026-11-09** (#519). The instruction in the second paragraph above stands, and is why the R1 results page's
 > recommendation to apply the gate is not followed.
 
 ---
@@ -132,9 +132,10 @@ Does fine-tuning TabPFN on insurance data improve performance on **unseen insura
 > in the front section. The other twelve are not out of reach; they are simply not needed to answer a lapse
 > question, and listing them here as if they were in play is what made this section misleading.
 
-*2026-11-09: this is **another repository's inventory**, marked rather than corrected — the rows keep that repository's counts. Counts for this repository are owned by `FINETUNING_COST_AND_CONTROLS.md:79-91` and match the CSVs. Sizing a row cap from this table sizes it against a different repository.*
+*2026-11-09 (#521): this is **another repository's inventory**, marked rather than corrected — the rows keep that repository's counts. Counts for this repository are owned by `FINETUNING_COST_AND_CONTROLS.md` (its registered/not-registered table) and match the CSVs. Sizing a row cap from this table sizes it against a different repository.*
 
-*2026-11-09: the "three datasets" in the banner above is the count of datasets with a **lapse target**, not the pilot scope. The design states four.*
+> **2026-11-09** (#521). The "three datasets" above is the count of datasets with a **lapse target**, not the
+> pilot scope — and "as stated in the front section" is false: the front section states four.
 
 ### Classification targets (binary)
 
@@ -168,7 +169,7 @@ Does fine-tuning TabPFN on insurance data improve performance on **unseen insura
 > **Superseded.** Four datasets was the pre-probe selection. The current design uses the three lapse
 > datasets, staged, and `A_raw` is re-measured in every run rather than compared across runs.
 
-*2026-11-09: the current design uses **four** datasets; three is the lapse-target count. `coil2000` was in scope and stopped on resolution (D21), not excluded by scope.*
+*2026-11-09 (#521): the current design uses **four** datasets; three is the lapse-target count. `coil2000` was in scope and stopped on resolution (D21), not excluded by scope.*
 
 For the initial pilot, select 4 classification datasets that cover:
 
@@ -425,7 +426,7 @@ Proceed to R3 if **any** of the following hold in R2 (seed 42):
 
 Otherwise stop at R2 and report findings.
 
-> **2026-11-09.** Historical, and never evaluated: R2 never ran, so the gate was never applied. It is
+> **2026-11-09** (#519). Historical, and never evaluated: R2 never ran, so the gate was never applied. It is
 > rejected as a rule at `:778-797`, and `PILOT_2_DESIGN.md:345-346` rejects it for the same defect. Phase 2's
 > rule is D12. Do not apply it to any later result.
 
@@ -803,7 +804,7 @@ Delta (B − E): ROC **+0.110624**
   never been run**, at R1 scale. That is cheap, currently untested, and speaks to deployment in a
   way no in-domain rerun can.
 
-> **2026-11-09.** This is the finding, and it governs: `B > E` is satisfied by raw TabPFN on all four
+> **2026-11-09** (#519). This is the finding, and it governs: `B > E` is satisfied by raw TabPFN on all four
 > datasets, so the gate admits on a criterion the baseline arm also satisfies. That defect — not the date of
 > `PILOT_2_DESIGN.md` — is why the gate does not apply to the fine-tuning hypothesis.
 
@@ -815,7 +816,7 @@ admits on a condition the baseline arm also satisfies does not test the hypothes
 for. Recommended replacement: admit only on a **B vs A** criterion, with the threshold set from a
 power calculation on the observed test-set variance, and require it on a majority of datasets.
 
-> **2026-11-09.** Not adopted. The replacement was recommended for R2/R3, neither of which ran; adopting it
+> **2026-11-09** (#519). Not adopted. The replacement was recommended for R2/R3, neither of which ran; adopting it
 > now would be a new commitment with no run behind it. Phase 2 used D12.
 
 ---
@@ -874,7 +875,7 @@ A difference smaller than the noise is not a finding. Measured here: paired CI h
 **Check it cheaply:** state the smallest effect of interest, then confirm the design can resolve it. Test
 positives, not row count, set the resolution: 369 positives resolved about 0.009; 57 resolved only 0.061.
 
-*2026-10-31: the resolution figure in this sentence is superseded by the analysis plan's reconciliation (§10, `:190-195`); it must not be quoted.*
+*2026-10-31 (#518): the resolution figure in this sentence is superseded by the analysis plan's reconciliation (§10, `:190-195`); it must not be quoted.*
 
 ### 5. Optimise for the model's real limits, not inherited defaults
 
@@ -967,7 +968,7 @@ The domain of current interest is **policy lapse / surrender classification**. T
 dataset-selection work, because the three lapse datasets in the pool are all registered and their targets are
 confirmed from the loader itself:
 
-*2026-11-09: this is a finding about **targets** — three datasets carry a lapse or surrender outcome. It was taken as a scope decision; it is not one. The pilot scope is the four-dataset family in the design, and the finding above stands.*
+*2026-11-09 (#521): this is a finding about **targets** — three datasets carry a lapse or surrender outcome. It was taken as a scope decision; it is not one. The pilot scope is the four-dataset family in the design, and the finding above stands.*
 
 | dataset | target | rows | positives at the 1,000-row cap | positives at full size |
 | --- | --- | --- | --- | --- |
@@ -975,7 +976,7 @@ confirmed from the loader itself:
 | `spanish_motor_lapse` | `LapseB` | 53,502 | 354 | ~18,961 |
 | `eudirectlapse` | `lapse` | 23,060 | 132 | ~2,954 |
 
-*2026-11-09: corrected from 128. The count computed from the saved predictions at the 1,000-row cap is 132 — see the analysis plan's §12.1 table and the R1 results table.*
+*2026-11-09 (#521): corrected from 128. The count computed from the saved predictions at the 1,000-row cap is 132 — see the analysis plan's §12.1 table and the R1 results table.*
 
 **Verified by column inspection, not by the datasets' names (13 Sep).** The claim above was first made from
 names and parentage; it has since been checked against every file in `data/raw`. Exactly three datasets carry
