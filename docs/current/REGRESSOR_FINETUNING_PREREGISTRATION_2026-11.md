@@ -147,6 +147,9 @@ The evidence gate **fails** a run with a missing field. The runner produces the 
   estimate is extrapolated over Arms × folds × seeds × epochs and the 50k sensitivity. The
   benchmark sits inside the ceiling.
 
+Measured rate, cold-start overhead and the cost controls are owned by
+`docs/current/FINETUNING_COST_AND_CONTROLS.md`; this section states the ceiling, not the rate.
+
 **Cost.** Provisional \$15–\$40 at the measured step time; **ceiling \$50**. The estimate includes
 the benchmark, the control, both Arms, the 3/10/30 epoch ladder and the 50k sensitivity.
 
