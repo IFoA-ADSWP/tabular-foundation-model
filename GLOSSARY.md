@@ -137,10 +137,11 @@ decide without doing I/O of its own.
 _Avoid_: input, payload, context
 
 **Verdict**:
-The spend gate's decision on one attempt: pass or refuse, with every failed check and
-the fact behind it. One per attempt, committed beside the arrivals record, and the
-sign-off itself.
-_Avoid_: approval, go/no-go, result
+The spend gate's decision on one attempt: it allows the launch or refuses it, listing
+every failed check and the fact behind it. One per attempt, committed beside the
+arrivals record, and the sign-off itself. Distinct from the analysis-pipeline
+*verdict*, which is what a record can prove — this one decides a spend.
+_Avoid_: approval, go/no-go, pass/fail
 
 **Dispatch**:
 The paid-path seam that turns a launch's experiment — or its ad-hoc facts — into one
