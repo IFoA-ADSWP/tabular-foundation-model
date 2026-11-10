@@ -1,6 +1,6 @@
 # Fine-Tuning Investigation — Status Brief
 
-> **Status:** current as of 2026-11-05.
+> **Status:** current as of 2026-11-05 for the narrative; **superseded for the outcome on 2026-11-08** — see the banner below.
 
 
 > Date: 2026-09-24 | Status: **Two probes complete; funded diagnostics and full pilot defined**
