@@ -2,10 +2,24 @@
 
 ## Canonical test command
 
-pytest tests/ -q
+./scripts/bootstrap_dev.sh && .venv/bin/pytest tests/ -q
+
+The bootstrap builds `.venv` from `requirements.lock`; it is idempotent, so running it every
+session is cheap. `pytest` on `PATH` is not the repository's environment — a bare `pytest tests/ -q`
+can run on pandas 3 / numpy 2 and produce failures that are the environment, not the change.
 
 Run it and iterate until it passes before reporting work as done. A failing gate
 means the task is not finished — do not claim completion on an unverified change.
+
+Local environment, workload duration, worktree creation and the traps that look like bugs:
+`docs/DEVELOPMENT_ENVIRONMENT.md`.
+
+## Worktrees
+
+A harness-created worktree may arrive with an unrelated commit and almost no files; the symptom is
+`ModuleNotFoundError` from a test, not an obvious wrong-tree error. Create one with
+`./scripts/new_worktree.sh <branch>`, or reset a harness worktree to `origin/main` and confirm
+`tests/conftest.py` exists before the first edit.
 
 ## Plans
 

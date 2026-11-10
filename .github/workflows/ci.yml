@@ -5,11 +5,16 @@ name: ci
 # command, so this file and a contributor's local run have one definition and cannot
 # drift. The commands themselves live in the script; this file only schedules them.
 #
-# Six checks, not eight: ruff, pytest, shellcheck, the evidence guard, the citation
-# check and the verdict check. The doc link and doc-status checks are not here -- they are red on main against a
-# pre-existing backlog, and adding them is their own work. #260 corrected the instructions
-# to the then-three checks; the evidence job (#319) is the fourth, the citation job
-# (#364) is the fifth, and the verdict job (#398) is the sixth.
+# Eight checks, matching scripts/check.sh: ruff, pytest, shellcheck, the evidence guard,
+# the citation check, the verdict check, doc links and doc status. #260 corrected the
+# instructions to the then-three checks; the evidence job (#319) is the fourth, the
+# citation job (#364) the fifth, the verdict job (#398) the sixth, and doclinks/docstatus
+# joined once their pre-existing backlog was cleared (#529). If this list and
+# `scripts/check.sh` disagree, the script is right.
+#
+# Dependencies install from requirements.txt ranges, not requirements.lock: the lock is the
+# local-reproducibility tool (#530), and switching CI onto it is its own change with its own
+# evidence. The ruff pin is kept equal to the lock's so a local lint pass and CI agree.
 #
 # The shellcheck severity floor and its reason live in scripts/check.sh, beside the
 # check, so that it is not re-litigated here.
@@ -40,7 +45,7 @@ jobs:
       - name: Install
         # Pinned, not floating: a ruff upgrade changes the verdict, so it is a deliberate
         # change to this line and to the rule set in ruff.toml, not something CI resolves.
-        run: pip install "ruff==0.15.8"
+        run: pip install "ruff==0.16.4"
 
       - name: check
         run: ./scripts/check.sh ruff

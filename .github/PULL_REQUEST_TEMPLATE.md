@@ -16,6 +16,7 @@
 ## Checklist
 
 -   [ ] The changes have been tested locally.
+-   [ ] Reviewed in a fresh context against the plan and `CODING_STANDARDS.md` (review linked in the body, or the review is the PR itself).
 -   [ ] Documentation has been updated (if the public API or usage changes).
 -   [ ] A entry has been added to `CHANGELOG.md` (if relevant for users).
 -   [ ] The code follows the project's style guidelines.
