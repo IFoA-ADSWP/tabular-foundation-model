@@ -137,6 +137,39 @@ training rows, test rows, `tabpfn_version`, `python_version`, `model_path` and c
 The evidence gate **fails** a run with a missing field. The runner produces the Capture through
 `src/run_capture.py`; the library is not patched.
 
+### Amendment 2026-11-10 — the capture carries row identity, exposure and quantiles
+
+> Added after a grilling with the owner; ticket #538. The decision rule, the 2% floor and the power
+> analysis are unchanged.
+
+The capture above was written for evidence: two arrays and their hashes prove that a prediction
+existed. It is not enough for a reader who wants a metric other than the pre-registered one —
+Poisson deviance was named, and others will follow — because a metric that needs a source column,
+the exposure, or a predictive distribution cannot be computed from `y` and `ŷ` alone.
+
+A folded run that carries the new arrays writes `schema_version: 3`:
+
+| Array | What it is |
+|---|---|
+| `test_index.npy` | 0-based positions in `data/raw/<dataset>.csv`, as `pandas.read_csv` returns it |
+| `exposure.npy` | the exposure per test row; freMTPL2freq only |
+| `quantiles.npy` | the library's nine deciles (0.1…0.9), for every Arm and the diagnostic |
+
+The manifest hashes every array, and the citation gate requires those hashes for v3. v1 and v2 stay
+byte-identical, so the committed anchor is untouched. `meta.json` records the verdict metric per
+target plus RMSE for all three. Six regression metrics gain versioned rows in
+`docs/analyses/METRIC_REGISTRY.md` — `rmse/1`, `mae/1`, `medae/1`, `rmsle/1`, `poisson_deviance/1`,
+`gini/1` — and `src/rescore.py` gains a regression metric set. Pinball and Tweedie rows wait until a
+colleague cites one.
+
+Storing more is not scoring more. The verdict still uses Poisson deviance for `ClaimNb` and RMSE for
+the other two targets, and the trainer still minimises MSE, so a deviance null remains inconclusive
+unless `X_log1p` also nulls.
+
+The writer, the manifest's hashes and the gate's v3 requirement land with #538. Until they do, no
+run may claim this schema: the contract is stated here so the runner is built against it, not so a
+record can cite it early.
+
 ## Environment and implementation preconditions
 
 - `tabpfn==8.5.0` on Python 3.12, exact pin plus lock; a legacy requirements file keeps the v2
@@ -192,3 +225,4 @@ cannot, the implementation extends it rather than putting the treatment only in 
 | Date | Change |
 |---|---|
 | 2026-11-08 | Filed. VehValue's pooled membership is conditional on the fold-SD gate; `X_log1p` is co-primary for ClaimNb. |
+| 2026-11-10 | Capture v3: `test_index`, `exposure` and nine quantiles per slot, all hashed; six regression metrics registered. The decision rule and the 2% floor are unchanged (#538). |

@@ -72,6 +72,13 @@ named. Computed from the record, never written into it by the writer — a recor
 claim to be comparable while missing the field that makes a comparison meaningful.
 _Avoid_: status, score, pass/fail
 
+**Metric**:
+A number computed from a run's retained truth and predictions, under a named definition
+and a version recorded in `docs/analyses/METRIC_REGISTRY.md`. Distinct from the
+**training objective**, which is what the fit minimises, and from the **decision rule**,
+which turns metrics into a verdict.
+_Avoid_: score, measure, loss (for a scored quantity)
+
 **Frontier**:
 The set of methods on a dataset that are not dominated. A is dominated iff some B with
 strictly fewer parameters has `mean_B + SE_B < mean_A − SE_A` (the D3 rule). Within-SE
