@@ -59,9 +59,12 @@ from each dataset's own probe rather than chosen.
 ### `uslapseagent` — the anchor
 
 Twenty-eight fresh seeds, 55–82, disjoint from the ten probe seeds that sized the run. The interval sits
-entirely above δ, so this is a clearing rather than a marginal pass. Brier's worst seed was +0.0003 against
-an allowance of +0.001; the null control's false-positive rate was 0.0000 over 5,000 label permutations per
+entirely above δ, so this is a clearing rather than a marginal pass. Brier's worst seed was 0.0003 worse against
+an allowance of 0.001; the null control's false-positive rate was 0.0000 over 5,000 label permutations per
 seed, as pre-registered.
+
+> **2026-11-09** (#518). This read "+0.0003 against an allowance of +0.001", which left the direction to the reader's
+> knowledge of the sign convention. It is an increase of 0.0003 — worse, and inside the allowance.
 
 Evidence: `results/20261104T123839Z/`, and the owning analysis
 [`finetuning_replication_result.md`](../analyses/finetuning_replication_result.md).
@@ -101,7 +104,7 @@ This is a stop on a property of the dataset, not a null result and not an omissi
 decision log (D21, amended by D22, which withdrew the part of D21 that argued about seeds rather than
 resolution).
 
-## 4. Three ways to misread this
+## 4. Four ways to misread this
 
 **Equivalence is not "no effect found".** On `eudirectlapse` and `spanish_motor_lapse` the intervals bound
 the effect *under* the bar. That is a stronger statement than failing to reach it, and it is the difference
@@ -115,6 +118,11 @@ loses the only cell in which the intervention worked.
 target the model never saw — has never been run. The `C` and `D` pooled arms and the shuffled-label control
 are unexecuted, not unsuccessful. Phase 3 was cancelled before breadth began and was never reinstated for
 transfer, so there is no result in either direction.
+
+**A missing estimand is not a null.** The statistical analysis plan names the paired difference in log loss
+as its primary estimand; this report carries no log-loss figure, because none was computed for Phase 2. The
+claim was tested on ROC AUC with a Brier veto, which is what the tables above report. The absence is a gap in
+the reporting, not evidence that the effect is absent on that measure.
 
 ## 5. What would change our mind
 

@@ -39,7 +39,7 @@ inside a Markdown table row. Both follow the decision log's own correction style
 | `current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md:41-43` | correction | "For discrimination and calibration metrics (ROC AUC, PR AUC, Brier), positive means improvement" | **Correction**: Brier moves to the loss-type list. ΔBrier = arm − `A_raw`, so positive means worse. Note quotes the old sentence. Every analysis already reads it that way. |
 | `current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md:47-48` | note | "Primary \| the paired difference in log loss" | 2026-11-09: the claim measure was ROC AUC (D12). The paired log-loss estimand was not carried into the Phase 2 report — a stated gap, not a silent demotion. |
 | `current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md:55-57` | note | "Primary: log loss … Also reported, no decision role: … Brier" | 2026-11-09: Brier carries a **veto** under D12, so it has a decision role. Log loss keeps its primary reporting role and is unreported. |
-| `current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md:58-60` | note | "This is currently **TBD**" | 2026-11-09: set at sign-off on 2026-10-30 — see §12.1. |
+| `current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md:58-60` | note | "This is currently **TBD**" | 2026-11-09: set at sign-off on 2026-10-30 — see §12 item 1. |
 | `current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md:228`, `:253`, `:262` | note | ">= 0.009" / "carries 369 and 0.009" / "already resolves 0.009 ROC" | 2026-10-31: superseded by the reconciliation at `:190-195`; must not be quoted. The measured figure is the anchor's 0.0036 median half-width. |
 | `current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md:236-239` | note | "Only more test rows (or more positives) move it" | 2026-11-09: true of the row-sampling floor. The between-split component is what the replication bought (D13, D22: "resolution-for-variance substitution"). |
 | `current/FINETUNING_EXPERIMENT_REFERENCE.md:42` | note | "ROC AUC reported alongside, never folded in" | 2026-11-09: ROC AUC was the claim measure (D12), with Brier as a veto. |
@@ -104,7 +104,7 @@ inside a Markdown table row. Both follow the decision log's own correction style
 | `MODEL_VERSIONS.md:17` | note | "Apr 2026: paper writing — referenced only, never run … **Do not cite our numbers as v2.5.**" | 2026-11-09: true **of Apr 2026 and the benchmark era**. The imperative is scoped: do not cite the v2-era **benchmark** numbers as v2.5. A v2.5 run exists — see the 4 Nov row. |
 | `MODEL_VERSIONS.md` timeline, after `:20` | addition | — | **New row**: `4 Nov 2026: D2 importance diagnostic` · `v2.5 (v2.5_default)` · local `tabpfn 6.4.1` · 2,000-row subsample · evidence `tests/fixtures/diagnostics/d2_importance/20261104T1725Z-uslapseagent/record.json` and `docs/analyses/data/README.md` · **current for that diagnostic only; not a benchmark number; do not cite as v3.** |
 | `MODEL_VERSIONS.md:42` | correction | mermaid: "Apr 2026 : v2.5 released (referenced in paper caveat, never run by us)" | **Correction**: "(paper caveat; no benchmark run)" plus a line `Nov 2026 : v2.5 local checkpoint — D2 importance diagnostic`. |
-| `MODEL_VERSIONS.md:89-96` | addition | per-artifact validity table — four rows, none for the diagnostics | **New row**: `docs/analyses/data/*` (D1/D2) · tested 2026-11-04 · TabPFN **v2.5**, local `tabpfn 6.4.1` · **v2.5 only — do not cite as v3.** |
+| `MODEL_VERSIONS.md:89-96` | addition | per-artifact validity table — four rows, none for the diagnostics | **Two rows**: `d2_importance` · tested 2026-11-04 · v2.5, local `tabpfn 6.4.1` · **v2.5 only — do not cite as v3.** And `d1_profiling` · 2026-11-07 · record labels `v3_default` but **no model is fitted** · the profile is the CSV's, not a model's. |
 | `MODEL_VERSIONS.md:79-83` | note | "`tabpfn 8.5.0`, the version the anchor ran on" | 2026-11-09: scoped to the **fine-tuning pilot**. The diagnostics ran on `tabpfn 6.4.1`, a different local-package line. |
 | `MODEL_VERSIONS.md:100` | note | "Never write 'v2.6' unless you have a manifest proving the weights ID" | 2026-11-09: the same rule applies to v2.5 — cite it only with a record naming the checkpoint. |
 | `analyses/data/README.md:133`, `:158-159` | **none** | "the era the library actually resolved: `v2.5`" | **No amendment.** This page records what the library resolved and is correct. Carried here so the omission is visible as a decision. |
@@ -146,5 +146,5 @@ Then check by hand, because the gate cannot:
 
 - Every site still contains its original phrase — in the text, or in the note that supersedes it.
 - The page's table has fourteen rows and carries no figure.
-- Each note names the winner and links the ticket.
-- The per-file counts above sum to the sites actually changed.
+- Each note names what won — a decision, a row or a passage — with its date and the ticket that decided it.
+- The per-file counts above sum to the 45 rows actually applied.

@@ -5,6 +5,10 @@
 
 > **Supporting cost appendix.** The canonical current proposal is `docs/current/FINETUNING_PILOT_DESIGN.md`. This page owns measured and modelled cost figures; it does not define the current pilot scope.
 
+> **2026-11-09** (#520). The breadth cells' cost is measured in D18 and D20. The three projections for the
+> Spanish cell — and the misquoted fourth — are superseded by that measurement, and were never carried on this
+> page.
+
 ## Current measured anchors
 
 These are the figures currently supported by completed runs:
@@ -89,6 +93,8 @@ The repository holds **fifteen insurance datasets. The fine-tuning pilot wires u
 | | | | spanish_motor_severity | 53,502 |
 | | | | fretelematic | 1,177 |
 | | | | Spanish motor portfolio (directory) | — |
+
+*2026-11-09 (#521): this is the authoritative count for this repository and agrees with the CSVs on disk. The experiment reference's inventory table is another repository's, marked as such.*
 
 **The others are not idle.** They carry the project's other benchmarks — the frontier benchmark
 already uses twelve datasets with their targets defined — so registering them for the fine-tuning

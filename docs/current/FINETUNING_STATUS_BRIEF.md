@@ -76,6 +76,8 @@ That is an **equivalence** reading, not a failure to reach the bar. The anchor's
 the second needs ~512 seeds (~$14), which the remaining balance does not cover. Result:
 `docs/analyses/finetuning_breadth_eudirectlapse_result.md`; evidence committed under `results/`.
 
+*2026-11-09 (#520): a historical projection. The Spanish cell completed for $0.065 (D20), inside the balance.*
+
 **Breadth reopened as a specification (2026-11-04, D16).** The owner has amended D14's "no expansion
 even on a pass" so that the full value of fine-tuning can be quantified: whether the gain holds on
 `coil2000`, `eudirectlapse` and `spanish_motor_lapse`, and where the row-scale threshold sits between

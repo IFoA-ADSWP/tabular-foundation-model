@@ -140,6 +140,9 @@ The primary dataset is `uslapseagent`, because it produced the 10K positive resu
 
 The four-dataset family is the in-domain pilot scope. A wider 15-dataset sweep, pooled training, and cross-dataset transfer are not part of Phase 2; pooling and transfer are addressed conditionally in Phase 3.
 
+> **2026-11-09** (#521). This governs the scope. `coil2000`'s absence from Phase 2 is a resolution stop (D21), not a
+> scope limit.
+
 ### Phase 2.1 — Canonical arm labels
 
 Display labels are phase-qualified. Implementation labels preserve the names already used by the pilot runner and artifacts.
@@ -207,7 +210,14 @@ Probability quality is primary because insurance decisions depend on usable prob
 | Secondary | ROC AUC, PR AUC |
 | Diagnostic | Prediction distributions, subgroup error, calibration by score band |
 
+*2026-11-09 (#518): this table sets what Phase 2 **reports**. The claim rested on ROC AUC with a Brier veto (D12, 2026-11-03).*
+
 Report discrimination and calibration separately. A fine-tuned model that improves ROC AUC while worsening calibration is not a general performance improvement for pricing or probability decisions.
+
+> **2026-11-09** (#518). D12 made this numeric: the tolerance is a rise of no more than 0.001 above the in-run
+> `A_raw`, and the anchor rose 0.0003, so the claim stands. Above 0.001 it would have been refused. Read as a
+> prohibition this sentence is stricter than the rule that governed the result — that is the recorded
+> departure.
 
 The existing GLM and tree baselines remain comparison points. Fine-tuning is not being treated as a replacement for every baseline; it is being tested as an in-domain improvement to TabPFN.
 

@@ -43,10 +43,12 @@ the conclusion D18 reached, with a second dataset behind it.
 
 Nothing in the effect; everything in the affordability.
 
-D18 projected **~512 seeds (~$9.50)** for this dataset. That projection used the **1,000-test-row**
+D18 projected **~512 seeds (~$14)** for this dataset. That projection used the **1,000-test-row**
 half-width (0.0163) that the readiness study measured and **rejected**, in place of a between-seed SD
 nobody had measured. The probe measured that SD — **0.0012** on the top rung — which the pre-registered rule
 turns into `k = 3`. The replication ran at **16** for margin over SD uncertainty.
+
+*2026-11-09 (#520): corrected from "~$9.50", which D18 never said — D18 projects ~$14.*
 
 The experiment recorded as unaffordable completed for **$0.065**.
 
