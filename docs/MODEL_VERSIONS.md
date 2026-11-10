@@ -49,6 +49,8 @@ timeline
     Nov 2026 : v2.5 local checkpoint — D2 importance diagnostic
 ```
 
+*2026-11-09: the Apr line above read "referenced in paper caveat, never run by us", and the diagram carried no Nov line. Both are corrected.*
+
 Tags: `paper-snapshot-2026-08-22` (pre-hygiene baseline backing §14.x verdicts), `v8.2.0` (benchmark suite + version-drift policy).
 
 ## What flipped between v2-era and v3 (so you are not confused)
