@@ -130,6 +130,18 @@ either allows the launch or refuses it, listing every failed check at once, and 
 decision is recorded. A refusal is not a crash and not a transport failure.
 _Avoid_: gate, preflight, guard
 
+**Facts document**:
+What the dispatcher gathers before spend — commit sha and tree state, preflight code,
+licence, ceiling, offer, command-document hash, remote reachability — so the gate can
+decide without doing I/O of its own.
+_Avoid_: input, payload, context
+
+**Verdict**:
+The spend gate's decision on one attempt: pass or refuse, with every failed check and
+the fact behind it. One per attempt, committed beside the arrivals record, and the
+sign-off itself.
+_Avoid_: approval, go/no-go, result
+
 **Dispatch**:
 The paid-path seam that turns a launch's experiment — or its ad-hoc facts — into one
 command document before spend. It builds and validates the command; it never decides
