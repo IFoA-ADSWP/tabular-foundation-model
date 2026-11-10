@@ -22,11 +22,24 @@ from typing import Callable
 
 from capture_reader import read_run
 from provenance import csv_cell
-from metrics import brier, expected_calibration_error, log_loss, pr_auc, roc_auc
+from metrics import (
+    brier,
+    expected_calibration_error,
+    gini,
+    log_loss,
+    mae,
+    medae,
+    poisson_deviance,
+    pr_auc,
+    rmse,
+    rmsle,
+    roc_auc,
+)
 from run_capture import CaptureRefused
 
 TOOL_VERSION = "1"
 DEFAULT_METRICSET = "recorded-five"
+REGRESSION_METRICSET = "regression"
 DEFAULT_OUT_DIR = Path(__file__).resolve().parents[1] / "docs" / "analyses" / "data"
 
 FIELDS = (
@@ -34,6 +47,7 @@ FIELDS = (
     "metric_version",
     "value",
     "seed",
+    "fold",
     "arm",
     "capture_sha",
     "tool_version",
@@ -69,7 +83,33 @@ RECORDED_FIVE = (
     Metric("log_loss", "1", "log_loss", log_loss),
     Metric("ece", "1", "ece", expected_calibration_error),
 )
-METRICS = {metric.name: metric for metric in RECORDED_FIVE}
+
+# The regression set (#538). `record_key` is the record field a run at that definition writes;
+# the verdict metric is resolved by name in `_recorded_value`, because a slot has one target.
+REGRESSION_SIX = (
+    Metric("rmse", "1", "rmse", rmse),
+    Metric("mae", "1", "mae", mae),
+    Metric("medae", "1", "medae", medae),
+    Metric("rmsle", "1", "rmsle", rmsle),
+    Metric("poisson_deviance", "1", "poisson_deviance", poisson_deviance),
+    Metric("gini", "1", "gini", gini),
+)
+
+METRICS = {metric.name: metric for metric in (*RECORDED_FIVE, *REGRESSION_SIX)}
+
+
+def _recorded_value(metric: Metric, record: dict) -> float | None:
+    """The value the record holds for this metric, or None when it holds none.
+
+    A regression slot records its verdict metric by *name* (`verdict_metric`) and its value in
+    `verdict_metric_value`; reading that value under another metric's name would report RMSE as
+    a deviance, so the name must match. `rmse` is also written directly.
+    """
+    if record.get("verdict_metric") == metric.name:
+        value = record.get("verdict_metric_value")
+        return None if value is None else float(value)
+    value = record.get(metric.record_key)
+    return None if value is None else float(value)
 
 
 @dataclass(frozen=True)
@@ -81,6 +121,11 @@ class MetricSet:
 
 
 DEFAULT_METRIC_SET = MetricSet(DEFAULT_METRICSET, RECORDED_FIVE)
+REGRESSION_METRIC_SET = MetricSet(REGRESSION_METRICSET, REGRESSION_SIX)
+METRIC_SETS = {
+    DEFAULT_METRICSET: DEFAULT_METRIC_SET,
+    REGRESSION_METRICSET: REGRESSION_METRIC_SET,
+}
 
 
 def select_metrics(specs: list[str] | None) -> MetricSet:
@@ -109,6 +154,11 @@ def select_metrics(specs: list[str] | None) -> MetricSet:
     )
 
 
+def _fold_order(fold: int | None) -> int:
+    """Sort a foldless slot before fold 0, so the CSV order is total."""
+    return -1 if fold is None else int(fold)
+
+
 def rescore(
     run_dir: Path,
     *,
@@ -123,12 +173,12 @@ def rescore(
     for slot in run.slots:
         for metric in metric_set.metrics:
             value = metric.compute(slot.truth, slot.predictions)
-            recorded = slot.record.get(metric.record_key)
+            recorded = _recorded_value(metric, slot.record)
             agrees = (
                 None
                 if recorded is None
                 else math.isclose(
-                    value, float(recorded), rel_tol=AGREES_REL_TOL, abs_tol=AGREES_ABS_TOL
+                    value, recorded, rel_tol=AGREES_REL_TOL, abs_tol=AGREES_ABS_TOL
                 )
             )
             rows.append(
@@ -137,16 +187,17 @@ def rescore(
                     "metric_version": metric.version,
                     "value": value,
                     "seed": slot.seed,
+                    "fold": slot.fold,
                     "arm": slot.arm,
                     "capture_sha": slot.capture_sha,
                     "tool_version": TOOL_VERSION,
                     "source": slot.source,
-                    "recorded_value": None if recorded is None else float(recorded),
+                    "recorded_value": recorded,
                     "agrees": agrees,
                 }
             )
 
-    rows.sort(key=lambda row: (row["arm"], row["seed"], row["metric"]))
+    rows.sort(key=lambda row: (row["arm"], row["seed"], _fold_order(row["fold"]), row["metric"]))
 
     out_dir = Path(out_dir) if out_dir is not None else DEFAULT_OUT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -173,6 +224,12 @@ def main(argv=None) -> int:
         help="a metric to compute; repeatable. Default: the recorded five, compared to the record",
     )
     parser.add_argument(
+        "--metric-set",
+        choices=sorted(METRIC_SETS),
+        default=None,
+        help="a named set to compute (default: recorded-five); --metric overrides it",
+    )
+    parser.add_argument(
         "--out-dir",
         type=Path,
         default=None,
@@ -181,7 +238,11 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        metric_set = select_metrics(args.metric)
+        metric_set = (
+            METRIC_SETS[args.metric_set]
+            if args.metric_set is not None and not args.metric
+            else select_metrics(args.metric)
+        )
         target = rescore(args.run, metric_set=metric_set, out_dir=args.out_dir)
     except (RescoreRefused, CaptureRefused) as exc:
         print(f"rescore: {exc}", file=sys.stderr)

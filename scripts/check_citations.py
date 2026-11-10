@@ -128,6 +128,28 @@ def _environment_problems(run_id: str, exp: Expected, entry: dict) -> list[str]:
     return problems
 
 
+def _array_problems(
+    run_id: str, exp: "Expected", entry: dict, dataset: str | None
+) -> list[str]:
+    """A v3 entry hashes every array its dataset owes (#538).
+
+    `test_index` and `quantiles` are required everywhere; `exposure` only for freMTPL2freq, so
+    an honest severity run is not refused for lacking a column its dataset does not have.
+    """
+    where = f"{exp.arm} seed {exp.seed} fold {exp.fold}"
+    required = ["test_index_sha256", "quantiles_sha256"]
+    if dataset == "freMTPL2freq":
+        required.append("exposure_sha256")
+    problems = [
+        f"{run_id}: {where} v3 entry has no {key}" for key in required if not entry.get(key)
+    ]
+    if dataset != "freMTPL2freq" and entry.get("exposure_sha256"):
+        problems.append(
+            f"{run_id}: {where} v3 entry carries exposure_sha256 for dataset {dataset!r}"
+        )
+    return problems
+
+
 def check_run(root: Path, run_id: str) -> list[str]:
     """Every reason this cited run is not capturable. Empty means fine."""
     run_dir = root / "results" / run_id
@@ -141,10 +163,10 @@ def check_run(root: Path, run_id: str) -> list[str]:
     except json.JSONDecodeError as exc:
         return [f"{run_id}: capture.json is not valid JSON ({exc})"]
 
-    if manifest.get("schema_version") not in (1, 2):
+    if manifest.get("schema_version") not in (1, 2, 3):
         return [
             f"{run_id}: capture.json schema_version {manifest.get('schema_version')!r} "
-            "is not 1 or 2"
+            "is not 1, 2 or 3"
         ]
 
     entries = {
@@ -169,7 +191,12 @@ def check_run(root: Path, run_id: str) -> list[str]:
                 f"{run_id}: {exp.arm} seed {exp.seed} fold {exp.fold} "
                 f"was not retained ({reason})"
             )
-        if manifest.get("schema_version") == 2:
+        if manifest.get("schema_version") == 3:
+            problems.extend(
+                _array_problems(run_id, exp, entry, manifest.get("dataset"))
+            )
+        if manifest.get("schema_version") in (2, 3):
+            # v3 is a superset: the environment fields v2 required are still required.
             problems.extend(_environment_problems(run_id, exp, entry))
     if not expected:
         problems.append(

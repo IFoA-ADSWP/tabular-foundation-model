@@ -232,3 +232,72 @@ def test_a_v2_capture_missing_the_model_path_and_hash_fails(tmp_path):
     meta_path.write_text(json.dumps(meta))
     assert run(root) == 1
 
+
+
+def make_v3_repo(
+    tmp_path: Path,
+    *,
+    dataset: str = "freMTPL2freq",
+    hashes: tuple[str, ...] = ("test_index_sha256", "quantiles_sha256", "exposure_sha256"),
+    env: bool = True,
+) -> Path:
+    """A v3 capture over one folded slot: the array hashes v3 adds, over a v2 record."""
+    root = tmp_path / "repo"
+    (root / "docs").mkdir(parents=True)
+    (root / "docs" / "analysis.md").write_text(f"The run `{RUN}` produced these numbers.\n")
+    slot = root / "results" / RUN / dataset / "B_ft30" / "seed43_fold0"
+    slot.mkdir(parents=True)
+    meta = {"arm": "B_ft30", "seed": 43, "fold": 0, "test_rows": 100}
+    if env:
+        meta["versions"] = {"tabpfn": "8.5.0", "python": "3.12.0"}
+        meta["weights"] = {"path": "/cache/checkpoint.ckpt", "sha256": "c" * 64}
+    (slot / "meta.json").write_text(json.dumps(meta))
+    capture = {
+        "arm": "B_ft30",
+        "seed": 43,
+        "fold": 0,
+        "rows": 100,
+        "predictions_sha256": "a" * 64,
+        "truth_sha256": "b" * 64,
+        "record": "B_ft30/seed43_fold0/meta.json",
+        "reason": None,
+    }
+    for key in hashes:
+        capture[key] = "d" * 64
+    (root / "results" / RUN / "capture.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 3,
+                "run_id": RUN,
+                "dataset": dataset,
+                "created_utc": "2026-11-02T10:10:00Z",
+                "captures": [capture],
+            }
+        )
+    )
+    return root
+
+
+def test_a_v3_capture_with_every_hash_passes(tmp_path):
+    assert run(make_v3_repo(tmp_path)) == 0
+
+
+def test_a_v3_capture_without_a_quantiles_hash_fails_and_names_it(tmp_path):
+    root = make_v3_repo(tmp_path, hashes=("test_index_sha256", "exposure_sha256"))
+
+    assert run(root) == 1
+
+
+def test_a_v3_severity_capture_needs_no_exposure_hash(tmp_path):
+    assert run(
+        make_v3_repo(
+            tmp_path,
+            dataset="spanish_motor_severity",
+            hashes=("test_index_sha256", "quantiles_sha256"),
+        )
+    ) == 0
+
+
+def test_a_v3_capture_still_requires_the_environment_fields(tmp_path):
+    """v3 is a superset of v2: the record fields v2 demanded are still demanded."""
+    assert run(make_v3_repo(tmp_path, env=False)) == 1

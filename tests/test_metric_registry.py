@@ -31,7 +31,8 @@ def test_the_registry_rows_are_exactly_the_metrics_the_tool_computes():
     rows = _table_rows()
 
     assert {(name, version) for name, version, *_ in rows} == {
-        (metric.name, metric.version) for metric in rescore.RECORDED_FIVE
+        (metric.name, metric.version)
+        for metric in (*rescore.RECORDED_FIVE, *rescore.REGRESSION_SIX)
     }
 
 

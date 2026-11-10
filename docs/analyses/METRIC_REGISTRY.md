@@ -30,6 +30,20 @@ that put it there. This is the table #356 decided and the rows #361 built.
 | `log_loss` | 1 | Cross-entropy of the predicted probabilities, with probabilities clipped to `[1e-15, 1 - 1e-15]`. | `PILOT_2_DESIGN.md` §3 names log loss the primary loss; the clip is what makes the recorded value finite on confident mistakes. |
 | `ece` | 1 | Expected calibration error over 10 equal-width probability bins: the bin-weighted gap between mean predicted probability and observed frequency. | D11 redirected the next step to calibration, which needs a number for "how far off are the levels" rather than for ranking. |
 
+## The regression six (#538)
+
+A regression slot's record holds its verdict metric by name (`verdict_metric`) and its value in
+`verdict_metric_value`, so `rescore` compares a value only when the names match.
+
+| Metric | Version | Definition | Motivated by |
+| --- | --- | --- | --- |
+| `rmse` | 1 | Root mean squared error over all rows, on the stored target scale. | The pre-registered verdict metric for `spanish_motor_severity` and `ausprivauto0405` `VehValue`. |
+| `mae` | 1 | Mean absolute error over all rows, on the stored target scale. | A colleague's preferred summary when a squared loss overweights the tail; it needs no input the capture lacked. |
+| `medae` | 1 | Median absolute error over all rows. | Reported beside MAE because severity and vehicle value are heavy-tailed, and the median shows typical rather than average error. |
+| `rmsle` | 1 | Root mean squared error of `log1p` on truth and prediction, with predictions clipped below at 0; rows with negative truth are excluded (none of the three targets has one). | The metric colleagues asked for when proportional error matters; the clip makes it defined when a model predicts below zero. |
+| `poisson_deviance` | 1 | Deviance of counts: `2·Σ[y·log(y/ŷ) − (y − ŷ)]`, `ŷ` clipped at `1e-12`, and the `y = 0` row contributing `2ŷ`. Exposure is a feature, not an offset; a rate-scale variant is a different name and version. | The pre-registered verdict metric for `freMTPL2freq` `ClaimNb`, where 95% of rows are zero, so the `y = 0` term is most of the number. |
+| `gini` | 1 | The normalised Gini, `2·C − 1`, where `C` is the concordance of predictions with truth over pairs with different truth (ties on truth excluded, ties on prediction score one half, a constant prediction scores 0). | A ranking measure an actuarial reader asks for first; it is defined from the same arrays as the rest. |
+
 ## Not yet in the registry
 
 `lift` and `calibration_slope` are the next slice (#360). They are scores-only metrics in the

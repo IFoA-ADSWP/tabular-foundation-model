@@ -20,22 +20,41 @@ from pathlib import Path
 import numpy as np
 
 from provenance import sha256_array
-from run_capture import CAPTURE_SCHEMA_VERSION, CaptureRefused, Slot, discover_slots
+from run_capture import (
+    CAPTURE_SCHEMA_VERSION,
+    CAPTURE_SCHEMA_VERSION_ARRAYS,
+    CAPTURE_SCHEMA_VERSION_FOLDED,
+    EXPOSURE,
+    QUANTILES,
+    TEST_INDEX,
+    CaptureRefused,
+    Slot,
+    discover_slots,
+)
 
 CAPTURE_FILE = "capture.json"
+READABLE_VERSIONS = (
+    CAPTURE_SCHEMA_VERSION,
+    CAPTURE_SCHEMA_VERSION_FOLDED,
+    CAPTURE_SCHEMA_VERSION_ARRAYS,
+)
 
 
 @dataclass(frozen=True)
 class VerifiedSlot:
-    """One arm × seed's arrays, after whatever hash source exists has proved them."""
+    """One arm × seed × fold's arrays, after whatever hash source exists has proved them."""
 
     arm: str
     seed: int
+    fold: int | None
     predictions: np.ndarray
     truth: np.ndarray
     capture_sha: str
     source: str
     record: dict
+    test_index: np.ndarray | None = None
+    exposure: np.ndarray | None = None
+    quantiles: np.ndarray | None = None
 
 
 @dataclass(frozen=True)
@@ -45,21 +64,34 @@ class VerifiedRun:
     run_id: str
     dataset: str
     slots: tuple[VerifiedSlot, ...]
+    schema_version: int = CAPTURE_SCHEMA_VERSION
 
 
-def read_manifest(run_dir: Path) -> dict[tuple[str, int], dict] | None:
-    """The run's capture entries by arm × seed, or None when no manifest exists."""
+def _slot_key(slot: Slot) -> tuple[str, int, int | None]:
+    return (slot.arm, slot.seed, slot.fold)
+
+
+def read_manifest(run_dir: Path) -> tuple[dict[tuple[str, int, int | None], dict], int] | None:
+    """The run's manifest entries by arm × seed × fold, and the schema version.
+
+    None when no manifest exists. A version this reader does not know refuses rather than
+    guessing; v1, v2 and v3 are readable.
+    """
     path = Path(run_dir) / CAPTURE_FILE
     if not path.exists():
         return None
     payload = json.loads(path.read_text(encoding="utf-8"))
     version = payload.get("schema_version")
-    if version != CAPTURE_SCHEMA_VERSION:
+    if version not in READABLE_VERSIONS:
         raise CaptureRefused(
             f"{path}: unknown capture schema_version {version!r}; this tool reads "
-            f"{CAPTURE_SCHEMA_VERSION}"
+            f"{', '.join(str(v) for v in READABLE_VERSIONS)}"
         )
-    return {(entry["arm"], entry["seed"]): entry for entry in payload.get("captures", [])}
+    entries = {
+        (entry["arm"], entry["seed"], entry.get("fold")): entry
+        for entry in payload.get("captures", [])
+    }
+    return entries, version
 
 
 def read_record(slot: Slot) -> dict:
@@ -131,37 +163,94 @@ def _verify(slot: Slot, entry: dict | None, record: dict) -> tuple[np.ndarray, n
     return predictions, truth, manifest_sha, CAPTURE_FILE
 
 
+def _verify_arrays(slot: Slot, entry: dict, version: int) -> dict[str, np.ndarray | None]:
+    """The v3 arrays, each proved against the manifest hash that names it.
+
+    A v3 entry must carry a hash for every array its dataset owes; a missing hash would let an
+    unverified array through, so it refuses.
+    """
+    if version != CAPTURE_SCHEMA_VERSION_ARRAYS:
+        return {"test_index": None, "exposure": None, "quantiles": None}
+
+    wanted = {
+        TEST_INDEX: "test_index_sha256",
+        QUANTILES: "quantiles_sha256",
+    }
+    if entry.get("exposure_sha256") is not None or slot.exposure.is_file():
+        wanted[EXPOSURE] = "exposure_sha256"
+
+    loaded: dict[str, np.ndarray | None] = {}
+    for name, hash_key in wanted.items():
+        path = slot.directory / name
+        if not path.is_file():
+            raise CaptureRefused(f"{path} is missing; the manifest declares schema v3")
+        array = np.load(path)
+        expected = entry.get(hash_key)
+        if expected is None:
+            raise CaptureRefused(
+                f"{CAPTURE_FILE} entry {slot.arm} seed {slot.seed} fold {slot.fold} carries no "
+                f"{hash_key}; a v3 entry must hash {name}"
+            )
+        computed = sha256_array(array)
+        if computed != expected:
+            raise CaptureRefused(
+                f"hash mismatch for {path}: array is {computed}, {CAPTURE_FILE} says {expected}"
+            )
+        loaded[name.removesuffix(".npy")] = array
+    return {
+        "test_index": loaded.get("test_index"),
+        "exposure": loaded.get("exposure"),
+        "quantiles": loaded.get("quantiles"),
+    }
+
+
 def read_run(run_dir: Path) -> VerifiedRun:
-    """Every arm × seed slot of a run, verified; refuses a gap in the manifest."""
+    """Every arm × seed × fold slot of a run, verified; refuses a gap in the manifest."""
     run_dir = Path(run_dir)
     dataset, slots = discover_slots(run_dir)
     manifest = read_manifest(run_dir)
+
+    version = CAPTURE_SCHEMA_VERSION
+    entries: dict[tuple[str, int, int | None], dict] = {}
     if manifest is not None:
+        entries, version = manifest
         uncaptured = [
-            f"{slot.arm} seed {slot.seed}"
+            f"{slot.arm} seed {slot.seed} fold {slot.fold}"
             for slot in slots
-            if (slot.arm, slot.seed) not in manifest
+            if _slot_key(slot) not in entries
         ]
         if uncaptured:
             raise CaptureRefused(
                 f"{run_dir / CAPTURE_FILE} has no entry for {', '.join(uncaptured)}; "
-                "a cited run's manifest covers every arm × seed"
+                "a cited run's manifest covers every arm × seed × fold"
             )
 
     verified = []
     for slot in slots:
         record = read_record(slot)
-        entry = None if manifest is None else manifest[(slot.arm, slot.seed)]
+        entry = None if manifest is None else entries[_slot_key(slot)]
         predictions, truth, capture_sha, source = _verify(slot, entry, record)
+        extras = (
+            {"test_index": None, "exposure": None, "quantiles": None}
+            if entry is None
+            else _verify_arrays(slot, entry, version)
+        )
         verified.append(
             VerifiedSlot(
                 arm=slot.arm,
                 seed=slot.seed,
+                fold=slot.fold,
                 predictions=predictions,
                 truth=truth,
                 capture_sha=capture_sha,
                 source=source,
                 record=record,
+                **extras,
             )
         )
-    return VerifiedRun(run_id=run_dir.resolve().name, dataset=dataset, slots=tuple(verified))
+    return VerifiedRun(
+        run_id=run_dir.resolve().name,
+        dataset=dataset,
+        slots=tuple(verified),
+        schema_version=version,
+    )

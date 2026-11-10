@@ -31,13 +31,21 @@ from provenance import sha256_array
 
 CAPTURE_SCHEMA_VERSION = 1
 CAPTURE_SCHEMA_VERSION_FOLDED = 2
+CAPTURE_SCHEMA_VERSION_ARRAYS = 3
 
 _RUN_ID = re.compile(r"^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$")
 _SLOT = re.compile(r"^seed(\d+)_fold(\w+)$")
 
 PREDICTIONS = "predictions.npy"
 TRUTH = "ground_truth.npy"
+TEST_INDEX = "test_index.npy"
+EXPOSURE = "exposure.npy"
+QUANTILES = "quantiles.npy"
 RECORD = "meta.json"
+
+# The v3 arrays (#538). Nine deciles, ascending; exposure applies to one dataset only.
+QUANTILE_LEVELS = 9
+EXPOSURE_DATASET = "freMTPL2freq"
 
 
 class CaptureRefused(Exception):
@@ -61,6 +69,18 @@ class Slot:
     @property
     def truth(self) -> Path:
         return self.directory / TRUTH
+
+    @property
+    def test_index(self) -> Path:
+        return self.directory / TEST_INDEX
+
+    @property
+    def exposure(self) -> Path:
+        return self.directory / EXPOSURE
+
+    @property
+    def quantiles(self) -> Path:
+        return self.directory / QUANTILES
 
     @property
     def relative_record(self) -> str:
@@ -149,9 +169,78 @@ def _rows(slot: Slot, predictions, truth) -> int | None:
     return json.loads(slot.record.read_text(encoding="utf-8")).get("test_rows")
 
 
-def _entry(slot: Slot, folded: bool) -> dict:
-    predictions = np.load(slot.predictions) if slot.predictions.is_file() else None
-    truth = np.load(slot.truth) if slot.truth.is_file() else None
+def _load(path: Path) -> "np.ndarray | None":
+    return np.load(path) if path.is_file() else None
+
+
+def _check_test_index(array: np.ndarray, rows: int, slot: Slot) -> None:
+    if array.ndim != 1 or array.shape[0] != rows:
+        raise CaptureRefused(
+            f"{slot.test_index} has shape {array.shape}; v3 requires one row of source positions "
+            f"per test row ({rows},)"
+        )
+    if not np.issubdtype(array.dtype, np.integer):
+        raise CaptureRefused(
+            f"{slot.test_index} has dtype {array.dtype}; v3 requires an integer row position"
+        )
+
+
+def _check_vector(array: np.ndarray, rows: int, path: Path) -> None:
+    if array.ndim != 1 or array.shape[0] != rows:
+        raise CaptureRefused(
+            f"{path} has shape {array.shape}; v3 requires one value per test row ({rows},)"
+        )
+
+
+def _check_quantiles(array: np.ndarray, rows: int, slot: Slot) -> None:
+    if array.shape != (QUANTILE_LEVELS, rows):
+        raise CaptureRefused(
+            f"{slot.quantiles} has shape {array.shape}; v3 requires "
+            f"({QUANTILE_LEVELS} levels, {rows} rows)"
+        )
+
+
+def _v3_arrays(slot: Slot, dataset: str, rows: int) -> dict:
+    """The v3 arrays of one slot, validated, or a refusal naming what is missing."""
+    index = _load(slot.test_index)
+    quantiles = _load(slot.quantiles)
+    if index is None or quantiles is None:
+        missing = [
+            name
+            for name, array in ((TEST_INDEX, index), (QUANTILES, quantiles))
+            if array is None
+        ]
+        raise CaptureRefused(
+            f"{slot.directory} declares schema v3 but lacks {', '.join(missing)}; "
+            "a partial v3 run is refused rather than recorded"
+        )
+    _check_test_index(index, rows, slot)
+    _check_quantiles(quantiles, rows, slot)
+
+    arrays = {
+        "test_index_sha256": sha256_array(index),
+        "quantiles_sha256": sha256_array(quantiles),
+    }
+    exposure = _load(slot.exposure)
+    if dataset == EXPOSURE_DATASET:
+        if exposure is None:
+            raise CaptureRefused(
+                f"{slot.directory} is {EXPOSURE_DATASET} and declares schema v3, but has no "
+                f"{EXPOSURE}; exposure is required for this dataset"
+            )
+        _check_vector(exposure, rows, slot.exposure)
+        arrays["exposure_sha256"] = sha256_array(exposure)
+    elif exposure is not None:
+        raise CaptureRefused(
+            f"{slot.directory} carries {EXPOSURE} for dataset {dataset!r}; exposure is defined "
+            f"for {EXPOSURE_DATASET} only"
+        )
+    return arrays
+
+
+def _entry(slot: Slot, version: int, dataset: str) -> dict:
+    predictions = _load(slot.predictions)
+    truth = _load(slot.truth)
 
     missing = [
         name
@@ -163,32 +252,72 @@ def _entry(slot: Slot, folded: bool) -> dict:
         reason = " and ".join(f"{name} not retained" for name in missing)
 
     entry = {"arm": slot.arm, "seed": slot.seed}
-    if folded:
+    if version >= CAPTURE_SCHEMA_VERSION_FOLDED:
         # v1 must stay byte-identical; v2 puts the fold after the seed.
         entry["fold"] = slot.fold
+    rows = _rows(slot, predictions, truth)
     entry.update(
         {
-            "rows": _rows(slot, predictions, truth),
+            "rows": rows,
             "predictions_sha256": None if predictions is None else sha256_array(predictions),
             "truth_sha256": None if truth is None else sha256_array(truth),
             "record": slot.relative_record,
             "reason": reason,
         }
     )
+    if version == CAPTURE_SCHEMA_VERSION_ARRAYS:
+        entry.update(_v3_arrays(slot, dataset, rows))
     return entry
+
+
+def _capture_version(dataset: str, slots: list[Slot]) -> int:
+    """v3 when a slot declares the arrays, v2 when folded without them, v1 when foldless.
+
+    A declaration is one slot carrying `test_index.npy`. From it every slot must carry the
+    arrays, so a run with one missing array is refused rather than demoted to v2 and left
+    unhashed (#538).
+    """
+    folded = any(slot.fold is not None for slot in slots)
+    declared = any(slot.test_index.is_file() for slot in slots)
+    if not declared:
+        return CAPTURE_SCHEMA_VERSION_FOLDED if folded else CAPTURE_SCHEMA_VERSION
+    if not folded:
+        raise CaptureRefused(
+            "a foldless run declares the v3 arrays, but a v1 manifest has no fold or array "
+            "hashes to carry them; v3 requires folds"
+        )
+    return CAPTURE_SCHEMA_VERSION_ARRAYS
+
+
+def _check_shared_indices(slots: list[Slot]) -> None:
+    """Every slot of one fold carries the fold's test index, or the capture is refused."""
+    by_fold: dict[int, list[Slot]] = {}
+    for slot in slots:
+        if slot.fold is not None and slot.test_index.is_file():
+            by_fold.setdefault(slot.fold, []).append(slot)
+    for fold, group in by_fold.items():
+        first = np.load(group[0].test_index)
+        for slot in group[1:]:
+            if not np.array_equal(first, np.load(slot.test_index)):
+                raise CaptureRefused(
+                    f"fold {fold}: {group[0].directory} and {slot.directory} carry different "
+                    f"{TEST_INDEX}; the index belongs to the fold, not the slot"
+                )
 
 
 def build_capture(run_dir: Path) -> dict:
     """The manifest as data. Deterministic: the same directory yields the same dict."""
     run_dir = Path(run_dir)
     dataset, slots = discover_slots(run_dir)
-    folded = any(slot.fold is not None for slot in slots)
+    version = _capture_version(dataset, slots)
+    if version == CAPTURE_SCHEMA_VERSION_ARRAYS:
+        _check_shared_indices(slots)
     return {
-        "schema_version": CAPTURE_SCHEMA_VERSION_FOLDED if folded else CAPTURE_SCHEMA_VERSION,
+        "schema_version": version,
         "run_id": run_dir.resolve().name,
         "dataset": dataset,
         "created_utc": created_utc_from_run_id(run_dir.resolve().name),
-        "captures": [_entry(slot, folded) for slot in slots],
+        "captures": [_entry(slot, version, dataset) for slot in slots],
     }
 
 

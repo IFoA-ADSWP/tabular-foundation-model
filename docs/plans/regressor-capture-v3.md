@@ -1,7 +1,7 @@
 # Plan — capture v3 and the regressor fair-test runner
 
 **Issues:** contract #538, runner #539 (blocked by #538).
-**Status:** Current — contract stated in the pre-registration's 2026-11-10 amendment.
+**Status:** Current — delivered (writer, reader, gate, rescore, registry); the runner is #539.
 
 ## What and why
 
