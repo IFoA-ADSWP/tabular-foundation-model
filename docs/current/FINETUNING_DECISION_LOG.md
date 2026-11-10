@@ -497,7 +497,7 @@ twelve batches planned, twenty launches run, $0.60 per launch ceiling, ≈ $2.95
 
 > **2026-11-09** (#520). Corrected: this line read "eight batches", which matches neither the body above (twelve)
 > nor the execution (twenty launches of twelve seeds, D18's "What was run"). The ≈ $2.95 here is also a
-> projection: the cell cost $0.3315, and the replication $0.065 (D20).
+> projection: D18 records the cell at $4.30 across 29 launches.
 Owner: scotthawes  Date: 2026-11-04  Section: §3
 
 ---
