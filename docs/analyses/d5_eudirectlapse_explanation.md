@@ -187,7 +187,7 @@ table the two methods are simply indistinguishable.
 | TabPFN overtakes when given the linear form | **Tested** | Point estimate does (`−0.0015`, 38/66); interval covers zero. |
 | The gap reproduces at full data with the same regimes | **Not tested** | Requires 23,060-row fits. Local v3 at that size is hours per fit, and a hosted run is spend. |
 | Preprocessing explains it | **Not tested** | D4 (#305) has not run: blocked on D10's measured-estimate rule. |
-| An authored interaction or transform closes it | **Not tested** | Out of this tool's scope; the refuter stands for a later run. |
+| An authored **interaction** closes it | **Not tested** | Out of this tool's scope. The authored **additive** transform was tested (§4b) and could not close the gap — because at this row cap there is no gap. |
 
 ## 7. What this does not establish
 
