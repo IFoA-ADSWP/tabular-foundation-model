@@ -179,3 +179,106 @@ def test_a_non_integer_fold_label_refuses(tmp_path):
     assert result.returncode == 1
     assert "fold" in result.stderr
 
+
+
+# ---------------------------------------------------------------------------
+# v3: row identity, exposure and quantiles (#538).
+# ---------------------------------------------------------------------------
+def _v3_run(
+    tmp_path: Path,
+    *,
+    dataset: str = "freMTPL2freq",
+    folds: tuple[int, ...] = (0, 1),
+    arms: tuple[str, ...] = ("B_ft30",),
+    write_index: bool = True,
+    write_quantiles: bool = True,
+    write_exposure: bool = True,
+    index_offset: int = 0,
+) -> Path:
+    run = tmp_path / "20261109T000000Z"
+    for arm in arms:
+        for fold in folds:
+            slot = run / dataset / arm / f"seed0_fold{fold}"
+            slot.mkdir(parents=True)
+            predictions = np.array([0.1, 0.2, 0.3])
+            np.save(slot / "predictions.npy", predictions)
+            np.save(slot / "ground_truth.npy", np.array([0.0, 0.0, 1.0]))
+            if write_index:
+                np.save(
+                    slot / "test_index.npy",
+                    np.array([10, 11, 12], dtype=np.int64) + index_offset,
+                )
+            if write_quantiles:
+                np.save(slot / "quantiles.npy", np.tile(predictions, (9, 1)))
+            if write_exposure:
+                np.save(slot / "exposure.npy", np.ones(3))
+            (slot / "meta.json").write_text(
+                json.dumps({"arm": arm, "seed": 0, "fold": fold, "test_rows": 3})
+            )
+    return run
+
+
+def test_a_run_declaring_the_arrays_writes_schema_three_with_every_hash(tmp_path):
+    run = _v3_run(tmp_path)
+
+    result = _cli("--run", str(run))
+    assert result.returncode == 0, result.stderr
+
+    manifest = json.loads((run / "capture.json").read_text())
+    assert manifest["schema_version"] == 3
+    for entry in manifest["captures"]:
+        assert entry["test_index_sha256"]
+        assert entry["quantiles_sha256"]
+        assert entry["exposure_sha256"]
+        assert entry["fold"] in (0, 1)
+
+
+def test_a_partial_v3_run_is_refused_rather_than_demoted_to_v2(tmp_path):
+    run = _v3_run(tmp_path, write_quantiles=False)
+
+    result = _cli("--run", str(run))
+
+    assert result.returncode == 1
+    assert "partial v3" in result.stderr
+    assert not (run / "capture.json").exists()
+
+
+def test_a_foldless_run_may_not_declare_the_arrays(tmp_path):
+    run = _v3_run(tmp_path, folds=(0,))
+    slot = run / "freMTPL2freq" / "B_ft30" / "seed0_fold0"
+    foldless = run / "freMTPL2freq" / "B_ft30" / "seed0_foldNone"
+    slot.rename(foldless)
+    (foldless / "meta.json").write_text(
+        json.dumps({"arm": "B_ft30", "seed": 0, "fold": None, "test_rows": 3})
+    )
+
+    result = _cli("--run", str(run))
+
+    assert result.returncode == 1
+    assert "requires folds" in result.stderr
+
+
+def test_exposure_is_required_for_fremtpl2freq_and_refused_elsewhere(tmp_path):
+    missing = _v3_run(tmp_path / "missing", write_exposure=False)
+    refused_missing = _cli("--run", str(missing))
+    assert refused_missing.returncode == 1
+    assert "exposure is required" in refused_missing.stderr
+
+    foreign = _v3_run(
+        tmp_path / "foreign", dataset="spanish_motor_severity", write_exposure=True
+    )
+    refused_foreign = _cli("--run", str(foreign))
+    assert refused_foreign.returncode == 1
+    assert "exposure is defined for freMTPL2freq" in refused_foreign.stderr
+
+
+def test_two_slots_of_one_fold_must_carry_the_same_index(tmp_path):
+    run = _v3_run(tmp_path, arms=("A_raw", "B_ft30"))
+    other = run / "freMTPL2freq" / "B_ft30" / "seed0_fold0" / "test_index.npy"
+    np.save(other, np.array([40, 41, 42], dtype=np.int64))
+
+    result = _cli("--run", str(run))
+
+    assert result.returncode == 1
+    assert "different" in result.stderr
+    assert "test_index.npy" in result.stderr
