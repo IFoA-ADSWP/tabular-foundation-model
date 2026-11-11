@@ -29,9 +29,10 @@ Before the run, a research ticket carries:
 | Verdict | `CONFIRMED`, `REFUTED`, `UNRESOLVED`, or `UNTESTED`. |
 | Decision | The thing that changes if the verdict lands. |
 
-A ticket is `ready-for-agent` only when the first four fields are present and
+A ticket is `ready-to-build` only when the first four fields are present and
 the run is mechanical. An agent executes the protocol; it does not choose the
-hypothesis, set or move the bar, or interpret an ambiguous result.
+hypothesis, set or move the bar, or interpret an ambiguous result. Where that
+last boundary is the question, the ticket is `needs-decision` instead.
 
 ## Verdicts
 

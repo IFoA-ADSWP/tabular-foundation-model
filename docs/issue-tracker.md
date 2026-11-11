@@ -10,11 +10,20 @@ Canonical role -> label string used here:
 - enhancement -> `enhancement`
 - needs-triage -> `needs-triage`
 - needs-info -> `needs-info`
-- ready-for-agent -> `ready-for-agent`
-- ready-for-human -> `ready-for-human`
+- ready-for-agent -> `ready-to-build`
+- ready-for-human -> `needs-decision`
 - wontfix -> `wontfix`
 
 Exactly one category label (`bug`/`enhancement`) and one state label on every triaged issue.
+
+**The label strings are deliberately not the skill defaults (renamed 2026-11-11).** This
+tracker is read by contributors, reviewers and external stakeholders, not only by the
+workflow. `ready-for-agent` read as an internal instruction leaked into a public place, and
+neither default said what a *reader* should do. The pair now describes the issue, not its
+executor: `ready-to-build` means fully specified and unblocked, so start now;
+`needs-decision` means a maintainer must choose or sign off first. The skills route on the
+**role** through this table, so the rename changes nothing in the workflow — which is why
+re-running `/setup-matt-pocock-skills` should keep this column, not restore the defaults.
 
 ## External PR rule
 
@@ -97,7 +106,7 @@ External-PR rule repeated for triage: external = author is not a repository coll
 ## Local vocabulary
 
 The canonical roles above are the **only** state labels the skills route on:
-`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`.
+`needs-triage`, `needs-info`, `ready-to-build`, `needs-decision`, `wontfix`.
 This repo also uses the labels below. They annotate or park work; none of them
 substitutes for a state label, and none of them routes anything.
 
@@ -113,8 +122,8 @@ issue's state is unknown, it is `needs-triage`.
 | Label | Role | Effect on routing |
 | --- | --- | --- |
 | `priority: now` | priority | None. It still needs a state label; this only says "before the rest". |
-| `priority: backlog` | **parking** | Parked on purpose. Remove `ready-for-agent` / `ready-for-human` when applying it. |
-| `blocked` | **parking** | Waiting on something outside this repo (#22 GPU access, #57 a decision). Not actionable until the blocker clears; do not also carry a ready-for-* label. |
+| `priority: backlog` | **parking** | Parked on purpose. Remove `ready-to-build` / `needs-decision` when applying it. |
+| `blocked` | **parking** | Waiting on something outside this repo (#22 GPU access, #57 a decision). Not actionable until the blocker clears; do not also carry a `ready-to-build` label. |
 
 ### Work type
 
