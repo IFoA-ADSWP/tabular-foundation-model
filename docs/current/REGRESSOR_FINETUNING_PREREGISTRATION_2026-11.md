@@ -1,6 +1,13 @@
 # Pre-registration — the regressor fair test (2026-11)
 
-> **Status:** current — pre-registration, 2026-11-08. **Authorises:** no run. One implementation
+> **Status:** superseded (2026-11-11) — replaced by
+> `REGRESSOR_FINETUNING_PREREGISTRATION_FREQ_SEV_2026-11.md` (#552). The project's aim is model
+> performance on **claim frequency and claim severity**. This document's target set does not match
+> it: its "severity" is annual cost per policy-year (pure premium), Spanish frequency is absent, and
+> vehicle value is not an actuarial claim task. The body below is retained unchanged as the record of
+> what was filed and why it changed.
+
+> **As filed (2026-11-08):** current — pre-registration, 2026-11-08. **Authorises:** no run. One implementation
 > follows sign-off. **Scores:** relative improvement per target; 2% floor. **Model:** `v3_default`,
 > pinned by checkpoint path. **Cost:** provisional \$15–\$40; ceiling \$50. **Decision it applies:**
 > the map *is fine-tuning effective for the v3 regressor?* (#494) and tickets #495–#509.
