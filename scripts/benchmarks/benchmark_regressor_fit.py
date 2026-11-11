@@ -65,6 +65,31 @@ def load_frame(dataset: str, target: str, rows: int, seed: int) -> tuple[np.ndar
     return X.to_numpy(dtype=float), y
 
 
+def ensure_regressor_weights() -> dict:
+    """Cache the regressor checkpoint BEFORE the timer runs.
+
+    The bootstrap's licence preflight fetches the CLASSIFIER's checkpoint, and the regressor
+    has its own file (`tabpfn-v3-regressor-v3_default.ckpt`). On a cold rented box the first
+    `fit()` would therefore download the checkpoint -- inside the timed region -- and the
+    "fit time" would be mostly network. This is the library's own download path, so the
+    licence gate and the cache layout are the ones the fit will actually use; on a warm
+    cache it returns without touching the network.
+    """
+    from tabpfn.constants import ModelVersion
+    from tabpfn.model_loading import download_model, resolve_model_path
+
+    paths, _dirs, _names, _which = resolve_model_path(
+        None, "regressor", ModelVersion.V3.value
+    )
+    target = Path(paths[0])
+    already_cached = target.exists()
+    if not already_cached:
+        result = download_model(target, version=ModelVersion.V3, which="regressor")
+        if result != "ok":
+            raise RuntimeError(f"could not fetch {target.name}: {result}")
+    return {"checkpoint": target.name, "downloaded": not already_cached}
+
+
 def measure(
     dataset: str,
     target: str,
@@ -78,6 +103,8 @@ def measure(
     from tabpfn.constants import ModelVersion
     from tabpfn.finetuning.finetuned_regressor import FinetunedTabPFNRegressor
 
+    # Untimed, and first: a cold checkpoint must not make the fit look slow.
+    weights = ensure_regressor_weights()
     X, y = load_frame(dataset, target, rows, seed)
     model = FinetunedTabPFNRegressor(
         device=device,
@@ -116,6 +143,9 @@ def measure(
             "early_stopping": False,
             "model_version": "V3",
         },
+        # The checkpoint was fetched before the clock started; say so, so a reader can tell a
+        # clean timing from one that would have included a download.
+        "weights": weights,
     }
 
 

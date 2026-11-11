@@ -21,6 +21,8 @@
 #   --train-size N   training rows (default 2000)    -- the row cap is ours, not the model's
 #   --test-size N    test rows     (default 1000)    TabPFN-2.5 documents support for 50,000 samples
 #   --seeds LIST     seeds to run, comma-separated  (default: the runner's DEFAULT_SEED)
+#   --benchmark MODE run a benchmark instead of arms; `regressor-fit` times one fine-tune
+#                    (10,000 rows x 30 epochs) and returns its record (#528)
 #   --image NAME     override the docker image
 #   --transport T    execute | ssh                   (default: execute)
 #   --keep           do NOT destroy on exit
@@ -101,6 +103,10 @@ TEST_SIZE="${TEST_SIZE:-}"
 # comma-separated list -- passed through verbatim, so `--seeds 42,43` stays two seeds.
 SEEDS="${SEEDS:-}"
 SEEDS_GIVEN=0
+# A benchmark MODE instead of the pilot's arms (#528). The mode owns the frame (one fit at
+# 10,000 rows x 30 epochs of freMTPL2freq:ClaimNb), so it is mutually exclusive with the
+# arm/dataset/size/seed options -- refused below rather than silently ignored (#450).
+BENCHMARK="${BENCHMARK:-}"
 IMAGE=""
 TRANSPORT="onstart"
 KEEP=0
@@ -155,6 +161,7 @@ while [ $# -gt 0 ]; do
         --train-size) TRAIN_SIZE="$2"; shift 2 ;;
         --test-size)  TEST_SIZE="$2"; shift 2 ;;
         --seeds)      SEEDS="$2"; SEEDS_GIVEN=1; shift 2 ;;
+        --benchmark)  BENCHMARK="$2"; shift 2 ;;
         --image)     IMAGE="$2"; shift 2 ;;
         --transport) TRANSPORT="$2"; shift 2 ;;
         --max-attempts) MAX_ATTEMPTS="$2"; shift 2 ;;
@@ -162,7 +169,7 @@ while [ $# -gt 0 ]; do
         --estimate-sec-per-seed) EST_SEC_PER_SEED="$2"; shift 2 ;;
         --keep)      KEEP=1; shift ;;
         --yes)       ASSUME_YES=1; shift ;;
-        -h|--help)   sed -n '2,30p' "$0"; exit 0 ;;
+        -h|--help)   sed -n '2,29p' "$0"; exit 0 ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
 done
@@ -173,6 +180,23 @@ done
 if [ "$SEEDS_GIVEN" = 1 ] && [ -z "$SEEDS" ]; then
     echo "FATAL: --seeds was given an empty value; give a comma-separated list (e.g. 43,44)." >&2
     exit 2
+fi
+
+# The benchmark mode owns the frame: it runs ONE fit of a fixed shape, and a dataset, row cap,
+# arm list or seed alongside it describes a different measurement. Silently ignoring one is the
+# seam failure this launcher keeps closing (#450). Refused before any provider call, so it is free.
+if [ -n "$BENCHMARK" ]; then
+    case "$BENCHMARK" in
+        regressor-fit) ;;
+        *) echo "FATAL: unknown --benchmark '$BENCHMARK' (known: regressor-fit)." >&2; exit 2 ;;
+    esac
+    if [ -n "$EXPERIMENT" ] || [ -n "$ARMS" ] || [ -n "$DATASET" ] || [ -n "$TRAIN_SIZE" ] \
+       || [ -n "$TEST_SIZE" ] || [ -n "$SEEDS" ]; then
+        echo "FATAL: --benchmark $BENCHMARK owns the frame (one fit: 10,000 rows x 30 epochs)." >&2
+        echo "       Drop --experiment/--arms/--dataset/--train-size/--test-size/--seeds;" >&2
+        echo "       the probe is one fixed point, not a batch." >&2
+        exit 2
+    fi
 fi
 
 # DO NOT export VAST_API_KEY -- it silently breaks authentication.
@@ -677,6 +701,9 @@ BOOTSTRAP_B64="$(gzip -9c "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh" | b
     [ -n "$TRAIN_SIZE" ] && printf 'export TRAIN_SIZE=%q\n' "$TRAIN_SIZE"
     [ -n "$TEST_SIZE" ] && printf 'export TEST_SIZE=%q\n' "$TEST_SIZE"
     [ -n "$SEEDS" ] && printf 'export SEEDS=%q\n' "$SEEDS"
+    # The benchmark mode travels as its own export: the box branches on it before the arm
+    # loop, so an empty value must not be exported (the box's default is "run arms").
+    [ -n "$BENCHMARK" ] && printf 'export BENCHMARK=%q\n' "$BENCHMARK"
     # Identity for the audit record. The container image is chosen at RUN TIME from the
     # host's CUDA capability, so it is a moving part -- a re-run has to be able to say
     # which image produced the numbers, and the box has no way to know it otherwise.
@@ -847,7 +874,7 @@ RUN_RC=0
 if [ "$TRANSPORT" = "ssh" ]; then
     SSH_OPTS=(-o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 -o ServerAliveInterval=30)
     ssh -p "$PORT" "${SSH_OPTS[@]}" "root@$HOST" \
-        "TABPFN_TOKEN='$TABPFN_TOKEN' EXPERIMENT='$EXPERIMENT' ARMS='$ARMS' DATASET='$DATASET' TRAIN_SIZE='$TRAIN_SIZE' TEST_SIZE='$TEST_SIZE' SEEDS='$SEEDS' bash -s" \
+        "TABPFN_TOKEN='$TABPFN_TOKEN' EXPERIMENT='$EXPERIMENT' ARMS='$ARMS' DATASET='$DATASET' TRAIN_SIZE='$TRAIN_SIZE' TEST_SIZE='$TEST_SIZE' SEEDS='$SEEDS' BENCHMARK='$BENCHMARK' bash -s" \
         < "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh"
     RUN_RC=$?
 else
@@ -910,9 +937,13 @@ echo "=== pulling artifacts ==="
 # Records stay at $OUTDIR (one record per run, keyed by run id); only artifacts move under runs/<id>/.
 RUN_OUTDIR="$OUTDIR/runs/$RUN_STAMP"
 mkdir -p "$RUN_OUTDIR"
+# Each mode writes its own tree on the box: pilot artifacts under outputs/finetune/pilot, a
+# benchmark measurement under outputs/benchmark. The onstart transport ships through the log
+# and needs no choice here; the ssh transport copies a directory, so it must name the right one.
+if [ -n "$BENCHMARK" ]; then PULL_SUBDIR="outputs/benchmark"; else PULL_SUBDIR="outputs/finetune/pilot"; fi
 if [ "$TRANSPORT" = "ssh" ]; then
     scp -P "$PORT" -o StrictHostKeyChecking=accept-new -r \
-        "root@$HOST:/workspace/tfm/outputs/finetune/pilot/*" \
+        "root@$HOST:/workspace/tfm/$PULL_SUBDIR/*" \
         "$RUN_OUTDIR/" || \
         echo "WARNING: scp failed -- re-run with --keep" >&2
     # The ssh transport pulls files directly, so there is nothing to unpack -- but the
@@ -934,10 +965,15 @@ fi
 # exactly that shape.
 SEED_ARGS=()
 if [ -n "$SEEDS" ]; then SEED_ARGS=(--expect-seeds "$SEEDS"); fi
+# A benchmark payload carries a measurement, not predictions: the verifier checks the record
+# itself (its shape and its wall time) rather than reporting zero verified predictions (#528).
+MODE_ARGS=()
+if [ -n "$BENCHMARK" ]; then MODE_ARGS=(--expect-measurement); fi
 python3 "$REPO_DIR/scripts/gpu_helpers/verify_artifacts.py" \
     "${VERIFY_SOURCE[@]}" \
     --dest "$RUN_OUTDIR" \
-    "${SEED_ARGS[@]+"${SEED_ARGS[@]}"}"
+    "${SEED_ARGS[@]+"${SEED_ARGS[@]}"}" \
+    "${MODE_ARGS[@]+"${MODE_ARGS[@]}"}"
 ART_RC=$?
 case "$ART_RC" in
     0) : ;;
@@ -952,6 +988,11 @@ case "$ART_RC" in
     6) echo "REFUSING: the batch did not write the seeds it was asked for." >&2
        echo "          Evidence kept at $RUN_OUTDIR for inspection; do not publish" >&2
        echo "          from it and do not retry into the same range." >&2
+       RUN_RC=1 ;;
+    7) echo "REFUSING: the benchmark measurement did not arrive intact." >&2
+       echo "          One complete benchmark_fit record is the whole point of the" >&2
+       echo "          launch; a run without it measured nothing and does not ship." >&2
+       echo "          Log kept at $RUN_OUT; use --keep to inspect." >&2
        RUN_RC=1 ;;
     *) echo "WARNING: artifact verification exited $ART_RC" >&2 ;;
 esac

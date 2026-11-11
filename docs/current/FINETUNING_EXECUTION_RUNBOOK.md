@@ -38,6 +38,34 @@ context assertions check (FINDINGS L1 and the Spanish leakage note).
 PEFT or meta-learning, only after Stage 2. **The bar is higher than it was:** full SFT now works at scale, so a
 parameter-efficient arm must *beat* it, not merely match it. Isolate one factor at a time.
 
+## The benchmark probe — one timed fit (2026-11-11)
+
+The regressor fair test is priced from one measured fine-tune, not from an assumption. The
+probe runs that fit and nothing else: 10,000 rows x 30 epochs of `freMTPL2freq:ClaimNb`, on the
+GPU class the rate was measured on. It is authorised separately and cheaply (#528); do not run
+it as part of a campaign.
+
+```bash
+bash scripts/gpu_helpers/vast_run.sh \
+  --benchmark regressor-fit --gpu-allow "RTX PRO 4000" --max-dph 0.2893 \
+  --max-attempts 1 --yes
+```
+
+The mode owns the frame, so the arm, dataset, size and seed flags are refused alongside it
+rather than ignored. The record comes back through the artifact channel like a pilot run's
+predictions, into `outputs/gpu-pilot/runs/<run stamp>/regressor-fit-<run stamp>.json`, and the
+launcher refuses the run (exit 1) if it does not arrive intact. `verify_artifacts.py
+--expect-measurement` prints the wall time it checked. The 40-minute poll is also the price
+ceiling at the authorised rate: 40 min x $0.2893/hr = $0.193.
+
+Sizing is a separate, free step once the record exists:
+
+```bash
+python scripts/benchmarks/benchmark_regressor_fit.py --estimate \
+  --measurement outputs/gpu-pilot/runs/<run stamp>/regressor-fit-<run stamp>.json \
+  --rate-per-hour <the offer's rate> --ceiling 50
+```
+
 ## Watching a launch, and not leaking one
 
 A launch runs unattended for between six minutes and several hours, so the questions are always the

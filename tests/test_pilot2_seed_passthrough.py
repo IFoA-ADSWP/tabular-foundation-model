@@ -682,12 +682,18 @@ def test_every_runner_invocation_forwards_the_launchs_seeds():
 # its default and the operator's setting is a belief rather than a fact.
 _LAUNCHER_OWNED = {
     "TABPFN_TOKEN", "EXPERIMENT", "ARMS", "DATASET", "TRAIN_SIZE", "TEST_SIZE", "SEEDS",
+    # `--benchmark MODE` is the launcher's own switch (#528): the box reads it to choose a
+    # benchmark instead of the arm loop, and the launcher forwards it as its own export rather
+    # than through the pass-through loop below.
+    "BENCHMARK",
     "TFM_DRY_RUN", "TFM_RUN_STAMP", "TFM_COMMIT_SHA", "BRANCH", "TFM_IMAGE_REF",
     "TFM_MACHINE_ID", "TFM_HOST_ID", "TFM_BOOTSTRAP_B64",
 }
 _BOX_COMPUTED = {
     "WORKDIR", "REPO", "MISSING", "PREFLIGHT_RC", "WEIGHTS_CACHED", "WEIGHTS_JSON",
     "WEIGHTS_OUT", "WEIGHTS_RC", "ARMS_OK", "ARMS_FAILED", "_BOOTSTRAP_DONE", "TMPDIR",
+    # The benchmark branch's own locals (#528): the record's directory, name, stamp and rc.
+    "BENCH_OUT", "BENCH_RECORD", "BENCH_STAMP", "BENCH_RC",
 }
 # Read by the box and deliberately overridden there: forwarding them would be a control that
 # cannot move, which reads like a control. Each is listed with why, so removing the entry is a

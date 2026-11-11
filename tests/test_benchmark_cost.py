@@ -133,6 +133,40 @@ def test_the_record_round_trips_through_json():
     assert [arm["arm"] for arm in payload["arms"]][1] == "B_ft30"
 
 
+def test_the_regressor_checkpoint_is_fetched_before_the_clock_starts(cli, monkeypatch, tmp_path):
+    """The bootstrap preflight warms the CLASSIFIER file; the regressor has its own.
+
+    On a cold rented box a download inside `fit()` would be timed, and the "fit time" would be
+    mostly network. This holds the control flow either side of that line: fetch once on a miss,
+    and do nothing on a warm cache.
+    """
+    import types
+
+    pytest.importorskip("tabpfn")
+    target = tmp_path / "tabpfn-v3-regressor-v3_default.ckpt"
+    downloads = []
+
+    fake = types.ModuleType("tabpfn.model_loading")
+    fake.resolve_model_path = lambda *a, **k: ([target], [tmp_path], [target.name], "regressor")
+
+    def fake_download(path, **kwargs):
+        downloads.append((path, kwargs))
+        path.write_bytes(b"checkpoint")
+        return "ok"
+
+    fake.download_model = fake_download
+    monkeypatch.setitem(sys.modules, "tabpfn.model_loading", fake)
+
+    cold = cli.ensure_regressor_weights()
+    assert cold == {"checkpoint": target.name, "downloaded": True}
+    assert len(downloads) == 1
+    assert downloads[0][1]["which"] == "regressor"
+
+    warm = cli.ensure_regressor_weights()
+    assert warm == {"checkpoint": target.name, "downloaded": False}
+    assert len(downloads) == 1, "a cached checkpoint was downloaded again inside the timing region"
+
+
 def _write_measurement(path: Path, wall_seconds: float = 600.0) -> Path:
     path.write_text(
         json.dumps(

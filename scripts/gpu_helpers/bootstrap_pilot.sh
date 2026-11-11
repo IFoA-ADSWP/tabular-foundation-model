@@ -8,6 +8,9 @@
 # or, already on the box:
 #   TABPFN_TOKEN=pk_... bash bootstrap_pilot.sh
 #
+# To time one benchmark fit instead of running arms (#528):
+#   TABPFN_TOKEN=pk_... BENCHMARK=regressor-fit bash bootstrap_pilot.sh
+#
 # Unlike the Colab launcher this does NOT detach: over SSH you keep the
 # terminal, so blocking is correct and simpler. The per-arm subprocess
 # isolation is kept -- on the 12 GB CPU runtime a fine-tuning OOM SIGKILLed
@@ -32,6 +35,11 @@ TEST_SIZE="${TEST_SIZE:-}"
 # state the seed that actually ran, and the runner is the only thing that knows it. Accepts
 # the runner's own format -- a comma-separated list -- so a two-seed replication is one run.
 SEEDS="${SEEDS:-}"
+# A benchmark MODE instead of the pilot's arms (#528). Empty = arms. `regressor-fit` runs one
+# timed fine-tune through scripts/benchmarks/benchmark_regressor_fit.py and returns its record
+# through the artifact channel below. The mode owns the frame (10,000 rows x 30 epochs of
+# freMTPL2freq:ClaimNb), so the launcher forwards it alone -- see the refusal in section 3c.
+BENCHMARK="${BENCHMARK:-}"
 
 # A real run must record a commit_sha that describes the code that ran. The tree is a
 # fresh clone here, so any modification is a genuine provenance problem. Untracked files
@@ -299,6 +307,53 @@ if [ "$PREFLIGHT_RC" -ne 0 ]; then
     exit 3
 fi
 echo "########## PREFLIGHT OK ##########"
+fi
+
+# ---- 3c. Benchmark mode: one timed fit, and no arms (#528) ----
+# This is the paid half of #526: a single fit whose wall time sizes the fair test. It rides the
+# same instance, deps, weights and licence checks as a pilot run -- those are exactly what makes
+# the timing representative -- and then replaces the arm loop with one command.
+#
+# The mode OWNS the frame. A dataset, row cap, arm list or seed alongside it would describe a
+# different measurement, and ignoring one silently is the class of seam failure this harness has
+# already paid for twice (#450). The launcher refuses the mix before provisioning; this refuses
+# it again because the header documents running this script directly on a box.
+#
+# The record travels through the SAME channel as the arms' evidence: emit_artifacts.sh writes the
+# __ARTIFACTS_* markers into the log and verify_artifacts.py unpacks them. No second transport.
+if [ -n "$BENCHMARK" ]; then
+    case "$BENCHMARK" in
+        regressor-fit) ;;
+        *) echo "FATAL: unknown BENCHMARK '$BENCHMARK' (known: regressor-fit)." >&2
+           exit 2 ;;
+    esac
+    if [ -n "$EXPERIMENT" ] || [ -n "$ARMS" ] || [ -n "$DATASET" ] || [ -n "$TRAIN_SIZE" ] \
+       || [ -n "$TEST_SIZE" ] || [ -n "$SEEDS" ]; then
+        echo "FATAL: BENCHMARK=$BENCHMARK owns the frame; drop EXPERIMENT/ARMS/DATASET/" >&2
+        echo "       TRAIN_SIZE/TEST_SIZE/SEEDS rather than have them silently ignored." >&2
+        exit 2
+    fi
+
+    BENCH_OUT="outputs/benchmark"
+    # The launcher's run stamp is the join key with the cost record. A direct run on a box has
+    # no launcher, so it falls back to its own UTC stamp rather than borrowing a stale one.
+    BENCH_STAMP="${TFM_RUN_STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}"
+    BENCH_RECORD="$BENCH_OUT/regressor-fit-$BENCH_STAMP.json"
+    echo
+    echo "########## BENCHMARK $BENCHMARK ##########"
+    echo "    one fit -> $BENCH_RECORD"
+    python3 scripts/benchmarks/benchmark_regressor_fit.py --measure --out "$BENCH_RECORD"
+    BENCH_RC=$?
+    if [ "$BENCH_RC" -ne 0 ]; then
+        echo "########## BENCHMARK EXITED rc=$BENCH_RC (no measurement record) ##########" >&2
+    fi
+
+    echo
+    echo "########## ARTIFACTS ##########"
+    ls -l "$BENCH_OUT" 2>/dev/null
+    bash scripts/gpu_helpers/emit_artifacts.sh "$BENCH_OUT"
+    finish
+    exit "$BENCH_RC"
 fi
 
 # ---- 4. Run each arm in its own process ----
