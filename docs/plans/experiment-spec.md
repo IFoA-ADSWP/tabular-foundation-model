@@ -3,8 +3,9 @@
 **Status:** Current — agreed 2026-10-28. Slices 1–2 and the `experiment_id` stamping of
 slice 4 are implemented in #230 (`docs/plans/experiment-registry.md`); slice 3 and the
 classification half of slice 4 are implemented in #231
-(`docs/plans/frontier-registry-adoption.md`); the regression half of slice 4 and slices 5–6
-remain open as #232–#233.
+(`docs/plans/frontier-registry-adoption.md`); the regression half of slice 4 is implemented
+in #232 (`docs/plans/regression-seed.md`); slice 5 is implemented in #233
+(`docs/plans/reuse-provenance.md`); slice 6, the verification record, remains open.
 **Origin:** issue #227 (survey) · issue #210 (the ask) · `docs/plans/experiment-spec-handoff.md` (grilling record)
 **Glossary:** `GLOSSARY.md` · **ADR:** `docs/adr/0001-experiment-spec-pins-version-and-guards-reuse.md`
 
@@ -55,7 +56,7 @@ Ordered; each is a ticket. `/to-tickets` should encode the blocking links.
 
 ## Verification
 
-- Gate: all four checks (`ruff`, `pytest tests/ -q`, `shellcheck`, doc checks).
+- Gate: the four CI checks (`ruff`, `pytest tests/ -q`, `shellcheck`, `evidence`); the doc link/status checks are not in `ci.yml` yet.
 - Behaviour: the `coil2000` diff above. Slice 4 without it is unproven.
 - Note: the doc gate is currently red on `main` (49 broken references, 27 unlabelled
   reports). This change must not add to either count, and a "gate green" claim needs those
@@ -64,7 +65,8 @@ Ordered; each is a ticket. `/to-tickets` should encode the blocking links.
 ## Out of scope — follow-up tickets
 
 - Migrating the other four producers (`run_tuned_baselines`, `run_reframe_frequency`,
-  `run_tabfm`, and the analysis/rescore/plot scripts) — filed as #235.
+  `run_tabfm`, and the analysis/rescore/plot scripts) — implemented in #235
+  (`docs/plans/registry-producers.md`).
 - Retiring `src/baseline_config.py`, which serves the notebook-era `data_loader_class` —
   filed as #234.
 - Re-stamping or attributing the 220 legacy sweep rows, and the pre-spec CSVs generally.

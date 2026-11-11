@@ -26,11 +26,15 @@ import pandas as pd
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 from src.api_key import load_api_key as _load_api_key  # noqa: E402  (src import after the repo-root path insert)
+from src.row_sizes import slice_data  # noqa: E402
+from src.model_version import resolve_model_path as _model_path  # noqa: E402
+from run_home_turf_size_sweep import declared_sizes, sweep_datasets  # noqa: E402
 REPO = HERE.parent.parent
 DATA_RAW = REPO / "data" / "raw"
 EVAL_DIR = REPO / "scripts" / "eval" / "insurance_benchmark_v1"
 OUT_CSV = EVAL_DIR / "home_turf_sweep_results.csv"
 PER_FIT_TIMEOUT = 300.0
+SPLIT_SEED = 42  # recorded on every row so the frontier can match it (#233)
 WALL_BUDGET_S = 35 * 60  # protect the 40-min budget; slow tabpfn-full retries last
 
 os.environ["TABPFN_CLIENT_TIMEOUT"] = "300"
@@ -38,12 +42,16 @@ os.environ["TABPFN_CLIENT_TIMEOUT"] = "300"
 
 _load_api_key()
 
-SPEC = {
-    "coil2000": ("coil2000.csv", "CARAVAN", []),
-    "uslapseagent": ("uslapseagent.csv", "surrender", []),
-    "bemtl97": ("bemtl97.csv", "claim", ["nclaims", "amount"]),
-}
-SIZES = [1000, 5000, None]
+_ENTRIES = {entry["name"]: entry for entry in sweep_datasets()}
+SPEC = {name: (entry["file"], entry["target"], entry["drop"])
+        for name, entry in _ENTRIES.items()}
+
+# The sweep's size axis is declared once, in the registry (#264/#235). If the trio ever
+# disagrees, filling a different cell set than the canonical writer would be silent.
+_AXES = {name: declared_sizes(name) for name in SPEC}
+if len(set(_AXES.values())) != 1:
+    raise RuntimeError(f"sweep datasets disagree about their size axis: {_AXES}")
+SIZES = list(next(iter(_AXES.values())))
 T0 = time.time()
 
 
@@ -55,14 +63,6 @@ def load_Xy(name: str) -> tuple[np.ndarray, np.ndarray]:
     for col in X.select_dtypes(include=["object", "category"]).columns:
         X[col] = X[col].astype("category").cat.codes.replace(-1, np.nan)
     return X.fillna(0.0).astype(np.float32).to_numpy(dtype=np.float32), y
-
-
-def slice_data(X, y, n):
-    if n is None or len(X) <= n:
-        return X, y
-    from sklearn.model_selection import train_test_split
-    Xs, _, ys, _ = train_test_split(X, y, train_size=n, stratify=y, random_state=42)
-    return Xs, ys
 
 
 def fit_predict(mname: str, mkw: dict, Xtr, ytr, Xte):
@@ -136,10 +136,11 @@ def main() -> None:
             break
         Xf, yf = load_Xy(name)
         X, y = slice_data(Xf, yf, n_rows)
-        skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+        skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=SPLIT_SEED)
         tr, te = list(skf.split(X, y))[fold]
         row = {"dataset": name, "n_rows": n_rows, "method": mname, "fold": fold,
                "n_estimators": mkw.get("n_estimators"),
+               "seed": SPLIT_SEED, "model_version": _model_path(),
                "trimmed": bool(name == "bemtl97" and n_rows > 50000),
                "error": "", "train_s": np.nan, "infer_s": np.nan,
                "log_loss": np.nan, "brier": np.nan, "roc_auc": np.nan}

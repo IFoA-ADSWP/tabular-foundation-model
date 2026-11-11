@@ -38,7 +38,7 @@ Read:
 - `README.md` (project purpose, structure, environment notes)
 - `data/README.md` (dataset provenance — which insurance datasets exist and where they came from)
 - `docs/` tree: `docs/REPORT_REGISTRY.md` (the index of every report + evidence), `analyses/` (specs/studies for current era)
-- `outputs/current/` — skim `tables/` and `logs/domain_finetune_logbook.md` (this is the "source of truth" for results)
+- `outputs/current/` — skim `tables/` and `logs/` (this is the "source of truth" for results)
 - `CHANGELOG.md` + `TASKS.md` (history + current state)
 - `0_roadmap and project dashboard/` — the workstream roadmap (Excel dashboard: current state, milestones)
 

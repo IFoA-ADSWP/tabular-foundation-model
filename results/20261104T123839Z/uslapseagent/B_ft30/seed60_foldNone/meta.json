@@ -1,0 +1,236 @@
+{
+  "schema_version": 4,
+  "run_id": "uslapseagent_B_ft30_seed60",
+  "dataset": "uslapseagent",
+  "arm": "B_ft30",
+  "seed": 60,
+  "fold": null,
+  "n_folds": null,
+  "train_rows": 10000,
+  "row_epochs": 300000,
+  "test_rows": 1000,
+  "device": "cuda",
+  "device_name": "NVIDIA RTX PRO 4000 Blackwell",
+  "run_time_seconds": 62.615644454956055,
+  "timestamp": "2026-11-04T12:49:51.360513+00:00",
+  "status": "success",
+  "versions": {
+    "python": "3.11.12",
+    "torch": "2.7.0+cu128",
+    "numpy": "2.2.5",
+    "tabpfn": "8.5.0",
+    "scikit-learn": "1.9.1",
+    "pandas": "2.3.3",
+    "catboost": "1.2.10"
+  },
+  "checkpoints": [
+    "tabpfn-v3-classifier-v3_default.ckpt"
+  ],
+  "weights": {
+    "path": "/root/.cache/tabpfn/tabpfn-v3-classifier-v3_default.ckpt",
+    "sha256": "d0d865d54dfbc524f5703104be90620182dca7e5fb2c16de72e9959ea18f3988",
+    "bytes": 212804803,
+    "cached_before": true,
+    "downloaded": true,
+    "source": "Prior-Labs/tabpfn_3",
+    "manifest_file": "/tmp/tfm_weights.json"
+  },
+  "container": {
+    "image_ref": "pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime",
+    "run_stamp": "20261104T123839Z",
+    "machine_id": null,
+    "host_id": null
+  },
+  "estimator_class": "tabpfn.finetuning.finetuned_classifier.FinetunedTabPFNClassifier",
+  "inference_context": {
+    "rows": 10000,
+    "mechanism": "FinetunedTabPFNClassifier refits inference on full X_ (shipped trainer)"
+  },
+  "provenance": {
+    "dataset": {
+      "name": "uslapseagent",
+      "path": "data/raw/uslapseagent.csv",
+      "file": "uslapseagent.csv",
+      "target": "surrender",
+      "drop": [],
+      "sha256": "c56e7c9a3d6d03579f89e5da140007394ed357cb1481f21419700b6d39aa1112",
+      "n_rows": 29317,
+      "n_cols": 11,
+      "columns": [
+        "duration",
+        "acc.death.rider",
+        "gender",
+        "premium.frequency",
+        "risk.state",
+        "underwriting.age",
+        "living.place",
+        "annual.premium",
+        "DJIA",
+        "surrender",
+        "allcause"
+      ],
+      "positive_rate": 0.378552,
+      "n_positive": 11098,
+      "source_url": "https://raw.githubusercontent.com/IFoA-ADSWP/tabular-foundation-model/main/data/raw/uslapseagent.csv",
+      "source_repo": "IFoA-ADSWP/tabular-foundation-model",
+      "source_ref": "main",
+      "source_ref_is_pinned": false,
+      "rows_used": 11500,
+      "load_info": {
+        "row_cap": 11500,
+        "row_cap_applied": true,
+        "rows_loaded": 11500
+      },
+      "pos_rate_used": 0.377391
+    },
+    "split": {
+      "n_folds": null,
+      "seed": 60,
+      "sha256": "b1464508da29cf72f5649914c10c9ad97a993c2e81cafd374dadd1f6379e456c",
+      "rule": {
+        "constructor": "train_test_split",
+        "params": {
+          "random_state": 60,
+          "stratify": "y",
+          "test_size": 1000,
+          "train_size": 10000
+        }
+      }
+    },
+    "model": {
+      "version": "auto",
+      "version_source": "auto",
+      "weights_sha256": "d0d865d54dfbc524f5703104be90620182dca7e5fb2c16de72e9959ea18f3988",
+      "client_version": "8.5.0"
+    },
+    "code": {
+      "git_sha": "72d3dbe45d58efd77921c4fcef56c6bb15c3426c",
+      "dirty": false,
+      "runtime": {
+        "python": "3.11.12",
+        "torch": "2.7.0+cu128",
+        "numpy": "2.2.5",
+        "tabpfn": "8.5.0",
+        "scikit-learn": "1.9.1",
+        "pandas": "2.3.3",
+        "catboost": "1.2.10"
+      },
+      "image": "pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime"
+    }
+  },
+  "dataset_fingerprint": {
+    "name": "uslapseagent",
+    "path": "data/raw/uslapseagent.csv",
+    "file": "uslapseagent.csv",
+    "target": "surrender",
+    "drop": [],
+    "sha256": "c56e7c9a3d6d03579f89e5da140007394ed357cb1481f21419700b6d39aa1112",
+    "n_rows": 29317,
+    "n_cols": 11,
+    "columns": [
+      "duration",
+      "acc.death.rider",
+      "gender",
+      "premium.frequency",
+      "risk.state",
+      "underwriting.age",
+      "living.place",
+      "annual.premium",
+      "DJIA",
+      "surrender",
+      "allcause"
+    ],
+    "positive_rate": 0.378552,
+    "n_positive": 11098,
+    "source_url": "https://raw.githubusercontent.com/IFoA-ADSWP/tabular-foundation-model/main/data/raw/uslapseagent.csv",
+    "source_repo": "IFoA-ADSWP/tabular-foundation-model",
+    "source_ref": "main",
+    "source_ref_is_pinned": false,
+    "rows_used": 11500,
+    "load_info": {
+      "row_cap": 11500,
+      "row_cap_applied": true,
+      "rows_loaded": 11500
+    },
+    "pos_rate_used": 0.377391
+  },
+  "split_fingerprint": {
+    "policy": "holdout_then_train_cap",
+    "seed": 60,
+    "fold": null,
+    "n_folds": null,
+    "rule": {
+      "constructor": "train_test_split",
+      "params": {
+        "random_state": 60,
+        "stratify": "y",
+        "test_size": 1000,
+        "train_size": 10000
+      }
+    },
+    "n_train": 10000,
+    "n_test": 1000,
+    "pos_train": 3774,
+    "pos_test": 377,
+    "train_index_sha256": "b1464508da29cf72f5649914c10c9ad97a993c2e81cafd374dadd1f6379e456c",
+    "test_index_sha256": "9bfe483c06b52f167c20d1b123cc150a65ccd49a080d64c66f8bf64624109eaa",
+    "test_rows_excluded_from_fit": true,
+    "n_dropped": 500,
+    "dropped_index_sha256": "3cfa015a12447cc8c9e9acf7b593fd62fc62479fe871283531ad4b1d0171a138",
+    "leakage_assertion": {
+      "train_test_disjoint": true,
+      "dropped_test_disjoint": true,
+      "n_dropped": 500,
+      "context_source": "explicit_indices_checked",
+      "checked": "constructed_split_only",
+      "n_context": 10000,
+      "context_test_disjoint": true,
+      "context_allowed_checked": true
+    }
+  },
+  "predictions_sha256": "64b45bcf36dfc48cead35747aab65c539f7e94036ca215d90dc83d70d379cc53",
+  "effective_config": {
+    "arm": "B_ft30",
+    "kwargs": {
+      "epochs": 30,
+      "early_stopping": false,
+      "learning_rate": 1e-05,
+      "n_estimators_finetune": 2
+    },
+    "passed_params": [
+      "epochs",
+      "learning_rate",
+      "n_estimators",
+      "early_stopping"
+    ],
+    "library_defaulted_params": [
+      "n_estimators_finetune"
+    ],
+    "legacy_config_keys_ignored": [
+      "context_samples"
+    ],
+    "source_config": {
+      "epochs": 3,
+      "early_stopping": false,
+      "n_estimators": 2,
+      "learning_rate": 1e-05,
+      "fit_mode": "batched",
+      "context_samples": 64
+    }
+  },
+  "config": {
+    "epochs": 3,
+    "early_stopping": false,
+    "n_estimators": 2,
+    "learning_rate": 1e-05,
+    "fit_mode": "batched",
+    "context_samples": 64
+  },
+  "roc_auc": 0.9606422248808919,
+  "brier": 0.07026840001344681,
+  "pr_auc": 0.9187962824269181,
+  "log_loss": 0.21833111345767975,
+  "ece": 0.012816385626085312,
+  "model_saved": false,
+  "model_save_note": "not requested (--save-models)"
+}

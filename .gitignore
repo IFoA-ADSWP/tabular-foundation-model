@@ -209,3 +209,8 @@ outputs/finetune/pilot/*/*/
 # how a run's predictions ended up recorded in the working tree only.
 !/outputs/gpu-pilot/runs/**
 !/outputs/gpu-pilot/logs/**
+# Committed run evidence under results/ carries the prediction arrays (#436). The blanket *.npy
+# rule would swallow them the same way, leaving a capture that hashes files a fresh clone lacks.
+!/results/**/*.npy
+# Lease records are runtime artifacts (#325); never commit them.
+outputs/gpu-pilot/leases/

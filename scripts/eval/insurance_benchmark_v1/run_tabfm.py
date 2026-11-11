@@ -33,11 +33,11 @@ HERE = Path(__file__).resolve().parent
 OUT_CSV = HERE / "frontier_tuned_baseline_results.csv"
 
 from run_frontier_benchmark import (  # noqa: E402  (UNMODIFIED module)
-    DATASETS,
     load_Xy,
     metric_fn,
     top_decile_lift,
 )
+from src.experiment_spec import CLASSIFICATION, load_dataset_entries  # noqa: E402
 
 N_FOLDS = 5
 SEED = 42
@@ -45,6 +45,11 @@ DATASET_CAP_S = 60 * 60  # 60-min hard cap per dataset
 N_ESTIMATORS = 8  # CPU-feasible ensemble (paper default is 32; logged in config)
 ROW_CAP_FALLBACK = 6000  # max_num_rows per ensemble member on OOM/slow path
 ALLOWED = {"coil2000", "uslapseagent", "bemtl16"}
+
+
+def classification_datasets() -> list[dict]:
+    """The registry's classification Datasets, in declared order (#235)."""
+    return load_dataset_entries(HERE / "experiments.toml", CLASSIFICATION)
 
 
 def say(msg: str) -> None:
@@ -126,7 +131,7 @@ def main() -> None:
     say("loading TabFM v1.0.0 classification weights (HuggingFace, ~20 min restore on CPU)...")
     model = load(model_type="classification")  # bfloat16 defaults (memory-light)
     say(f"model loaded in {time.time() - t0:.0f}s")
-    for ds in DATASETS:
+    for ds in classification_datasets():
         name = ds["name"]
         if name not in ALLOWED:
             continue

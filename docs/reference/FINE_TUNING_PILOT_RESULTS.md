@@ -472,6 +472,10 @@ actually applied. **That rule already exists** — the R3 gate in `docs/current/
 against a result, because it is specified on R2 and R2 has never run. The gap is application and
 recording, not design.
 
+> **2026-11-09** (#519). The gap is neither. The gate cannot refuse a null: its `B > E` branch is satisfied by raw
+> TabPFN, and its `B > A` branch failed in R1 (the gate-defect section of `FINETUNING_EXPERIMENT_REFERENCE.md`). It is rejected
+> at `PILOT_2_DESIGN.md:345-346`, and Phase 2's rule is D12.
+
 ### 5d.6 What the test sets can actually resolve
 
 Individual A_raw AUCs with bootstrap 95% CIs, computed from the saved predictions:
@@ -570,6 +574,9 @@ for any delta: all four are single-split point estimates.
 6. **Apply and record the existing decision rule** (the design's R3 gate) against the result,
    rather than treating the rung as complete because the arms ran.
 7. Add a calibration metric to the fine-tuned arm.
+
+> **2026-11-09** (#519). Item 6 is withdrawn. Applying the gate would admit on a criterion the baseline arm
+> satisfies, so it would record a pass that means nothing.
 
 > **Scope boundary:** for a full statement of what this pilot proved and never exercised —
 > including which arms and rungs remain unrun — see `docs/archive/SMOKE_TEST_SCOPE.md`.

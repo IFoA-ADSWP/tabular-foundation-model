@@ -23,6 +23,12 @@ So this does three things, in order, and refuses to report success unless all pa
      `predictions_sha256` its own `meta.json` recorded at production time. This is the
      check that makes a returned metric recomputable by a third party.
 
+  4. IDENTITY (`--expect-seeds`). The seeds in the restored tree's `meta.json` files are
+     compared against the seeds the launch was given, per `(dataset, arm)`. (3) proves a
+     batch is internally consistent; only this proves it is the batch that was asked for.
+     On 2026-11-05 two launches asked for 225-236 and 237-248, both wrote 141-152, and both
+     reported `verified=24 mismatched=0` (#429).
+
 Note the subtlety in (3): `meta.json` records the hash of the ARRAY's bytes
 (`array.tobytes()`), not of the `.npy` container, so hashing the file directly would
 always mismatch. `npy_data_sha256` parses the `.npy` header and hashes only the data
@@ -33,6 +39,7 @@ Exit codes:
     3  no usable payload (absent, or declared empty)
     4  payload incomplete (short read, checksum mismatch, or unpack failure)
     5  payload restored but prediction verification FAILED
+    6  the restored tree's seeds are not the seeds the launch requested
     2  usage error
 """
 from __future__ import annotations
@@ -55,6 +62,7 @@ EXIT_OK = 0
 EXIT_NO_PAYLOAD = 3
 EXIT_INCOMPLETE = 4
 EXIT_UNVERIFIED = 5
+EXIT_SEED_MISMATCH = 6
 
 
 def parse_info(raw: str) -> dict:
@@ -175,6 +183,71 @@ def verify_predictions(dest: str) -> tuple[int, int, int, list[str]]:
     return verified, mismatched, missing, details
 
 
+def parse_seeds(spec: str) -> list[int]:
+    """Turn `225,226,227` or `225-236` (or a mix) into an ordered list of ints.
+
+    A reversed range is an error rather than an empty list: `236-225` silently expanding
+    to nothing would report every written seed as unexpected and hide the real mistake.
+    """
+    seeds: list[int] = []
+    for item in spec.replace(" ", ",").split(","):
+        if not item:
+            continue
+        if "-" in item:
+            lo, _, hi = item.partition("-")
+            start, end = int(lo), int(hi)
+            if end < start:
+                raise ValueError(f"reversed range {item!r}")
+            seeds.extend(range(start, end + 1))
+        else:
+            seeds.append(int(item))
+    if not seeds:
+        raise ValueError("no seeds in the list")
+    return seeds
+
+
+def seed_ranges(seeds) -> str:
+    """`[141,142,...,152]` -> `141-152`, so a mismatch names ranges, not 12 numbers."""
+    ordered = sorted(set(seeds))
+    if not ordered:
+        return "(none)"
+    runs: list[list[int]] = [[ordered[0]]]
+    for seed in ordered[1:]:
+        if seed == runs[-1][-1] + 1:
+            runs[-1].append(seed)
+        else:
+            runs.append([seed])
+    return ",".join(
+        f"{run[0]}-{run[-1]}" if len(run) > 1 else str(run[0]) for run in runs
+    )
+
+
+def written_seeds(dest: str) -> dict[tuple[str, str], set[int]]:
+    """The seeds each `(dataset, arm)` in the restored tree actually wrote.
+
+    Grouped per arm rather than pooled: a batch whose `B_in_domain` died at seed 142 of
+    141-143 has the right *union* and the wrong evidence, and the issue's "partial run is
+    refused" has to hold one level below the batch too. A multi-fold run writes one meta
+    per fold for the same seed, so each group is a set.
+    """
+    groups: dict[tuple[str, str], set[int]] = {}
+    for root, _dirs, files in os.walk(dest):
+        if "meta.json" not in files:
+            continue
+        try:
+            with open(os.path.join(root, "meta.json")) as f:
+                meta = json.load(f)
+        except Exception:
+            continue
+        try:
+            seed = int(meta.get("seed"))
+        except (TypeError, ValueError):
+            continue  # absent or non-numeric: the group simply does not record it
+        key = (str(meta.get("dataset") or "?"), str(meta.get("arm") or "?"))
+        groups.setdefault(key, set()).add(seed)
+    return groups
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Verify the container-log artifact payload")
     ap.add_argument("--raw", required=True, help="captured container log")
@@ -184,7 +257,23 @@ def main() -> int:
         action="store_true",
         help="skip unpacking; verify predictions already present in --dest",
     )
+    ap.add_argument(
+        "--expect-seeds",
+        metavar="LIST",
+        help=(
+            "seeds the launch was given, as a comma list and/or ranges "
+            "(e.g. 225,226,227 or 225-236); refusing when the tree holds another set"
+        ),
+    )
     args = ap.parse_args()
+
+    try:
+        # An explicitly empty list is a mistake, not a request to skip the check --
+        # `vast_run.sh` refuses `--seeds ""` for the same reason.
+        expected = parse_seeds(args.expect_seeds) if args.expect_seeds is not None else None
+    except ValueError as e:
+        print(f"FAIL --expect-seeds is not a seed list: {e}")
+        return 2
 
     if args.verify_only:
         rc, report = EXIT_OK, f"verifying existing payload in {args.dest}"
@@ -205,12 +294,39 @@ def main() -> int:
         print(line)
     print(f"VERIFY predictions verified={verified} mismatched={mismatched} missing={missing}")
 
+    seed_mismatch = False
+    if expected is not None:
+        expected_set = set(expected)
+        groups = written_seeds(args.dest)
+        written = set().union(*groups.values()) if groups else set()
+        print(f"SEEDS requested={seed_ranges(expected)} written={seed_ranges(written)}")
+        absent = [seed for seed in expected if seed not in written]
+        extra = sorted(written - expected_set)
+        if absent or extra:
+            seed_mismatch = True
+            if absent:
+                print(f"  MISSING seeds: {seed_ranges(absent)} (requested, never written)")
+            if extra:
+                print(f"  UNEXPECTED seeds: {seed_ranges(extra)} (written, never requested)")
+        for (dataset, arm), seeds in sorted(groups.items()):
+            if seeds != expected_set:
+                seed_mismatch = True
+                gap = seed_ranges(expected_set - seeds)
+                print(
+                    f"  INCOMPLETE {dataset}/{arm}: requested={seed_ranges(expected)} "
+                    f"written={seed_ranges(seeds)} (missing {gap})"
+                )
+        if seed_mismatch:
+            print("FAIL this batch did not write the seeds it was asked for")
+
     if verified == 0:
         print("FAIL no run declared a verifiable prediction hash -- nothing was checked")
         return EXIT_UNVERIFIED
     if mismatched or missing:
         print("FAIL the run's metrics are NOT recomputable from these files")
         return EXIT_UNVERIFIED
+    if seed_mismatch:
+        return EXIT_SEED_MISMATCH
     return EXIT_OK
 
 

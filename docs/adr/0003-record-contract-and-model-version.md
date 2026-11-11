@@ -20,7 +20,7 @@ computed from the record rather than written into it.
 | --- | --- | --- |
 | `dataset` | `name`, `file`, `target`, `drop`, `sha256`, `n_rows`, `n_cols`, plus `source_url` / `source_repo` / `source_ref` / `source_ref_is_pinned` | the sha256 is over the bytes on disk, so a changed CSV is visible; `drop` is the leak-drop **as applied by the runner** |
 | `split` | `n_folds`, `seed`, `sha256`, `rule` | `sha256` is the train-index hash; `rule` is `{constructor, params}`, so a fold change is a rule change |
-| `model` | `version`, `version_source`, `weights_sha256`, `client_version` | `version` is the resolved label (`v3_default`), never a filename; `version_source` says what kind of claim that is (`resolver` for today's pilot, `legacy` for a pre-block record carrying its own `model_version`) |
+| `model` | `version`, `version_source`, `weights_sha256`, `client_version` | `version` is the resolved label (`v3_default`), never a filename; `version_source` says what kind of claim that is (`pinned` once the pilot passes the value to the estimator — #285 — and `legacy` for a pre-block record carrying its own `model_version`) |
 | `code` | `git_sha`, `dirty`, `runtime`, `image` | `dirty` says whether `git_sha` describes the code that ran |
 
 **The one documented asymmetry.** A per-dataset record (pilot arm run, prediction capture) has
@@ -134,7 +134,7 @@ block, and the block is what has to agree across producers.
 - **The model version is a declaration, not an observation.** `run_pilot` constructs
   `TabPFNClassifier` without a `model_path` and never calls `resolve_model_path()`, so the value
   in `provenance.model.version` is the label this repository resolves to, not proof that the
-  estimator was asked for it. The block says so with `version_source: resolver`. Pinning the
+  estimator was asked for it. The block said so with `version_source: resolver`. #285 pinned the
   model changes what runs on a paid box, which is not this change's business: tracked as #285.
 - A record written by an older runner is not rewritten. Its bytes are the evidence; the
   verdict is the statement about them.

@@ -82,7 +82,16 @@ except Exception:
     raise SystemExit
 insts = d if isinstance(d, list) else d.get("instances", [])
 
-mine = [i for i in insts if (i.get("label") or "") == label]
+def _is_ours(name):
+    # The launcher labels each instance "<prefix>-<utc stamp>-<hex>", so an exact match finds
+    # nothing at all -- the watchdog would report "clean" while a pilot instance billed. That is
+    # the failure this script's own header warns about ("a guard you only believe is running is
+    # worse than none"). Same rule as vast_run.sh's leak preflight: the bare prefix, or anything
+    # under it.
+    return name == label or name.startswith(label + "-")
+
+
+mine = [i for i in insts if _is_ours(i.get("label") or "")]
 if not mine:
     print(f"{stamp} clean: no '{label}' instances")
     raise SystemExit

@@ -4,12 +4,9 @@ Generalizes the validated pilot (run_frontier_pilot_bemtl97.py) to all three
 home-turf sweep datasets per docs/analyses/insurance_frontier_benchmark_spec.md
 (commit 037d215, branch feat/tabarena-benchmark), D5 Option A:
 
-  bemtl97       target=claim,    drop=["nclaims","amount"]  (leak-fixed)
-  coil2000      target=CARAVAN,  drop=[]
-  uslapseagent  target=surrender, drop=[]
-  norauto       target=NbClaim,  drop=[]                    (no sweep rows — fresh power)
-  ausprivauto0405 target=ClaimOcc, drop=[]                  (no sweep rows — fresh power)
-  bemtl16       target=number_of_liability_claims, drop=[]  (no sweep rows — fresh power)
+  The six datasets are declared in experiments.toml, with their targets and leak-drops;
+  they are not restated here (#235). norauto/ausprivauto0405/bemtl16 have no sweep rows
+  and therefore use fresh power.
 
 Each dataset is an INDEPENDENT frontier (separate table + plot, no cross-dataset
 Pareto comparison).
@@ -39,10 +36,8 @@ Regression mode (--regression flag): the same frontier machinery on continuous/c
 targets, 4 independent frontiers, always FRESH power (the sweep CSV is
 classification-only — regression never reuses it):
 
-  ausautoBI8999         target=AggClaim (already log-scale),  drop=[], metric=rmse
-  ausprivauto0405_vehvalue target=VehValue (raw),             drop=[], metric=rmse
-  bemtl97_amount        target=amount (log1p),                drop=["claim"], metric=rmse
-  freMTPL2freq          target=ClaimNb,                       drop=["IDpol"], metric=poisson_deviance
+  The six datasets, their stored scale, targets, drops and metrics are declared in
+  experiments.toml (#235); this docstring no longer restates them.
 
 bemtl97_amount drops `claim` because claim == (amount > 0) at 100% — a deterministic
 leak of the target (verified). freMTPL2freq drops IDpol (unique ids) and replaces the
@@ -54,8 +49,9 @@ Metrics dispatch through metric_fn(ds): log_loss (classification, default), rmse
 (sklearn mean_squared_error, sqrt) or poisson_deviance (mean_poisson_deviance) for
 regression. Regression y_pred is clipped to >= 1e-12 before deviance — OLS on count
 targets can predict negatives and sklearn's deviance requires non-negative y_pred.
-Regression folds are 5-fold KFold(shuffle=True, random_state=42) — NOT
-StratifiedKFold (continuous target) — same seed as classification.
+Regression folds are 5-fold KFold(shuffle=True, random_state=SEED) — NOT
+StratifiedKFold (continuous target). SEED is the run's seed: the CLI value, or the
+experiment's declaration under --experiment (#232).
 
 Regression methods (all at defaults): ols (LinearRegression), poissonglm
 (PoissonRegressor(alpha=0, max_iter=500)), tweedieglm (TweedieRegressor(power=1.5)),
@@ -103,6 +99,7 @@ import argparse
 import os
 import sys
 import time
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Callable, NamedTuple
 
@@ -118,47 +115,19 @@ from src.experiment_spec import (  # noqa: E402  (src import after the path inse
     REGRESSION,
     Experiment,
     RegistryError,
-    as_runner_dataset,
+    dataset_entry,
+    datasets_by_mode,
     load_registry,
     make_folds,
+    resolve_row_size,
 )
-from src.model_version import resolve_model_path as _model_path  # noqa: E402  (src import after the path insert above)
+from src.model_version import (  # noqa: E402  (src import after the path insert above)
+    resolve_model_path as _model_path,
+    version_mismatch,
+)
+from src.row_sizes import slice_data  # noqa: E402  (src import after the path insert above)
 DATA_RAW = REPO / "data" / "raw"
 EXPERIMENTS_TOML = HERE / "experiments.toml"  # the committed registry (#230)
-
-# Deprecated for the frontier classification path: #231 selects datasets from the loaded
-# registry. Kept because run_tuned_baselines.py imports it until #235 migrates the other
-# producers; nothing in the classification frontier reads it.
-# D5 Option A: the home-turf sweep datasets plus norauto. Load configs identical to
-# scripts/benchmarks/run_home_turf_size_sweep.py (target + drops); norauto.csv was leak-fixed
-# in d170afc (ClaimAmount dropped — do not re-derive) and has no sweep rows.
-DATASETS = [
-    dict(name="bemtl97", file="bemtl97.csv", target="claim", drop=["nclaims", "amount"]),
-    dict(name="coil2000", file="coil2000.csv", target="CARAVAN", drop=[]),
-    dict(name="uslapseagent", file="uslapseagent.csv", target="surrender", drop=[]),
-    dict(name="norauto", file="norauto.csv", target="NbClaim", drop=[]),
-    dict(name="ausprivauto0405", file="ausprivauto0405.csv", target="ClaimOcc", drop=[]),
-    dict(name="bemtl16", file="bemtl16.csv", target="number_of_liability_claims", drop=[]),
-]
-
-# Regression-mode datasets (--regression flag) — always FRESH power, no sweep reuse.
-# Targets are used AS STORED (AggClaim is already log-scale, amount is log1p — no
-# re-transform; RMSE/deviance computed on the stored scale). bemtl97_amount drops
-# `claim`: verified claim == (amount > 0) at 100% — a deterministic leak of the target.
-# freMTPL2freq drops IDpol (unique ids) and replaces Exposure with log(Exposure)
-# (natural Poisson offset; verified no Exposure=0 rows) via transform="log_exposure".
-# spanish_motor_freq: last policy-year per ID (53,502 rows), target N_claims_year;
-# NO log_exposure transform — per-row exposure is uniform ~1 year (verified in step
-# 1), and leak columns (N_claims_history/R_Claims_history/Cost_claims_year) were
-# dropped at prep time (scripts/infra/prepare_insurance_datasets.py).
-REG_DATASETS = [
-    dict(name="ausautoBI8999", file="ausautoBI8999.csv", target="AggClaim", drop=[], metric="rmse"),
-    dict(name="ausprivauto0405_vehvalue", file="ausprivauto0405.csv", target="VehValue", drop=[], metric="rmse"),
-    dict(name="bemtl97_amount", file="bemtl97.csv", target="amount", drop=["claim"], metric="rmse"),
-    dict(name="freMTPL2freq", file="freMTPL2freq.csv", target="ClaimNb", drop=["IDpol"], metric="poisson_deviance", transform="log_exposure"),
-    dict(name="spanish_motor_freq", file="spanish_motor_freq.csv", target="N_claims_year", drop=[], metric="poisson_deviance"),
-    dict(name="spanish_motor_severity", file="spanish_motor_severity.csv", target="Cost_claims_year", drop=[], metric="rmse"),
-]
 
 METRIC_LABELS = {  # plot y-axis per metric (metric_fn dispatch)
     "log_loss": "mean log loss",
@@ -174,7 +143,7 @@ PREDICTIONS_DIR = HERE / "predictions"  # --save-predictions: one .npz + manifes
 #   PR_AUC_MODE:      --pr-auc — forces EVERY method to fresh-fit (the sweep CSV has no
 #                     predictions, so PR AUC / top-decile lift need real fits) and appends
 #                     per-fold rows to PR_AUC_CSV.
-#   SEED:             --seed N — StratifiedKFold(random_state=N), default 42 (unchanged).
+#   SEED:             --seed N — splitter random_state in both modes, default 42.
 #   SAVE_PREDICTIONS: --save-predictions — persist per-fold (y_true, y_pred, test_idx) for
 #                     retrospective re-scoring (#122); forces fresh fits for the same reason
 #                     as PR_AUC_MODE (reused sweep rows carry no predictions).
@@ -185,6 +154,19 @@ SAVE_PREDICTIONS = False
 # produces states it; ad-hoc runs (--data, positional filters) belong to no experiment
 # and stamp an empty value rather than borrowing one.
 EXPERIMENT_ID: str | None = None
+# Per-dataset power source, filled by the runners and written into manifest.json (#233).
+POWER_SOURCES: dict[str, dict[str, list[str]]] = {}
+# The manifest's `utc` is the run start, even when the file is rewritten after each dataset.
+RUN_STARTED_UTC: str | None = None
+# #239: the model versions the experiments this run will EXECUTE declare, as the literals
+# in experiments.toml. Empty on an ad-hoc run, which declares nothing -- that is not the
+# same fact as "the declared and resolved versions agree", so the manifest records absent
+# rather than a pass. A sweep covers several experiments, so this is a tuple: the manifest
+# names a single literal only when they agree on one.
+RUN_DECLARED_VERSIONS: tuple[str, ...] = ()
+# --size N: the declared row-size point this run measures (#264). None is the full table,
+# which every experiment has; an integer must be one of the experiment's declared sizes.
+ROW_SIZE: int | None = None
 
 # TabPFN parameter count — settled non-decision (spec §5): constant per dataset, orders of
 # magnitude above the GBDTs, so its precise value never changes frontier membership.
@@ -517,11 +499,55 @@ def pareto_frontier(rows: list[dict]) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Sweep reuse predicate (#233)
+# ---------------------------------------------------------------------------
+SWEEP_PROVENANCE_COLUMNS = ("dataset", "n_rows", "method", "fold", "n_estimators",
+                             "seed", "model_version")
+SWEEP_VALUE_COLUMNS = ("log_loss", "brier", "roc_auc")
+
+
+def reuse_version_for(experiment: Experiment | None, resolved: str) -> str | None:
+    """The model version a run may reuse rows under, or None when it may not reuse.
+
+    A declared experiment reuses only when execution resolved the declared version (#239
+    records the comparison; #233 requires it to agree). An ad-hoc run declares nothing,
+    so there is no identity to attest and it reuses nothing.
+    """
+    if experiment is None:
+        return None
+    if version_mismatch(experiment.model_version, resolved):
+        return None
+    return experiment.model_version
+
+
+def reusable_sweep_rows(sweep: pd.DataFrame, dataset: str, n_rows: int,
+                        seed: int, model_version: str) -> pd.DataFrame:
+    """Sweep rows attributable to this run, or none.
+
+    A row may be reused only when the table records the provenance this run can match:
+    the same seed and the same resolved model version. A table written before those
+    columns existed (the committed 220 rows) attributes nothing and is never reused,
+    which is why the first post-change run refits once.
+    """
+    required = set(SWEEP_PROVENANCE_COLUMNS) | set(SWEEP_VALUE_COLUMNS)
+    if not required.issubset(sweep.columns):
+        return sweep.iloc[0:0]
+    return sweep[
+        (sweep["dataset"] == dataset)
+        & (sweep["n_rows"] == n_rows)
+        & (sweep["n_estimators"].isna())
+        & (sweep["seed"] == seed)
+        & (sweep["model_version"] == model_version)
+    ]
+
+
+# ---------------------------------------------------------------------------
 # One dataset
 # ---------------------------------------------------------------------------
 def run_dataset(ds: dict, out_csv: Path, out_png: Path,
                 experiment: Experiment | None = None,
-                seed: int | None = None, n_folds: int | None = None) -> pd.DataFrame:
+                seed: int | None = None, n_folds: int | None = None,
+                row_size: int | None = None) -> pd.DataFrame:
     """Classification frontier for one dataset.
 
     `experiment` supplies the compared methods. `seed` and `n_folds` default to the
@@ -535,6 +561,12 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path,
         print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
     X, y = load_Xy(ds)
+    X, y = slice_data(X, y, row_size)
+    if row_size is not None and len(X) < row_size:
+        raise ValueError(
+            f"dataset {ds['name']!r} has {len(X)} rows, fewer than the declared size "
+            f"{row_size}: the declaration cannot be honoured"
+        )
     n_cols = X.shape[1]
     metric = metric_fn(ds)
     n_folds = (n_folds if n_folds is not None
@@ -565,10 +597,25 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path,
             pred_store[f"{method}__fold{fold}"] = y_pred.astype(np.float32)
 
     # ---- 1. Sweep rows: reusable only for a method that declares it, and only when
-    # the run is not forcing fresh fits (--pr-auc / --save-predictions need predictions).
-    # Provenance (seed, model version) is still unchecked here; #233 closes that.
+    # the run's identity is attestable. #239 records declared vs resolved; #233 requires
+    # them to agree before a row may stand in for a fit. An ad-hoc run declares nothing,
+    # so it reuses nothing: absence is not a pass.
     sweep = pd.read_csv(SWEEP_CSV)
-    sweep_full = sweep[(sweep.dataset == ds["name"]) & (sweep.n_rows == len(X)) & (sweep.n_estimators.isna())]
+    resolved_version = _model_path()
+    reuse_version = reuse_version_for(experiment, resolved_version)
+    if reuse_version is None:
+        sweep_full = sweep.iloc[0:0]
+        if not sweep.empty:
+            if experiment is None:
+                say("  ad-hoc run declares no model version; fitting fresh")
+            else:
+                say(f"  declared model_version={experiment.model_version} but resolved "
+                    f"{resolved_version}; fitting fresh")
+    else:
+        sweep_full = reusable_sweep_rows(sweep, ds["name"], len(X), seed, reuse_version)
+        if sweep_full.empty and not sweep.empty:
+            say(f"  no sweep row records seed={seed} model_version={reuse_version}; "
+                f"fitting fresh")
     fresh = PR_AUC_MODE or SAVE_PREDICTIONS
     reused_any = False
 
@@ -657,19 +704,32 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path,
     # ---- 2. Power: every method in the experiment, in its declared order except the
     # hosted one, which runs last so a stall never blocks the CPU results.
     rows: list[dict] = []
+    reused_methods: list[str] = []
+    fresh_methods: list[str] = []
     for m in methods:
         spec = CLASSIFICATION_METHODS[m]
         if spec.build is None:
             continue
         row = reused_row(m) if spec.reuse_sweep else None
-        rows.append(row if row is not None else fit_fresh(m, spec))
+        if row is not None:
+            reused_methods.append(m)
+            rows.append(row)
+        else:
+            fresh_methods.append(m)
+            rows.append(fit_fresh(m, spec))
 
     for m in methods:
         spec = CLASSIFICATION_METHODS[m]
         if spec.build is not None:
             continue
         row = reused_row(m) if spec.reuse_sweep else None
-        rows.append(row if row is not None else fit_hosted(m))
+        if row is not None:
+            reused_methods.append(m)
+            rows.append(row)
+        else:
+            fresh_methods.append(m)
+            rows.append(fit_hosted(m))
+    POWER_SOURCES[ds["name"]] = {"reused": reused_methods, "fresh": fresh_methods}
 
     # ---- 3. n_params from the code-side counting rule. A reused tree row has no fitted
     # model, so fit fold 0 once purely to count, exactly as before (spec §5 D2).
@@ -740,15 +800,16 @@ def run_dataset(ds: dict, out_csv: Path, out_png: Path,
     # ---- 5b. Persist predictions + read-back verification (--save-predictions, #122) ----
     if SAVE_PREDICTIONS:
         written = [r["method"] for r in rows]
-        npz_path = write_predictions_npz(ds, pred_store, written, n_folds,
+        npz_path = write_predictions_npz(ds, pred_store, written, n_folds, n_rows=len(X),
+                                          row_size=row_size,
                                           problem_type="classification",
                                           metric_name=ds.get("metric", "log_loss"), seed=seed,
-                                          experiment_id=EXPERIMENT_ID)
+                                          experiment=experiment)
         verify_predictions_readback(npz_path, written, metric, rows, n_folds,
                                      problem_type="classification")
 
     table = table.drop(columns=[c for c in table.columns if c.startswith("_fold")])
-    table = with_experiment_id(table, EXPERIMENT_ID)
+    table = with_row_count(with_experiment_id(table, EXPERIMENT_ID), len(X))
     table.to_csv(out_csv, index=False)
     print(table.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
     return table
@@ -853,11 +914,17 @@ def verify_predictions_dir(pred_dir: Path) -> int:
 
 def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: list[str],
                            n_folds: int, problem_type: str, metric_name: str, seed: int,
-                           experiment_id: str | None = None) -> Path:
+                           experiment: Experiment | None = None,
+                           n_rows: int | None = None,
+                           row_size: int | None = None) -> Path:
     """Write predictions/<dataset>__seed<seed>__<model_path>.npz + sibling .manifest.json
     (schema v1, docs/analyses/prediction_capture_rescore_spec.md §4). Asserts every
     fold/method array is present, length-matched to its test split, and finite before
     writing anything.
+
+    `experiment` is the declaration this capture belongs to, and it is the *dataset's*
+    experiment, not the run's (#239): a sweep covers several, and each capture can state
+    its own literal. None for an ad-hoc run, which declares nothing.
 
     The model_path suffix keeps generations side by side: without it a version re-test
     (§15/§16) silently overwrites the baseline it is being diffed against, since dataset
@@ -866,7 +933,9 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
     import subprocess
 
     PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
-    stem = f"{ds['name']}__seed{seed}__{_model_path()}"
+    resolved = _model_path()
+    size_part = "" if row_size is None else f"__size{row_size}"
+    stem = f"{ds['name']}__seed{seed}{size_part}__{resolved}"
     npz_path = PREDICTIONS_DIR / f"{stem}.npz"
     manifest_path = PREDICTIONS_DIR / f"{stem}.manifest.json"
 
@@ -897,12 +966,15 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
     except Exception:
         git_sha = "unknown"
 
-    split_desc = (f"StratifiedKFold({n_folds}, shuffle=True, random_state={seed})"
-                  if problem_type == "classification" else
-                  f"KFold({n_folds}, shuffle=True, random_state=42)")
+    # Describe the splitter that actually made the folds, not a second hand-built string.
+    splitter = make_folds(
+        "stratified" if problem_type == "classification" else "kfold", n_folds, seed
+    )
+    split_desc = (f"{type(splitter).__name__}({splitter.n_splits}, shuffle=True, "
+                  f"random_state={splitter.random_state})")
     manifest = {
         "schema_version": 1,
-        "experiment_id": experiment_id,
+        "experiment_id": experiment.id if experiment else None,
         "dataset": ds["name"],
         "data_file": ds["file"],
         "target": ds["target"],
@@ -916,10 +988,15 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
             "scoring time (run_dataset fold loop); stored arrays are raw, pre-clip"
         ),
         "n_folds": n_folds,
+        "row_size": "full" if row_size is None else row_size,  # the declared point (#264)
+        "n_rows": n_rows,  # the rows actually measured, which may differ if full
         "seed": seed,
         "split": split_desc,
         "methods": methods,
-        "model_version": _model_path(),
+        "model_version": resolved,
+        # #239: the dataset's declaration, so a drifted capture says so instead of looking
+        # verified; None is absent, not a pass.
+        **model_version_fields([experiment.model_version] if experiment else [], resolved),
         "tabpfn_client_version": tabpfn_client_version,
         "script_git_sha": git_sha,
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -971,23 +1048,34 @@ def verify_predictions_readback(npz_path: Path, methods: list[str], metric, rows
     print(f"READ-BACK OK: {len(methods)} methods match recorded means within {tol:g}")
 
 
-def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFrame:
+def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path,
+                           seed: int | None = None,
+                           n_folds: int | None = None,
+                           experiment: Experiment | None = None) -> pd.DataFrame:
     """Regression-mode frontier (--regression). No sweep reuse — the sweep CSV is
     classification-only, so every regression dataset is FRESH power: all CPU methods
-    first (same 5 folds), TabPFN last via the hosted API (same retry/backoff loop as
-    the classifier path) so a hosted stall never blocks the fast results."""
+    first, TabPFN last via the hosted API (same retry/backoff loop as the classifier
+    path) so a hosted stall never blocks the fast results.
+
+    `seed` and `n_folds` default to the CLI globals; a named experiment passes its
+    declaration, so the folds and the capture describe one split. The filename's `_seedN`
+    suffix is `main()`'s, from the same run seed. `experiment` also supplies the capture's
+    declared model version (#239); regression does not take its methods from it yet.
+    """
     def say(msg: str) -> None:
         print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
+    n_folds = n_folds if n_folds is not None else N_FOLDS
+    seed = seed if seed is not None else SEED
     X, y = load_Xy(ds, regression=True)
     n_cols = X.shape[1]
     metric = metric_fn(ds)  # rmse or poisson_deviance, clipped as needed
-    say(f"dataset={ds['name']} shape={X.shape} metric={ds['metric']} y=[{y.min():.4g}, {y.max():.4g}]")
+    say(f"dataset={ds['name']} shape={X.shape} metric={ds['metric']} "
+        f"seed={seed} folds={n_folds} y=[{y.min():.4g}, {y.max():.4g}]")
 
-    # Shared constructor (#231); #232 replaces the hardcoded 42 with the experiment seed.
-    folds = list(make_folds("kfold", N_FOLDS, 42).split(X))
+    folds = list(make_folds("kfold", n_folds, seed).split(X))
 
-    # ---- 1. Fresh power: 7 CPU regressors on the same 5 folds, all at defaults ----
+    # ---- 1. Fresh power: 7 CPU regressors on the same folds, all at defaults ----
     makers = {
         "ols": make_ols,
         "poissonglm": make_poissonglm_reg,
@@ -1075,7 +1163,8 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFra
     table = pd.DataFrame(rows)[["method", "mean", "se", "n_params", "on_frontier"]].sort_values(
         "mean", ignore_index=True
     )
-    table = with_experiment_id(table, EXPERIMENT_ID)
+    POWER_SOURCES[ds["name"]] = {"reused": [], "fresh": [r["method"] for r in rows]}
+    table = with_row_count(with_experiment_id(table, EXPERIMENT_ID), len(X))
     table.to_csv(out_csv, index=False)
     print(table.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
 
@@ -1094,28 +1183,28 @@ def run_dataset_regression(ds: dict, out_csv: Path, out_png: Path) -> pd.DataFra
                     textcoords="offset points", xytext=(7, 5), fontsize=8)
     ax.set_xlabel("log10(n_params)")
     ax.set_ylabel(ylabel)
-    ax.set_title(f"Insurance frontier — {ds['name']} (full, 5 folds, mean ± SE)")
+    ax.set_title(f"Insurance frontier — {ds['name']} (full, {n_folds} folds, mean ± SE)")
     ax.grid(alpha=0.3)
     fig.tight_layout()
     fig.savefig(out_png, dpi=150)
     plt.close(fig)
 
     # ---- 5. Self-check ----
-    sanity_check_regression(ds, folds, table, on_frontier, y, metric)
+    sanity_check_regression(ds, folds, table, on_frontier, y, metric, n_folds=n_folds)
 
     # ---- 5b. Persist predictions + read-back verification (--save-predictions, #122) ----
     if SAVE_PREDICTIONS:
         methods = [r["method"] for r in rows]
-        npz_path = write_predictions_npz(ds, pred_store, methods, N_FOLDS,
+        npz_path = write_predictions_npz(ds, pred_store, methods, n_folds, n_rows=len(X),
                                           problem_type="regression", metric_name=ds["metric"],
-                                          seed=SEED, experiment_id=EXPERIMENT_ID)
-        verify_predictions_readback(npz_path, methods, metric, rows, N_FOLDS,
+                                          seed=seed, experiment=experiment)
+        verify_predictions_readback(npz_path, methods, metric, rows, n_folds,
                                      problem_type="regression")
 
     return table
 
 
-def sanity_check_regression(ds: dict, folds: list[tuple[np.ndarray, np.ndarray]], table: pd.DataFrame, on_frontier: set, y: np.ndarray, metric) -> None:
+def sanity_check_regression(ds: dict, folds: list[tuple[np.ndarray, np.ndarray]], table: pd.DataFrame, on_frontier: set, y: np.ndarray, metric, n_folds: int = N_FOLDS) -> None:
     """Regression-mode self-checks: the shared fold/table/frontier checks (sweep checks
     skipped — regression never reuses the classification sweep) plus target
     non-negativity and the deviance clip guard."""
@@ -1125,7 +1214,7 @@ def sanity_check_regression(ds: dict, folds: list[tuple[np.ndarray, np.ndarray]]
         # >= 1e-12 before deviance (sklearn raises on negative y_pred). Verify the
         # guard end-to-end with a negative prediction.
         assert np.isfinite(metric(np.array([0.0, 2.0, 5.0]), np.array([-3.0, 1.0, 4.5]))), "deviance clip guard broken"
-    sanity_check(pd.DataFrame(), folds, table, on_frontier)
+    sanity_check(pd.DataFrame(), folds, table, on_frontier, n_folds=n_folds)
 
 
 # ---------------------------------------------------------------------------
@@ -1157,8 +1246,13 @@ def make_parser() -> argparse.ArgumentParser:
                         help="check every predictions/*.npz against its manifest's "
                              "predictions_sha256 and exit (no fitting; exit 1 on any mismatch)")
     parser.add_argument("--seed", type=int, default=42, metavar="N",
-                        help="StratifiedKFold random_state (default 42; seed != 42 writes "
-                             "frontier_results_<ds>_seed<N>.csv/.png so canonical seed-42 files are not clobbered)")
+                        help="splitter random_state in both modes (default 42; seed != 42 "
+                             "writes frontier_results_<ds>_seed<N>.csv/.png so canonical "
+                             "seed-42 files are not clobbered)")
+    parser.add_argument("--size", metavar="full|N", default="full",
+                        help="declared row-size point to measure (#264): 'full' (default) or "
+                             "a size the experiment declares in experiments.toml; cannot be "
+                             "combined with --data, and the regression path declares none yet")
     parser.add_argument("--experiment", metavar="ID",
                         help="run the experiment registered under ID in experiments.toml "
                              "(selects its dataset, metric and mode, and stamps the id into "
@@ -1190,21 +1284,9 @@ def select_datasets(args: argparse.Namespace) -> tuple[list[dict], set[str] | No
                   metric="rmse" if args.regression else "log_loss",
                   drop=[c.strip() for c in args.drop.split(",")] if args.drop else [])
         return [ds], None  # --data wins; filters ignored
-    if args.regression:
-        datasets = REG_DATASETS
-    else:
-        registry = load_registry(EXPERIMENTS_TOML)
-        classification = [experiment for experiment in registry.experiments.values()
-                          if experiment.mode == CLASSIFICATION]
-        names = [experiment.dataset for experiment in classification]
-        duplicates = sorted({name for name in names if names.count(name) > 1})
-        if duplicates:
-            raise RegistryError(
-                f"dataset {duplicates[0]!r} is claimed by more than one classification "
-                f"experiment; the output filename is keyed to the dataset, so two "
-                f"experiments would overwrite each other"
-            )
-        datasets = [as_runner_dataset(registry, experiment) for experiment in classification]
+    registry = load_registry(EXPERIMENTS_TOML)
+    mode = REGRESSION if args.regression else CLASSIFICATION
+    datasets = [dataset_entry(dataset) for dataset in datasets_by_mode(registry, mode)]
     wanted = {f.lower() for f in args.filters} if args.filters else None
     return datasets, wanted
 
@@ -1221,7 +1303,28 @@ def experiment_selection(experiment_id: str) -> tuple[list[dict], Experiment]:
     if experiment.mode == CLASSIFICATION:
         # A method the file names but the code cannot build fails here, before any fit.
         planned_classification_methods(experiment.methods)
-    return [as_runner_dataset(registry, experiment)], experiment
+    return [dataset_entry(registry.dataset_of(experiment))], experiment
+
+
+def selected(name: str, wanted: set[str] | None) -> bool:
+    """Whether a dataset is covered by the run's filter (`None` = no filter)."""
+    return wanted is None or name.lower() in wanted
+
+
+def size_label(row_size: int | None) -> str:
+    """How an artifact names the row-size point it measured (#264)."""
+    return "full" if row_size is None else f"{row_size} rows"
+
+
+def with_row_count(table: pd.DataFrame, n_rows: int) -> pd.DataFrame:
+    """Stamp the rows actually measured on every results row (#264).
+
+    The size axis is only checkable if the row states the point it came from; `n_rows` is
+    the sliced length, so `--size 1000` and a 1 000-row table agree by construction.
+    """
+    stamped = table.copy()
+    stamped.insert(1, "n_rows", n_rows)  # beside experiment_id, which stays first (#230)
+    return stamped
 
 
 def with_experiment_id(table: pd.DataFrame, experiment_id: str | None) -> pd.DataFrame:
@@ -1238,6 +1341,27 @@ def with_experiment_id(table: pd.DataFrame, experiment_id: str | None) -> pd.Dat
     return stamped
 
 
+def model_version_fields(declared: Iterable[str | None], resolved: str) -> dict:
+    """The declared/resolved keys a manifest records, for the declarations it covers (#239).
+
+    A capture covers one experiment, so `declared` is its literal. The run manifest covers
+    every experiment the run will execute, and those need not declare the same version: no
+    single literal is then true, so `model_version_declared` is None — but the flag is
+    still answerable, and answers true when *any* covered declaration differs from what
+    execution resolved. That is the sweep's only chance to notice drift.
+
+    No declaration at all (an ad-hoc run) is None in both keys. That is an absence, never a
+    pass: #233 must require exactly False before it reuses a row.
+    """
+    values = {v for v in declared if v is not None}
+    if not values:
+        return {"model_version_declared": None, "model_version_mismatch": None}
+    return {
+        "model_version_declared": next(iter(values)) if len(values) == 1 else None,
+        "model_version_mismatch": any(version_mismatch(v, resolved) for v in values),
+    }
+
+
 def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
     """Per-run provenance manifest — pins git state, seed, and command for this output dir."""
     import json
@@ -1248,19 +1372,29 @@ def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
         ).stdout.strip()
     except Exception:
         git_sha = "unknown"  # shallow/tarball checkouts
+    resolved = _model_path()
     manifest = {
         "run_id": out_dir.name,
-        "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "utc": RUN_STARTED_UTC or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "git_sha": git_sha,
         "seed": SEED,
         "experiment_id": EXPERIMENT_ID,
-        "model_version": _model_path(),  # what the run resolved, so the registry's pin is checkable
+        # #264: which point of the row-size axis this run measured. 'full' is a point,
+        # not the absence of one.
+        "row_size": "full" if ROW_SIZE is None else ROW_SIZE,
+        "model_version": resolved,  # what the run resolved, so the registry's pin is checkable
+        # #239: the registry's literals beside the value execution actually used. A mismatch
+        # is recorded, not enforced -- #233 owns the reuse rule and needs this to be exactly
+        # False, not None, before it may reuse a row. None (nothing declared a version) is an
+        # absence, never a pass.
+        **model_version_fields(RUN_DECLARED_VERSIONS, resolved),
         "model_version_scope": (
-            "resolved and used for every fresh fit; a row reused from the sweep table "
-            "carries no recorded provenance, so its version is assumed rather than "
-            "attested until #233"
+            "resolved and used for every fresh fit; a reused sweep row is attested by "
+            "its recorded model_version, which must match the experiment's declaration "
+            "before reuse (#233)"
         ),
         "pr_auc_mode": PR_AUC_MODE,
+        "power": POWER_SOURCES or None,
         "argv": sys.argv,
         "note": (
             "per-fold PR-AUC rows still append to the cross-run ledger "
@@ -1272,7 +1406,10 @@ def write_manifest(out_dir: Path, args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    global SEED, PR_AUC_MODE, SAVE_PREDICTIONS, EXPERIMENT_ID
+    global SEED, PR_AUC_MODE, SAVE_PREDICTIONS, EXPERIMENT_ID, POWER_SOURCES
+    global RUN_DECLARED_VERSIONS, RUN_STARTED_UTC, ROW_SIZE
+    POWER_SOURCES = {}
+    RUN_STARTED_UTC = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     t0 = time.time()
     parser = make_parser()
     args = parser.parse_args()
@@ -1308,9 +1445,16 @@ def main() -> None:
             )
         regression = experiment.mode == REGRESSION
         EXPERIMENT_ID = experiment.id
+        # What the experiment declared. Recorded, not applied: execution below still
+        # resolves env-first, and the manifest states both (#239).
+        RUN_DECLARED_VERSIONS = (experiment.model_version,)
         wanted = None
     else:
         datasets, wanted = select_datasets(args)
+        # An ad-hoc run belongs to no experiment, so it declares nothing. Clearing these
+        # matters because main() is re-entered by tests in one process.
+        EXPERIMENT_ID = None
+        RUN_DECLARED_VERSIONS = ()
 
     # A classification run reads each dataset's experiment for its methods and folds.
     # --experiment selected one above; the all-datasets path maps each dataset to its
@@ -1324,7 +1468,62 @@ def main() -> None:
         # the last experiment must cost seconds, not five completed datasets.
         for declared in classification:
             planned_classification_methods(declared.methods)
+        if args.experiment is None:
+            # The all-datasets run writes one frontier_results_<dataset>.csv per dataset;
+            # two experiments on one dataset would overwrite each other. A named
+            # --experiment is unambiguous and skips this check.
+            names = [declared.dataset for declared in classification]
+            duplicates = sorted({name for name in names if names.count(name) > 1})
+            if duplicates:
+                raise RegistryError(
+                    f"dataset {duplicates[0]!r} is claimed by more than one classification "
+                    f"experiment; the output filename is keyed to the dataset, so two "
+                    f"experiments would overwrite each other"
+                )
         experiments_by_dataset = {experiment.dataset: experiment for experiment in classification}
+        if args.experiment is None:
+            # This run is a sweep of several experiments, and the manifest is one artifact
+            # for all of them (#239). Record what the datasets that will actually run
+            # declare, not the whole registry: a filter narrows what the run covers.
+            RUN_DECLARED_VERSIONS = tuple(
+                experiment.model_version
+                for name, experiment in experiments_by_dataset.items()
+                if wanted is None or name.lower() in wanted
+            )
+
+    # ---- the row-size point this run measures (#264) ----
+    if args.size == "full":
+        requested_size = None
+    else:
+        try:
+            requested_size = int(args.size)
+        except ValueError:
+            parser.error(f"--size must be 'full' or an integer, got {args.size!r}")
+    if requested_size is not None and args.pr_auc:
+        parser.error("--size cannot be combined with --pr-auc: the PR-AUC ledger is one "
+                     "append-only table with no column to say which row-size point a row came from")
+    if requested_size is not None and args.data is not None:
+        parser.error("--size cannot be combined with --data: an ad-hoc dataset declares no axis")
+    if requested_size is not None and regression:
+        parser.error("--size needs a declared experiment, and the regression path declares "
+                     "no row sizes until #235")
+    if args.experiment is not None:
+        try:
+            ROW_SIZE = resolve_row_size(experiment, requested_size)
+        except RegistryError as exc:
+            parser.error(str(exc))
+    elif not regression:
+        # Every dataset this run will measure, validated before the first fit: a size the
+        # declaration lacks must cost seconds, not five completed datasets.
+        for name, declared in experiments_by_dataset.items():
+            if selected(name, wanted):
+                try:
+                    resolve_row_size(declared, requested_size)
+                except RegistryError as exc:
+                    parser.error(str(exc))
+        ROW_SIZE = requested_size
+    else:
+        ROW_SIZE = None
 
     # Output layout: results/<dir> (default) keeps run artifacts out of the code tree.
     # 'legacy' preserves the old beside-script paths for exact reproduction of
@@ -1347,21 +1546,32 @@ def main() -> None:
         # Seed != 42 gets suffixed outputs so split-seed runs never clobber the
         # canonical seed-42 frontier_results_*.csv / plots.
         suffix = f"_seed{SEED}" if SEED != 42 else ""
+        # A size produces different numbers from the same dataset and seed, so it needs its
+        # own file for the same reason a non-default seed does (#264).
+        if ROW_SIZE is not None:
+            suffix += f"_size{ROW_SIZE}"
         out_csv = out_base / f"frontier_results_{name}{suffix}.csv"
         out_png = out_base / f"frontier_plot_{name}{suffix}.png"
         print(f"\n{'=' * 70}\nDATASET {name}\n{'=' * 70}", flush=True)
         if regression:
-            runner(ds, out_csv, out_png)
+            if args.experiment is not None:
+                runner(ds, out_csv, out_png, seed=experiment.seed,
+                       n_folds=experiment.n_folds, experiment=experiment)
+            else:
+                runner(ds, out_csv, out_png, seed=SEED, n_folds=N_FOLDS)
         elif args.experiment is not None:
             runner(ds, out_csv, out_png, experiment=experiment,
-                   seed=experiment.seed, n_folds=experiment.n_folds)
+                   seed=experiment.seed, n_folds=experiment.n_folds, row_size=ROW_SIZE)
         else:
             # The all-datasets run is a sweep, not one experiment: take its methods from
             # the registry but keep the CLI seed/folds, so `--seed 7` still folds at 7.
             runner(ds, out_csv, out_png,
                    experiment=experiments_by_dataset.get(name),
-                   seed=SEED, n_folds=N_FOLDS)
+                   seed=SEED, n_folds=N_FOLDS, row_size=ROW_SIZE)
         print(f"[{time.strftime('%H:%M:%S')}] {name} done -> {out_csv}, {out_png}", flush=True)
+        # Rewrite after each dataset, not only at the end: a crash mid-run must leave the
+        # completed datasets' power source in the record (#233).
+        write_manifest(out_base, args)
     print(f"\nALL DATASETS DONE in {time.time() - t0:.0f}s", flush=True)
 
 

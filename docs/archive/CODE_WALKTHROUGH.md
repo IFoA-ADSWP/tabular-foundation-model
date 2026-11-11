@@ -1,5 +1,8 @@
 # TabPFN Insurance Benchmark — Code Walkthrough
 
+> **Historical document.** Kept for the record; it describes a state that has since been superseded.
+
+
 **Purpose:** What the code actually does, step by step, for colleagues who want to understand the implementation.
 
 **Date:** 2026-08-20

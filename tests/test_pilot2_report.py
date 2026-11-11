@@ -179,3 +179,85 @@ def test_the_cli_reports_and_writes_json(ap, tmp_path, capsys):
 
 def test_the_cli_refuses_an_empty_directory_rather_than_reporting_nothing(ap, tmp_path):
     assert ap.main(["--outdir", str(tmp_path)]) == 2
+
+
+def test_the_marker_follows_the_bounds_it_is_printed_with(ap):
+    """A reader who trusts the marker and one who trusts the bounds must reach one verdict.
+
+    Expectations are written out, not recomputed from the predicate under test: the probe
+    write-up (#296) reported a marker that contradicted its own interval.
+    """
+    cases = [
+        ((-0.0047, -0.0003), ""),      # excludes zero: no marker
+        ((-0.0032, 0.0014), "***"),    # covers zero: marked
+        ((-0.0001, 0.0002), "***"),    # covers zero, by a hair
+        ((0.0020, 0.0100), ""),        # excludes zero, entirely positive
+        ((0.0, 0.0100), "***"),        # touches zero at the low bound: covers it
+    ]
+    for (lo, hi), expected in cases:
+        assert ap.significance_marker(lo, hi) == expected, (lo, hi)
+
+
+def test_generated_comparisons_agree_with_the_interval_they_render(ap):
+    """The invariant over a generated sweep: parse the printed bracket, not the predicate.
+
+    The text is the independent source of truth here -- it is what a reader sees -- so the
+    marker cannot agree with the code while disagreeing with the line.
+    """
+    for lo in (-0.0100, -0.0047, -0.0003, -0.00004, 0.0, 0.00004, 0.0014, 0.0100):
+        for hi in (-0.0047, -0.0003, -0.00004, 0.0, 0.00004, 0.0014, 0.0030):
+            if lo > hi:
+                continue
+            text = ap.format_interval(lo, hi)
+            left, right = (float(part) for part in text[1:-1].split(", "))
+            reads_as_covering = left <= 0.0 <= right
+            assert (ap.significance_marker(lo, hi) == "***") is reads_as_covering, text
+
+
+def test_a_bound_that_rounds_to_zero_keeps_the_sign_that_makes_it_readable(ap):
+    """-0.00004 at four decimals reads as -0.0000: an interval excluding zero that looks
+    like it touches it. The printed text must keep the bound's side of zero."""
+    assert ap.format_interval(-0.0047, -0.00004) == "[-0.0047, -4.0e-05]"
+    assert ap.format_interval(-0.0047, 0.00004) == "[-0.0047, +4.0e-05]"
+    # Ordinary bounds keep the familiar four-decimal form.
+    assert ap.format_interval(-0.0047, -0.0003) == "[-0.0047, -0.0003]"
+    assert ap.format_interval(-0.0032, 0.0014) == "[-0.0032, +0.0014]"
+
+
+def test_every_signed_number_in_the_block_keeps_its_sign(ap):
+    """The estimate and the pooled summary carry a sign too; rounding must not erase it."""
+    assert ap.signed_text(-0.00004) == "-4.0e-05"
+    assert ap.signed_text(-0.0025) == "-0.0025"
+
+
+def test_the_printed_line_never_marks_a_contradiction(ap, tmp_path, capsys):
+    """#296 in one assertion: what the marker says, the bracket beside it shows."""
+    def line_for(lo, hi):
+        report = {
+            "baseline": "A_raw", "unpaired": [], "summary": {},
+            "datasets": {"uslapseagent": {"B_ft3": {
+                "estimate": (lo + hi) / 2, "ci_low": lo, "ci_high": hi,
+                "n_repeats": 1, "n_test_rows": 1000,
+            }}},
+        }
+        ap.print_report(report, tmp_path)
+        out = capsys.readouterr().out
+        return next(line for line in out.splitlines() if "B_ft3" in line)
+
+    excluding = line_for(-0.0047, -0.0003)
+    assert "***" not in excluding
+    assert "[-0.0047, -0.0003]" in excluding
+
+    covering = line_for(-0.0032, 0.0014)
+    assert "***" in covering
+    assert "[-0.0032, +0.0014]" in covering
+
+    # The boundary the write-up worried about: excludes zero by a hair, and says so.
+    hair = line_for(-0.0047, -0.00004)
+    assert "***" not in hair
+    assert "[-0.0047, -4.0e-05]" in hair
+
+    # And the other side of it: covers zero by a hair, marked, sign visible.
+    just_covering = line_for(-0.0047, 0.00004)
+    assert "***" in just_covering
+    assert "+4.0e-05" in just_covering

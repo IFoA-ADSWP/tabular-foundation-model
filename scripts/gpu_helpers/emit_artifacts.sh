@@ -36,7 +36,8 @@ cd "$OUTDIR" 2>/dev/null || { emit_empty; exit 0; }
 FILE_LIST="$(mktemp)"
 TARBALL="$(mktemp)"
 B64FILE="$(mktemp)"
-trap 'rm -f "$FILE_LIST" "$TARBALL" "$B64FILE"' EXIT
+FOLDED="$(mktemp)"
+trap 'rm -f "$FILE_LIST" "$TARBALL" "$B64FILE" "$FOLDED"' EXIT
 
 # Small essentials: metrics, per-run metadata, optional combined predictions.
 [ -f pilot_metrics.parquet ] && echo pilot_metrics.parquet >> "$FILE_LIST"
@@ -85,10 +86,19 @@ if [ -z "$ART_SHA" ]; then
     ART_SHA="$(shasum -a 256 "$TARBALL" 2>/dev/null | cut -d' ' -f1)"
 fi
 [ -n "$ART_SHA" ] || ART_SHA="-"
-ART_B64="$(wc -c < "$B64FILE" | tr -d ' ')"
-ART_LINES=$(( (ART_B64 + LINE_WIDTH - 1) / LINE_WIDTH ))
+# Count the lines the emitter ACTUALLY produces, from the file it will send. Two earlier
+# versions of this line were wrong in opposite directions, each in its own environment:
+# dividing the base64 BYTE count by the width declared one line too many whenever the
+# payload length was an exact multiple of it (base64's trailing newline pushed the ceiling
+# over the boundary), and `fold | wc -l` declares one too FEW when the final base64 line has
+# no trailing newline -- `wc -l` counts newlines, not lines. A short or over-long count is a
+# refusal from the receiver, so both shapes threw away a good, paid-for batch. Materialising
+# the folded file and counting its records removes the disagreement: the same bytes are
+# counted and sent.
+fold -w "$LINE_WIDTH" "$B64FILE" > "$FOLDED"
+ART_LINES="$(awk 'END { print NR }' "$FOLDED")"
 
 echo "__ARTIFACTS_INFO__ bytes=$ART_BYTES sha256=$ART_SHA lines=$ART_LINES files=$FILE_COUNT"
 echo "__ARTIFACTS_BEGIN__"
-fold -w "$LINE_WIDTH" "$B64FILE" | sed 's/^/__ART__/'
+sed 's/^/__ART__/' "$FOLDED"
 echo "__ARTIFACTS_END__"

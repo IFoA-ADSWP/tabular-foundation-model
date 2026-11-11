@@ -26,12 +26,20 @@ SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "check.sh"
 MINIMAL_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
 
 
-def run(args, path=None):
+def run(args, path=None, cwd=None, extra_env=None):
     env = dict(os.environ)
+    # `all` includes the evidence check. Defaulting its base to HEAD keeps these tests
+    # independent of whichever refs the ambient checkout happens to have, and clearing the
+    # override keeps them independent of the caller's environment -- otherwise a gate run with
+    # EVIDENCE_CHANGE_OK=1 makes the tests that assert refusal silently pass instead.
+    env.setdefault("EVIDENCE_BASE", "HEAD")
+    env.pop("EVIDENCE_CHANGE_OK", None)
     if path is not None:
         env["PATH"] = path
+    if extra_env:
+        env.update(extra_env)
     return subprocess.run(
-        [str(SCRIPT), *args], capture_output=True, text=True, env=env
+        [str(SCRIPT), *args], capture_output=True, text=True, env=env, cwd=cwd
     )
 
 
@@ -88,6 +96,18 @@ def test_failing_pytest_fails_the_check(tmp_path):
     assert result.returncode == 1, result.stdout + result.stderr
 
 
+def test_failing_doclinks_fails_the_check(tmp_path):
+    shim(tmp_path, "python3", 1)
+    result = run(["doclinks"], path=f"{tmp_path}:{MINIMAL_PATH}")
+    assert result.returncode == 1, result.stdout + result.stderr
+
+
+def test_failing_docstatus_fails_the_check(tmp_path):
+    shim(tmp_path, "python3", 1)
+    result = run(["docstatus"], path=f"{tmp_path}:{MINIMAL_PATH}")
+    assert result.returncode == 1, result.stdout + result.stderr
+
+
 def test_failing_shellcheck_fails_the_check(tmp_path):
     shim(tmp_path, "shellcheck", 1)
     result = run(["shellcheck"], path=f"{tmp_path}:{MINIMAL_PATH}")
@@ -108,7 +128,7 @@ def test_missing_tool_is_named_and_not_a_pass(tmp_path):
 
 
 def test_all_passes_when_every_check_passes(tmp_path):
-    for name in ("ruff", "pytest", "shellcheck"):
+    for name in ("ruff", "pytest", "shellcheck", "python3"):
         shim(tmp_path, name, 0)
     result = run([], path=f"{tmp_path}:{MINIMAL_PATH}")
     assert result.returncode == 0, result.stdout + result.stderr
@@ -151,3 +171,89 @@ def test_all_reports_failure_ahead_of_a_missing_tool(tmp_path):
     shim(bin_dir, "shellcheck", 0)
     result = run([], path=str(bin_dir))
     assert result.returncode == 1, result.stdout + result.stderr
+
+
+# ---- evidence: the committed-evidence guard (#317 retro) --------------------
+
+
+def evidence_repo(tmp_path):
+    """A throwaway repo with an `origin/main` ref and one file under outputs/."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    def git(*args):
+        return subprocess.run(
+            ["git", "-C", str(repo), *args], capture_output=True, text=True, check=True
+        )
+
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "test@example.com")
+    git("config", "user.name", "test")
+    (repo / "outputs").mkdir()
+    (repo / "outputs" / "meta.json").write_text("{}\n")
+    git("add", "-A")
+    git("commit", "-q", "-m", "base")
+    git("update-ref", "refs/remotes/origin/main", "HEAD")
+    git("checkout", "-q", "-b", "feature")
+    return repo, git
+
+
+def test_evidence_passes_on_a_clean_branch(tmp_path):
+    repo, _ = evidence_repo(tmp_path)
+    result = run(
+        ["evidence"],
+        path=str(toolchain(tmp_path)),
+        cwd=repo,
+        extra_env={"EVIDENCE_BASE": "origin/main"},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "unchanged" in result.stdout
+
+
+def test_evidence_fails_when_a_commit_changes_evidence(tmp_path):
+    repo, git = evidence_repo(tmp_path)
+    (repo / "outputs" / "meta.json").write_text('{"changed": true}\n')
+    git("add", "-A")
+    git("commit", "-q", "-m", "change evidence")
+
+    result = run(
+        ["evidence"], path=str(toolchain(tmp_path)), cwd=repo,
+        extra_env={"EVIDENCE_BASE": "origin/main"},
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "meta.json" in result.stderr
+
+
+def test_evidence_sees_a_staged_change_that_is_not_committed(tmp_path):
+    """A commit-range diff is blind to a staged deletion -- which is how one reached a commit."""
+    repo, git = evidence_repo(tmp_path)
+    git("rm", "-q", "outputs/meta.json")
+
+    result = run(
+        ["evidence"], path=str(toolchain(tmp_path)), cwd=repo,
+        extra_env={"EVIDENCE_BASE": "origin/main"},
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+
+
+def test_evidence_allows_a_deliberate_change_when_named(tmp_path):
+    repo, git = evidence_repo(tmp_path)
+    (repo / "outputs" / "meta.json").write_text('{"changed": true}\n')
+    git("add", "-A")
+    git("commit", "-q", "-m", "change evidence")
+
+    result = run(
+        ["evidence"], path=str(toolchain(tmp_path)), cwd=repo,
+        extra_env={"EVIDENCE_BASE": "origin/main", "EVIDENCE_CHANGE_OK": "1"},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_evidence_reports_a_missing_base_as_a_failure(tmp_path):
+    repo, _ = evidence_repo(tmp_path)
+    result = run(
+        ["evidence"], path=str(toolchain(tmp_path)), cwd=repo,
+        extra_env={"EVIDENCE_BASE": "no-such-ref"},
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "no-such-ref" in result.stderr

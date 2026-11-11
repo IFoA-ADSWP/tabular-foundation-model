@@ -32,13 +32,17 @@ Merge commits are allowed (we preserve commit SHAs as evidence anchors), squash 
 git clone https://github.com/IFoA-ADSWP/tabular-foundation-model.git
 cd tabular-foundation-model
 
-# 2. Create environment (conda or venv)
-python -m venv .venv
-source .venv/bin/activate   # or .venv\Scripts\activate on Windows
+# 2. Build the environment the tests are pinned to (Python 3.12)
+./scripts/bootstrap_dev.sh
 
-# 3. Install dependencies
-pip install -r requirements.txt
+# 3. Run the gate
+.venv/bin/pytest tests/ -q
 ```
+
+`bootstrap_dev.sh` installs `requirements.lock` and asserts the pins; `README.md` also documents a
+`uv` path. Creating a venv by hand and installing `requirements.txt` works for most scripts but can
+resolve a different scientific stack, which changes test results — see
+`docs/DEVELOPMENT_ENVIRONMENT.md`.
 
 ## Repository Layout
 
@@ -105,23 +109,58 @@ Every contribution should satisfy these before review:
 - [ ] **Reports registered** — any new file in `docs/reports/` must have a row in `docs/REPORT_REGISTRY.md` with topic_key, audience, source_workbooks, and evidence_files
 - [ ] **Changelog updated** — user-facing changes get an entry in `CHANGELOG.md` under `[Unreleased]`
 - [ ] **Pre-commit green** — see below
+- [ ] **Gate green** — `./scripts/check.sh` (ruff, pytest, shellcheck, evidence, doclinks, docstatus, citation, verdict)
 - [ ] **Smoke test passes** — `pytest tests/` after any change to `src/`
 - [ ] **PR focused** — one experiment or fix per pull request
 
 ## Pre-commit Setup
 
-Install once after cloning:
+**Option A — the pre-commit framework.** Install once after cloning:
 
 ```bash
 pip install pre-commit
 pre-commit install
 ```
 
-This runs ruff (format + lint), commitizen (commit message convention), and other checks automatically on every commit. Run against all files manually when first setting up:
+This runs ruff (format + lint), commitizen (commit message convention), and other checks
+automatically on every commit. Run against all files manually when first setting up:
 
 ```bash
 pre-commit run --all-files
 ```
+
+**Option B — the repo hook, when `core.hooksPath` is set.** A machine with a global
+`core.hooksPath` (this one has `~/.config/git/hooks`) makes `pre-commit install` fight the
+global configuration, so nothing gets installed and the config above silently never runs.
+That is not hypothetical: on 2026-11-06 two pull requests failed in CI for faults — 146 files
+staged from `outputs/`, and a run id cited with no capture — that a local gate would have
+refused in about two seconds.
+
+For that setup, install the repo's own hook, which the global hook chains to:
+
+```bash
+cp scripts/git-hooks/pre-commit.local "$(git rev-parse --git-common-dir)/hooks/pre-commit.local"
+chmod +x "$(git rev-parse --git-common-dir)/hooks/pre-commit.local"
+```
+
+It runs `ruff`, `evidence` and `citation` only — the checks that can fail from a commit. It
+deliberately does not run `pytest`: 667 tests take about 28 minutes locally (measured 2026-11-06),
+so a local full run is not a gate. CI runs everything.
+
+That exclusion was once justified here by "four of its tests abort sandboxed shells on macOS". It
+was wrong, and the correction belongs where the claim lived: those four `test_pilot2_seed_passthrough`
+tests are correct. The abort came from a machine-local `python3` wrapper that re-injected a
+`$HOME`-relative `DYLD_INSERT_LIBRARIES` on every call — and the tests sandbox `HOME`, so dyld chased
+a dylib that did not exist there. Run the same four with that wrapper off `PATH` and they pass. A
+`Darwin skip` would have hidden four real tests on every Mac while CI stayed green, so: if a test
+fails on your machine, check the machine before you skip the test.
+
+`$(git rev-parse --git-common-dir)` and not `.git/hooks`, because in a worktree `.git` is a
+file and that path never exists.
+
+**Escapes.** `EVIDENCE_CHANGE_OK=1 git commit …` for a deliberate evidence change (runtime
+artefacts under `outputs/` are exactly that). `git commit --no-verify` for anything else — and
+say why in the message.
 
 To run ruff directly:
 
@@ -129,6 +168,18 @@ To run ruff directly:
 ruff check src/ tests/
 ruff format src/ tests/
 ```
+
+## The gate
+
+CI and a local run share one definition. `./scripts/check.sh` runs eight checks — ruff,
+the test suite, shellcheck over the paid-run scripts, the evidence guard (`outputs/`
+and `results/` unchanged, or the PR labelled `evidence-change`), the doc-link check
+(every reference in `docs/` resolves), the doc-status check (every report says
+whether it is current), and the citation check (every run id cited in `docs/` has a
+capture) — and `./scripts/check.sh ruff` (or `pytest`,
+`shellcheck`, `evidence`, `doclinks`, `docstatus`, `citation`, `verdict`) runs one. `.github/workflows/ci.yml` calls the same
+script as six separate jobs on every pull request, every push to `main`, and on demand. A missing tool exits non-zero; it is never a
+silent skip.
 
 ## Report Registration
 
@@ -147,4 +198,4 @@ If you add a file to `docs/reports/`, open `docs/REPORT_REGISTRY.md` and add a r
 - Use the PR template
 - Keep changes focused (one experiment or fix per PR)
 - Update `CHANGELOG.md` for user-facing changes
-- Pre-existing CI checks run automatically
+- A pull request runs the four gate checks via `.github/workflows/ci.yml`; run `./scripts/check.sh` before you push

@@ -102,7 +102,7 @@ uv pip install "tabpfn-client==0.3.3"   # EVERY verdict is stamped to 0.3.3 — 
 
 ```bash
 python -m venv .venv312 && source .venv312/bin/activate
-pip install -r requirements.txt          # tabpfn>=6,<7 · tabpfn-client>=0.2,<0.3 · torch · sklearn
+pip install -r requirements-legacy.txt   # v2-era: tabpfn>=6,<7 · torch · sklearn
 ```
 
 - **Requires a sibling checkout** `../TabPFN-upstream/` (repo-root parent) — most legacy
@@ -613,8 +613,8 @@ the secret in one shot to make that impossible.
 
 **Do not use `requirements.txt` on the GPU box.** It pins `numpy>=1.24,<2`; numpy 1.x has no
 cp313 wheels, so pip compiles numpy from source via meson/gcc (~20 min) and the run looks
-hung. It also pins `tabpfn>=6,<7` while the pilot runs `tabpfn==8.5.0` — record that
-deviation. The bootstrap installs named packages and lets pip resolve wheels.
+hung. The default now targets `tabpfn==8.5.0`; the v2 path uses `requirements-legacy.txt`
+(`tabpfn>=6,<7`). The bootstrap installs named packages and lets pip resolve wheels.
 
 **Restrict the architecture.** Ranking by `dlperf/$` selects ancient hardware; `--pick
 cheapest` chose a **Tesla V100**, and recent PyTorch builds have dropped Volta/sm_70, so the
@@ -739,7 +739,7 @@ Two traps:
   licence`, which derives the name the same way the library does.
 - A locally-installed `tabpfn` may be a different version with **no licence gate at all**, in
   which case a local fit succeeds regardless and proves nothing. Check for
-  `tabpfn/browser_auth.py` before trusting a local pass. 8.5.0's real auth modules can be
+  the installed package's `browser_auth` module before trusting a local pass. 8.5.0's real auth modules can be
   exercised without torch by copying `errors.py`/`settings.py`/`constants.py`/`browser_auth.py`
   out of the sdist and stubbing `torch`.
 

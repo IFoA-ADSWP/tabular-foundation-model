@@ -43,7 +43,17 @@ TRANSFORMS = ("log_exposure",)
 
 _DATASET_KEYS = ("file", "target", "drop", "metric", "transform")
 _METHOD_KEYS = ("n_params",)
-_EXPERIMENT_KEYS = ("dataset", "methods", "n_folds", "seed", "model_version")
+_EXPERIMENT_KEYS = ("dataset", "methods", "n_folds", "seed", "model_version", "row_sizes")
+
+# The pilot's experiment kind (#238). A pilot experiment shares the dataset and the model
+# version with a frontier experiment and nothing else, so it is its own section rather
+# than a discriminator every frontier reader would have to branch on.
+_PILOT_DATASET_KEYS = ("file", "target")
+_PILOT_METHOD_KEYS = ("epochs",)
+_PILOT_EXPERIMENT_KEYS = ("dataset", "arms", "seed", "seeds", "folds", "train_size",
+                          "test_size", "model_version", "preregistration", "config")
+_CONFIG_KEYS = ("epochs", "early_stopping", "n_estimators", "learning_rate", "fit_mode",
+                "context_samples")
 
 
 class RegistryError(ValueError):
@@ -80,10 +90,115 @@ class Experiment:
     n_folds: int
     seed: int
     model_version: str
+    row_sizes: tuple[int, ...] = ()
 
     @property
     def mode(self) -> str:
         return MODE_BY_METRIC[self.metric]
+
+    @property
+    def row_size_points(self) -> tuple[int | None, ...]:
+        """The sizes this experiment is measured at, full last (#264).
+
+        A declared size is a cap on the training rows; full is always a point, because an
+        experiment quoted at its whole table is not an exception to its own axis, and the
+        committed sweep already carries those rows. Declaring none therefore means full
+        only -- which is what every experiment predating the axis means.
+        """
+        return (*self.row_sizes, None)
+
+
+def resolve_row_size(experiment: Experiment, requested: int | None) -> int | None:
+    """The declared point a run asked for, or a refusal naming the declaration (#264).
+
+    `None` asks for the full table, which every experiment has. An integer must be one of
+    the declared sizes: a point the declaration does not contain describes a measurement
+    the experiment never claimed, so it is refused before anything is fitted.
+    """
+    if requested is None or requested in experiment.row_sizes:
+        return requested
+    declared = ", ".join(["full", *(str(n) for n in experiment.row_sizes)])
+    raise RegistryError(
+        f"experiment {experiment.id!r} is not declared at {requested} rows "
+        f"(declared: {declared})"
+    )
+
+
+@dataclass(frozen=True)
+class PilotDataset:
+    """A table the pilot measures (#238).
+
+    Its own section, not `[datasets]`: a frontier dataset carries a metric and has exactly
+    one experiment (#235 asserts that), while the pilot's datasets are scored by the arm
+    runner and some are pilot-only. Sharing the section would make the frontier claim
+    datasets it cannot run.
+    """
+
+    name: str
+    file: str
+    target: str
+
+
+@dataclass(frozen=True)
+class PilotMethod:
+    """One arm the pilot can run. `epochs` is the arm's own budget; None inherits (#238)."""
+
+    name: str
+    epochs: int | None = None
+
+
+@dataclass(frozen=True)
+class PilotConfig:
+    """The pilot's base configuration, declared once per experiment (#238).
+
+    Every key is required: a setting left to a module default would be declared in code
+    again, which is the thing this ticket removes.
+    """
+
+    epochs: int
+    early_stopping: bool
+    n_estimators: int
+    learning_rate: float
+    fit_mode: str
+    context_samples: int
+
+
+@dataclass(frozen=True)
+class PilotExperiment:
+    """A declared pilot experiment: dataset, arms, split sizes and base config (#238).
+
+    `seeds` is a tuple because a probe declares a range and the launcher runs it in batches
+    (#450). A single-seed experiment is a one-element tuple, so no caller has to branch.
+
+    `preregistration` is the document a multi-seed design was fixed against. It is `None` for a
+    single-seed reproduction -- there is no seed count to choose -- and required otherwise, because
+    a replication whose power was decided after seeing its first result is the failure D19 exists to
+    prevent.
+    """
+
+    id: str
+    dataset: str
+    arms: tuple[str, ...]
+    seeds: tuple[int, ...]
+    folds: int | None
+    train_size: int
+    test_size: int
+    model_version: str
+    preregistration: str | None
+    config: PilotConfig
+
+    @property
+    def seed(self) -> int:
+        """The first declared seed. Kept because a single-seed experiment reads more clearly."""
+        return self.seeds[0]
+
+
+def arm_epoch_budget(experiment: PilotExperiment, method: PilotMethod) -> int:
+    """The budget the arm will run: its own override, else the experiment's base config.
+
+    One definition, so a ladder arm cannot run 30 epochs while its record says 3.
+    """
+    return method.epochs if method.epochs is not None else experiment.config.epochs
 
 
 @dataclass(frozen=True)
@@ -92,6 +207,9 @@ class Registry:
     datasets: Mapping[str, Dataset]
     methods: Mapping[str, Mapping[str, Method]]
     experiments: Mapping[str, Experiment]
+    pilot_datasets: Mapping[str, PilotDataset]
+    pilot_methods: Mapping[str, PilotMethod]
+    pilot_experiments: Mapping[str, PilotExperiment]
 
     def experiment(self, experiment_id: str) -> Experiment:
         """Look up one experiment, naming it when it does not exist."""
@@ -110,6 +228,20 @@ class Registry:
         """The method entries an experiment compares, in its declared order."""
         table = self.methods[experiment.mode]
         return tuple(table[name] for name in experiment.methods)
+
+    def pilot_experiment(self, experiment_id: str) -> PilotExperiment:
+        """Look up one pilot experiment, naming it when it does not exist (#238)."""
+        try:
+            return self.pilot_experiments[experiment_id]
+        except KeyError:
+            known = ", ".join(sorted(self.pilot_experiments)) or "none"
+            raise RegistryError(
+                f"unknown pilot experiment {experiment_id!r} (registered: {known})"
+            ) from None
+
+    def pilot_methods_of(self, experiment: PilotExperiment) -> tuple[PilotMethod, ...]:
+        """The arms a pilot experiment runs, in its declared order (#238)."""
+        return tuple(self.pilot_methods[name] for name in experiment.arms)
 
 
 # ---------------------------------------------------------------------------
@@ -208,7 +340,8 @@ def load_registry(path: str | Path) -> Registry:
         )
 
     sections = {}
-    for section in ("datasets", "methods", "experiments"):
+    for section in ("datasets", "methods", "experiments", "pilot_datasets",
+                    "pilot_methods", "pilot_experiments"):
         value = raw.pop(section, {})
         if not isinstance(value, Mapping):
             raise RegistryError(f"{_loc(path, section)} must be a table, got {value!r}")
@@ -232,11 +365,27 @@ def load_registry(path: str | Path) -> Registry:
         for name, entry in sections["experiments"].items()
     }
 
+    pilot_datasets = {
+        name: _pilot_dataset(path, name, entry)
+        for name, entry in sections["pilot_datasets"].items()
+    }
+    pilot_methods = {
+        name: _pilot_method(path, name, entry)
+        for name, entry in sections["pilot_methods"].items()
+    }
+    pilot_experiments = {
+        name: _pilot_experiment(path, name, entry, datasets, pilot_datasets, pilot_methods)
+        for name, entry in sections["pilot_experiments"].items()
+    }
+
     return Registry(
         schema_version=schema_version,
         datasets=MappingProxyType(datasets),
         methods=MappingProxyType({m: MappingProxyType(t) for m, t in methods.items()}),
         experiments=MappingProxyType(experiments),
+        pilot_datasets=MappingProxyType(pilot_datasets),
+        pilot_methods=MappingProxyType(pilot_methods),
+        pilot_experiments=MappingProxyType(pilot_experiments),
     )
 
 
@@ -305,6 +454,15 @@ def _experiment(
         if method not in table:
             _fail(loc, f"references unknown {dataset.mode} method {method!r}")
 
+    row_sizes = entry.get("row_sizes", [])
+    if not isinstance(row_sizes, list) or not all(
+        isinstance(n, int) and not isinstance(n, bool) and n >= 1 for n in row_sizes
+    ):
+        _fail(loc, f"row_sizes must be a list of positive integers, got {row_sizes!r}")
+    repeated = sorted({n for n in row_sizes if row_sizes.count(n) > 1})
+    if repeated:
+        _fail(loc, f"declares row size {repeated[0]} more than once")
+
     return Experiment(
         id=name,
         dataset=dataset_name,
@@ -313,7 +471,154 @@ def _experiment(
         n_folds=_integer(loc, entry, "n_folds", minimum=2),
         seed=_integer(loc, entry, "seed", minimum=0),
         model_version=_text(loc, entry, "model_version"),
+        row_sizes=tuple(row_sizes),
     )
+
+
+def _optional_text(loc: str, entry: Mapping[str, Any], key: str) -> str | None:
+    """An optional string field: absent means "not declared", not an empty string.
+
+    An empty string is refused rather than stored, so "declared nothing" has exactly one spelling
+    (absent) and a record cannot carry a pre-registration that names no document.
+    """
+    if key not in entry:
+        return None
+    return _text(loc, entry, key)
+
+
+def _optional_integer(loc: str, entry: Mapping[str, Any], key: str,
+                      minimum: int) -> int | None:
+    """An optional integer field: absent means "not declared", not a default."""
+    if key not in entry:
+        return None
+    return _integer(loc, entry, key, minimum=minimum)
+
+
+def _number(loc: str, entry: Mapping[str, Any], key: str, minimum: float) -> float:
+    value = _require(loc, entry, key)
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        _fail(loc, f"{key} must be a number, got {value!r}")
+    if value <= minimum:
+        _fail(loc, f"{key} must be greater than {minimum}, got {value}")
+    return float(value)
+
+
+def _pilot_dataset(path: Path, name: str, entry: Mapping[str, Any]) -> PilotDataset:
+    loc = _loc(path, f"pilot_datasets.{name}")
+    entry = _table(loc, entry)
+    _check_keys(loc, entry, _PILOT_DATASET_KEYS)
+    return PilotDataset(
+        name=name,
+        file=_text(loc, entry, "file"),
+        target=_text(loc, entry, "target"),
+    )
+
+
+def _pilot_method(path: Path, name: str, entry: Mapping[str, Any]) -> PilotMethod:
+    loc = _loc(path, f"pilot_methods.{name}")
+    entry = _table(loc, entry)
+    _check_keys(loc, entry, _PILOT_METHOD_KEYS)
+    return PilotMethod(name=name, epochs=_optional_integer(loc, entry, "epochs", minimum=1))
+
+
+def _pilot_config(loc: str, entry: Any) -> PilotConfig:
+    entry = _table(f"{loc}.config", entry)
+    where = f"{loc}.config"
+    _check_keys(where, entry, _CONFIG_KEYS)
+    return PilotConfig(
+        epochs=_integer(where, entry, "epochs", minimum=1),
+        early_stopping=_typed(where, entry, "early_stopping", bool, "a boolean"),
+        n_estimators=_integer(where, entry, "n_estimators", minimum=1),
+        learning_rate=_number(where, entry, "learning_rate", minimum=0.0),
+        fit_mode=_text(where, entry, "fit_mode"),
+        context_samples=_integer(where, entry, "context_samples", minimum=0),
+    )
+
+
+def _pilot_experiment(
+    path: Path,
+    name: str,
+    entry: Mapping[str, Any],
+    datasets: Mapping[str, Dataset],
+    pilot_datasets: Mapping[str, PilotDataset],
+    pilot_methods: Mapping[str, PilotMethod],
+) -> PilotExperiment:
+    loc = _loc(path, f"pilot_experiments.{name}")
+    entry = _table(loc, entry)
+    _check_keys(loc, entry, _PILOT_EXPERIMENT_KEYS)
+
+    dataset_name = _text(loc, entry, "dataset")
+    if dataset_name not in pilot_datasets and dataset_name not in datasets:
+        known = ", ".join(sorted(set(pilot_datasets) | set(datasets)))
+        _fail(loc, f"references unknown dataset {dataset_name!r} (declared: {known})")
+
+    names = _require(loc, entry, "arms")
+    if (not isinstance(names, list) or not names
+            or not all(isinstance(m, str) for m in names)):
+        _fail(loc, f"arms must be a non-empty list of arm ids, got {names!r}")
+    duplicates = sorted({m for m in names if names.count(m) > 1})
+    if duplicates:
+        _fail(loc, f"lists arm {duplicates[0]!r} more than once")
+    for arm in names:
+        if arm not in pilot_methods:
+            _fail(loc, f"references unknown pilot arm {arm!r}")
+
+    seeds = _pilot_seeds(loc, entry)
+    preregistration = _optional_text(loc, entry, "preregistration")
+    if len(seeds) > 1 and preregistration is None:
+        _fail(
+            loc,
+            f"declares {len(seeds)} seeds {list(seeds)} but no preregistration; a multi-seed "
+            "design names the document its seed count was fixed against (#450), because a seed "
+            "count chosen after the first result is not a pre-registration",
+        )
+
+    return PilotExperiment(
+        id=name,
+        dataset=dataset_name,
+        arms=tuple(names),
+        seeds=seeds,
+        folds=_optional_integer(loc, entry, "folds", minimum=2),
+        # Required: a size left out would fall back to the pilot's module constant, which
+        # is exactly the duplicate declaration #238 removes.
+        train_size=_integer(loc, entry, "train_size", minimum=1),
+        test_size=_integer(loc, entry, "test_size", minimum=1),
+        model_version=_text(loc, entry, "model_version"),
+        preregistration=preregistration,
+        config=_pilot_config(loc, _require(loc, entry, "config")),
+    )
+
+
+def _pilot_seeds(loc: str, entry: Mapping[str, Any]) -> tuple[int, ...]:
+    """The seeds a pilot experiment declares: `seed = N` or `seeds = [N, ...]`, exactly one.
+
+    Both spellings exist because the common case is one seed and writing a list for it reads worse
+    than the thing it is. Accepting both at once is refused rather than resolved by precedence:
+    two spellings that can disagree is the drift #238 exists to remove, and a reader could not tell
+    which one the run used.
+    """
+    has_seed = "seed" in entry
+    has_seeds = "seeds" in entry
+    if has_seed and has_seeds:
+        _fail(loc, "declares both 'seed' and 'seeds'; declare one, not both (#450)")
+    if not has_seed and not has_seeds:
+        _fail(loc, "declares neither 'seed' nor 'seeds'; one is required (#450)")
+
+    if has_seed:
+        return (_integer(loc, entry, "seed", minimum=0),)
+
+    raw = entry["seeds"]
+    if not isinstance(raw, list) or not raw:
+        _fail(loc, f"seeds must be a non-empty list of integers, got {raw!r}")
+    for value in raw:
+        if isinstance(value, bool) or not isinstance(value, int):
+            _fail(loc, f"seeds must contain integers, got {value!r}")
+        if value < 0:
+            _fail(loc, f"seeds must be non-negative, got {value!r}")
+    duplicates = sorted({value for value in raw if raw.count(value) > 1})
+    if duplicates:
+        _fail(loc, f"lists seed {duplicates[0]!r} more than once")
+    return tuple(raw)
 
 
 FOLD_KINDS = ("stratified", "kfold")
@@ -339,19 +644,24 @@ def make_folds(kind: str, n_folds: int, seed: int):
     )
 
 
-def as_runner_dataset(registry: Registry, experiment: Experiment) -> dict[str, Any]:
-    """The dataset entry the v1 runner's `run_dataset*` functions already take.
+def datasets_by_mode(registry: Registry, mode: str) -> tuple[Dataset, ...]:
+    """Every Dataset of one mode, in the registry's declared order.
 
-    `name` is the *dataset's*, not the experiment's: output filenames, the sweep join and
-    the capture stem are keyed to the data being measured, and the acceptance criterion for
-    #230 is that discovery by `{dataset}__seed{s}__*` still resolves. An experiment that
-    renamed its dataset would rename its artifacts, so it does not.
-
-    #231 keeps this adapter: the runner takes methods, folds and metric from the
-    experiment, while `load_Xy` and the capture writer still take the dict shape this
-    returns. The dataset name is the one field that must not move.
+    Scripts that loop over datasets use this instead of a private list. An unknown mode is
+    refused rather than returning an empty tuple that would silently run nothing.
     """
-    dataset = registry.dataset_of(experiment)
+    if mode not in MODES:
+        raise RegistryError(f"unknown mode {mode!r}; expected one of: {', '.join(MODES)}")
+    return tuple(dataset for dataset in registry.datasets.values() if dataset.mode == mode)
+
+
+def dataset_entry(dataset: Dataset) -> dict[str, Any]:
+    """The dataset entry the v1 runners' `load_Xy`/capture functions already take.
+
+    `name` is the *dataset's*: output filenames, the sweep join and the capture stem are
+    keyed to the data being measured, and discovery by `{dataset}__seed{s}__*` must keep
+    resolving. The dict shape is the seam `load_Xy` takes; the registry owns the values.
+    """
     entry: dict[str, Any] = {
         "name": dataset.name,
         "file": dataset.file,
@@ -362,3 +672,28 @@ def as_runner_dataset(registry: Registry, experiment: Experiment) -> dict[str, A
     if dataset.transform:
         entry["transform"] = dataset.transform
     return entry
+
+
+def load_dataset_entries(path: str | Path, mode: str) -> list[dict[str, Any]]:
+    """Every Dataset entry of one mode, for a producer that only needs the entries."""
+    return [dataset_entry(dataset) for dataset in datasets_by_mode(load_registry(path), mode)]
+
+
+def mode_methods(registry: Registry, mode: str) -> tuple[Method, ...]:
+    """The method list every experiment of one mode declares, refusing disagreement.
+
+    Producers that are not themselves experiments (the reframe study, the rescore) lift
+    the mode's method set from the registry instead of picking an arbitrary anchor
+    experiment. If two experiments in a mode ever declare different methods, those
+    scripts can no longer claim one canonical set, so the load fails loudly.
+    """
+    experiments = [e for e in registry.experiments.values() if e.mode == mode]
+    if not experiments:
+        raise RegistryError(f"no experiments for mode {mode!r}")
+    lists = {experiment.methods for experiment in experiments}
+    if len(lists) != 1:
+        raise RegistryError(
+            f"{mode} experiments disagree about which methods they compare: "
+            f"{sorted(lists)}"
+        )
+    return registry.methods_of(experiments[0])

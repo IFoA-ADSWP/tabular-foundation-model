@@ -42,3 +42,6 @@ After writing/updating report, update docs/reports/REPORT_REGISTRY.md with:
 - source workbooks
 - evidence files
 - last updated date
+
+## Pre-Ship Check
+- Run the `analysis-review` skill against the draft before calling the report done.
