@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "control": "regressor_positive_control",
+  "ticket": 516,
+  "decision": 498,
+  "spec": "docs/current/REGRESSOR_FINETUNING_PREREGISTRATION_2026-11.md",
+  "environment": {
+    "python": "3.12.11",
+    "platform": "macOS-26.5.1-arm64-arm-64bit",
+    "backend": "tabpfn",
+    "backend_version": "8.5.0",
+    "device": "cpu",
+    "model_version": "V3"
+  },
+  "config": {
+    "n_train": 96,
+    "n_test": 256,
+    "epochs": 30,
+    "overfit_n_train": 256,
+    "overfit_n_test": 64,
+    "overfit_epochs": 30,
+    "replicates": 5,
+    "seed": 0,
+    "alpha": 0.05,
+    "min_parameter_delta": 0.0
+  },
+  "overfit": {
+    "losses": [
+      0.29840925335884094,
+      0.24863187968730927,
+      0.22725121676921844,
+      0.24888461828231812,
+      0.23910218477249146,
+      0.2089323103427887,
+      0.30898353457450867,
+      0.2599327564239502,
+      0.2245483249425888,
+      0.25484639406204224,
+      0.25039222836494446,
+      0.27811089158058167,
+      0.2674689292907715,
+      0.21046729385852814,
+      0.20419606566429138,
+      0.31687498092651367,
+      0.2576054632663727,
+      0.28132766485214233,
+      0.3044438660144806,
+      0.27194836735725403,
+      0.2546935975551605,
+      0.31901639699935913,
+      0.1934814751148224,
+      0.23313787579536438,
+      0.20248723030090332,
+      0.2655811607837677,
+      0.2691408097743988,
+      0.24903152883052826,
+      0.20216920971870422,
+      0.2643088698387146
+    ],
+    "parameter_delta": 0.00014398247003555298,
+    "moved_tensors": 502,
+    "total_tensors": 504,
+    "first_fifth_loss": 0.24520191053549448,
+    "last_fifth_loss": 0.2421198015411695,
+    "loss_fall": 0.0030821089943249835
+  },
+  "known_signal": {
+    "replicates": [
+      {
+        "seed": 1000,
+        "raw_mse": 0.0026023967134192827,
+        "ft_mse": 0.0022185455895905428,
+        "relative_gain": 0.1474990810776113
+      },
+      {
+        "seed": 1001,
+        "raw_mse": 0.002068562983046303,
+        "ft_mse": 0.0016496505937632568,
+        "relative_gain": 0.20251372219091351
+      },
+      {
+        "seed": 1002,
+        "raw_mse": 0.002800274628187424,
+        "ft_mse": 0.0016739135207546206,
+        "relative_gain": 0.40223237253050437
+      },
+      {
+        "seed": 1003,
+        "raw_mse": 0.0018004939856902228,
+        "ft_mse": 0.0013341584319079883,
+        "relative_gain": 0.2590042274445387
+      },
+      {
+        "seed": 1004,
+        "raw_mse": 0.003728813930172994,
+        "ft_mse": 0.0026298328473262425,
+        "relative_gain": 0.2947267156330768
+      }
+    ],
+    "gain_mean": 0.26119522377532894,
+    "gain_sd": 0.09668372437057174,
+    "ci_low": 0.14114652401213412,
+    "ci_high": 0.38124392353852377,
+    "degrees_of_freedom": 4
+  },
+  "checks": [
+    {
+      "name": "parameter_delta",
+      "passed": true,
+      "detail": "max |dw| = 1.440e-04 over 502/504 tensors (required > 0.0e+00 and at least one moved tensor)"
+    },
+    {
+      "name": "loss_fall",
+      "passed": true,
+      "detail": "first-fifth mean 0.2452 -> last-fifth mean 0.2421 (required a fall; 30 steps logged)"
+    },
+    {
+      "name": "paired_gain",
+      "passed": true,
+      "detail": "mean relative gain +26.120%, 95% CI [+14.115%, +38.124%] over 5 replicates (df=4; required lower bound > 0)"
+    }
+  ],
+  "passed": true,
+  "wall_time_seconds": 575.0800795840041
+}

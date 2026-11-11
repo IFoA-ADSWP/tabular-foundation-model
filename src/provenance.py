@@ -55,6 +55,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any, Mapping
 
+import numpy as np
 import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -77,6 +78,17 @@ def sha256_file(path, chunk=1 << 20):
                 break
             h.update(b)
     return h.hexdigest()
+
+
+def sha256_array(values):
+    """sha256 of an array's contiguous bytes — the convention every record hash uses.
+
+    An arm record's `predictions_sha256` and a capture entry's `predictions_sha256`/
+    `truth_sha256` all mean this, so the pilot, the capture generator and the rescore tool cannot
+    disagree about what a hash covers. Deliberately not the `.npy` file's bytes: the header is
+    not evidence, and a file-bytes hash would never match the record it is checked against.
+    """
+    return sha256(np.ascontiguousarray(values).tobytes()).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -103,7 +115,8 @@ def dataset_fingerprint(name, *, frame=None, target, drop=(), path=None, repo_ro
     because they define the feature matrix: the same bytes with a different leak-drop is a
     different experiment, and a reader comparing two records has to be able to see that.
     `drop` is the set of columns **as applied by the runner**, not a claim about what should
-    have been dropped.
+    have been dropped. `columns` and `n_cols` describe the frame as supplied (the source file),
+    so a runner that drops before encoding states the removal in `drop` rather than in `columns`.
 
     A table that is not on disk is STATE, not an error: the original behaviour, kept so a run
     that could not find its data is legible instead of absent. With `frame` supplied the frame
@@ -328,7 +341,7 @@ def git_revision(repo_root=None):
     return run("rev-parse", "HEAD") or None, dirty
 
 
-def _csv_cell(value):
+def csv_cell(value):
     """One CSV cell, spelled so two writers cannot disagree about a type.
 
     `measurements` is JSON with sorted keys, so the same numbers serialise to the same bytes.
@@ -402,7 +415,7 @@ def write_diagnostic_record(record, *, root=None):
     with open(target / _CSV, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=list(DIAGNOSTIC_RECORD_FIELDS), lineterminator="\n")
         writer.writeheader()
-        writer.writerow({k: _csv_cell(v) for k, v in payload.items()})
+        writer.writerow({k: csv_cell(v) for k, v in payload.items()})
     return target
 
 

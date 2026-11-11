@@ -8,6 +8,9 @@
 #   --query 'Q'      extra offer search filters
 #   --pick HOW       value | cheapest | fastest      (default: value = dlperf/$)
 #   --max-dph N      hard price ceiling in $/hr      (default 0.60)
+#   --poll-minutes N how long to wait for the box to finish (default 40)
+#   --estimate-sec-per-seed N
+#                    the per-seed runtime used by the pre-flight check (default 90)
 #   --min-vram N     minimum VRAM in GB              (default 23)
 #   --gpu-allow L    comma list of allowed gpu_name  (default: modern-only list)
 #   --disk N         local disk GB                   (default 60)
@@ -38,7 +41,7 @@
 
 set -uo pipefail
 
-# Temp files below (/tmp/vast_*.json, /tmp/vast_run_out.txt, artifacts) are created
+# Temp files below ($LAUNCH_TMP/*.json, $RUN_OUT, artifacts) are created
 # world-readable by default. This run handles a licence token and experiment data, so
 # keep everything owner-only. The token itself is never written to disk here -- it is
 # only ever exported into the remote command.
@@ -59,6 +62,10 @@ OUTDIR="${VAST_OUTDIR:-$REPO_DIR/outputs/gpu-pilot}"
 # retry path; sourced, not executed.
 # shellcheck source=lease.sh
 . "$REPO_DIR/scripts/gpu_helpers/lease.sh"
+# The poll-window arithmetic is shared with batch_run.sh (#430) so the harness's pre-spend
+# refusal and this launcher's refusal cannot disagree about what fits.
+# shellcheck source=fit_guard.sh
+. "$REPO_DIR/scripts/gpu_helpers/fit_guard.sh"
 
 DEFAULT_QUERY='num_gpus=1 gpu_ram>=23 cpu_ram>=32 disk_space>=60 reliability>=0.98 inet_down>200 dph<0.80'
 # Ampere / Ada / Hopper only. Deliberately excludes Volta (V100), Pascal
@@ -105,6 +112,27 @@ ASSUME_YES=0
 # storage and provisioning, which is worth spending to rescue a session, but not
 # without a hard bound. MAX_ATTEMPTS counts TOTAL attempts: 2 means one retry.
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-2}"
+# How long the launcher waits for the box to report completion. Exceeding this used to be
+# unrecoverable: the poll gave up, the EXIT trap destroyed the instance, and the payload --
+# which the box emits only at the end -- was never shipped. A thirty-seed batch took 46 min
+# against a 40 min ceiling and lost $0.21 and 46 minutes of compute (2026-11-04).
+POLL_MINUTES="${POLL_MINUTES:-40}"
+# Per-seed wall clock, for the pre-flight refusal below. Deliberately blunt and overridable:
+# the cost of a wrong estimate in one direction is a refusal a human must re-issue, and in
+# the other it is a silently discarded batch.
+# Measured on eudirectlapse at 10,000 rows, two arms, on an RTX PRO 4000: A_raw ~6s + B_ft30
+# ~158s, so ~164s per seed. Earlier defaults (90, then 110) came from dividing a truncated run's
+# elapsed time by its seed count -- both optimistic, which is the direction that loses a batch.
+#
+# This figure is device-dependent by a factor of five: the same batch on an RTX 3090 ran B_ft30
+# at 753-837s per seed. `--pick value` optimises dlperf/$, which does not predict this workload's
+# per-seed time, so pin `--gpu-allow` to a class whose timing has been measured.
+EST_SEC_PER_SEED="${EST_SEC_PER_SEED:-170}"
+# Instance-running to arms-starting is not free: image pull, dependency install and the gated
+# weight fetch. Measured on 2026-11-04 across four concurrent launches: three took ~3 min and one
+# took ~15, and the poll window opens before any of it happens. 180s was the optimistic case; this
+# is the observed slow one, because an optimistic allowance is the direction that loses a batch.
+BOOT_EST_SECONDS="${BOOT_EST_SECONDS:-900}"
 ATTEMPT="${ATTEMPT:-1}"
 EXCLUDE_MACHINES="${EXCLUDE_MACHINES:-}"
 SELF="$0"
@@ -130,6 +158,8 @@ while [ $# -gt 0 ]; do
         --image)     IMAGE="$2"; shift 2 ;;
         --transport) TRANSPORT="$2"; shift 2 ;;
         --max-attempts) MAX_ATTEMPTS="$2"; shift 2 ;;
+        --poll-minutes) POLL_MINUTES="$2"; shift 2 ;;
+        --estimate-sec-per-seed) EST_SEC_PER_SEED="$2"; shift 2 ;;
         --keep)      KEEP=1; shift ;;
         --yes)       ASSUME_YES=1; shift ;;
         -h|--help)   sed -n '2,30p' "$0"; exit 0 ;;
@@ -268,6 +298,16 @@ fi
 BRANCH="${BRANCH:-main}"
 RUN_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 
+# Every temporary file this launch writes lives under ONE directory named for the launch.
+# The container log IS the artifact transfer channel in `--transport onstart`, so two launches
+# sharing $RUN_OUT pull each other's payloads: measured 2026-11-05, two of three
+# concurrent batches wrote another batch's seeds and reported `verified=24` while doing it (#426).
+LAUNCH_TMP="$(mktemp -d "${TMPDIR:-/tmp}/tfm-launch.XXXXXX")"
+RUN_OUT="$LAUNCH_TMP/run_out.txt"
+LOG_NEXT="$LAUNCH_TMP/log_next.txt"
+ARTIFACTS_RAW="$LAUNCH_TMP/artifacts.raw"
+cleanup_launch_tmp() { [ -n "${LAUNCH_TMP:-}" ] && rm -rf "$LAUNCH_TMP"; }
+
 # Record what a run actually cost, so the cost model in the runbook can be
 # replaced with measurements instead of assumptions. Writes one JSON per run
 # plus an appended CSV ledger we can aggregate across runs.
@@ -400,6 +440,8 @@ cleanup() {
             fi
         fi
     fi
+    # The launch's temp directory dies with it. Nothing outside it is shared with another launch.
+    cleanup_launch_tmp
     exit "$status"
 }
 trap cleanup EXIT
@@ -502,15 +544,38 @@ if [ -n "$LEAKS" ]; then
 fi
 
 # ---- 2. Select an offer (restricted to usable architectures) ----
+# ---- 1b. Does this batch fit in the poll window? ----
+# Checked BEFORE an offer is picked, so a refusal costs nothing. The failure it prevents is
+# not "the run is late" -- it is "the run is discarded": past the poll, the launcher exits
+# non-zero, the trap destroys the instance, and the payload never ships.
+if [ -n "$SEEDS" ]; then
+    SEED_COUNT="$(printf '%s' "$SEEDS" | awk -F, '{print NF}')"
+else
+    SEED_COUNT=1
+fi
+# An estimate of 0 makes every batch fit and disables the guard while looking applied.
+case "$EST_SEC_PER_SEED" in
+    ''|*[!0-9]*|0)
+        echo "FATAL: --estimate-sec-per-seed must be a positive integer of seconds." >&2
+        echo "  0 disables the poll guard silently; measure the per-seed time instead." >&2
+        exit 2 ;;
+esac
+# The sum and the refusal live in fit_guard.sh, which batch_run.sh sources too: a harness
+# that sized a batch differently from this guard would reintroduce #414 at the batch level.
+if ! batch_fits "$SEED_COUNT" "$EST_SEC_PER_SEED" "$BOOT_EST_SECONDS" "$POLL_MINUTES"; then
+    batch_refuse "$SEED_COUNT" "$EST_SEC_PER_SEED" "$BOOT_EST_SECONDS" "$POLL_MINUTES"
+    exit 2
+fi
+
 echo "=== 2/7 selecting offer (pick=$PICK ceiling=\$$MAX_DPH/hr min-vram=${MIN_VRAM}GB) ==="
 
 if [ -z "$OFFER_ID" ]; then
-    vastai search offers "$QUERY" -o dph --raw 2>/dev/null > /tmp/vast_candidates.json
+    vastai search offers "$QUERY" -o dph --raw 2>/dev/null > "$LAUNCH_TMP/candidates.json"
     # The 6th argument is the machine_id skip-list. On a retry that is the host
     # that just failed; without it the (stable) ranking re-picks it and we pay to
     # rediscover the same bad pull.
     SELECTOR_OUT="$(python3 "$REPO_DIR/scripts/gpu_helpers/select_offer.py" \
-        "$PICK" "$MAX_DPH" "$GPU_ALLOW" "$MIN_VRAM" /tmp/vast_candidates.json \
+        "$PICK" "$MAX_DPH" "$GPU_ALLOW" "$MIN_VRAM" $LAUNCH_TMP/candidates.json \
         "$(printf '%s' "$EXCLUDE_MACHINES" | tr ' ' ',')")"
     read -r OFFER_ID GPU_NAME DPH CUDA DLPERF CPU_RAM GPU_RAM DISK_SP REL <<< "$SELECTOR_OUT"
     if [ -z "$OFFER_ID" ]; then
@@ -625,6 +690,23 @@ BOOTSTRAP_B64="$(gzip -9c "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh" | b
     printf 'export TFM_IMAGE_REF=%q\n' "$IMAGE"
     printf 'export TFM_MACHINE_ID=%q\n' "${MACHINE_ID:-}"
     printf 'export TFM_HOST_ID=%q\n' "${HOST_ID:-}"
+    # ---- operator-set pass-throughs ---------------------------------------------
+    # Every variable the box READS and the operator may set is forwarded here. A name missing
+    # from this list is not an error the box can see: bootstrap substitutes its own default, so
+    # a pin the operator believes they set becomes the default, silently. That is the class this
+    # block exists to close (#450): `--seeds` was dropped by the bootstrap, `--seed-range` by a
+    # diagnostic's main, and TFM_EXPECT_CHECKPOINT was never forwarded at all -- the last one
+    # meaning D18's "asserted before every launch" was an assertion of the default, not of the
+    # claimed line. Empty values are NOT exported, so the box's defaults still apply.
+    # Only names the box actually honours: `TFM_REQUIRE_CLEAN_TREE` is hard-exported to 1 by the
+    # bootstrap, so forwarding it would be a control that cannot move. A dead entry is worse than
+    # no entry, because it reads like one.
+    for _passthrough in TFM_EXPECT_CHECKPOINT TFM_DATA_REF TFM_DATA_REPO TFM_WEIGHTS_MANIFEST \
+                       TABPFN_PIN SKLEARN_PIN PANDAS_PIN PYARROW_PIN CATBOOST_PIN; do
+        if [ -n "${!_passthrough:-}" ]; then
+            printf 'export %s=%q\n' "$_passthrough" "${!_passthrough}"
+        fi
+    done
     printf 'export TFM_BOOTSTRAP_B64=%q\n' "$BOOTSTRAP_B64"
     echo 'echo "$TFM_BOOTSTRAP_B64" | base64 -d | gzip -dc > /tmp/tfm-bootstrap.sh'
 
@@ -772,10 +854,10 @@ else
     # The bootstrap already started at container boot via --onstart, so there is
     # nothing to launch here: watch the container log until it reports completion.
     echo "running via: --onstart (bootstrap began at container boot)"
-    : > /tmp/vast_run_out.txt
+    : > $RUN_OUT
     BOOTSTRAP_DONE=0
     EMPTY_STREAK=0
-    for i in $(seq 1 120); do   # 120 x 20s = 40 min ceiling
+    for i in $(seq 1 $(( POLL_MINUTES * 3 ))); do   # 20s per poll
         # A huge --tail (200000) silently returns NOTHING; with stderr discarded
         # that looks identical to "not finished yet", so the loop ran its entire
         # 60-minute ceiling while the instance billed -- and the repeat poll cost
@@ -787,9 +869,9 @@ else
         # box declares its payload's line count and sha256, and the receiver refuses a
         # short read, so a mis-sized window now fails loudly instead of silently.
         # Do not raise this to the 200000 range that caused the original leak.
-        ERR="$(vastai logs "$INSTANCE_ID" --tail 20000 2>&1 > /tmp/vast_log_next.txt)"
-        if [ -s /tmp/vast_log_next.txt ]; then
-            cp /tmp/vast_log_next.txt /tmp/vast_run_out.txt
+        ERR="$(vastai logs "$INSTANCE_ID" --tail 20000 2>&1 > $LOG_NEXT)"
+        if [ -s $LOG_NEXT ]; then
+            cp $LOG_NEXT $RUN_OUT
             EMPTY_STREAK=0
         else
             EMPTY_STREAK=$(( EMPTY_STREAK + 1 ))
@@ -797,21 +879,24 @@ else
                 echo "  WARNING: log capture empty 3x -- $(printf '%s' "$ERR" | cut -c1-80)" >&2
             fi
         fi
-        if grep -q "BOOTSTRAP FINISHED" /tmp/vast_run_out.txt 2>/dev/null; then
+        if grep -q "BOOTSTRAP FINISHED" $RUN_OUT 2>/dev/null; then
             BOOTSTRAP_DONE=1
             break
         fi
         # Surface progress without flooding: the most recent milestone line.
-        PROG="$(grep -aE '^##########|PILOT RESULTS|ROC=|EXITED rc=' /tmp/vast_run_out.txt 2>/dev/null | tail -1)"
+        PROG="$(grep -aE '^##########|PILOT RESULTS|ROC=|EXITED rc=' $RUN_OUT 2>/dev/null | tail -1)"
         [ -n "$PROG" ] && echo "  [$i] $PROG"
         sleep 20
     done
     if [ "$BOOTSTRAP_DONE" != "1" ]; then
-        echo "WARNING: bootstrap did not report BOOTSTRAP FINISHED within 40 min" >&2
+        echo "WARNING: bootstrap did not report BOOTSTRAP FINISHED within ${POLL_MINUTES} min." >&2
+        echo "         The instance is about to be destroyed and the box ships its payload only on" >&2
+        echo "         completion, so this batch's compute is being discarded. Re-run with fewer" >&2
+        echo "         seeds, or --poll-minutes N above the measured runtime." >&2
         RUN_RC=1
     fi
     echo "--- log tail ---"
-    tail -40 /tmp/vast_run_out.txt
+    tail -40 $RUN_OUT
 fi
 
 BOOTSTRAP_RC="$RUN_RC"
@@ -830,27 +915,50 @@ if [ "$TRANSPORT" = "ssh" ]; then
         "root@$HOST:/workspace/tfm/outputs/finetune/pilot/*" \
         "$RUN_OUTDIR/" || \
         echo "WARNING: scp failed -- re-run with --keep" >&2
+    # The ssh transport pulls files directly, so there is nothing to unpack -- but the
+    # batch still has to prove it is the batch that was asked for. Skipping verification
+    # here left the whole check absent on one of the two transports.
+    VERIFY_SOURCE=(--verify-only --raw /dev/null)
 else
     # The bootstrap printed its payload between markers on stdout, so the container
-    # log -- already captured in /tmp/vast_run_out.txt -- IS the transfer channel.
+    # log -- already captured in $RUN_OUT -- IS the transfer channel.
     # (`vastai execute` cannot read files; it only runs ls/rm/du.)
-    cp /tmp/vast_run_out.txt /tmp/vast_artifacts.raw 2>/dev/null || : > /tmp/vast_artifacts.raw
-    python3 "$REPO_DIR/scripts/gpu_helpers/verify_artifacts.py" \
-        --raw /tmp/vast_artifacts.raw \
-        --dest "$RUN_OUTDIR"
-    ART_RC=$?
-    case "$ART_RC" in
-        0) : ;;
-        3) echo "WARNING: no usable artifact payload in the container log" >&2
-           echo "         log captured at /tmp/vast_run_out.txt; use --keep to inspect" >&2 ;;
-        4) echo "WARNING: the payload was present but incomplete - see above" >&2
-           echo "         log captured at /tmp/vast_run_out.txt" >&2 ;;
-        5) echo "WARNING: predictions arrived but failed hash verification - see above" >&2
-           echo "         the run's metrics are NOT recomputable from these files" >&2 ;;
-        *) echo "WARNING: artifact verification exited $ART_RC" >&2 ;;
-    esac
+    VERIFY_SOURCE=(--raw "$ARTIFACTS_RAW")
+    cp $RUN_OUT $ARTIFACTS_RAW 2>/dev/null || : > $ARTIFACTS_RAW
 fi
+# The seeds this launch was GIVEN, not the ones the box says it ran. Without this
+# comparison a batch that wrote another launch's range reports `verified=24` and
+# exits 0 -- the payload is genuine, just somebody else's (#429).
+# The `[@]+...` form, not `"${SEED_ARGS[@]}"`: on macOS's bash 3.2 an empty array
+# expanded under `set -u` is an unbound-variable error, and an unseeded launch has
+# exactly that shape.
+SEED_ARGS=()
+if [ -n "$SEEDS" ]; then SEED_ARGS=(--expect-seeds "$SEEDS"); fi
+python3 "$REPO_DIR/scripts/gpu_helpers/verify_artifacts.py" \
+    "${VERIFY_SOURCE[@]}" \
+    --dest "$RUN_OUTDIR" \
+    "${SEED_ARGS[@]+"${SEED_ARGS[@]}"}"
+ART_RC=$?
+case "$ART_RC" in
+    0) : ;;
+    3) echo "WARNING: no usable artifact payload in the container log" >&2
+       echo "         log captured at $RUN_OUT; use --keep to inspect" >&2 ;;
+    4) echo "WARNING: the payload was present but incomplete - see above" >&2
+       echo "         log captured at $RUN_OUT" >&2 ;;
+    5) echo "REFUSING: predictions arrived but failed hash verification." >&2
+       echo "          The run's metrics are NOT recomputable from these files, and a" >&2
+       echo "          batch whose evidence cannot be trusted does not ship." >&2
+       RUN_RC=1 ;;
+    6) echo "REFUSING: the batch did not write the seeds it was asked for." >&2
+       echo "          Evidence kept at $RUN_OUTDIR for inspection; do not publish" >&2
+       echo "          from it and do not retry into the same range." >&2
+       RUN_RC=1 ;;
+    *) echo "WARNING: artifact verification exited $ART_RC" >&2 ;;
+esac
 
 echo
 echo "=== done (rc=$RUN_RC) ==="
 ls -l "$OUTDIR" 2>/dev/null | head -20
+# Exit with the run's status, not `ls`'s. A launcher that printed `rc=1` and then exited 0
+# is how a refused batch looked like a success to everything downstream (#429).
+exit "$RUN_RC"

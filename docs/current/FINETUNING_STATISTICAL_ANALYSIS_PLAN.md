@@ -4,6 +4,11 @@
 >
 > **Status: DRAFT for sign-off.** This plan fixes the analysis **before** any data exists, so that the
 > result cannot be chosen after seeing it. Any departure is recorded as a dated deviation (§10).
+
+> **Dated marker (2026-11-09).** Applied, not draft. The probes and the Phase 2 cells this plan governs have
+> run and the phase closed on 2026-11-07 (D22); the outcome is in
+> [`FINETUNING_PHASE2_OUTCOME.md`](FINETUNING_PHASE2_OUTCOME.md). Its sign-off is one pass by the owner, not
+> two independent reviewers — a limitation the plan records and this marker does not repair.
 > Related historical design: `docs/reference/PILOT_2_DESIGN.md` (§5, §6.5), `docs/current/FINETUNING_DECISION_LOG.md` (D4, D8), `docs/reference/PILOT_2_DECISION_GRAPH.md`.
 
 ## 1. Purpose and scope
@@ -33,9 +38,14 @@ Scope: the funded in-domain pilot in `docs/current/FINETUNING_PILOT_DESIGN.md`, 
 
 The old pooled labels are retained only as implementation identifiers; they are not reused as Phase 2 labels. The full experiment matrix and seed/split policy are frozen in the canonical pilot design before execution.
 
-**Sign convention is stated once and used everywhere.** For loss-type metrics, Δ is *arm − `A_raw`*, so
-**negative means the fine-tuned arm wins**. For discrimination and calibration metrics (ROC AUC, PR AUC,
-Brier), positive means improvement. Every reported number states which convention it uses.
+**Sign convention is stated once and used everywhere.** For loss-type metrics — log loss and Brier — Δ is
+*arm − `A_raw`*, so **negative means the fine-tuned arm wins**. For discrimination metrics (ROC AUC, PR
+AUC), positive means improvement. Every reported number states which convention it uses.
+
+> **2026-11-09** (#518). Brier was listed above as a metric where positive means improvement. It is a loss: every
+> analysis reads ΔBrier as *arm − `A_raw`*, so a positive value is worse, and D12's veto is a ceiling on that
+> increase. Replaced wording: *"For discrimination and calibration metrics (ROC AUC, PR AUC, Brier),
+> positive means improvement."*
 
 | Level | Estimand |
 | --- | --- |
@@ -45,6 +55,10 @@ Brier), positive means improvement. Every reported number states which conventio
 | **Tertiary (ladder)** | Marginal differences between adjacent epoch rungs (30 vs 10 vs 3) — exploratory, not a decision |
 | **Interaction (off-ramp only)** | The difference-of-differences between two factors, with everything else held fixed |
 
+> **2026-11-09** (#518). The claim measure for Phase 2 was ROC AUC, with a Brier veto (D12, 2026-11-03). The paired
+> log-loss estimand named above as primary was **not carried into the Phase 2 report** — a stated gap, not a
+> silent demotion. See [`FINETUNING_PHASE2_OUTCOME.md`](FINETUNING_PHASE2_OUTCOME.md) §4.
+
 ## 3. Metrics
 
 - **Primary:** log loss — the pre-registered probability-quality measure for the in-domain anchor and transfer comparison.
@@ -53,6 +67,12 @@ Brier), positive means improvement. Every reported number states which conventio
 - **Calibration tolerance must be numeric.** Design §6.5 criterion 5 requires the ECE/Brier tolerance to
   be set **in advance** — *an unset tolerance is not a pre-registration*. This is currently **TBD** and
   is flagged in §12 as a required number before sign-off.
+
+> **2026-11-09** (#518) — Brier and log loss. Brier carries a **veto** under D12, so it has a decision role rather
+> than none. Log loss keeps the primary reporting role stated above and is unreported in the Phase 2 outcome.
+>
+> **2026-11-09** (#518) — the calibration tolerance. It is no longer TBD: set at sign-off on 2026-10-30, and §12
+> item 1 records the value. The paragraph above is stale, not an open question.
 
 All metrics are computed on the held-out test rows only. What the pipeline **asserts** is that no test row
 is in the training indices, the dropped remainder, the pool, or the inference **context** we construct
@@ -223,6 +243,8 @@ Using R1's own **paired** 95% intervals on 1,000 test rows, each dataset resolve
 | uslapseagent | 1,000 | 369 | >= 0.009 |
 | **Pooled** (inverse-variance) | | | **~>= 0.008** |
 
+*2026-10-31 (#518): the `uslapseagent` resolution figure in this table is superseded by the reconciliation in §10 — it must not be quoted. The measured half-width is 0.0036. The two later sentences in §12.1 that repeat it are superseded with it.*
+
 R1's observed in-domain deltas were **0.0008-0.0095**. So **three of the four datasets cannot resolve
 an effect of that size at 1,000 test rows**, and this design is a test for **large** effects
 (roughly >= 0.02 per dataset), not for the R1 band. Stated here so that "we were underpowered" cannot
@@ -232,6 +254,10 @@ be discovered after a null.
 **row-sampling** variance, which is what sets this floor. Only more test rows (or more positives) move
 it. The 15x repeat structure therefore buys **stability, not sensitivity**, and should not be expected
 to convert a 0.005 effect into a detectable one.
+
+> **2026-11-09** (#518). True of the **row-sampling floor**. Repeats do move the **between-split** variance, which is
+> what the anchor's replication bought (D13); D22 names the conflation a "resolution-for-variance
+> substitution". The sentence is scoped, not withdrawn.
 
 Two worked consequences:
 
@@ -250,12 +276,16 @@ minimum detectable effect** -- it costs nothing at run time, and it is worth str
 additional repeats, which (above) buy no sensitivity at all. Recorded here as a candidate change
 rather than made, because it changes the split every existing number was computed on.
 
+*2026-10-31 (#518): the resolution figure in the sentence above is superseded by the reconciliation in §10; it must not be quoted.*
+
 **Decision (2026-10-30): the anchor keeps the uniform cap.** A stratified cap is the cheapest available
 improvement to the minimum detectable effect, but it changes the split every existing number was
 computed on. Adopting it before the anchor would make the two-seed replication incomparable with R1's
 10,000-row result, which is the one comparison the anchor exists to make. It is recorded here as a
 change to adopt **after** the gate, as its own step. `uslapseagent` already resolves 0.009 ROC — the
 best of the four datasets — so the anchor pays least for the deferral.
+
+*2026-10-31 (#518): the figure in this sentence is superseded by the reconciliation in §10; it must not be quoted.*
 
 **What this means for the design's claims.** A positive result at these settings is evidence of a
 large effect; a null is *not* evidence that fine-tuning is worthless at the 0.001-0.010 scale. Every

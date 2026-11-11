@@ -41,6 +41,7 @@ _REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO / "src"))
 
 from model_version import resolve_model_path  # noqa: E402  (same-dir module, after the path insert)
+from anchor_datasets import load_anchor_datasets  # noqa: E402
 from provenance import (  # noqa: E402  (same-dir module, after the path insert)
     DIAGNOSTICS_ROOT,
     DiagnosticRecord,
@@ -172,33 +173,12 @@ def _run_id():
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
-def _anchor_registry():
-    """The pilot's dataset registry, as name -> {"file", "target"}.
-
-    One source of truth. D1 profiles the datasets the anchor will actually run, so the list
-    comes from the runner rather than from a second copy here that can drift.
-    """
-    import importlib.util
-
-    script = _REPO / "scripts" / "run_pilot.py"
-    spec = importlib.util.spec_from_file_location("_pilot_registry", script)
-    if spec is None or spec.loader is None:  # pragma: no cover - defensive
-        raise SystemExit(f"cannot load the pilot registry from {script}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["_pilot_registry"] = module
-    spec.loader.exec_module(module)
-    return {
-        name: {"file": module.DATA_DIR / entry["file"], "target": entry["target"]}
-        for name, entry in module.DATASETS.items()
-    }
-
-
 def _targets(args, datasets):
     """Resolve the invocation into [(name, path, target)] -- one record each."""
     if args.csv is not None:
         return [(args.name or args.csv.stem, args.csv, args.target)]
 
-    registry = datasets if datasets is not None else _anchor_registry()
+    registry = datasets if datasets is not None else load_anchor_datasets()
     if args.all_anchors:
         names = list(registry)
     else:

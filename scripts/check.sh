@@ -51,8 +51,8 @@ run_pytest() {
 run_shellcheck() {
   need shellcheck "brew install shellcheck, or apt-get install shellcheck"
   echo "== shellcheck (severity >= ${SHELLCHECK_SEVERITY})"
-  # shellcheck disable=SC2086  # glob is deliberate: the paid-run scripts, by name
-  shellcheck --severity="${SHELLCHECK_SEVERITY}" scripts/gpu_helpers/*.sh
+  # shellcheck disable=SC2086  # globs are deliberate: the paid-run scripts and the repo's own
+  shellcheck --severity="${SHELLCHECK_SEVERITY}" scripts/*.sh scripts/gpu_helpers/*.sh
 }
 
 # The two trees that hold committed experiment evidence. A change here is not forbidden,
@@ -116,28 +116,43 @@ run_docstatus() {
   python3 scripts/check_doc_status.py
 }
 
+run_citation() {
+  need python3 "install Python 3, or use the interpreter that runs pytest"
+  echo "== citation (every cited run has a capture)"
+  python3 scripts/check_citations.py --root .
+}
+
+run_verdict() {
+  need python3 "install Python 3, or use the interpreter that runs pytest"
+  echo "== verdict (the null band matches the committed analysis)"
+  # The band the decision log cites is 0.010; the tool must still produce it from the anchor.
+  python3 scripts/analyses/verdict.py --run results/20261031T021845Z --reps 1000 --expect-band 0.010
+}
+
 usage() {
-  echo "usage: $(basename "$0") [ruff|pytest|shellcheck|evidence|doclinks|docstatus|all]" >&2
+  echo "usage: $(basename "$0") [ruff|pytest|shellcheck|evidence|doclinks|docstatus|citation|verdict|all]" >&2
   exit 2
 }
 
-run_check() { # run_check <ruff|pytest|shellcheck|evidence|doclinks|docstatus>
+run_check() { # run_check <ruff|pytest|shellcheck|evidence|doclinks|docstatus|citation|verdict>
   case "$1" in
     ruff)       run_ruff ;;
     pytest)     run_pytest ;;
     shellcheck) run_shellcheck ;;
     evidence)   run_evidence ;;
     doclinks)   run_doclinks ;;
+    citation)   run_citation ;;
     docstatus)  run_docstatus ;;
+    verdict)    run_verdict ;;
   esac
 }
 
 case "${1:-all}" in
-  ruff|pytest|shellcheck|evidence|doclinks|docstatus) run_check "$1" ;;
+  ruff|pytest|shellcheck|evidence|doclinks|docstatus|citation|verdict) run_check "$1" ;;
   all)
     status=0
     missing=0
-    for check in ruff pytest shellcheck evidence doclinks docstatus; do
+    for check in ruff pytest shellcheck evidence doclinks docstatus citation verdict; do
       # The subshell is load-bearing: need() exits 3 when a tool is absent, and without
       # it that exit would end the script and hide every check after this one.
       ( run_check "$check" )

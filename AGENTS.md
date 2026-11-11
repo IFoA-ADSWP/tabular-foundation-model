@@ -2,10 +2,24 @@
 
 ## Canonical test command
 
-pytest tests/ -q
+./scripts/bootstrap_dev.sh && .venv/bin/pytest tests/ -q
+
+The bootstrap builds `.venv` from `requirements.lock`; it is idempotent, so running it every
+session is cheap. `pytest` on `PATH` is not the repository's environment — a bare `pytest tests/ -q`
+can run on pandas 3 / numpy 2 and produce failures that are the environment, not the change.
 
 Run it and iterate until it passes before reporting work as done. A failing gate
 means the task is not finished — do not claim completion on an unverified change.
+
+Local environment, workload duration, worktree creation and the traps that look like bugs:
+`docs/DEVELOPMENT_ENVIRONMENT.md`.
+
+## Worktrees
+
+A harness-created worktree may arrive with an unrelated commit and almost no files; the symptom is
+`ModuleNotFoundError` from a test, not an obvious wrong-tree error. Create one with
+`./scripts/new_worktree.sh <branch>`, or reset a harness worktree to `origin/main` and confirm
+`tests/conftest.py` exists before the first edit.
 
 ## Plans
 
@@ -15,7 +29,7 @@ why. Commit it with the change.
 ## Conventions
 
 Python research repo (TabPFN vs actuarial baselines). The gate is CI, and CI is
-**six checks, not one** — a change that passes pytest can still fail the others:
+**eight checks, not one** — a change that passes pytest can still fail the others:
 
 - `ruff check scripts/ src/ tests/`
 - `pytest tests/ -q`
@@ -26,9 +40,14 @@ Python research repo (TabPFN vs actuarial baselines). The gate is CI, and CI is
   are citations, and the git-ignored run trees describe a shape)
 - `./scripts/check.sh docstatus` — every report in the three tiers states whether it is
   current, historical or proposed
+- `./scripts/check.sh citation` — every run id cited in `docs/` has a capture manifest
+  covering its arms and seeds (#364); pre-rule runs are exempt in
+  `docs/analyses/legacy_citations.txt`
+- `./scripts/check.sh verdict` — the verdict tool reproduces the null band the decision log
+  cites, so the code and the document cannot drift apart (#398)
 
-Run all six with `./scripts/check.sh`, or one with
-`./scripts/check.sh ruff|pytest|shellcheck|evidence|doclinks|docstatus`. The script is the single definition;
+Run all eight with `./scripts/check.sh`, or one with
+`./scripts/check.sh ruff|pytest|shellcheck|evidence|doclinks|docstatus|citation|verdict`. The script is the single definition;
 `.github/workflows/ci.yml` calls it for each separate job. A missing tool exits non-zero
 rather than skipping a check.
 

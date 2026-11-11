@@ -5,10 +5,16 @@ name: ci
 # command, so this file and a contributor's local run have one definition and cannot
 # drift. The commands themselves live in the script; this file only schedules them.
 #
-# Four checks, not five: ruff, pytest, shellcheck and the evidence guard. The doc link
-# and doc-status checks are not here -- they are red on main against a pre-existing
-# backlog, and adding them is their own work. #260 corrected the instructions to the
-# then-three checks; the evidence job (#319) is the fourth.
+# Eight checks, matching scripts/check.sh: ruff, pytest, shellcheck, the evidence guard,
+# the citation check, the verdict check, doc links and doc status. #260 corrected the
+# instructions to the then-three checks; the evidence job (#319) is the fourth, the
+# citation job (#364) the fifth, the verdict job (#398) the sixth, and doclinks/docstatus
+# joined once their pre-existing backlog was cleared (#529). If this list and
+# `scripts/check.sh` disagree, the script is right.
+#
+# Dependencies install from requirements.txt ranges, not requirements.lock: the lock is the
+# local-reproducibility tool (#530), and switching CI onto it is its own change with its own
+# evidence. The ruff pin is kept equal to the lock's so a local lint pass and CI agree.
 #
 # The shellcheck severity floor and its reason live in scripts/check.sh, beside the
 # check, so that it is not re-litigated here.
@@ -39,7 +45,7 @@ jobs:
       - name: Install
         # Pinned, not floating: a ruff upgrade changes the verdict, so it is a deliberate
         # change to this line and to the rule set in ruff.toml, not something CI resolves.
-        run: pip install "ruff==0.15.8"
+        run: pip install "ruff==0.16.4"
 
       - name: check
         run: ./scripts/check.sh ruff
@@ -99,10 +105,24 @@ jobs:
           # zero SHA (new branch) resolves through the same fallback.
           EVIDENCE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'origin/main' }}
         run: |
-          # Read the label from the branch's open PR rather than the event payload: a
-          # workflow_dispatch has no pull_request object, so the payload form silently evaluates
-          # to "not labelled" and fails a change that is correctly labelled.
-          labels="$(gh pr list --head "$GITHUB_REF_NAME" --state open --json labels             --jq '[.[].labels[].name] | join(",")' 2>/dev/null || true)"
+          # Which PR's label governs this change. Two event shapes, two lookups:
+          #
+          # * a pull request reads its own labels. `GITHUB_REF_NAME` is `<pr>/merge` here, not
+          #   a branch name, so the previous `gh pr list --head "$GITHUB_REF_NAME"` matched
+          #   nothing and every labelled evidence PR failed (#378 measured: 0 PRs found).
+          # * a push to main reads the PR that produced the merged commit. The label still
+          #   lives on the PR, so a labelled evidence merge passes instead of leaving main red
+          #   for a change that was reviewed and labelled (#350, #352 both did).
+          #
+          # A direct push with no PR finds no labels, which is the honest answer: nobody
+          # declared it a deliberate evidence change.
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            labels="$(gh pr view "${{ github.event.pull_request.number }}" --json labels \
+              --jq '[.labels[].name] | join(",")' 2>/dev/null || true)"
+          else
+            labels="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
+              --jq '[.[].labels[].name] | join(",")' 2>/dev/null || true)"
+          fi
           case ",${labels}," in
             *,evidence-change,*) export EVIDENCE_CHANGE_OK=1 ;;
           esac
@@ -133,3 +153,30 @@ jobs:
 
       - name: check
         run: ./scripts/check.sh docstatus
+
+  citation:
+    name: citation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # A run cited in docs/ must have a capture that can re-derive its numbers (#364).
+    steps:
+      - uses: actions/checkout@v4
+      - name: check
+        run: ./scripts/check.sh citation
+
+  verdict:
+    name: verdict
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The tool must still reproduce the null band the decision log cites (#398). It reads a run's
+    # arrays, so it needs numpy and scikit-learn -- the same install the pytest job uses.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: check
+        run: ./scripts/check.sh verdict

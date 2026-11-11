@@ -88,8 +88,9 @@ drop = []
 metric = "rmse"
 
 # ---- pilot datasets (#238) ---------------------------------------------------
-# Their own section: the pilot drops no columns and scores through its arm runner, so a
-# frontier dataset's metric would be a claim the pilot never uses. Keeping them out of
+# Their own section: file and target only. The pilot's leak-drops live in its runner's dataset
+# table and are applied there (#444), so this section stays a registry view with no metric --
+# a frontier dataset's metric would be a claim the pilot never uses. Keeping them out of
 # [datasets] also keeps #235's rule true -- every frontier dataset has one experiment.
 
 [pilot_datasets.eudirectlapse]
@@ -328,6 +329,40 @@ model_version = "v3_default"
 
 [pilot_experiments.spanish_motor_lapse_p1a.config]
 epochs = 3
+early_stopping = false
+n_estimators = 2
+learning_rate = 1e-5
+fit_mode = "batched"
+context_samples = 64
+
+# ---- the Spanish lapse cell (D19, #450) --------------------------------------
+#
+# Pre-registered in `docs/current/FINETUNING_PREREGISTRATION_SPANISH_2026-11.md`: 10,000 training
+# rows and 10,000 test rows, the size at which the readiness study's P1 floor (paired half-width
+# <= 0.006) is met at a measured 0.0051. The four arms are the probe's ladder -- A_raw plus the three
+# epoch rungs -- so one seed answers what each budget buys against its own baseline.
+#
+# This experiment declares TEN seeds because a probe's power is a property of the design, not of the
+# launch: splitting 331-340 across launches is a batching decision, and `--seeds` selects a subset of
+# this range rather than replacing it. It is therefore refused without a preregistration (#450).
+#
+# The probe is NOT authorised. D19 sets a $0.50 ceiling and records the replication as unfunded; this
+# entry makes the design expressible, not approved.
+
+[pilot_experiments.spanish_motor_lapse_cell]
+dataset = "spanish_motor_lapse"
+arms = ["A_raw", "B_ft3", "B_ft10", "B_ft30"]
+# 331-340 the probe (run 20261106T164833Z); 341-356 the replication, fresh per D13.
+seeds = [331, 332, 333, 334, 335, 336, 337, 338, 339, 340,
+         341, 342, 343, 344, 345, 346, 347, 348, 349, 350,
+         351, 352, 353, 354, 355, 356]
+train_size = 10000
+test_size = 10000
+model_version = "v3_default"
+preregistration = "docs/current/FINETUNING_PREREGISTRATION_SPANISH_2026-11.md"
+
+[pilot_experiments.spanish_motor_lapse_cell.config]
+epochs = 30
 early_stopping = false
 n_estimators = 2
 learning_rate = 1e-5

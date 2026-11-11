@@ -22,6 +22,28 @@ is the rule that prevents it.
 code path that reads it, or the scope note that limits it. "It is only a record" is the
 answer that should fail.
 
+## A parameter that crosses a seam is *forwarded*, not re-defaulted
+
+*Raised by three findings in one day, 2026-11-06: `bootstrap_pilot.sh` accepted `--seeds` and
+dropped it before the runner (#454); a diagnostic's `main` accepted `--seed-range` and dropped it
+before `measure`, so a 66-seed request ran five and wrote a plausible record; and
+`TFM_EXPECT_CHECKPOINT` was never forwarded by the launcher at all, so the box asserted its own
+default — which made D18's "asserted before every launch" an assertion of the default, not of the
+claimed line.*
+
+A value crossing a seam — launcher to box, CLI to library, `main` to a worker — either arrives or
+stops the run. It does not quietly become the callee's default. The failure is invisible from both
+ends: each side is individually correct, the run succeeds, and the record describes an experiment
+nobody asked for.
+
+The mechanical half is now a check: `tests/test_pilot2_seed_passthrough.py` asserts that every
+variable the box reads is either forwarded by the launcher or on a named list of launcher-owned and
+box-enforced names, and that no forwarded name is dead. The judgement half is what review adds:
+**a new seam gets a wiring test at that seam**, not an end-to-end test that happens to cover it.
+
+**Reviewer's test:** name the call site that receives the value. If the answer is "it is in the
+environment" or "it is on the object", that is the belief to check, not the answer.
+
 ## Tests sit at a named seam
 
 *Raised in the #230 review: coverage was argued per file rather than per boundary.*
@@ -53,3 +75,41 @@ write **unmeasured**, so the next reader knows to measure before relying on it.
 **Reviewer's test:** for every such claim the change adds or leans on, ask for the file, the figure
 or the command. "It says so in the design document" is the answer that should fail; the design
 document is where the claim was written, not where it was checked.
+
+## A result quotes the analysing tool, not a hand-assembled summary
+
+*Raised in the #436 review of the D18 result, and again in the 2026-11-05 retro (#443): the document
+reported mean +0.0009, between-seed SD 0.0081 and a 129-seed requirement — the 228-seed pool that
+existed before the final ten-seed batch landed — beside a count of 134/238 from the full pool. The
+committed evidence gives +0.0007, SD 0.0082 and 132 seeds. The reading was unchanged, but a signed
+document disagreed with its own evidence until the capture was committed.*
+
+The figures in a result document come from **one run of the analysing tool over the final evidence**,
+and the document carries the command that produced them. A figure copied from an earlier pool, or
+assembled from several runs, is **unmeasured** in the sense above — regenerate it or say so. Where the
+evidence supports it, a test parses the document and reproduces the mean, SD and interval, as
+`tests/test_d18_evidence.py` does; this rule covers the figures no test can reach.
+
+**Reviewer's test:** ask for the command behind every figure. A document that cannot name one run of
+the tool over the final evidence is quoting something other than its evidence.
+
+## A projection names the quantity it substituted, and where that number was measured
+
+*Raised twice on the paid path, and both times the projection decided the spend. D18 projected
+**~512 seeds (~$9.50)** for `spanish_motor_lapse` by putting the **1,000-test-row half-width** the
+readiness study measured and **rejected** (0.0163) where a **between-seed variance** belonged — a
+resolution figure from a configuration nobody runs, in place of a variance nobody had measured. The
+probe put the SD at **0.0012** and the cell completed for **$0.065**, two orders of magnitude under
+the projection (D20). Earlier, a **$0.122** cost projection used the probe's **38.9 s/seed on an RTX
+4090** while the replication ran at **~62 s/seed on an RTX PRO 4000** and came in **54% over** —
+"a projection built on one host's timings does not transfer".*
+
+A projection is arithmetic over named inputs, and it is only as good as each input being the quantity
+it stands for. Name both: the quantity, and where that quantity was measured. The failure is not a
+wrong number — it is a number that was right about something else. A half-width is not a variance; a
+timing is not a timing on another host; a rounded figure is not the figure. If an input has not been
+measured, write **unmeasured** and probe it: the probe costs a fraction of the projection it replaces,
+and it replaces an assumption with the quantity itself.
+
+**Reviewer's test:** for each projected figure, match every input to a measurement of *that* quantity.
+A projection whose inputs cannot be matched is not an estimate — it is arithmetic on an assumption.

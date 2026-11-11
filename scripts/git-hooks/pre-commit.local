@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# The repo's local pre-commit gate: the FAST checks only.
+#
+# Installed as `.git/hooks/pre-commit.local`, which the machine-wide hook at
+# `~/.config/git/hooks/pre-commit` chains to after its secret scan. Install with:
+#
+#     cp scripts/git-hooks/pre-commit.local .git/hooks/pre-commit.local && chmod +x .git/hooks/pre-commit.local
+#
+# Why this exists. `scripts/check.sh` is the single definition of the eight CI checks, but until
+# this hook the only thing that ran them was CI. On 2026-11-06 two pull requests failed there for
+# faults that `git commit` could have refused in about two seconds:
+#
+#   * `git add -A` staged 146 files under `outputs/` (the `evidence` check);
+#   * a run id was cited in `docs/` with no committed capture (the `citation` check).
+#
+# What is deliberately absent, and why:
+#
+#   * `pytest` — the suite is 667 tests and takes about 28 minutes locally (measured 2026-11-06: 1720s,
+#     all passing). A gate that slow stops being a gate, and CI runs it. It was once blamed on
+#     "macOS aborting sandboxed shells" — that was a machine-local `python3` wrapper, not the tests.
+#     See CONTRIBUTING.md (#476).
+#   * `shellcheck` — only meaningful when a `.sh` changes, and it is seconds there. Skipped here to
+#     keep the hook cheap; CI still runs it on every change.
+#   * `doclinks`/`docstatus`/`verdict` — cheap, but they cannot fail from a code-only commit, and
+#     every second here is paid on every commit.
+#
+# Escapes, both intended:
+#   * `EVIDENCE_CHANGE_OK=1 git commit …` for a deliberate evidence change (runtime artifacts under
+#     `outputs/` are exactly that — the recorded decision, not a bypass).
+#   * `git commit --no-verify` for everything else. If you reach for it, say why in the message.
+set -uo pipefail
+
+root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+cd "$root" || exit 0
+
+log=$(mktemp "${TMPDIR:-/tmp}/tfm-precommit.XXXXXX") || exit 0
+trap 'rm -f "$log"' EXIT
+
+failed=()
+
+run_check() {
+    local name=$1
+    shift
+    if ! "$@" >"$log" 2>&1; then
+        failed+=("$name")
+        {
+            echo
+            echo "########## $name FAILED ##########"
+            tail -n 20 "$log"
+        } >&2
+    fi
+}
+
+# A missing tool exits 3 from check.sh rather than skipping. Surfaced, not swallowed: a check that
+# quietly did not run reads exactly like a check that passed.
+run_check ruff ./scripts/check.sh ruff
+run_check evidence ./scripts/check.sh evidence
+run_check citation ./scripts/check.sh citation
+
+if [ ${#failed[@]} -eq 0 ]; then
+    exit 0
+fi
+
+{
+    echo
+    echo "pre-commit refused: ${failed[*]}."
+    case " ${failed[*]} " in
+        *" evidence "*) echo "  A deliberate evidence change: EVIDENCE_CHANGE_OK=1 git commit …" ;;
+    esac
+    echo "  Bypass everything: git commit --no-verify -- and say why in the message."
+} >&2
+exit 1

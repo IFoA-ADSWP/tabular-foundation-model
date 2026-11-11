@@ -37,8 +37,9 @@ once and referenced by name.
 _Avoid_: table, file, corpus
 
 **Capture**:
-The persisted per-fold predictions and true labels from a run, keyed by dataset, seed
-and model version.
+The persisted evidence from a run: per-row predictions, truth, and the row identity and
+predictive distributions the run retained, keyed by dataset, Arm, seed and fold, with
+hashes that prove the arrays.
 _Avoid_: prediction file, checkpoint, dump
 
 **Rescore**:
@@ -71,6 +72,16 @@ What a record can prove: `comparable`, `partial` or `unusable`, with the missing
 named. Computed from the record, never written into it by the writer — a record cannot
 claim to be comparable while missing the field that makes a comparison meaningful.
 _Avoid_: status, score, pass/fail
+
+**Metric**:
+A number computed from a run's retained evidence — its truth and predictions, its retained
+predictive distribution, and any source column its stored `test_index` joins — under a
+named definition. A **registered metric** carries a version in
+`docs/analyses/METRIC_REGISTRY.md` and can be cited; an ad-hoc score computed from the
+same arrays is a metric too, but it is not citable until it is registered. Distinct
+from the **training objective**, which the fit minimises, and from the **decision rule**,
+which applies registered metrics to reach the pre-registered decision state.
+_Avoid_: score, measure, loss (for a scored quantity)
 
 **Frontier**:
 The set of methods on a dataset that are not dominated. A is dominated iff some B with
@@ -118,6 +129,19 @@ The decision that a launch may rent a machine, taken before anything is created.
 either allows the launch or refuses it, listing every failed check at once, and the
 decision is recorded. A refusal is not a crash and not a transport failure.
 _Avoid_: gate, preflight, guard
+
+**Facts document**:
+What the dispatcher gathers before spend — commit sha and tree state, preflight code,
+licence, ceiling, offer, command-document hash, remote reachability — so the gate can
+decide without doing I/O of its own.
+_Avoid_: input, payload, context
+
+**Verdict**:
+The spend gate's decision on one attempt: it allows the launch or refuses it, listing
+every failed check and the fact behind it. One per attempt, committed beside the
+arrivals record, and the sign-off itself. Distinct from the analysis-pipeline
+*verdict*, which is what a record can prove — this one decides a spend.
+_Avoid_: approval, go/no-go, pass/fail
 
 **Dispatch**:
 The paid-path seam that turns a launch's experiment — or its ad-hoc facts — into one

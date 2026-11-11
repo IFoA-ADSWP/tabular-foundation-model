@@ -166,3 +166,41 @@ def test_arm_b_passes_nothing_when_nobody_pinned(rp, capture, monkeypatch, tmp_p
     kind, kwargs = capture[0]
     assert kind == "finetuned"
     assert "extra_classifier_kwargs" not in kwargs, kwargs
+
+
+# --- the launch refuses a cache that cannot confirm the line it claims (D16, breadth) ----
+
+
+def test_the_launch_refuses_weights_from_another_line(rp, monkeypatch):
+    """`auto` says what was asked; the cache says what will load. They must agree."""
+    monkeypatch.setenv("TFM_EXPECT_CHECKPOINT", "tabpfn-v3-classifier-v3_default.ckpt")
+    monkeypatch.setattr(rp, "_checkpoints", lambda: ["tabpfn-v3.5-classifier-v3.5_default.ckpt"])
+
+    with pytest.raises(SystemExit) as raised:
+        rp._assert_expected_checkpoint()
+
+    message = str(raised.value)
+    assert "REFUSING" in message
+    assert "tabpfn-v3-classifier-v3_default.ckpt" in message     # the line claimed
+    assert "v3.5_default.ckpt" in message                        # the line on disk
+
+
+def test_the_launch_refuses_an_empty_cache_when_it_claimed_a_line(rp, monkeypatch):
+    monkeypatch.setenv("TFM_EXPECT_CHECKPOINT", "tabpfn-v3-classifier-v3_default.ckpt")
+    monkeypatch.setattr(rp, "_checkpoints", lambda: [])
+
+    with pytest.raises(SystemExit, match="fetch the weights"):
+        rp._assert_expected_checkpoint()
+
+
+def test_no_assertion_is_requested_by_default(rp, monkeypatch):
+    """A local diagnostic that fits v2.5 must not be forced to carry v3."""
+    monkeypatch.delenv("TFM_EXPECT_CHECKPOINT", raising=False)
+    assert rp.expected_checkpoint() == ""
+    assert rp._assert_expected_checkpoint() is None
+
+
+def test_a_matching_cache_passes(rp, monkeypatch):
+    monkeypatch.setenv("TFM_EXPECT_CHECKPOINT", "tabpfn-v3-classifier-v3_default.ckpt")
+    monkeypatch.setattr(rp, "_checkpoints", lambda: ["tabpfn-v3-classifier-v3_default.ckpt"])
+    assert rp._assert_expected_checkpoint() == "tabpfn-v3-classifier-v3_default.ckpt"

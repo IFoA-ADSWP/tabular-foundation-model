@@ -1,0 +1,25 @@
+# Legacy citations — runs cited before the capture rule existed
+
+One bare run id per line. An id listed here is exempt from the citation check: it was cited
+when the rule did not exist, and the evidence it would need was never retained. The list is
+**append-only** and every entry must predate the rule (2026-10-31T000000Z); the check refuses a
+newer id here, so grandfathering a new citation is not possible.
+
+A run cited **after** this file was created needs a `results/<id>/capture.json` covering every
+arm × seed. See `docs/plans/run-capture-generator.md` and #360.
+
+20260912T144012Z
+20260912T144946Z
+20260912T150830Z
+20260912T155345Z
+20260912T160600Z
+20260912T161508Z
+20260912T163050Z
+20260912T164324Z
+20260912T165328Z
+20260912T170033Z
+20260912T170703Z
+20260912T171210Z
+20260912T201944Z
+20260913T225032Z
+20261029T142530Z

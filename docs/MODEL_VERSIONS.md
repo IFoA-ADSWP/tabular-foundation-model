@@ -13,11 +13,14 @@ New runs must record: model version (`tabpfn` / `tabpfn-client` + weights ID e.g
 
 | Used when | TabPFN model | API / package | Row cap (live-verified) | Evidence | Status |
 |---|---|---|---|---|---|
-| **Mar–Apr 2026: project work, all reports, replication, benchmarks** | **v2 era — v2.0 via API** | Hosted API; local package pin `tabpfn==2.6.0` is pip only; hosted runs used `tabpfn-client 0.2.8` | v2-era API (v2/v2.5 class: 50k rows — see successor §12 correction) | Paper: "reproducible using … TabPFN v2.0 API" + "We benchmarked TabPFN v2.0 via API (no GPU)" (`docs/archive/archive/papers/Theres-Life-in-the-Old-GLM-Yet.md:62,71`); registry dates 2026-03-29 → 2026-04-07 | **Frozen. Paper + April numbers are v2.0.** |
+| **Mar–Apr 2026: project work, all reports, replication, benchmarks** | **v2 era — v2.0 via API** | Hosted API; local package pin `tabpfn==2.6.0` is pip only; hosted runs used `tabpfn-client 0.2.8` | v2-era API (v2/v2.5 class: 50k rows — see successor §12 correction) | Paper: "reproducible using … TabPFN v2.0 API" + "We benchmarked TabPFN v2.0 via API (no GPU)" (`docs/archive/papers/Theres-Life-in-the-Old-GLM-Yet.md:62,71`); registry dates 2026-03-29 → 2026-04-07 | **Frozen. Paper + April numbers are v2.0.** |
 | **Apr 2026: paper writing — referenced only, never run** | **v2.5 (not our benchmark)** | n/a | 50k rows (same v2 class) | Same Caveat #2: "v2.5 achieves improved in-context learning… enhanced robustness" — describes the newer release, not our runs | **Do not cite our numbers as v2.5.** |
 | **(unrecorded — gap)** | **v2.6 weights existed (100k cap) but no manifest proves we ran them** | `tabpfn_2_6` on HuggingFace (see `docs/REPRODUCIBILITY_RUNBOOK.md`); no run manifest recorded weights ID | 100k rows (per successor §12 correction, verified 2026-08-04) | Absence of evidence: no manifest, no log cites v2.6 weights | **Treat April as v2.x. Never write "v2.6" without a manifest.** |
 | **1–7 Aug 2026: successor frontier + benchmark suite** | **v3 (`v3_default`)** | `tabpfn-client 0.3.3`, `model_path="v3_default"` pinned post-hoc (runs used auto-selection resolving to v3) | 1M rows / 200M cells / 160 classes / 2,000 cols (live-verified 2026-08-04 via `/tabpfn/get_model_limits`) | Master report `docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md` (dated 2026-08-01, updated Aug 2/3/7; §12 correction 2026-08-04; §14.9 version note; §15 re-test policy); tags `paper-snapshot-2026-08-22`, `v8.2.0` | **Current for classification + the `eudirectlapse` loss.** The regression/count tier is superseded by the v3.5 row below. |
 | **16 Sep 2026: version-drift re-test — regression/count tier only** | **v3.5 (`v3.5_default`)** | `tabpfn-client 0.6.0`, `model_path="v3.5_default"` resolved via `src/model_version.py` (`TABPFN_MODEL_PATH`, defaults to `v3_default`); the **server default is now v3.5**, so an unpinned call no longer resolves to v3 | 1M rows / 200M cells / 160 classes / **20,000 cols** — 10× the v3 column cap (live-verified 2026-09-16 via `/tabpfn/get_settings`) | Master report **§16** (issue [#186](https://github.com/IFoA-ADSWP/tabular-foundation-model/issues/186)); 4 datasets × 5 folds, seed 42; per-fold predictions + manifests persisted under `predictions/` | **Current for `freMTPL2freq`, `spanish_motor_freq`, `bemtl97_amount`, `spanish_motor_severity` only.** Classification tiers and `eudirectlapse` are still v3 — do not cite v3.5 for those. Caveat: `scikit-learn` drifted 1.6.1 → 1.9.0, so the `ols` rows are **not** comparable to v3 (§16.4). |
+| **4 Nov 2026: D2 importance diagnostic** | **v2.5 (`v2.5_default`)** | local `tabpfn 6.4.1` | 2,000-row subsample | `tests/fixtures/diagnostics/d2_importance/20261104T1725Z-uslapseagent/record.json`; `docs/analyses/data/README.md` | **Current for that diagnostic only. Not a benchmark number; do not cite it as v3.** |
+
+*2026-11-09 (#522): the Apr row above says "never run". That is true of Apr 2026 and the benchmark era, and the imperative there is scoped to the v2-era **benchmark** numbers. A v2.5 run exists — the 4 Nov row.*
 
 **Pilot runs before #285 are not pinned.** Until 2026-10-30 the pilot constructed
 `TabPFNClassifier` (the **local package**, not the hosted client) without `model_path`, so it took the
@@ -39,11 +42,14 @@ defend.
 ```mermaid
 timeline
     Mar-Apr 2026 : v2.0 via API (our runs: reports, replication, benchmarks)
-    Apr 2026 : v2.5 released (referenced in paper caveat, never run by us)
+    Apr 2026 : v2.5 released (paper caveat; no benchmark run)
     Apr-Aug 2026 : v2.6 weights exist (100k cap, gap — no manifest)
     Aug 2026 : v3_default, client 0.3.3 (successor frontier, §12 correction Aug 4)
     Sep 2026 : v3.5_default, client 0.6.0 (regression/count re-test only, §16)
+    Nov 2026 : v2.5 local checkpoint — D2 importance diagnostic
 ```
+
+*2026-11-09 (#522): the Apr line above read "referenced in paper caveat, never run by us", and the diagram carried no Nov line. Both are corrected.*
 
 Tags: `paper-snapshot-2026-08-22` (pre-hygiene baseline backing §14.x verdicts), `v8.2.0` (benchmark suite + version-drift policy).
 
@@ -66,6 +72,29 @@ Tags: `paper-snapshot-2026-08-22` (pre-hygiene baseline backing §14.x verdicts)
 | `bemtl97_amount` / `spanish_motor_severity` losses | Both improved (−3.7% / −1.4%) but remain paired-significant losses; LGBM still ~1.4× better on `bemtl97_amount` |
 | Not yet tested on v3.5 | Classification calibration tier, `bemtl16` lift, `eudirectlapse` — **still v3, open under #186** |
 
+**The fine-tuning pilot pins `v3_default`, and cannot use v3.5 (2026-11-03).** D12 pins **v3_default**
+for the replication on `uslapseagent` — the same line the anchor ran, now named in the record rather
+than inferred from the checkpoint field. The pin matters because the library default is `auto` and the
+**hosted server's** default has moved, so an unpinned run can no longer be *assumed* to be v3.
+
+> **Corrected 2026-11-08.** The pin could not be carried: the launcher had no route for one (#402), and the
+> replication resolved `version: auto` to `v3_default`. Read the paragraph above as the intent, not as a
+> description of the run: the replication result states plainly that it was **unpinned**, and warns against
+> the claim this paragraph makes. The line is right — v3_default is what ran — but "pinned" is not.
+
+**v3.5 cannot be used for this work.** It exists on the **hosted client** line (`tabpfn-client 0.6.0`,
+regression/count datasets). The local package at the pilot's version — `tabpfn 8.5.0`, the version the
+anchor ran on — enumerates only `V2, V2_5, V2_6, V3` and exposes no v3.5 classifier checkpoint, and the
+fine-tuning path is local-package only. A v3.5 pin is therefore **not expressible**, not merely
+unwired. The pin also passes a **path, not a label** (#285, #345).
+
+> **2026-11-09** (#522). "The local package" here is scoped to the **fine-tuning pilot** (`tabpfn 8.5.0`). The
+> diagnostics ran on `tabpfn 6.4.1`, a different local-package line — see the 4 Nov row in the timeline.
+
+**Until a classification run lands on a newer version, do not cite v3.5 for any classification
+number.** #186 owns the gap. A number measured under `version: auto` in this repo resolved to v3 (the
+anchor's checkpoint field) and must not be re-described as v3.5.
+
 ## Per-artifact validity (this repo)
 
 | Artifact | Tested | TabPFN | Verdict |
@@ -74,9 +103,13 @@ Tags: `paper-snapshot-2026-08-22` (pre-hygiene baseline backing §14.x verdicts)
 | `notebooks/adswp_project/REPLICATION_*` (seed 45, 70:30) | Apr 2026 | v2.0 via API (per paper) | Re-run on v3 before citing |
 | `outputs/current/tables/*revalidation*.csv` (2026-04-05) | 2026-04-05 | v2 era | Superseded by this repo's frontier runs |
 | `notebooks/baseline_experiments/01–08`, `scripts/*finetune*`, `scripts/run_*benchmark*` | Mar–Apr 2026 | v2 era | Methods reusable; numbers not portable |
+| `docs/analyses/data/` — `d2_importance` | 2026-11-04 | v2.5, local `tabpfn 6.4.1` | **v2.5 only — do not cite as v3** |
+| `docs/analyses/data/` — `d1_profiling` | 2026-11-07 | record labels `v3_default`; **no model is fitted** | the profile is the CSV's, not a model's — the version label attests the environment, not the numbers |
 
 ## What to do
 
 1. **Citing old numbers?** Quote with version: "TabPFN v2.0 via API (Mar–Apr 2026): lapse AUC 0.593 vs GLM 0.599". Never write "v2.6" unless you have a manifest proving the weights ID — `tabpfn==2.6.0` is the pip package, not the model.
 2. **Running today?** Install, run, and write a `manifest.json` (model, package, date, seed, dataset SHA). If on v3, compare against `docs/archive/TABPFN_BENCHMARK_SUMMARY.md`, not the legacy v2-era tables.
 3. **Bumping versions?** Follow the re-test policy: trigger (new weights/client) → scope (canonical folds) → diff (paired per-fold tests) → addendum (append here + report header, never silently overwrite).
+
+> **2026-11-09** (#522). Item 1's rule extends to v2.5: cite it only with a record naming the checkpoint.

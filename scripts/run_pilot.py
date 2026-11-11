@@ -23,7 +23,6 @@ import os
 import json
 from functools import lru_cache
 import time
-import hashlib
 import argparse
 import subprocess
 from pathlib import Path
@@ -35,12 +34,6 @@ import torch
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import (
-    roc_auc_score,
-    brier_score_loss,
-    average_precision_score,
-    log_loss,
-)
 
 # Ensure repo imports work (handle both __file__ and piped execution)
 if "__file__" in dir():
@@ -68,6 +61,7 @@ from provenance import (
     inference_context_rows,
     model_section,
     provenance_block,
+    sha256_array,
     sha256_file as _sha256_file,
     split_rule,
     split_section,
@@ -77,7 +71,7 @@ from experiment_spec import (  # noqa: E402
     arm_epoch_budget,
     load_registry,
 )
-from model_version import explicit_model_path  # noqa: E402
+from model_version import checkpoint_mismatch, expected_checkpoint, explicit_model_path  # noqa: E402
 
 # The arm record's layout is `provenance.ARM_RECORD_SCHEMA_VERSION` (3 since #241) and the
 # invocation manifest's is `provenance.PILOT_RUN_SCHEMA_VERSION` (2): one definition each, in
@@ -130,7 +124,14 @@ DATASETS = {
     "coil2000": {"file": "coil2000.csv", "target": "CARAVAN"},
     "uslapseagent": {"file": "uslapseagent.csv", "target": "surrender"},
     "eudirectlapse": {"file": "eudirectlapse.csv", "target": "lapse"},
-    "spanish_motor_lapse": {"file": "spanish_motor_lapse.csv", "target": "LapseB"},
+    "spanish_motor_lapse": {
+        "file": "spanish_motor_lapse.csv",
+        "target": "LapseB",
+        # Post-outcome columns: both describe claims during the policy year whose end state is
+        # the label. The readiness study measured 0.023 AUC from them and P2 requires their
+        # exclusion (#444). Applied by `load_dataset`, recorded by `dataset_fingerprint`.
+        "drop": ("N_claims_year", "Cost_claims_year"),
+    },
 }
 
 DATA_DIR = REPO_ROOT / "data" / "raw"
@@ -154,11 +155,6 @@ DATA_REF = os.environ.get("TFM_DATA_REF", "main")
 # ---------------------------------------------------------------------------
 # Fingerprints, versions, hashes  (PR-6, PR-1)
 # ---------------------------------------------------------------------------
-def _sha256_array(arr):
-    a = np.ascontiguousarray(arr)
-    return hashlib.sha256(a.tobytes()).hexdigest()
-
-
 def _git_info():
     def run(*args):
         try:
@@ -230,6 +226,15 @@ def _host_info():
     return info
 
 
+def declared_drop(name):
+    """The leak-drops a dataset declaration applies, before encoding and in the record.
+
+    One declaration, read by both `load_dataset` and `dataset_fingerprint`, so the matrix a run
+    trains on and the `drop` its record names cannot drift apart (#241, #444).
+    """
+    return tuple(DATASETS[name].get("drop") or ())
+
+
 def dataset_fingerprint(name, *, frame=None, drop=None, source=None):
     """Pilot adapter over `provenance.dataset_fingerprint` (PR-6, moved by #211).
 
@@ -242,7 +247,9 @@ def dataset_fingerprint(name, *, frame=None, drop=None, source=None):
 
     `drop` comes from the dataset declaration unless the caller names its own, so the leak-drops
     a run actually applied are recorded by the runner that applied them. A dataset with no
-    declaration drop records `[]`.
+    declaration drop records `[]`; a declared drop is read through `declared_drop`, the same
+    helper `load_dataset` uses, so the record and the matrix share one declaration. The entry's
+    `columns` and `n_cols` describe the source file, not the encoded matrix.
 
     A table that is not on disk is STATE, not an error: the shared helper returns
     `exists: false` rather than omitting the dataset, so a run that could not find its data is
@@ -251,7 +258,7 @@ def dataset_fingerprint(name, *, frame=None, drop=None, source=None):
     info = DATASETS[name]
     path = DATA_DIR / info["file"]
     if drop is None:
-        drop = tuple(info.get("drop") or ())
+        drop = declared_drop(name)
     return _shared_dataset_fingerprint(
         name,
         frame=frame,
@@ -285,6 +292,30 @@ def _checkpoints():
         if root.is_dir():
             found += sorted(p.name for p in root.glob("*.ckpt"))
     return found
+
+
+def _assert_expected_checkpoint():
+    """Refuse a launch whose cached weights are not the line it claims to run.
+
+    `auto` is honest about *intent* and silent about *outcome*: `TABPFN_PIN` decides which package
+    runs, the package decides what `auto` loads, and the record says `auto` either way. D15 had to
+    correct a draft that claimed a pin the run did not have, and a breadth cell that silently moved
+    from v3 to another line would be compared against the anchor as if it were the same model.
+
+    Empty means nobody asked; the paid-path bootstrap sets it, so a launch that skips the assertion
+    records `expected_checkpoint: null` rather than passing for a check it never ran.
+    """
+    expected = expected_checkpoint()
+    if not expected:
+        return None
+    reason = checkpoint_mismatch(_checkpoints(), expected)
+    if reason is not None:
+        raise SystemExit(
+            f"\nREFUSING: this launch claims to run {expected!r} and cannot confirm it. {reason}.\n"
+            "  The breadth specification says a cell that ran a different model line is not "
+            "comparable with the anchor (docs/current/FINETUNING_BREADTH_SPEC.md)."
+        )
+    return expected
 
 
 def _weights_provenance():
@@ -466,19 +497,31 @@ def check_data():
 def load_dataset(name, target_col, max_rows=None):
     """Load and encode a dataset.
 
+    A dataset declaration may carry leak-drops; they are applied here, before encoding, through
+    the same `declared_drop` helper `dataset_fingerprint` records, so the matrix a run trains on
+    and the `drop` its record names share one declaration (#241, #444). A declared drop whose
+    column is absent fails closed rather than silently leaving a leak in the matrix.
+
     Note (PR-6): the row cap is a *uniform* sample, not stratified, so the sampled
     class balance can differ from the population. This is recorded in the
     fingerprint rather than hidden.
     """
     path = DATA_DIR / f"{name}.csv"
     df = pd.read_csv(path)
+    drop = declared_drop(name)
+    absent = [column for column in drop if column not in df.columns]
+    if absent:
+        raise ValueError(
+            f"{name}: declared drop column(s) {absent} are not in {path.name}; "
+            "a declared leak-drop that is not applied is a leak"
+        )
     sampled = False
     if max_rows is not None and len(df) > max_rows:
         df = df.sample(n=max_rows, random_state=DEFAULT_SEED)
         sampled = True
     y = df[target_col].values.astype(int)
     X = (
-        pd.get_dummies(df.drop(columns=[target_col]), drop_first=False)
+        pd.get_dummies(df.drop(columns=[target_col, *drop]), drop_first=False)
         .fillna(0)
         .values.astype(np.float64)
     )
@@ -675,15 +718,15 @@ def make_split(X, y, *, seed, train_size, test_size, fold=None, n_folds=None):
         "n_test": int(len(test_idx)),
         "pos_train": int(y[train_idx].sum()),
         "pos_test": int(y[test_idx].sum()),
-        "train_index_sha256": _sha256_array(train_idx),
-        "test_index_sha256": _sha256_array(test_idx),
+        "train_index_sha256": sha256_array(train_idx),
+        "test_index_sha256": sha256_array(test_idx),
         "test_rows_excluded_from_fit": True,
         # PR-10: recorded, not assumed.
         # PR-10: the rows dropped by the train-size cap, fingerprinted so the
         # selection step is visible rather than implied by the row counts.
         "n_dropped": int(dropped_idx.size) if dropped_idx is not None else 0,
         "dropped_index_sha256": (
-            _sha256_array(dropped_idx) if dropped_idx is not None else None
+            sha256_array(dropped_idx) if dropped_idx is not None else None
         ),
         "leakage_assertion": contamination,
     }
@@ -693,30 +736,10 @@ def make_split(X, y, *, seed, train_size, test_size, fold=None, n_folds=None):
 # ---------------------------------------------------------------------------
 # Metrics  (log loss primary, per PILOT_2_DESIGN.md §3)
 # ---------------------------------------------------------------------------
-def expected_calibration_error(y_true, y_prob, n_bins=10):
-    """Expected calibration error, equal-width bins."""
-    y_true = np.asarray(y_true, dtype=float)
-    y_prob = np.asarray(y_prob, dtype=float)
-    edges = np.linspace(0.0, 1.0, n_bins + 1)
-    idx = np.clip(np.digitize(y_prob, edges[1:-1], right=True), 0, n_bins - 1)
-    ece = 0.0
-    n = len(y_true)
-    for b in range(n_bins):
-        m = idx == b
-        if not m.any():
-            continue
-        ece += (m.sum() / n) * abs(y_true[m].mean() - y_prob[m].mean())
-    return float(ece)
-
-
-def compute_metrics(y_true, y_prob):
-    return {
-        "roc_auc": float(roc_auc_score(y_true, y_prob)),
-        "brier": float(brier_score_loss(y_true, y_prob)),
-        "pr_auc": float(average_precision_score(y_true, y_prob)),
-        "log_loss": float(log_loss(y_true, np.clip(y_prob, 1e-15, 1 - 1e-15))),
-        "ece": expected_calibration_error(y_true, y_prob),
-    }
+# Defined in `src/metrics.py` since #361, so the rescore tool and the run share one
+# implementation and the registry names code that exists once. Re-exported here because
+# tests and ad-hoc callers reach them through the runner.
+from metrics import compute_metrics, expected_calibration_error  # noqa: E402,F401
 
 
 # ---------------------------------------------------------------------------
@@ -1138,7 +1161,7 @@ def save_results(
         # old layout keeps working, and cannot see two fingerprints that disagree.
         "dataset_fingerprint": dataset_fp,
         "split_fingerprint": split_fp,
-        "predictions_sha256": _sha256_array(y_prob),
+        "predictions_sha256": sha256_array(y_prob),
         # PR-1 / PR-7: what this arm actually used
         "effective_config": arm_fp,
         # legacy key retained so existing readers do not break
@@ -1504,7 +1527,7 @@ def resolve_invocation(args):
             if value is not None:
                 config[key] = value
         return (args.dataset, arms or list(ARMS), seeds or [DEFAULT_SEED], train_size,
-                test_size, args.folds, config, None, None, None, None)
+                test_size, args.folds, config, None, None, None, None, None)
 
     registry = load_registry(REGISTRY_TOML)
     declared = registry.pilot_experiment(args.experiment)
@@ -1521,7 +1544,15 @@ def resolve_invocation(args):
                 f"--arms selects within the declaration"
             )
     if seeds is not None:
-        _refuse(declared.id, "--seeds", [declared.seed], seeds)
+        # A subset SELECTS within the declaration -- the launcher splits a probe across launches,
+        # so each launch carries part of the declared range by design (#450). A seed the
+        # declaration does not name is a contradiction, exactly as an undeclared arm is.
+        undeclared = [seed for seed in seeds if seed not in declared.seeds]
+        if undeclared:
+            raise InvocationError(
+                f"--experiment {declared.id!r} declares seeds {list(declared.seeds)}, but "
+                f"--seeds named {undeclared} outside it; --seeds selects within the declaration"
+            )
     if args.folds is not None:
         _refuse(declared.id, "--folds", declared.folds, args.folds)
     if args.train_size is not None:
@@ -1544,9 +1575,10 @@ def resolve_invocation(args):
         for method in registry.pilot_methods_of(declared)
     }
     base_config = _config_dict(declared.config)
-    return (declared.dataset, list(arms or declared.arms), [declared.seed],
+    return (declared.dataset, list(arms or declared.arms), list(seeds or declared.seeds),
             declared.train_size, declared.test_size, declared.folds,
-            base_config, budgets, declared.id, base_config, declared.model_version)
+            base_config, budgets, declared.id, base_config, declared.model_version,
+            declared.preregistration)
 
 
 def make_parser():
@@ -1617,11 +1649,12 @@ def main():
     global ARM_BUDGETS, DECLARED_EXPERIMENT
     try:
         (dataset, arms, seeds, train_size, test_size, folds, config, ARM_BUDGETS,
-         experiment_id, declared_config, declared_version) = resolve_invocation(args)
+         experiment_id, declared_config, declared_version, preregistration) = resolve_invocation(args)
     except (InvocationError, RegistryError) as exc:
         parser.error(str(exc))
     DECLARED_EXPERIMENT = (
-        {"id": experiment_id, "config": declared_config, "model_version": declared_version}
+        {"id": experiment_id, "config": declared_config, "model_version": declared_version,
+         "preregistration": preregistration}
         if experiment_id else None
     )
     rung_name = args.rung
@@ -1679,6 +1712,11 @@ def main():
                 print(f"  {_f}")
             raise SystemExit(3)
 
+    # 4. The weights this launch claims, before a single arm runs. Cheap, and the failure it
+    #    catches is silent: `auto` resolves per package version, so a moved pin changes the model
+    #    line while the record still says `auto`.
+    _assert_expected_checkpoint()
+
     started = datetime.now(timezone.utc)
     run_id = started.strftime("%Y%m%dT%H%M%SZ")
 
@@ -1726,6 +1764,9 @@ def main():
         "host": _host_info(),
         "env": _runtime_versions(),
         "checkpoints": _checkpoints(),
+        # The line this launch ASSERTED it runs, checked before any arm started. null means nobody
+        # asked, which must not read like a pass (D15, docs/current/FINETUNING_BREADTH_SPEC.md).
+        "expected_checkpoint": expected_checkpoint() or None,
         # Reproducibility inputs that were previously implicit or absent:
         "weights": _weights_provenance(),
         "container": _container_provenance(),
@@ -1739,6 +1780,10 @@ def main():
         "epochs": config["epochs"],
         "legacy_config_keys_ignored": list(LEGACY_UNUSED_KEYS),
         "seeds": seeds,
+        # The document a multi-seed design was fixed against (#450). null is an absence, not a
+        # pass: a single-seed experiment declares no seed count, and a multi-seed one cannot parse
+        # without this, so a record that carries null here was not a replication.
+        "preregistration": (DECLARED_EXPERIMENT or {}).get("preregistration"),
         "folds": folds,
         "rung": rung_name,
         "train_size": train_size,

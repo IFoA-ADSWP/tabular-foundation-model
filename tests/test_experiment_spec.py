@@ -492,7 +492,10 @@ def test_the_committed_registry_declares_the_pilot_experiments_the_pilot_runs():
     pilot = _pilot()
     registry = load_registry(REGISTRY)
 
-    assert set(registry.pilot_experiments) == {f"{name}_p1a" for name in pilot.DATASETS}
+    assert set(registry.pilot_experiments) == {
+        *(f"{name}_p1a" for name in pilot.DATASETS),
+        "spanish_motor_lapse_cell",
+    }
     for name in pilot.DATASETS:
         experiment = registry.pilot_experiment(f"{name}_p1a")
         assert experiment.dataset == name
@@ -501,3 +504,85 @@ def test_the_committed_registry_declares_the_pilot_experiments_the_pilot_runs():
             pilot.TRAIN_SIZE, pilot.TEST_SIZE)
         assert experiment.config.context_samples == pilot.DEFAULT_CONFIG["context_samples"]
         assert experiment.model_version == "v3_default"
+
+
+# ---------------------------------------------------------------------------
+# A seed range, and the pre-registration it is fixed against (#450)
+# ---------------------------------------------------------------------------
+def _with_seed_block(seed_line: str) -> str:
+    """The pilot fixture with its single `seed = 42` line replaced by a seed declaration.
+
+    Scoped to the pilot block on purpose: the frontier experiment in the same fixture also carries
+    `seed = 42`, and replacing the first occurrence edits that one and proves nothing about the
+    pilot's parser.
+    """
+    marker = "[pilot_experiments.toy_p1a]"
+    head, tail = PILOT_MINIMAL.split(marker, 1)
+    assert "seed = 42" in tail
+    return head + marker + tail.replace("seed = 42", seed_line, 1)
+
+
+def test_a_seed_list_loads_and_keeps_its_order(tmp_path):
+    text = _with_seed_block(
+        'seeds = [331, 332, 333]\n'
+        'preregistration = "docs/current/FINETUNING_PREREGISTRATION_SPANISH_2026-11.md"'
+    )
+    experiment = load_registry(write(tmp_path, text)).pilot_experiment("toy_p1a")
+
+    assert experiment.seeds == (331, 332, 333)
+    assert experiment.seed == 331  # the single-seed spelling still reads
+    assert experiment.preregistration.endswith("FINETUNING_PREREGISTRATION_SPANISH_2026-11.md")
+
+
+def test_a_single_seed_needs_no_preregistration(tmp_path):
+    """A reproduction has no seed count to choose, so the field stays optional for it."""
+    experiment = load_registry(write(tmp_path, PILOT_MINIMAL)).pilot_experiment("toy_p1a")
+    assert experiment.seeds == (42,)
+    assert experiment.preregistration is None
+
+
+def test_a_multi_seed_declaration_without_a_preregistration_is_refused(tmp_path):
+    """The rule that makes the field load-bearing rather than decorative."""
+    text = _with_seed_block("seeds = [331, 332]")
+    with pytest.raises(RegistryError, match="no preregistration"):
+        load_registry(write(tmp_path, text))
+
+
+@pytest.mark.parametrize("seed_line, message", [
+    ('seed = 42\nseeds = [331, 332]', "both 'seed' and 'seeds'"),
+    ("seeds = []", "non-empty list"),
+    ('seeds = "331,332"', "non-empty list"),
+    ('seeds = [331, "332"]', "must contain integers"),
+    ("seeds = [331, -1]", "must be non-negative"),
+    ("seeds = [331, 331]", "more than once"),
+])
+def test_a_malformed_seed_declaration_is_refused_by_name(tmp_path, seed_line, message):
+    text = _with_seed_block(seed_line)
+    with pytest.raises(RegistryError, match=message):
+        load_registry(write(tmp_path, text))
+
+
+def test_an_empty_preregistration_is_refused_rather_than_stored(tmp_path):
+    """One spelling of "declared nothing": absent. An empty string is not a document."""
+    text = _with_seed_block('seeds = [331, 332]\npreregistration = ""')
+    with pytest.raises(RegistryError, match="non-empty string"):
+        load_registry(write(tmp_path, text))
+
+
+def test_the_spanish_cell_resolves_to_its_pre_registered_design():
+    """D19's design, checked against the registry rather than against prose."""
+    registry = load_registry(REGISTRY)
+    cell = registry.pilot_experiment("spanish_motor_lapse_cell")
+
+    assert cell.dataset == "spanish_motor_lapse"
+    # 331-340 is the probe; 341-356 the replication, amended after the probe's k (#466).
+    assert cell.seeds == tuple(range(331, 357))
+    assert set(range(331, 341)) < set(cell.seeds), "the probe's seeds must remain declared"
+    assert not (set(range(331, 341)) & set(range(341, 357))), "probe and replication stay disjoint"
+    assert cell.arms == ("A_raw", "B_ft3", "B_ft10", "B_ft30")
+    assert (cell.train_size, cell.test_size) == (10000, 10000)
+    assert cell.model_version == "v3_default"
+    assert cell.preregistration == "docs/current/FINETUNING_PREREGISTRATION_SPANISH_2026-11.md"
+
+    # The document must exist, or the record would name a file a reader cannot open.
+    assert (Path(__file__).resolve().parents[1] / cell.preregistration).is_file()
