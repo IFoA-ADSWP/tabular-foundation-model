@@ -874,7 +874,7 @@ RUN_RC=0
 if [ "$TRANSPORT" = "ssh" ]; then
     SSH_OPTS=(-o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 -o ServerAliveInterval=30)
     ssh -p "$PORT" "${SSH_OPTS[@]}" "root@$HOST" \
-        "TABPFN_TOKEN='$TABPFN_TOKEN' EXPERIMENT='$EXPERIMENT' ARMS='$ARMS' DATASET='$DATASET' TRAIN_SIZE='$TRAIN_SIZE' TEST_SIZE='$TEST_SIZE' SEEDS='$SEEDS' BENCHMARK='$BENCHMARK' bash -s" \
+        "TABPFN_TOKEN='$TABPFN_TOKEN' EXPERIMENT='$EXPERIMENT' ARMS='$ARMS' DATASET='$DATASET' TRAIN_SIZE='$TRAIN_SIZE' TEST_SIZE='$TEST_SIZE' SEEDS='$SEEDS' BENCHMARK='$BENCHMARK' TFM_RUN_STAMP='$RUN_STAMP' bash -s" \
         < "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh"
     RUN_RC=$?
 else
@@ -996,6 +996,14 @@ case "$ART_RC" in
        RUN_RC=1 ;;
     *) echo "WARNING: artifact verification exited $ART_RC" >&2 ;;
 esac
+# A benchmark launch exists to return its measurement, so EVERY non-zero verification outcome
+# means the run measured nothing usable -- including an incomplete payload (4) and a verifier
+# crash (1), which the pilot path can afford to warn about because its artifacts are inspected
+# later. Do not let a paid probe exit 0 without a verified record.
+if [ -n "$BENCHMARK" ] && [ "$ART_RC" -ne 0 ]; then
+    echo "REFUSING: --benchmark $BENCHMARK returned no verified measurement (rc=$ART_RC)." >&2
+    RUN_RC=1
+fi
 
 echo
 echo "=== done (rc=$RUN_RC) ==="

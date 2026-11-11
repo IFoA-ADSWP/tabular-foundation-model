@@ -72,6 +72,26 @@ finish() {
 }
 trap finish EXIT
 
+# ---- 0b. Validate the mode BEFORE the paid work ----
+# Deliberately after the completion trap and before the GPU check, deps and weight fetch: a
+# typo, or a launch that names a frame alongside a mode, must still emit BOOTSTRAP FINISHED
+# (or the launcher polls out its whole ceiling and destroys the instance) but must not install
+# dependencies or download a checkpoint first. These are the same two checks the launcher makes
+# for free; this copy is authoritative when the script is run directly on a box.
+if [ -n "$BENCHMARK" ]; then
+    case "$BENCHMARK" in
+        regressor-fit) ;;
+        *) echo "FATAL: unknown BENCHMARK '$BENCHMARK' (known: regressor-fit)." >&2
+           exit 2 ;;
+    esac
+    if [ -n "$EXPERIMENT" ] || [ -n "$ARMS" ] || [ -n "$DATASET" ] || [ -n "$TRAIN_SIZE" ] \
+       || [ -n "$TEST_SIZE" ] || [ -n "$SEEDS" ]; then
+        echo "FATAL: BENCHMARK=$BENCHMARK owns the frame; drop EXPERIMENT/ARMS/DATASET/" >&2
+        echo "       TRAIN_SIZE/TEST_SIZE/SEEDS rather than have them silently ignored." >&2
+        exit 2
+    fi
+fi
+
 # ---- 1. Verify the GPU BEFORE spending time or money ----
 echo "--- GPU check ---"
 if command -v nvidia-smi >/dev/null 2>&1; then
@@ -312,28 +332,12 @@ fi
 # ---- 3c. Benchmark mode: one timed fit, and no arms (#528) ----
 # This is the paid half of #526: a single fit whose wall time sizes the fair test. It rides the
 # same instance, deps, weights and licence checks as a pilot run -- those are exactly what makes
-# the timing representative -- and then replaces the arm loop with one command.
-#
-# The mode OWNS the frame. A dataset, row cap, arm list or seed alongside it would describe a
-# different measurement, and ignoring one silently is the class of seam failure this harness has
-# already paid for twice (#450). The launcher refuses the mix before provisioning; this refuses
-# it again because the header documents running this script directly on a box.
+# the timing representative -- and then replaces the arm loop with one command. The mode and its
+# frame were validated in section 0b, before any of that paid work.
 #
 # The record travels through the SAME channel as the arms' evidence: emit_artifacts.sh writes the
 # __ARTIFACTS_* markers into the log and verify_artifacts.py unpacks them. No second transport.
 if [ -n "$BENCHMARK" ]; then
-    case "$BENCHMARK" in
-        regressor-fit) ;;
-        *) echo "FATAL: unknown BENCHMARK '$BENCHMARK' (known: regressor-fit)." >&2
-           exit 2 ;;
-    esac
-    if [ -n "$EXPERIMENT" ] || [ -n "$ARMS" ] || [ -n "$DATASET" ] || [ -n "$TRAIN_SIZE" ] \
-       || [ -n "$TEST_SIZE" ] || [ -n "$SEEDS" ]; then
-        echo "FATAL: BENCHMARK=$BENCHMARK owns the frame; drop EXPERIMENT/ARMS/DATASET/" >&2
-        echo "       TRAIN_SIZE/TEST_SIZE/SEEDS rather than have them silently ignored." >&2
-        exit 2
-    fi
-
     BENCH_OUT="outputs/benchmark"
     # The launcher's run stamp is the join key with the cost record. A direct run on a box has
     # no launcher, so it falls back to its own UTC stamp rather than borrowing a stale one.

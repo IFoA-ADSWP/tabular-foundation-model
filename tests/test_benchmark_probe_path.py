@@ -21,10 +21,13 @@ Run:  python -m pytest tests/test_benchmark_probe_path.py -v
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 # The launcher harness is shared, not copied: two copies of it would drift, and the seam
 # between the launcher and the mock is precisely the thing under test (#450).
@@ -38,8 +41,19 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 BOOTSTRAP = REPO_ROOT / "scripts" / "gpu_helpers" / "bootstrap_pilot.sh"
 VERIFIER = REPO_ROOT / "scripts" / "gpu_helpers" / "verify_artifacts.py"
 VAST_RUN = REPO_ROOT / "scripts" / "gpu_helpers" / "vast_run.sh"
+BENCHMARK_SCRIPT = REPO_ROOT / "scripts" / "benchmarks" / "benchmark_regressor_fit.py"
 
 RUN_STAMP = "20261111T000000Z"
+
+
+@pytest.fixture(scope="module")
+def bench():
+    """The real harness module, imported once (no GPU, no fit)."""
+    spec = importlib.util.spec_from_file_location("benchmark_regressor_fit_probe", BENCHMARK_SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["benchmark_regressor_fit_probe"] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def measurement(**overrides):
@@ -138,6 +152,9 @@ STUB_NVIDIA_SMI = "#!/bin/bash\necho 'NVIDIA RTX PRO 4000, 49140 MiB, 550.54'\n"
 # double, so the test never imports tabpfn or touches a GPU.
 STUB_PYTHON3 = """#!/bin/bash
 printf '%s\\n' "$*" >> "$TFM_TEST_ARGV"
+if [ -n "${TFM_TEST_FAIL_MEASURE:-}" ]; then
+  case "$*" in *benchmark_regressor_fit.py*) exit 1 ;; esac
+fi
 out=""
 prev=""
 for a in "$@"; do
@@ -272,6 +289,25 @@ def test_the_bootstrap_refuses_an_unknown_mode(tmp_path):
     assert not [line for line in argv if "benchmark_regressor_fit.py" in line], argv
 
 
+def test_a_failed_measure_still_finishes_and_exits_nonzero(tmp_path):
+    """The failure must not hang the launcher's poll, and must not read as a success.
+
+    `finish; exit "$BENCH_RC"` is the one line where a failed fit could turn into a green
+    bootstrap: the completion marker has to fire (or the launcher waits out its whole ceiling
+    on a box that is already done), and the exit code has to stay non-zero.
+    """
+    result, _, emit = _run_bootstrap(
+        tmp_path, BENCHMARK="regressor-fit", TFM_TEST_FAIL_MEASURE="1"
+    )
+    combined = result.stdout + result.stderr
+
+    assert result.returncode == 1, combined
+    assert "BENCHMARK EXITED rc=1" in combined, combined
+    assert "BOOTSTRAP FINISHED" in result.stdout, combined
+    # An empty payload is still emitted; the verifier is what turns it into a refusal.
+    assert emit.exists(), combined
+
+
 # ---------------------------------------------------------------------------
 # 3. A measurement payload verifies -- and its absence is a refusal
 # ---------------------------------------------------------------------------
@@ -342,6 +378,53 @@ def test_a_zero_wall_time_is_refused(tmp_path):
 
     assert result.returncode == 7, result.stdout + result.stderr
     assert "not a positive time" in result.stdout, result.stdout
+
+
+def test_a_fit_at_another_point_is_not_the_pre_registered_measurement(tmp_path):
+    """A 3,000-row, 3-epoch fit is a fit, but it is not the point the estimate may rest on.
+
+    Presence-only checks would accept exactly this: the record is complete, and it would then
+    price the whole 255-fit matrix from a fit twelve epochs short.
+    """
+    dest = tmp_path / "returned"
+    _write_measurement(dest, name="small.json", rows=3_000, epochs=3)
+
+    result = _verify(dest, "--expect-measurement")
+
+    assert result.returncode == 7, result.stdout + result.stderr
+    assert "not the pre-registered point" in result.stdout, result.stdout
+    assert "rows=3000" in result.stdout and "epochs=3" in result.stdout, result.stdout
+
+
+def test_the_record_the_harness_writes_passes_the_verifier(bench, tmp_path):
+    """Producer -> verifier, with no GPU: the seam a paid run would otherwise test first.
+
+    The bootstrap test's record is written by its python3 double, so on its own it proves the
+    tree is emitted, not that the harness's record is verifiable. Building the record here and
+    feeding it to the real verifier closes that gap: a renamed or dropped field fails in CI,
+    not after the spend.
+    """
+    record = bench.build_record(
+        wall_seconds=158.4,
+        rows=10_000,
+        n_features=9,
+        epochs=30,
+        device="cuda",
+        frame="freMTPL2freq:ClaimNb",
+        seed=42,
+        tabpfn_version="8.5.0",
+        weights={"checkpoint": "tabpfn-v3-regressor-v3_default.ckpt", "downloaded": True},
+        gpu_name="NVIDIA RTX PRO 4000",
+    )
+    dest = tmp_path / "returned"
+    dest.mkdir()
+    (dest / f"regressor-fit-{RUN_STAMP}.json").write_text(json.dumps(record))
+
+    result = _verify(dest, "--expect-measurement")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "wall_seconds=158.4" in result.stdout, result.stdout
+    assert "frame=freMTPL2freq:ClaimNb" in result.stdout, result.stdout
 
 
 def test_the_two_payload_contracts_cannot_be_asked_for_at_once(tmp_path):

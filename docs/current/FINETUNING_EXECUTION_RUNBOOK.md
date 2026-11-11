@@ -48,15 +48,21 @@ it as part of a campaign.
 ```bash
 bash scripts/gpu_helpers/vast_run.sh \
   --benchmark regressor-fit --gpu-allow "RTX PRO 4000" --max-dph 0.2893 \
-  --max-attempts 1 --yes
+  --max-attempts 1 --poll-minutes 20 --yes
 ```
 
 The mode owns the frame, so the arm, dataset, size and seed flags are refused alongside it
 rather than ignored. The record comes back through the artifact channel like a pilot run's
 predictions, into `outputs/gpu-pilot/runs/<run stamp>/regressor-fit-<run stamp>.json`, and the
-launcher refuses the run (exit 1) if it does not arrive intact. `verify_artifacts.py
---expect-measurement` prints the wall time it checked. The 40-minute poll is also the price
-ceiling at the authorised rate: 40 min x $0.2893/hr = $0.193.
+launcher refuses the run (exit 1) if it does not arrive intact — including an incomplete
+payload or a verifier crash, not only a missing one. `verify_artifacts.py
+--expect-measurement` prints the wall time it checked, and refuses a record that is not at the
+pre-registered point (10,000 rows x 30 epochs of `freMTPL2freq:ClaimNb`).
+
+The price ceiling is provisioning + poll, not the poll alone: the poll starts when the instance
+reaches `running`, while billing starts at create. 20 + 15 min worst case is $0.169 at
+$0.2893/hr; the expected case is ~$0.03. A 40-minute default would put the worst case at
+$0.265, over the authorised $0.20.
 
 Sizing is a separate, free step once the record exists:
 

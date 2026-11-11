@@ -31,9 +31,11 @@ So this does three things, in order, and refuses to report success unless all pa
 
   5. MEASUREMENT (`--expect-measurement`). A benchmark run returns one `benchmark_fit`
      record and no predictions, so (3) cannot run and must not read as a failed check.
-     The equivalent claim is the record itself: exactly one, and carrying the fields the
+     The equivalent claim is the record itself: exactly one, carrying the fields the
      acceptance criterion names (`wall_seconds`, `rows`, `epochs`, `device`,
-     `tabpfn_version`, `frame`, `seed`), with a positive wall time (#528).
+     `tabpfn_version`, `frame`, `seed`), with a positive wall time, and at the
+     pre-registered point (10,000 rows x 30 epochs of `freMTPL2freq:ClaimNb`) -- a
+     smaller fit would otherwise price the whole matrix (#528).
 
 Note the subtlety in (3): `meta.json` records the hash of the ARRAY's bytes
 (`array.tobytes()`), not of the `.npy` container, so hashing the file directly would
@@ -84,6 +86,15 @@ MEASUREMENT_FIELDS = (
     "frame",
     "seed",
 )
+# The pre-registered point (#501). Presence alone would accept a 3,000-row, 3-epoch fit -- which
+# `load_frame` happily produces from a truncated CSV -- and then price the WHOLE matrix from it.
+# Literals on purpose: the receiving side is deliberately stdlib-only and must not import the
+# cost model, so moving the point is a change here too.
+EXPECTED_POINT = {
+    "rows": 10_000,
+    "epochs": 30,
+    "frame": "freMTPL2freq:ClaimNb",
+}
 
 
 def parse_info(raw: str) -> dict:
@@ -243,6 +254,14 @@ def verify_measurement(dest: str) -> tuple[int, str]:
     missing = [field for field in MEASUREMENT_FIELDS if block.get(field) in (None, "")]
     if missing:
         return EXIT_MEASUREMENT, f"{label} is missing {', '.join(missing)}"
+
+    wrong = [
+        f"{field}={block.get(field)!r} (expected {want!r})"
+        for field, want in EXPECTED_POINT.items()
+        if block.get(field) != want
+    ]
+    if wrong:
+        return EXIT_MEASUREMENT, f"{label} is not the pre-registered point: " + ", ".join(wrong)
 
     try:
         wall = float(block["wall_seconds"])

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -90,6 +91,64 @@ def ensure_regressor_weights() -> dict:
     return {"checkpoint": target.name, "downloaded": not already_cached}
 
 
+def build_record(
+    *,
+    wall_seconds: float,
+    rows: int,
+    n_features: int,
+    epochs: int,
+    device: str,
+    frame: str,
+    seed: int,
+    tabpfn_version: str,
+    weights: dict,
+    gpu_name: str | None = None,
+) -> dict:
+    """The measurement record, as data rather than a side effect of a paid fit.
+
+    Separate from `measure()` so the producer and the verifier can be held against each other
+    without a GPU: a test builds a record here and feeds it to `verify_artifacts
+    --expect-measurement`. Without that, a change to this shape would first be tested by the
+    next paid run, at verification, after the spend.
+
+    `run` binds the record to the launch it came from. The verifier does not enforce it (a
+    direct run on a box has no launcher), but the stamp joins the record to the ledger row and
+    the GPU name is the attribution `device: "cuda"` cannot give. It is a sibling of
+    `measurement`, because the cost model's `Measurement` rejects unexpected fields.
+    """
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "kind": "benchmark_fit",
+        "created_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "measurement": {
+            "wall_seconds": round(wall_seconds, 3),
+            "rows": int(rows),
+            "epochs": epochs,
+            "device": device,
+            "tabpfn_version": tabpfn_version,
+            "frame": frame,
+            "seed": seed,
+        },
+        "config": {
+            "n_features": int(n_features),
+            "n_estimators_finetune": 2,
+            "n_estimators_validation": 2,
+            "n_estimators_final_inference": 8,
+            "validation_split_ratio": 0.0,
+            "early_stopping": False,
+            "model_version": "V3",
+        },
+        # The checkpoint was fetched before the clock started; say so, so a reader can tell a
+        # clean timing from one that would have included a download.
+        "weights": weights,
+        "run": {
+            "stamp": os.environ.get("TFM_RUN_STAMP") or None,
+            "commit_sha": os.environ.get("TFM_COMMIT_SHA") or None,
+            "gpu_name": gpu_name,
+        },
+    }
+
+
 def measure(
     dataset: str,
     target: str,
@@ -105,6 +164,14 @@ def measure(
 
     # Untimed, and first: a cold checkpoint must not make the fit look slow.
     weights = ensure_regressor_weights()
+    gpu_name = None
+    if device.startswith("cuda"):
+        try:
+            import torch
+
+            gpu_name = torch.cuda.get_device_name(0)
+        except Exception:  # attribution is useful, not a reason to lose a paid fit
+            gpu_name = None
     X, y = load_frame(dataset, target, rows, seed)
     model = FinetunedTabPFNRegressor(
         device=device,
@@ -121,32 +188,18 @@ def measure(
     model.fit(X, y)
     wall_seconds = time.monotonic() - started
 
-    return {
-        "schema_version": SCHEMA_VERSION,
-        "kind": "benchmark_fit",
-        "created_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "measurement": {
-            "wall_seconds": round(wall_seconds, 3),
-            "rows": int(X.shape[0]),
-            "epochs": epochs,
-            "device": device,
-            "tabpfn_version": tabpfn_version,
-            "frame": f"{dataset}:{target}",
-            "seed": seed,
-        },
-        "config": {
-            "n_features": int(X.shape[1]),
-            "n_estimators_finetune": 2,
-            "n_estimators_validation": 2,
-            "n_estimators_final_inference": 8,
-            "validation_split_ratio": 0.0,
-            "early_stopping": False,
-            "model_version": "V3",
-        },
-        # The checkpoint was fetched before the clock started; say so, so a reader can tell a
-        # clean timing from one that would have included a download.
-        "weights": weights,
-    }
+    return build_record(
+        wall_seconds=wall_seconds,
+        rows=X.shape[0],
+        n_features=X.shape[1],
+        epochs=epochs,
+        device=device,
+        frame=f"{dataset}:{target}",
+        seed=seed,
+        tabpfn_version=tabpfn_version,
+        weights=weights,
+        gpu_name=gpu_name,
+    )
 
 
 def load_measurement(path: Path) -> Measurement:

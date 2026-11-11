@@ -49,10 +49,14 @@ The record rides `emit_artifacts.sh` unchanged: it already carries a directory's
    `fit()` — making the "fit time" mostly network. `--measure` now resolves the same cache path
    the fit will use and downloads first, and the record states `weights.downloaded` so a reader
    can tell the timer started clean. This was found before renting; it is the third blocker on
-   #528, alongside funding and the missing mode.
+   #528, alongside funding and the missing mode. The record also carries the run stamp, commit
+   and resolved GPU name, so a wall time is attributable to the card and launch it came from
+   rather than to the string `cuda`.
 4. **Verification checks the measurement rather than skipping the step.** A skipped check reads
    as a pass. The record must carry the fields the acceptance criterion names — `wall_seconds`,
-   `rows`, `epochs`, `device`, `tabpfn_version`, `frame`, `seed` — and a positive wall time.
+   `rows`, `epochs`, `device`, `tabpfn_version`, `frame`, `seed` — a positive wall time, and
+   the pre-registered point (10,000 rows × 30 epochs of `freMTPL2freq:ClaimNb`). Presence alone
+   would accept a 3,000-row fit and price the whole matrix from it.
 5. **Exactly one record per payload.** One capture carries one point. Two records mean a mixed
    launch or a duplicated emit; both are worth stopping on.
 6. **An empty payload is a refusal in this mode.** For the pilot, no outputs can be an aborted
@@ -60,9 +64,10 @@ The record rides `emit_artifacts.sh` unchanged: it already carries a directory's
 7. **The ledger is untouched.** `record_run` already writes wall time x rate, which is the
    probe's cost. Adding a field would change the ledger header and quarantine the existing file;
    the probe is identified by its run id and its measurement record on #528 instead.
-8. **The record is not committed.** A measurement under `outputs/` is evidence and would trip
-   `./scripts/check.sh evidence`; keeping it out of the tree and citing it on #528 keeps this PR
-   code-and-tests, with no `evidence-change` label.
+8. **The record is not committed.** A record committed under `outputs/` would be evidence drift
+   against `origin/main`; leaving it untracked and citing it on #528 keeps this PR
+   code-and-tests. (The evidence check compares tracked changes, so an untracked file would not
+   trip it — this is a discipline, not a gate.)
 
 ## Verification
 
@@ -86,11 +91,17 @@ The record rides `emit_artifacts.sh` unchanged: it already carries a directory's
 
 ```bash
 # topped up, one attempt, at or below the authorised rate.
-# The default 40-minute poll is also the price ceiling: 40 min x $0.2893/hr = $0.193 < $0.20.
 bash scripts/gpu_helpers/vast_run.sh \
   --benchmark regressor-fit --gpu-allow "RTX PRO 4000" --max-dph 0.2893 \
-  --max-attempts 1 --yes
+  --max-attempts 1 --poll-minutes 20 --yes
 ```
+
+The cost of the run is (provisioning + completion poll) × rate, not the poll alone: the poll
+starts when the instance reaches `running`, while billing starts at create. Measured
+provisioning is ~3 min warm and ~15 min slow, so 20 + 15 = 35 min worst case is **$0.169** at
+$0.2893/hr, inside the $0.20 ceiling; the expected case (3 min boot + ~3 min fit) is about
+$0.03. The launcher has no wall-clock cap, so a slow host can still exceed the poll; the poll is
+what bounds it. A 40-minute default would put the worst case at $0.265, over the ceiling.
 
 The record lands under `outputs/gpu-pilot/runs/<run stamp>/`. Then, free and local:
 
