@@ -29,6 +29,14 @@ So this does three things, in order, and refuses to report success unless all pa
      On 2026-11-05 two launches asked for 225-236 and 237-248, both wrote 141-152, and both
      reported `verified=24 mismatched=0` (#429).
 
+  5. MEASUREMENT (`--expect-measurement`). A benchmark run returns one `benchmark_fit`
+     record and no predictions, so (3) cannot run and must not read as a failed check.
+     The equivalent claim is the record itself: exactly one, carrying the fields the
+     acceptance criterion names (`wall_seconds`, `rows`, `epochs`, `device`,
+     `tabpfn_version`, `frame`, `seed`), with a positive wall time, and at the
+     pre-registered point (10,000 rows x 30 epochs of `freMTPL2freq:ClaimNb`) -- a
+     smaller fit would otherwise price the whole matrix (#528).
+
 Note the subtlety in (3): `meta.json` records the hash of the ARRAY's bytes
 (`array.tobytes()`), not of the `.npy` container, so hashing the file directly would
 always mismatch. `npy_data_sha256` parses the `.npy` header and hashes only the data
@@ -40,6 +48,7 @@ Exit codes:
     4  payload incomplete (short read, checksum mismatch, or unpack failure)
     5  payload restored but prediction verification FAILED
     6  the restored tree's seeds are not the seeds the launch requested
+    7  the payload is not one complete benchmark measurement
     2  usage error
 """
 from __future__ import annotations
@@ -63,6 +72,29 @@ EXIT_NO_PAYLOAD = 3
 EXIT_INCOMPLETE = 4
 EXIT_UNVERIFIED = 5
 EXIT_SEED_MISMATCH = 6
+EXIT_MEASUREMENT = 7
+
+MEASUREMENT_KIND = "benchmark_fit"
+# The fields the probe's acceptance criterion names (#528). A record missing one of these is a
+# claim the fair test cannot be sized from, so it is refused rather than reported as measured.
+MEASUREMENT_FIELDS = (
+    "wall_seconds",
+    "rows",
+    "epochs",
+    "device",
+    "tabpfn_version",
+    "frame",
+    "seed",
+)
+# The pre-registered point (#501). Presence alone would accept a 3,000-row, 3-epoch fit -- which
+# `load_frame` happily produces from a truncated CSV -- and then price the WHOLE matrix from it.
+# Literals on purpose: the receiving side is deliberately stdlib-only and must not import the
+# cost model, so moving the point is a change here too.
+EXPECTED_POINT = {
+    "rows": 10_000,
+    "epochs": 30,
+    "frame": "freMTPL2freq:ClaimNb",
+}
 
 
 def parse_info(raw: str) -> dict:
@@ -183,6 +215,67 @@ def verify_predictions(dest: str) -> tuple[int, int, int, list[str]]:
     return verified, mismatched, missing, details
 
 
+def verify_measurement(dest: str) -> tuple[int, str]:
+    """Check a benchmark payload: exactly one complete `benchmark_fit` record.
+
+    A measurement has no predictions, so `verify_predictions` would find nothing to check and
+    report `verified=0` -- which the launcher treats as a refusal. The equivalent claim here is
+    the record's own shape: the fields the acceptance criterion names, and a wall time that is a
+    positive number. Anything else is a payload that cannot size the fair test.
+
+    Exactly one, not at least one: the probe measures one point, and two records in one payload
+    means either a mixed launch or a duplicated emit. Both are worth stopping on.
+    """
+    records: list[tuple[str, dict]] = []
+    for root, _dirs, files in os.walk(dest):
+        for name in files:
+            if not name.endswith(".json"):
+                continue
+            path = os.path.join(root, name)
+            try:
+                with open(path) as f:
+                    payload = json.load(f)
+            except Exception:
+                continue
+            if isinstance(payload, dict) and payload.get("kind") == MEASUREMENT_KIND:
+                records.append((path, payload))
+
+    if len(records) != 1:
+        return EXIT_MEASUREMENT, (
+            f"expected exactly one {MEASUREMENT_KIND} record, found {len(records)}"
+        )
+
+    path, payload = records[0]
+    label = os.path.basename(path)
+    block = payload.get("measurement")
+    if not isinstance(block, dict):
+        return EXIT_MEASUREMENT, f"{label} has no measurement block"
+
+    missing = [field for field in MEASUREMENT_FIELDS if block.get(field) in (None, "")]
+    if missing:
+        return EXIT_MEASUREMENT, f"{label} is missing {', '.join(missing)}"
+
+    wrong = [
+        f"{field}={block.get(field)!r} (expected {want!r})"
+        for field, want in EXPECTED_POINT.items()
+        if block.get(field) != want
+    ]
+    if wrong:
+        return EXIT_MEASUREMENT, f"{label} is not the pre-registered point: " + ", ".join(wrong)
+
+    try:
+        wall = float(block["wall_seconds"])
+    except (TypeError, ValueError):
+        return EXIT_MEASUREMENT, f"{label} wall_seconds is not a number"
+    if wall <= 0:
+        return EXIT_MEASUREMENT, f"{label} wall_seconds={wall:g} is not a positive time"
+
+    return EXIT_OK, (
+        f"measurement {label}: wall_seconds={wall:g} rows={block['rows']} epochs={block['epochs']} "
+        f"device={block['device']} tabpfn={block['tabpfn_version']} frame={block['frame']}"
+    )
+
+
 def parse_seeds(spec: str) -> list[int]:
     """Turn `225,226,227` or `225-236` (or a mix) into an ordered list of ints.
 
@@ -265,7 +358,19 @@ def main() -> int:
             "(e.g. 225,226,227 or 225-236); refusing when the tree holds another set"
         ),
     )
+    ap.add_argument(
+        "--expect-measurement",
+        action="store_true",
+        help=(
+            "the payload is one benchmark_fit record, not predictions: check exactly one "
+            "complete record and skip the prediction/seed checks (refuses both flags)"
+        ),
+    )
     args = ap.parse_args()
+
+    if args.expect_measurement and args.expect_seeds is not None:
+        print("FAIL --expect-measurement and --expect-seeds describe different payloads")
+        return 2
 
     try:
         # An explicitly empty list is a mistake, not a request to skip the check --
@@ -280,13 +385,22 @@ def main() -> int:
     else:
         if not os.path.exists(args.raw):
             print(f"FAIL missing captured log: {args.raw}")
-            return EXIT_NO_PAYLOAD
+            return EXIT_MEASUREMENT if args.expect_measurement else EXIT_NO_PAYLOAD
         with open(args.raw, errors="replace") as f:
             raw = f.read()
         rc, report = restore(raw, args.dest)
 
     print(f"{'OK' if rc == EXIT_OK else 'FAIL'} {report}")
     if rc != EXIT_OK:
+        # A benchmark launch exists to return its measurement, so "the box produced no
+        # outputs" is not a warning there -- it is the run having measured nothing.
+        if args.expect_measurement and rc == EXIT_NO_PAYLOAD:
+            return EXIT_MEASUREMENT
+        return rc
+
+    if args.expect_measurement:
+        rc, report = verify_measurement(args.dest)
+        print(f"{'OK' if rc == EXIT_OK else 'FAIL'} {report}")
         return rc
 
     verified, mismatched, missing, details = verify_predictions(args.dest)
