@@ -149,8 +149,24 @@ if ! python3 -c "
 import sys, torch
 if not torch.cuda.is_available():
     sys.exit('FATAL: torch.cuda.is_available() is False — refusing to run on CPU.')
-print('torch', torch.__version__, '| cuda', torch.version.cuda,
-      '|', torch.cuda.get_device_name(0))
+cap = torch.cuda.get_device_capability(0)
+name = torch.cuda.get_device_name(0)
+print('torch', torch.__version__, '| cuda', torch.version.cuda, '|', name)
+print('  compute capability sm_%d%d | build archs: %s'
+      % (cap[0], cap[1], ' '.join(torch.cuda.get_arch_list())))
+# is_available() checks the DRIVER, not whether this build carries kernels for the card. A
+# Blackwell card on a cu124 build passes is_available(), then dies at the first kernel with
+# 'no kernel image is available' — after the deps and the weights were paid for. Measured
+# 2026-11-11: RTX PRO 4000 sm_120 on a cu124 image, \$0.0226 for a run that never fitted (#528).
+# Launch a real kernel here, where failing costs nothing.
+try:
+    a = torch.ones((8, 8), device='cuda')
+    float((a @ a).sum())
+except Exception as e:
+    sys.exit('FATAL: this torch build cannot run a kernel on %s (sm_%d%d): %s: %s. '
+             'Use an image tier whose CUDA matches the card (CUDA=13.0 selects cu128).'
+             % (name, cap[0], cap[1], type(e).__name__, e))
+print('  CUDA kernel test OK')
 "; then
     echo "FATAL: CUDA unavailable to torch. Stopping before doing CPU work on a paid GPU." >&2
     exit 2

@@ -21,6 +21,7 @@ runs the real `bootstrap_pilot.sh` against a stubbed box whose whole "GPU", "clo
 Run:  python -m pytest tests/test_pilot2_seed_passthrough.py -v
 """
 
+import json
 import shutil
 import os
 import subprocess
@@ -96,6 +97,28 @@ def _launch(tmp_path, *launcher_args, extra_env=None):
     tree = tmp_path / "box-tree"
     tree.mkdir()
 
+    # A pinned offer must now declare its CUDA ceiling (#528): the launcher reads it from the
+    # live offer list, so the mock has to answer that lookup. cuda_max_good 13.0 is the RTX 4090
+    # fixture in the mock-run test; it selects the cu128 image tier.
+    offers = tmp_path / "offers.json"
+    offers.write_text(
+        json.dumps(
+            [
+                {
+                    "id": 99001122,
+                    "gpu_name": "RTX 4090",
+                    "dph_total": 0.44,
+                    "gpu_ram": 49140,
+                    "cpu_ram": 128000,
+                    "disk_space": 200.0,
+                    "reliability": 0.9979,
+                    "dlperf": 42.0,
+                    "cuda_max_good": 13.0,
+                }
+            ]
+        )
+    )
+
     env = {
         **os.environ,
         "PATH": f"{bindir}:{os.environ['PATH']}",
@@ -108,6 +131,7 @@ def _launch(tmp_path, *launcher_args, extra_env=None):
         "MOCK_STATUS": "running",
         "MOCK_OUTPUT_TREE": str(tree),
         "MOCK_EMITTER": str(GH / "emit_artifacts.sh"),
+        "MOCK_OFFERS": str(offers),
         "VAST_OUTDIR": str(tmp_path / "returned"),
         "TMPDIR": str(tmp_path / "tmp"),
     }
