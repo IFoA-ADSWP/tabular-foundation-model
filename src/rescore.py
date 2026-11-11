@@ -37,7 +37,7 @@ from metrics import (
 )
 from run_capture import CaptureRefused
 
-TOOL_VERSION = "1"
+TOOL_VERSION = "2"  # 2: the fold column (#538)
 DEFAULT_METRICSET = "recorded-five"
 REGRESSION_METRICSET = "regression"
 DEFAULT_OUT_DIR = Path(__file__).resolve().parents[1] / "docs" / "analyses" / "data"
@@ -237,10 +237,13 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if args.metric_set is not None and args.metric:
+        parser.error("--metric-set and --metric are alternatives; --metric names its own set")
+
     try:
         metric_set = (
             METRIC_SETS[args.metric_set]
-            if args.metric_set is not None and not args.metric
+            if args.metric_set is not None
             else select_metrics(args.metric)
         )
         target = rescore(args.run, metric_set=metric_set, out_dir=args.out_dir)

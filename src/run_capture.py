@@ -179,9 +179,9 @@ def _check_test_index(array: np.ndarray, rows: int, slot: Slot) -> None:
             f"{slot.test_index} has shape {array.shape}; v3 requires one row of source positions "
             f"per test row ({rows},)"
         )
-    if not np.issubdtype(array.dtype, np.integer):
+    if array.dtype != np.int64:
         raise CaptureRefused(
-            f"{slot.test_index} has dtype {array.dtype}; v3 requires an integer row position"
+            f"{slot.test_index} has dtype {array.dtype}; v3 requires int64, as the amendment states"
         )
 
 
@@ -190,6 +190,8 @@ def _check_vector(array: np.ndarray, rows: int, path: Path) -> None:
         raise CaptureRefused(
             f"{path} has shape {array.shape}; v3 requires one value per test row ({rows},)"
         )
+    if array.dtype != np.float64:
+        raise CaptureRefused(f"{path} has dtype {array.dtype}; v3 requires float64")
 
 
 def _check_quantiles(array: np.ndarray, rows: int, slot: Slot) -> None:
@@ -198,6 +200,8 @@ def _check_quantiles(array: np.ndarray, rows: int, slot: Slot) -> None:
             f"{slot.quantiles} has shape {array.shape}; v3 requires "
             f"({QUANTILE_LEVELS} levels, {rows} rows)"
         )
+    if array.dtype != np.float64:
+        raise CaptureRefused(f"{slot.quantiles} has dtype {array.dtype}; v3 requires float64")
 
 
 def _v3_arrays(slot: Slot, dataset: str, rows: int) -> dict:

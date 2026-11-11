@@ -150,6 +150,23 @@ def _array_problems(
     return problems
 
 
+def _record_problems(run_id: str, exp: "Expected", entry: dict) -> list[str]:
+    """The v3 record keys that make the retained arrays interpretable (#538).
+
+    `quantile_levels` is the one field without which nine rows of quantiles cannot be read, and
+    `verdict_metric` is what stops a rescorer reading RMSE as a deviance. The writer cannot check
+    a record it does not write, so the gate does.
+    """
+    try:
+        record = json.loads(exp.record.read_text())
+    except json.JSONDecodeError as exc:
+        return [f"{run_id}: {exp.record} is not valid JSON ({exc})"]
+
+    where = f"{exp.arm} seed {exp.seed} fold {exp.fold}"
+    required = ("verdict_metric", "verdict_metric_value", "rmse", "quantile_levels")
+    return [f"{run_id}: {where} v3 record has no {key}" for key in required if record.get(key) is None]
+
+
 def check_run(root: Path, run_id: str) -> list[str]:
     """Every reason this cited run is not capturable. Empty means fine."""
     run_dir = root / "results" / run_id
@@ -195,6 +212,7 @@ def check_run(root: Path, run_id: str) -> list[str]:
             problems.extend(
                 _array_problems(run_id, exp, entry, manifest.get("dataset"))
             )
+            problems.extend(_record_problems(run_id, exp, entry))
         if manifest.get("schema_version") in (2, 3):
             # v3 is a superset: the environment fields v2 required are still required.
             problems.extend(_environment_problems(run_id, exp, entry))

@@ -247,7 +247,16 @@ def make_v3_repo(
     (root / "docs" / "analysis.md").write_text(f"The run `{RUN}` produced these numbers.\n")
     slot = root / "results" / RUN / dataset / "B_ft30" / "seed43_fold0"
     slot.mkdir(parents=True)
-    meta = {"arm": "B_ft30", "seed": 43, "fold": 0, "test_rows": 100}
+    meta = {
+        "arm": "B_ft30",
+        "seed": 43,
+        "fold": 0,
+        "test_rows": 100,
+        "verdict_metric": "poisson_deviance",
+        "verdict_metric_value": 1.5,
+        "rmse": 0.25,
+        "quantile_levels": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
+    }
     if env:
         meta["versions"] = {"tabpfn": "8.5.0", "python": "3.12.0"}
         meta["weights"] = {"path": "/cache/checkpoint.ckpt", "sha256": "c" * 64}
@@ -301,3 +310,24 @@ def test_a_v3_severity_capture_needs_no_exposure_hash(tmp_path):
 def test_a_v3_capture_still_requires_the_environment_fields(tmp_path):
     """v3 is a superset of v2: the record fields v2 demanded are still demanded."""
     assert run(make_v3_repo(tmp_path, env=False)) == 1
+
+
+def test_a_v3_record_missing_a_required_key_fails(tmp_path):
+    """`quantile_levels` is what makes nine rows of quantiles interpretable (#538)."""
+    root = make_v3_repo(tmp_path)
+    meta_path = root / "results" / RUN / "freMTPL2freq" / "B_ft30" / "seed43_fold0" / "meta.json"
+    meta = json.loads(meta_path.read_text())
+    del meta["quantile_levels"]
+    meta_path.write_text(json.dumps(meta))
+
+    assert run(root) == 1
+
+
+def test_a_v3_capture_with_exposure_on_a_severity_dataset_fails(tmp_path):
+    root = make_v3_repo(
+        tmp_path,
+        dataset="spanish_motor_severity",
+        hashes=("test_index_sha256", "quantiles_sha256", "exposure_sha256"),
+    )
+
+    assert run(root) == 1

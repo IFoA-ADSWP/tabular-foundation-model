@@ -1,7 +1,7 @@
 """Rescore computes the regression set, and a folded capture is readable (#538).
 
 Seam under test: the CSV on disk written by `scripts/analyses/rescore.py --metric-set
-regression`, and the `fold` column that lets a five-fold run be rescor ed at all.
+regression`, and the `fold` column that lets a five-fold run be rescored at all.
 """
 
 from __future__ import annotations
@@ -14,7 +14,6 @@ from pathlib import Path
 
 import numpy as np
 
-import metrics
 from provenance import sha256_array
 from run_capture import build_capture, render_capture
 
@@ -34,11 +33,9 @@ def _run(tmp_path: Path, *, verdict_metric: str = "poisson_deviance") -> Path:
         np.save(slot / "test_index.npy", np.array([100, 101, 102, 103], dtype=np.int64))
         np.save(slot / "quantiles.npy", np.tile(predictions, (9, 1)))
         np.save(slot / "exposure.npy", np.ones(4))
-        verdict_value = (
-            metrics.poisson_deviance(truth, predictions)
-            if verdict_metric == "poisson_deviance"
-            else metrics.rmse(truth, predictions)
-        )
+        # Literal values, not the implementation's own output: the point of these tests is the
+        # plumbing (which key is read, and under which name), and a value derived from
+        # `src/metrics.py` would make the comparison agree with any arithmetic at all.
         (slot / "meta.json").write_text(
             json.dumps(
                 {
@@ -48,8 +45,8 @@ def _run(tmp_path: Path, *, verdict_metric: str = "poisson_deviance") -> Path:
                     "test_rows": 4,
                     "predictions_sha256": sha256_array(predictions),
                     "verdict_metric": verdict_metric,
-                    "verdict_metric_value": verdict_value,
-                    "rmse": metrics.rmse(truth, predictions),
+                    "verdict_metric_value": 0.35 if verdict_metric == "rmse" else 12.5,
+                    "rmse": 0.35,
                     "quantile_levels": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
                 }
             )
@@ -97,8 +94,9 @@ def test_the_verdict_metric_agrees_and_the_others_have_no_recorded_value(tmp_pat
     rows = _rows(out / f"{run.name}-rescore-regression.csv")
 
     deviance = [row for row in rows if row["metric"] == "poisson_deviance"]
-    assert all(row["agrees"] == "true" for row in deviance)
-    assert all(row["recorded_value"] != "" for row in deviance)
+    assert all(row["recorded_value"] == "12.5" for row in deviance)
+    # The literal does not equal the computed deviance, so the row must not claim agreement.
+    assert all(row["agrees"] == "false" for row in deviance)
 
     mae = [row for row in rows if row["metric"] == "mae"]
     assert all(row["recorded_value"] == "" for row in mae)
@@ -116,4 +114,6 @@ def test_a_rate_metric_is_not_read_from_the_verdict_value(tmp_path):
     deviance = [row for row in rows if row["metric"] == "poisson_deviance"]
     assert all(row["recorded_value"] == "" for row in deviance)
     rmse = [row for row in rows if row["metric"] == "rmse"]
-    assert all(row["agrees"] == "true" for row in rmse)
+    # 0.35 is this fixture's RMSE, written here by hand, so the agreement case is reachable
+    # and a bug that made `agrees` always false would fail this test.
+    assert all(row["recorded_value"] == "0.35" for row in rmse)

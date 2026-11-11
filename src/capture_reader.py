@@ -25,6 +25,7 @@ from run_capture import (
     CAPTURE_SCHEMA_VERSION_ARRAYS,
     CAPTURE_SCHEMA_VERSION_FOLDED,
     EXPOSURE,
+    EXPOSURE_DATASET,
     QUANTILES,
     TEST_INDEX,
     CaptureRefused,
@@ -64,7 +65,6 @@ class VerifiedRun:
     run_id: str
     dataset: str
     slots: tuple[VerifiedSlot, ...]
-    schema_version: int = CAPTURE_SCHEMA_VERSION
 
 
 def _slot_key(slot: Slot) -> tuple[str, int, int | None]:
@@ -163,11 +163,14 @@ def _verify(slot: Slot, entry: dict | None, record: dict) -> tuple[np.ndarray, n
     return predictions, truth, manifest_sha, CAPTURE_FILE
 
 
-def _verify_arrays(slot: Slot, entry: dict, version: int) -> dict[str, np.ndarray | None]:
+def _verify_arrays(
+    slot: Slot, entry: dict, version: int, dataset: str
+) -> dict[str, np.ndarray | None]:
     """The v3 arrays, each proved against the manifest hash that names it.
 
-    A v3 entry must carry a hash for every array its dataset owes; a missing hash would let an
-    unverified array through, so it refuses.
+    A v3 entry must carry a hash for every array *its dataset* owes, so `dataset` is forwarded
+    from `read_run` exactly as the writer forwards it; a missing hash would let an unverified
+    array through, and a freMTPL2freq slot without exposure reads as a refusal, not as `None`.
     """
     if version != CAPTURE_SCHEMA_VERSION_ARRAYS:
         return {"test_index": None, "exposure": None, "quantiles": None}
@@ -176,14 +179,16 @@ def _verify_arrays(slot: Slot, entry: dict, version: int) -> dict[str, np.ndarra
         TEST_INDEX: "test_index_sha256",
         QUANTILES: "quantiles_sha256",
     }
-    if entry.get("exposure_sha256") is not None or slot.exposure.is_file():
+    if dataset == EXPOSURE_DATASET:
         wanted[EXPOSURE] = "exposure_sha256"
 
     loaded: dict[str, np.ndarray | None] = {}
     for name, hash_key in wanted.items():
         path = slot.directory / name
         if not path.is_file():
-            raise CaptureRefused(f"{path} is missing; the manifest declares schema v3")
+            raise CaptureRefused(
+                f"{path} is missing; the manifest declares schema v3 for {dataset}"
+            )
         array = np.load(path)
         expected = entry.get(hash_key)
         if expected is None:
@@ -233,7 +238,7 @@ def read_run(run_dir: Path) -> VerifiedRun:
         extras = (
             {"test_index": None, "exposure": None, "quantiles": None}
             if entry is None
-            else _verify_arrays(slot, entry, version)
+            else _verify_arrays(slot, entry, version, dataset)
         )
         verified.append(
             VerifiedSlot(
@@ -252,5 +257,4 @@ def read_run(run_dir: Path) -> VerifiedRun:
         run_id=run_dir.resolve().name,
         dataset=dataset,
         slots=tuple(verified),
-        schema_version=version,
     )

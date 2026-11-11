@@ -42,7 +42,7 @@ A regression slot's record holds its verdict metric by name (`verdict_metric`) a
 | `medae` | 1 | Median absolute error over all rows. | Reported beside MAE because severity and vehicle value are heavy-tailed, and the median shows typical rather than average error. |
 | `rmsle` | 1 | Root mean squared error of `log1p` on truth and prediction, with predictions clipped below at 0; rows with negative truth are excluded (none of the three targets has one). | The metric colleagues asked for when proportional error matters; the clip makes it defined when a model predicts below zero. |
 | `poisson_deviance` | 1 | Deviance of counts: `2·Σ[y·log(y/ŷ) − (y − ŷ)]`, `ŷ` clipped at `1e-12`, and the `y = 0` row contributing `2ŷ`. Exposure is a feature, not an offset; a rate-scale variant is a different name and version. | The pre-registered verdict metric for `freMTPL2freq` `ClaimNb`, where 95% of rows are zero, so the `y = 0` term is most of the number. |
-| `gini` | 1 | The normalised Gini, `2·C − 1`, where `C` is the concordance of predictions with truth over pairs with different truth (ties on truth excluded, ties on prediction score one half, a constant prediction scores 0). | A ranking measure an actuarial reader asks for first; it is defined from the same arrays as the rest. |
+| `gini` | 1 | The normalised Gini, `2·C − 1`, where `C` is the concordance of predictions with truth over pairs with different truth (ties on truth excluded, ties on prediction score one half, a constant prediction scores 0; constant truth is undefined and reported as `nan`). | A ranking measure an actuarial reader asks for first; it is defined from the same arrays as the rest. |
 
 ## Not yet in the registry
 

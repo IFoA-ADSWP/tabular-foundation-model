@@ -43,6 +43,9 @@ through `src/run_capture.py`.
    producing two decision numbers under one name.
 5. **The reader fix ships with the contract, not after it.** v3 lands on a reader that already
    cannot read v2; adding a version without fold keys would make the new schema unreadable too.
+6. **Fold-index agreement is enforced on the write side only.** The writer refuses two slots of a
+   fold whose `test_index` differs; the gate and reader accept a manifest produced by another
+   tool. Scoped rather than silently assumed: the only writer today is this one.
 
 ## Verification
 
