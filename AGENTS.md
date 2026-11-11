@@ -69,11 +69,13 @@ judgement calls in `CODING_STANDARDS.md`.
 ## Branch protection — admin, once
 
 Two settings on `main`. A pull request cannot apply or verify either, so they stay a setup
-step:
+step. Measured 2026-11-11: **neither is applied** — `main`'s protection has no
+`required_status_checks` at all, so a pull request that has never run `ci.yml` still reads
+`MERGEABLE/CLEAN`.
 
-1. **Require status checks to pass before merging**, selecting the six jobs `ci.yml`
-   schedules — ruff, pytest, shellcheck, evidence, doclinks, docstatus. A red run then keeps
-   the merge button disabled.
+1. **Require status checks to pass before merging**, selecting all eight jobs `ci.yml`
+   schedules — ruff, pytest, shellcheck, evidence, doclinks, docstatus, citation, verdict.
+   A red run then keeps the merge button disabled.
 2. **Require branches to be up to date before merging.** Without it a stale pull request
    reads `MERGEABLE/CLEAN` and the merge fails on conflicts instead; measured 2026-10-31 on
    #347, where `main` had advanced three commits and the squash-merge was refused. With it,
