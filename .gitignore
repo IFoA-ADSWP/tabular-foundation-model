@@ -134,6 +134,12 @@ venv.bak/
 
 # Output artifacts (wiki Tier 1 issue #6)
 outputs/archive/
+
+# Diagnostic records are run output, not source (#211, #208): they land under
+# outputs/diagnostics/<diagnostic>/<run_id>/ with one directory per run, and #241's audit reads
+# them. Ignored so a run cannot litter tracked status; commit a record deliberately if it
+# becomes evidence.
+outputs/diagnostics/
 *.pkl
 *.joblib
 *.npy
@@ -203,3 +209,8 @@ outputs/finetune/pilot/*/*/
 # how a run's predictions ended up recorded in the working tree only.
 !/outputs/gpu-pilot/runs/**
 !/outputs/gpu-pilot/logs/**
+# Committed run evidence under results/ carries the prediction arrays (#436). The blanket *.npy
+# rule would swallow them the same way, leaving a capture that hashes files a fresh clone lacks.
+!/results/**/*.npy
+# Lease records are runtime artifacts (#325); never commit them.
+outputs/gpu-pilot/leases/

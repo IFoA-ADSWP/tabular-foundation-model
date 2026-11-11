@@ -102,7 +102,7 @@ uv pip install "tabpfn-client==0.3.3"   # EVERY verdict is stamped to 0.3.3 — 
 
 ```bash
 python -m venv .venv312 && source .venv312/bin/activate
-pip install -r requirements.txt          # tabpfn>=6,<7 · tabpfn-client>=0.2,<0.3 · torch · sklearn
+pip install -r requirements-legacy.txt   # v2-era: tabpfn>=6,<7 · torch · sklearn
 ```
 
 - **Requires a sibling checkout** `../TabPFN-upstream/` (repo-root parent) — most legacy
@@ -260,19 +260,22 @@ python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --pr-auc   
 python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --regression        # 4+2 regression frontiers (fresh power, KFold seed 42)
 python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --regression ausautoBI8999
 python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --data data/raw/some.csv --target TARGET [--drop a,b]   # arbitrary CSV (issue #46)
+python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --experiment coil2000   # run a registered experiment (#230); stamps its id into every artifact
 ```
 
-Flags (from argparse, `run_frontier_benchmark.py:832`): positional `filters` (dataset names),
-`--regression`, `--pr-auc`, `--seed N` (default 42), `--data CSV`, `--target COL` (required
-with `--data`), `--drop COLS` (comma-separated). Verify with `python run_frontier_benchmark.py --help`.
+Flags (from argparse, `run_frontier_benchmark.py:1068`): positional `filters` (dataset names),
+`--regression`, `--pr-auc`, `--seed N` (default 42), `--experiment ID` (registered in
+`experiments.toml`; mutually exclusive with `filters`, `--data` and `--regression`),
+`--data CSV`, `--target COL` (required with `--data`), `--drop COLS` (comma-separated).
+Verify with `python run_frontier_benchmark.py --help`.
 
 - Inputs: 6 classification CSVs (`bemtl97` drops `nclaims`,`amount`; targets/drops table at
-  `run_frontier_benchmark.py:109`) or 6 regression CSVs (incl. `spanish_motor_freq`,
+  `run_frontier_benchmark.py:128`, mirrored in `experiments.toml`) or 6 regression CSVs (incl. `spanish_motor_freq`,
   `spanish_motor_severity`; `freMTPL2freq` applies log-Exposure offset); **reuses**
   `home_turf_sweep_results.csv` log-loss rows for cat/lgbm/xgb/tabpfn when present
   (norauto/ausprivauto0405/bemtl16 have no sweep rows → fresh power); `TABPFN_API_KEY`.
 - Outputs (in `scripts/eval/insurance_benchmark_v1/`): `frontier_results_<dataset>.csv`
-  (method | mean | se | mean_auc/se_auc | mean_brier/se_brier [+mean_pr_auc/se_pr_auc +
+  (experiment_id | method | mean | se | mean_auc/se_auc | mean_brier/se_brier [+mean_pr_auc/se_pr_auc +
   mean_lift10/se_lift10 in `--pr-auc`] | n_params | on_frontier), `frontier_plot_<dataset>.png`,
   per-fold append file `frontier_pr_auc_results.csv` (`--pr-auc` only), run logs
   `frontier_benchmark_run.log` / `frontier_v1suite_run.log` / `frontier_regression_run.log`.
@@ -610,8 +613,8 @@ the secret in one shot to make that impossible.
 
 **Do not use `requirements.txt` on the GPU box.** It pins `numpy>=1.24,<2`; numpy 1.x has no
 cp313 wheels, so pip compiles numpy from source via meson/gcc (~20 min) and the run looks
-hung. It also pins `tabpfn>=6,<7` while the pilot runs `tabpfn==8.5.0` — record that
-deviation. The bootstrap installs named packages and lets pip resolve wheels.
+hung. The default now targets `tabpfn==8.5.0`; the v2 path uses `requirements-legacy.txt`
+(`tabpfn>=6,<7`). The bootstrap installs named packages and lets pip resolve wheels.
 
 **Restrict the architecture.** Ranking by `dlperf/$` selects ancient hardware; `--pick
 cheapest` chose a **Tesla V100**, and recent PyTorch builds have dropped Volta/sm_70, so the
@@ -736,7 +739,7 @@ Two traps:
   licence`, which derives the name the same way the library does.
 - A locally-installed `tabpfn` may be a different version with **no licence gate at all**, in
   which case a local fit succeeds regardless and proves nothing. Check for
-  `tabpfn/browser_auth.py` before trusting a local pass. 8.5.0's real auth modules can be
+  the installed package's `browser_auth` module before trusting a local pass. 8.5.0's real auth modules can be
   exercised without torch by copying `errors.py`/`settings.py`/`constants.py`/`browser_auth.py`
   out of the sdist and stubbing `torch`.
 

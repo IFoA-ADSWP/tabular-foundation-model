@@ -6,7 +6,6 @@ to determine if non-linear structure exists that TabPFN could exploit.
 Usage:
     python scripts/diagnostic_complexity.py
 """
-import sys
 import numpy as np
 import pandas as pd
 from pathlib import Path

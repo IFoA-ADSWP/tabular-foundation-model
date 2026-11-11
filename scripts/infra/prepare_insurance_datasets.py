@@ -200,7 +200,6 @@ def _print_stats(df: pd.DataFrame, targets: list[str]) -> None:
 
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
     only = None
     if "--only" in sys.argv:
         only = sys.argv[sys.argv.index("--only") + 1]

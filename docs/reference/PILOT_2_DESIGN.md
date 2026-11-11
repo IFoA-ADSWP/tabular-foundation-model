@@ -1,5 +1,8 @@
 # Pilot 2 — Design for a Fair Test of Fine-Tuning
 
+> **Status:** current as of 2026-10-31.
+
+
 > **Start here: [`docs/reference/PILOT_2_DECISION_GRAPH.md`](docs/reference/PILOT_2_DECISION_GRAPH.md)** — the design as a gated
 > graph: the recommendation, what every stopping point lets us claim, and the cost of each step.
 > This document is the reference specification that route arrives at; the graph page is the entry
@@ -341,6 +344,9 @@ criterion cannot discriminate the hypothesis and must be replaced before the run
 
 **Rejected:** the `R3 gate` in `docs/current/FINETUNING_EXPERIMENT_REFERENCE.md` — its second criterion (B > E)
 is satisfied by raw TabPFN, so it cannot discriminate the fine-tuning hypothesis.
+
+> **2026-11-09** (#519). Binding. This rejection is why the gate does not appear in the Phase 2 outcome, and why
+> D12 was written as the claim rule.
 
 ### 6.6 Cost
 

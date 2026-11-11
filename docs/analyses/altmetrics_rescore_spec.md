@@ -122,3 +122,27 @@ House conventions, identical to the AUC/Brier rescore (§14.11):
 3. **Smearing correction** for euro-scale debiasing — noted, out of scope.
 4. **Frequency targets** — keep Poisson deviance primary; Tweedie(1.5) on counts is
    optional (pure-premium framing needs exposure/premium data not in the benchmark).
+
+## 9. Provenance of the committed outputs (added 2026-10-28)
+
+The committed `alt_metrics_per_fold.csv` and `alt_metrics_summary.csv` are **not
+reproducible from this checkout**, and should not be cited as current without that caveat.
+
+- They were committed on **2026-09-05** (PR #151). Every capture in `predictions/` was
+  created on **2026-09-16** and is `v3.5_default`.
+- The script has not changed since 2026-09-05, so the difference is the *captures*, not
+  the code: the CSVs describe an earlier capture set that is no longer in the repo.
+  Two datasets they cover (`ausautoBI8999`, `ausprivauto0405_vehvalue`) have no capture
+  at all today.
+- Neither CSV records a model version, so nothing in the artefacts says which model line
+  produced them — which is precisely the split this repo has to guard against
+  (`docs/MODEL_VERSIONS.md`).
+
+Re-running now finds the captures and produces 320 per-fold rows, but the values differ,
+because the captures are a different model version.
+
+From this change onward both outputs carry a `model_version` column taken from the
+capture manifest, so a future row can be placed in the per-artifact table. The committed
+CSVs were deliberately **not** regenerated: doing so would silently replace the earlier
+numbers with v3.5 ones. Whether to regenerate them, and with what note, is an open
+decision for #123.

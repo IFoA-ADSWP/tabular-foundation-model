@@ -20,6 +20,7 @@ Run:  python -m pytest tests/test_pilot2_mock_run.py -v
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -27,6 +28,8 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
+from tests import run_artifact_guard
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GH = REPO_ROOT / "scripts" / "gpu_helpers"
@@ -96,6 +99,78 @@ def build_box_output_tree(root: Path, run_id="20260912T230000Z"):
     return run_id
 
 
+REMOTE_BRANCH = "main"
+
+
+def _run_launcher(env, *args):
+    """Run the real launcher through the mock, returning (completed process, output)."""
+    result = subprocess.run(
+        ["bash", str(VAST_RUN), *args],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
+        cwd=str(REPO_ROOT),
+    )
+    return result, result.stdout + result.stderr
+
+
+def _commit_on_remote_main() -> str:
+    """A commit the box could actually check out, so the launcher's guard can pass.
+
+    The guard asks whether the commit it would send is an ancestor of `origin/$BRANCH`.
+    In a test run that is usually false -- pre-push the local branch is ahead, and PR CI
+    checks out a merge ref -- so it refuses before provisioning (#256). Inject the real
+    answer rather than weakening the guard: fail loudly if the remote branch is
+    unavailable, because a silent fallback to HEAD would restore the bug invisibly.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "rev-parse", "--verify",
+             f"origin/{REMOTE_BRANCH}^{{commit}}"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+        pytest.fail(
+            f"cannot resolve origin/{REMOTE_BRANCH}, so the commit guard cannot be "
+            f"satisfied: {exc}"
+        )
+    return proc.stdout.strip()
+
+
+def _local_head() -> str:
+    return subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
+def _commit_nowhere_near_the_remote() -> str:
+    """A real commit object that no remote branch contains.
+
+    Not a fabricated sha: `merge-base --is-ancestor` returns 128 for a bad object and 1 for
+    "real commit, not an ancestor", so a fake sha would pass the refusal test without
+    exercising the case it names.
+    """
+    tree = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "write-tree"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    # A runner has no user.name/user.email, and commit-tree refuses without one. Pass an
+    # explicit identity rather than depending on the machine's git config.
+    proc = subprocess.run(
+        ["git", "-C", str(REPO_ROOT),
+         "-c", "user.name=gate test", "-c", "user.email=gate@example.invalid",
+         "commit-tree", tree, "-m", "unreachable test commit"],
+        capture_output=True, text=True, check=True,
+    )
+    return proc.stdout.strip()
+
+
 @pytest.fixture
 def mock_env(tmp_path):
     """A self-contained mock environment: mock CLI, offers, state dir, output tree."""
@@ -115,44 +190,85 @@ def mock_env(tmp_path):
     run_id = build_box_output_tree(tree)
 
     outdir = tmp_path / "returned"
+    # A token FILE, not an exported token: the runner prefers the file and warns when an
+    # exported value differs from it. Written here so the test is hermetic -- it used to
+    # depend on the developer's real ~/.config/tfm/keys.env, which CI does not have, so
+    # the suite was green locally and red on every pull request.
+    keys = tmp_path / "keys.env"
+    keys.write_text("TABPFN_TOKEN=dummy-token-for-a-mock-run\n")
     env = {
         **os.environ,
         "PATH": f"{bindir}:{os.environ['PATH']}",
+        "TABPFN_FILE": str(keys),
+        # The mock provisions no GPU, so there is no rental for the licence gate to
+        # protect -- and that gate makes a live API call, which a hermetic test cannot.
+        "SKIP_LICENSE_CHECK": "1",
         "MOCK_STATUS": "running",
         "MOCK_OFFERS": str(offers),
         "MOCK_STATE_DIR": str(state),
         "MOCK_OUTPUT_TREE": str(tree),
         "MOCK_EMITTER": str(EMITTER),
         "VAST_OUTDIR": str(outdir),
+        "MOCK_LEASE_DIR": str(outdir / "leases"),
         "MOCK_SEQ_FILE": str(state / "seq"),
+        # The launcher refuses to provision when HEAD is not an ancestor of origin/$BRANCH
+        # (#256). On a feature branch -- and in PR CI, where the checkout is a merge ref --
+        # it legitimately is not, so the guard would stop the mock before it ran. Answer
+        # its question truthfully with a commit the box could check out; do not weaken it.
+        "TFM_COMMIT_SHA": _commit_on_remote_main(),
+        # Pin the branch the guard consults, so an ambient BRANCH in the caller's shell
+        # cannot make the injected commit and the compared ref disagree.
+        "BRANCH": REMOTE_BRANCH,
     }
-    # Deliberately NOT exporting TABPFN_TOKEN: the runner reads it from
-    # ~/.config/tfm/keys.env and warns when an exported value differs from the file.
-    # The mock needs no token, and the runner's env-vs-file guard is exercised
-    # separately.
+    # Deliberately NOT exporting TABPFN_TOKEN: the runner prefers the file named by
+    # TABPFN_FILE and warns when an exported value differs from it. The mock needs no
+    # token, and the runner's env-vs-file guard is exercised separately.
     env.pop("TABPFN_TOKEN", None)
     return {"env": env, "state": state, "tree": tree, "outdir": outdir, "run_id": run_id}
 
 
 def test_mock_run_completes_verifies_and_tears_down(mock_env):
-    """The whole path, once: provision -> emit -> return -> verify -> destroy."""
-    env, state, outdir = mock_env["env"], mock_env["state"], mock_env["outdir"]
+    """The whole path, once: provision -> emit -> return -> verify -> destroy.
 
-    result = subprocess.run(
-        ["bash", str(VAST_RUN), "--yes", "--arms", "A_raw,B_in_domain", "--max-attempts", "1"],
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=300,
-        cwd=str(REPO_ROOT),
+    It also covers where the saved container log lands (#280) — the log directory is the
+    one path that used to escape VAST_OUTDIR.
+    """
+    env, state, outdir = mock_env["env"], mock_env["state"], mock_env["outdir"]
+    # Fingerprinted, not listed by name: a same-named rewrite inside the real log directory
+    # must fail too, and an absent directory must not pass as "unchanged".
+    repo_logs = REPO_ROOT / "outputs" / "gpu-pilot" / "logs"
+    repo_logs_before = run_artifact_guard.run_artifacts((repo_logs,))
+
+    result, combined = _run_launcher(
+        env, "--yes", "--arms", "A_raw,B_in_domain", "--max-attempts", "1"
     )
-    combined = result.stdout + result.stderr
+
+    # 0. The remote-commit guard ran and was satisfied with the commit we injected (#256),
+    #    and it named that commit rather than some other one. Without this, a future
+    #    weakening of the guard would go unnoticed.
+    injected = env["TFM_COMMIT_SHA"]
+    assert f"commit {injected} is on origin/{REMOTE_BRANCH}" in combined, combined
 
     # 1. The instance was created and -- critically -- destroyed.
     assert (state / "created.txt").exists(), f"no create recorded:\n{combined}"
     assert (state / "destroyed.txt").exists(), f"TEARDOWN DID NOT FIRE:\n{combined}"
     destroyed = (state / "destroyed.txt").read_text().split()
     assert destroyed, "destroy recorded an empty instance id"
+
+    # 1b. The lease was written before create, and one release destroyed exactly once
+    #     (#325). The mock snapshotted the record at create time; the final record says
+    #     released.
+    import json as _json
+
+    lease_files = sorted((outdir / "leases").glob("*.json"))
+    assert len(lease_files) == 1, f"expected one lease record, found {lease_files}"
+    lease = _json.loads(lease_files[0].read_text())
+    assert lease["state"] == "released", lease
+    assert lease["outcome"] == "released", lease
+    assert (state / "lease_at_create.json").exists(), "lease was not written before create"
+    at_create = _json.loads((state / "lease_at_create.json").read_text())
+    assert at_create["state"] == "acquiring", at_create
+    assert len(destroyed) == 1, f"expected one destroy, got {destroyed}"
 
     # 2. The artifacts came back and verify against their recorded hashes.
     rc = subprocess.run(
@@ -165,7 +281,137 @@ def test_mock_run_completes_verifies_and_tears_down(mock_env):
     assert "mismatched=0" in rc.stdout and "missing=0" in rc.stdout
 
     # 3. The manifest returned too -- PR-1 depends on it.
-    assert list(outdir.glob("manifest_*.json")), f"manifest did not return:\n{combined}"
+    #    Since #184 artifacts land under runs/<id>/ rather than directly in $OUTDIR, so this
+    #    searches recursively instead of pinning the flat layout. Asserting the run_id keeps it
+    #    specific: the point is that the manifest the BOX wrote came back, not that some JSON did.
+    manifests = sorted(outdir.rglob("manifest_*.json"))
+    assert len(manifests) == 1, f"expected one returned manifest, found {manifests}:\n{combined}"
+    returned = json.loads(manifests[0].read_text())
+    assert returned["run_id"] == mock_env["run_id"], (
+        f"wrong manifest returned: {returned.get('run_id')!r} != {mock_env['run_id']!r}"
+    )
+
+    # 4. The container log is saved beside the launch's other records, not in the real log
+    #    directory (#280). `outputs/gpu-pilot/logs/**` is kept on purpose, so a mock writing
+    #    there would leave a fake box log a reader could not tell from a paid one.
+    saved = sorted((outdir / "logs").glob("*.log"))
+    assert len(saved) == 1, f"expected one log beside the launch's records:\n{combined}"
+    assert run_artifact_guard.run_artifacts((repo_logs,)) == repo_logs_before, (
+        "the mock launch wrote into the real outputs/gpu-pilot/logs"
+    )
+
+
+def test_a_real_launch_still_logs_beside_the_paid_run_records():
+    """AC2 (#280): with no VAST_OUTDIR, the log belongs in outputs/gpu-pilot/logs.
+
+    Nothing is launched. A mock with VAST_OUTDIR unset would write into the tree this fix
+    exists to keep clean, and a dry run has no instance so it saves no log at all. So this
+    evaluates the launcher's own default lines in a subshell: the answer comes from the
+    file, so re-pointing the default fails here instead of silently moving real logs.
+    """
+    source = VAST_RUN.read_text()
+    outdir_line = re.search(r"^OUTDIR=.*$", source, re.MULTILINE).group(0)
+    log_line = re.search(r"^\s*LOG_DIR=.*$", source, re.MULTILINE).group(0).strip()
+
+    def resolved_log_dir(**overrides):
+        env = {k: v for k, v in os.environ.items() if k != "VAST_OUTDIR"}
+        env["P_REPO"] = str(REPO_ROOT)
+        env.update(overrides)
+        probe = "\n".join([
+            'REPO_DIR="$P_REPO"  # the launcher derives this from its own location',
+            outdir_line,
+            log_line,
+            'printf %s "$LOG_DIR"',
+        ])
+        result = subprocess.run(["bash", "-c", probe], env=env, capture_output=True,
+                                text=True, check=True)
+        return Path(result.stdout)
+
+    assert resolved_log_dir() == REPO_ROOT / "outputs" / "gpu-pilot" / "logs"
+    # ...and the override still wins, which is the half the mock run proves behaviourally.
+    assert resolved_log_dir(VAST_OUTDIR=str(REPO_ROOT / "tmp-out")) == REPO_ROOT / "tmp-out" / "logs"
+
+
+def test_a_mid_run_failure_releases_and_does_not_retry(mock_env):
+    """A provisioning abort calls release, and one attempt means no second instance."""
+    env = dict(mock_env["env"])
+    env["MOCK_INTENDED"] = "stopped"
+    env["MOCK_STATUS"] = "loading"  # three polls before the fatal abort
+
+    result, combined = _run_launcher(
+        env, "--yes", "--arms", "A_raw,B_in_domain", "--max-attempts", "1"
+    )
+
+    assert result.returncode != 0, combined
+    state, outdir = mock_env["state"], mock_env["outdir"]
+    assert len((state / "created.txt").read_text().split()) == 1, combined
+    assert len((state / "destroyed.txt").read_text().split()) == 1, combined
+    lease = json.loads(next((outdir / "leases").glob("*.json")).read_text())
+    assert lease["state"] == "released", lease
+
+
+def test_a_retry_reuses_the_launch_id_and_appends_an_attempt(mock_env):
+    """A clean release re-execs; attempt 2 has the same launch id, a new instance id."""
+    env = dict(mock_env["env"])
+    env["MOCK_STATUS_SEQ"] = "loading,running"
+    env["MOCK_INTENDED_SEQ"] = "stopped,running"
+    env["MOCK_INSTANCE_ID_SEQ"] = "111,222"
+
+    result, combined = _run_launcher(
+        env, "--yes", "--arms", "A_raw,B_in_domain", "--max-attempts", "2"
+    )
+
+    assert result.returncode == 0, combined
+    state, outdir = mock_env["state"], mock_env["outdir"]
+    assert (state / "created.txt").read_text().split() == ["111", "222"]
+    assert (state / "destroyed.txt").read_text().split() == ["111", "222"]
+    lease_files = sorted((outdir / "leases").glob("*.json"))
+    assert len(lease_files) == 1, lease_files
+    lease = json.loads(lease_files[0].read_text())
+    assert lease["state"] == "released", lease
+    assert len(lease["attempts"]) == 2, lease
+    assert [a["instance_id"] for a in lease["attempts"]] == ["111", "222"]
+    assert [a["state"] for a in lease["attempts"]] == ["released", "released"]
+
+
+def test_a_destroy_that_fails_once_is_released_by_the_trap_retry(mock_env):
+    """The first release fails, the retry is refused, and the EXIT trap succeeds."""
+    env = dict(mock_env["env"])
+    env["MOCK_INTENDED"] = "stopped"
+    env["MOCK_STATUS"] = "loading"
+    env["MOCK_DESTROY_FAIL_ONCE"] = "1"
+
+    result, combined = _run_launcher(
+        env, "--yes", "--arms", "A_raw,B_in_domain", "--max-attempts", "2"
+    )
+
+    assert result.returncode != 0, combined
+    state, outdir = mock_env["state"], mock_env["outdir"]
+    assert len((state / "created.txt").read_text().split()) == 1, combined
+    assert len((state / "destroyed.txt").read_text().split()) == 1, combined
+    assert (state / "destroy_attempts").read_text().strip() == "2"
+    lease = json.loads(next((outdir / "leases").glob("*.json")).read_text())
+    assert lease["state"] == "released", lease
+
+
+def test_a_destroy_that_keeps_failing_is_reported_and_still_billing(mock_env):
+    env = dict(mock_env["env"])
+    env["MOCK_INTENDED"] = "stopped"
+    env["MOCK_STATUS"] = "loading"
+    env["MOCK_DESTROY_FAIL_ALWAYS"] = "1"
+
+    result, combined = _run_launcher(
+        env, "--yes", "--arms", "A_raw,B_in_domain", "--max-attempts", "2"
+    )
+
+    assert result.returncode != 0, combined
+    assert "vastai destroy instance 12345678 -y" in combined, combined
+    state, outdir = mock_env["state"], mock_env["outdir"]
+    assert len((state / "created.txt").read_text().split()) == 1
+    lease = json.loads(next((outdir / "leases").glob("*.json")).read_text())
+    assert lease["state"] == "failed", lease
+    assert lease["instance_id"] == "12345678", lease
+    assert lease["outcome"] == "failed:destroy", lease
 
 
 def test_mock_run_reports_the_artifact_verification(mock_env):
@@ -217,3 +463,69 @@ def test_mock_models_the_execute_constraint(mock_env):
         ["vastai", "execute", "1", "ls"], env=env, capture_output=True, text=True
     )
     assert "Invalid command given" not in good.stdout
+
+
+def test_guard_still_refuses_a_commit_that_is_not_on_the_remote(mock_env):
+    """The override answers the guard's question; it does not bypass it (#256).
+
+    A real commit that no remote branch contains must be refused exactly as before, so the
+    safety that stopped a $0.0039 mistake still holds for every real run.
+    """
+    unreachable = _commit_nowhere_near_the_remote()
+    env = {**mock_env["env"], "TFM_COMMIT_SHA": unreachable}
+
+    result, combined = _run_launcher(
+        env, "--yes", "--arms", "A_raw", "--max-attempts", "1"
+    )
+
+    assert result.returncode == 2, combined
+    assert unreachable in combined, combined
+    assert "REFUSING" in combined, combined
+    assert not (mock_env["state"] / "created.txt").exists(), "guard let a create through"
+
+
+def test_guard_resolves_head_when_the_override_is_absent(mock_env):
+    """Unset, the launcher resolves HEAD and says so (#256, AC1).
+
+    Whether HEAD is on the remote decides only which branch this takes -- refusal or the
+    mock run -- and both name the resolved commit.
+    """
+    env = {k: v for k, v in mock_env["env"].items() if k != "TFM_COMMIT_SHA"}
+    head = _local_head()
+
+    result, combined = _run_launcher(
+        env, "--yes", "--arms", "A_raw", "--max-attempts", "1"
+    )
+
+    assert result.returncode in (0, 2), combined
+    assert head in combined, f"launcher did not resolve HEAD ({head}):\n{combined}"
+
+
+# --- credit preflight: the ceiling bounds the rate, not the balance ----------------
+
+
+def test_a_balance_below_the_floor_refuses_before_creating(mock_env):
+    env = {**mock_env["env"], "MOCK_CREDIT": "0.50", "MIN_CREDIT_USD": "1.00"}
+    result, combined = _run_launcher(env, "--yes", "--arms", "A_raw", "--max-attempts", "1")
+
+    assert result.returncode != 0, combined
+    assert "below the $1.00 floor" in combined
+    assert not (mock_env["state"] / "created.txt").exists(), "refused after renting"
+
+
+def test_a_thin_balance_warns_but_still_runs(mock_env):
+    env = {**mock_env["env"], "MOCK_CREDIT": "1.50", "WARN_CREDIT_USD": "2.00"}
+    result, combined = _run_launcher(env, "--yes", "--arms", "A_raw", "--max-attempts", "1")
+
+    assert result.returncode == 0, combined
+    assert "below the $2.00 warning threshold" in combined
+    assert (mock_env["state"] / "created.txt").exists()
+
+
+def test_the_balance_is_recorded_in_the_run(mock_env):
+    env = {**mock_env["env"], "MOCK_CREDIT": "7.25"}
+    result, combined = _run_launcher(env, "--yes", "--arms", "A_raw", "--max-attempts", "1")
+    assert result.returncode == 0, combined
+
+    record = json.loads(sorted(mock_env["outdir"].glob("run_*.json"))[-1].read_text())
+    assert float(record["credit_before_usd"]) == 7.25

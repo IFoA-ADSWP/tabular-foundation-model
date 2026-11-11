@@ -1,5 +1,8 @@
 # Research Context — *Tabular Foundation Models*
 
+> **Status:** current as of 2026-10-31.
+
+
 > **External research source.** This is a research-context note, not project evidence and not a benchmark result.
 > **Author:** Christoph Molnar
 > **Source:** [Tabular Foundation Models — online book](https://tabularfoundationmodels.com/)

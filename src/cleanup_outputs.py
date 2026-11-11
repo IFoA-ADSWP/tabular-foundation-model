@@ -67,12 +67,12 @@ def main():
     
     # 3. Summary
     remaining_files = list(OUT_DIR.glob("*"))
-    print(f"\n📊 Outputs directory status:")
+    print("\n📊 Outputs directory status:")
     print(f"   Total files: {len(remaining_files)}")
     print(f"   Model comparison CSVs: {len(list(OUT_DIR.glob('model_comparison_*.csv')))}")
     print(f"   Model comparison PKLs: {len(list(OUT_DIR.glob('model_comparison_*.pkl')))}")
     print(f"   Debug artifacts: {len(list(OUT_DIR.glob('proba_debug_*.csv')))}")
-    print(f"\n✨ Cleanup complete!")
+    print("\n✨ Cleanup complete!")
 
 if __name__ == '__main__':
     main()

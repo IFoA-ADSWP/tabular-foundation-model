@@ -1,5 +1,8 @@
 # TabPFN Insurance Research — Meeting Narrative
 
+> **Historical document.** Kept for the record; it describes a state that has since been superseded.
+
+
 **Prepared for:** Meeting on 2026-08-21
 **Purpose:** Clear, chronological story of the project's journey, current state, and where we're headed
 

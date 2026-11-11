@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold, KFold
 
@@ -25,7 +24,6 @@ from tabarena.contexts import AbstractArenaContext
 # Reuse model classes from the full benchmark script
 from run_tabarena_insurance_benchmark import (
     TabPFNClientModel,
-    LogisticGlmModel,
 )
 
 # ---------------------------------------------------------------------------

@@ -8,9 +8,9 @@ scipy>=1.10,<2
 pyreadr>=0.5,<0.6
 
 # TabPFN and extensions
-tabpfn>=6,<7
+tabpfn==8.5.0          # v3_default; the v2-era path uses requirements-legacy.txt
 tabpfn-client==0.3.3   # every benchmark verdict is stamped to 0.3.3 (see notebooks/reproducibility/README.md)
-tabpfn-extensions>=0.2,<0.3
+# tabpfn-extensions is v2-only: it requires tabpfn<7. See requirements-legacy.txt.
 
 # Optional: boosted tree baselines
 xgboost>=1.7,<3      # optional

@@ -21,17 +21,17 @@ from __future__ import annotations
 import os
 import sys
 import time
-import traceback
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 HERE = Path(__file__).resolve().parent
-import sys as _sys
-_sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
-from src.api_key import load_api_key as _load_api_key  # noqa: E402
-from src.model_version import resolve_model_path as _model_path  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
+from src.api_key import load_api_key as _load_api_key  # noqa: E402  (src import after the repo-root path insert)
+from src.experiment_spec import dataset_entry, load_registry  # noqa: E402  (src import after the repo-root path insert)
+from src.model_version import resolve_model_path as _model_path  # noqa: E402  (src import after the repo-root path insert)
+from src.row_sizes import slice_data  # noqa: E402  (src import after the repo-root path insert)
 REPO = HERE.parent.parent
 DATA_RAW = REPO / "data" / "raw"
 EVAL_DIR = REPO / "scripts" / "eval" / "insurance_benchmark_v1"
@@ -43,14 +43,28 @@ LOG_FILE = EVAL_DIR / "home_turf_sweep_run.log"
 # ---------------------------------------------------------------------------
 # Dataset registry
 # ---------------------------------------------------------------------------
-DATASETS = [
-    dict(name="coil2000", file="coil2000.csv", target="CARAVAN", drop=[]),
-    dict(name="uslapseagent", file="uslapseagent.csv", target="surrender", drop=[]),
-    # §6 leakage fix: claim == (nclaims>0) == (amount>0) exactly; drop the leak features
-    dict(name="bemtl97", file="bemtl97.csv", target="claim", drop=["nclaims", "amount"]),
-]
-SIZES = [1000, 5000, None]  # None = full
+# The same three Datasets the sweep's evidence covers, selected from the registry (#235).
+SWEEP_DATASETS = ("coil2000", "uslapseagent", "bemtl97")
+
+
+def sweep_datasets() -> list[dict]:
+    registry = load_registry(EVAL_DIR / "experiments.toml")
+    return [dataset_entry(registry.datasets[name]) for name in SWEEP_DATASETS]
+
+
+# The sizes come from the registry, one declaration per experiment (#264). Full is the
+# last point, so a dataset declared at [1000, 5000] is measured at 1000, 5000 and its
+# whole table -- exactly the cells the committed sweep table holds.
+REGISTRY_TOML = EVAL_DIR / "experiments.toml"
+
+
+def declared_sizes(dataset: str) -> tuple[int | None, ...]:
+    """The row sizes the registry declares for this dataset's experiment (#264)."""
+    return load_registry(REGISTRY_TOML).experiment(dataset).row_size_points
+
+
 N_FOLDS = 5
+SPLIT_SEED = 42  # recorded on every row so the frontier can match it (#233)
 
 
 def load_Xy(ds: dict) -> tuple[np.ndarray, np.ndarray]:
@@ -62,15 +76,6 @@ def load_Xy(ds: dict) -> tuple[np.ndarray, np.ndarray]:
         X[col] = X[col].astype("category").cat.codes.replace(-1, np.nan)
     X = X.fillna(0.0).astype(np.float32)
     return X.to_numpy(dtype=np.float32), y
-
-
-def slice_data(X: np.ndarray, y: np.ndarray, n: int | None) -> tuple[np.ndarray, np.ndarray]:
-    """Stratified slice preserving class balance (deterministic seed)."""
-    if n is None or len(X) <= n:
-        return X, y
-    from sklearn.model_selection import train_test_split
-    Xs, _, ys, _ = train_test_split(X, y, train_size=n, stratify=y, random_state=42)
-    return Xs, ys
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +113,31 @@ def predict_proba(model, X: np.ndarray) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+def sweep_row(ds_name: str, n_rows: int, method: str, fold: int,
+              n_estimators: int | None, trimmed: bool) -> dict:
+    """One result row, with the provenance the frontier's reuse predicate requires (#233).
+
+    `model_version` is the version this row was actually produced under, not the
+    registry's declaration; a later run compares its own resolved version against it.
+    """
+    return {
+        "dataset": ds_name,
+        "n_rows": n_rows,
+        "method": method,
+        "fold": fold,
+        "n_estimators": n_estimators,
+        "seed": SPLIT_SEED,
+        "model_version": _model_path(),
+        "trimmed": trimmed,
+        "error": "",
+        "train_s": np.nan,
+        "infer_s": np.nan,
+        "log_loss": np.nan,
+        "brier": np.nan,
+        "roc_auc": np.nan,
+    }
+
+
 def main() -> None:
     _load_api_key()
     os.environ.setdefault("TABPFN_CLIENT_TIMEOUT", "240")  # cap hangs; v1 max infer ~41s
@@ -129,11 +159,11 @@ def main() -> None:
     # Ensemble probe: is n_estimators=8 (API cap) identical to the server default?
     n8_equals_default: bool | None = None
 
-    for ds in DATASETS:
+    for ds in sweep_datasets():
         X_full, y_full = load_Xy(ds)
         say(f"dataset={ds['name']} full_shape={X_full.shape} pos_rate={y_full.mean():.4f}")
 
-        for n in SIZES:
+        for n in declared_sizes(ds["name"]):
             X, y = slice_data(X_full, y_full, n)
             n_rows = len(X)
             cell_t0 = time.time()
@@ -152,24 +182,12 @@ def main() -> None:
 
             say(f"cell {ds['name']} n={n_rows} methods={[m[0] + str(m[1]) for m in methods]}{' TRIMMED(no extra tabpfn configs)' if trim_extra else ''}")
 
-            skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=42)
+            skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=SPLIT_SEED)
             for fold, (tr, te) in enumerate(skf.split(X, y)):
                 Xtr, Xte, ytr, yte = X[tr], X[te], y[tr], y[te]
                 for mname, mkw in methods:
-                    row = {
-                        "dataset": ds["name"],
-                        "n_rows": n_rows,
-                        "method": mname,
-                        "fold": fold,
-                        "n_estimators": mkw.get("n_estimators"),
-                        "trimmed": trim_extra,
-                        "error": "",
-                        "train_s": np.nan,
-                        "infer_s": np.nan,
-                        "log_loss": np.nan,
-                        "brier": np.nan,
-                        "roc_auc": np.nan,
-                    }
+                    row = sweep_row(ds["name"], n_rows, mname, fold,
+                                    mkw.get("n_estimators"), trim_extra)
                     try:
                         if mname == "tabpfn":
                             model = make_tabpfn(mkw["n_estimators"])

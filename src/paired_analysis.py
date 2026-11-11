@@ -35,6 +35,15 @@ SHIPPED_SEED = 42
 MetricFn = Callable[[np.ndarray, np.ndarray], float]
 
 
+def interval_covers_zero(ci_low: float, ci_high: float) -> bool:
+    """The one definition of "this interval covers zero" -- inclusive at both bounds.
+
+    Every artifact and every report derives the fact from here, so the stored flag, the
+    printed bracket and the marker beside it cannot disagree (#296).
+    """
+    return ci_low <= 0.0 <= ci_high
+
+
 def paired_bootstrap_ci(
     y_true: np.ndarray,
     scores_a: np.ndarray,
@@ -92,7 +101,7 @@ def paired_bootstrap_ci(
         "estimate": float(point_b - point_a),
         "ci_low": lo,
         "ci_high": hi,
-        "excludes_zero": bool(lo > 0.0 or hi < 0.0),
+        "excludes_zero": not interval_covers_zero(lo, hi),
         "n_rows": int(n),
         "n_resamples": int(n_resamples),
         "n_degenerate": int(degenerate),
@@ -139,7 +148,7 @@ def inverse_variance_summary(
         "se": se,
         "ci_low": pooled - z * se,
         "ci_high": pooled + z * se,
-        "excludes_zero": bool(pooled - z * se > 0.0 or pooled + z * se < 0.0),
+        "excludes_zero": not interval_covers_zero(pooled - z * se, pooled + z * se),
         "k": k,
         "q": q,
         "i2": i2,
@@ -209,7 +218,7 @@ def nested_paired_bootstrap(
         "estimate": point,
         "ci_low": lo,
         "ci_high": hi,
-        "excludes_zero": bool(lo > 0.0 or hi < 0.0),
+        "excludes_zero": not interval_covers_zero(lo, hi),
         "n_repeats": n_rep,
         "n_resamples": int(n_resamples),
         "n_degenerate_repeats": int(degenerate),

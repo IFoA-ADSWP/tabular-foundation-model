@@ -21,8 +21,8 @@ Pilot 2 additions (see docs/reports/PILOT_2_PREREQUISITES.md):
 import sys
 import os
 import json
+from functools import lru_cache
 import time
-import hashlib
 import argparse
 import subprocess
 from pathlib import Path
@@ -34,13 +34,6 @@ import torch
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import (
-    roc_auc_score,
-    brier_score_loss,
-    average_precision_score,
-    log_loss,
-    f1_score,
-)
 
 # Ensure repo imports work (handle both __file__ and piped execution)
 if "__file__" in dir():
@@ -49,7 +42,42 @@ else:
     REPO_ROOT = Path(os.getcwd())
 sys.path.insert(0, str(REPO_ROOT))
 
-SCHEMA_VERSION = 2
+# Provenance lives in `src/provenance.py` since #211, so the pilot and the diagnostics
+# (D1-D5) share one implementation of the fingerprint, the matched-context assertion and
+# the record writer instead of each spelling them differently. The same `<repo>/src` path
+# `scripts/analyse_pilot.py` uses for `paired_analysis`.
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
+from provenance import (
+    experiment_section,
+    ARM_RECORD_SCHEMA_VERSION,
+    BASELINE_TABPFN_ARM,
+    PILOT_RUN_SCHEMA_VERSION,
+    FT_ARMS,
+    DataSource,
+    assert_matched_context,
+    code_section,
+    dataset_fingerprint as _shared_dataset_fingerprint,
+    inference_context_rows,
+    model_section,
+    provenance_block,
+    sha256_array,
+    sha256_file as _sha256_file,
+    split_rule,
+    split_section,
+)
+from experiment_spec import (  # noqa: E402
+    RegistryError,
+    arm_epoch_budget,
+    load_registry,
+)
+from model_version import checkpoint_mismatch, expected_checkpoint, explicit_model_path  # noqa: E402
+
+# The arm record's layout is `provenance.ARM_RECORD_SCHEMA_VERSION` (3 since #241) and the
+# invocation manifest's is `provenance.PILOT_RUN_SCHEMA_VERSION` (2): one definition each, in
+# the module whose reader dispatches on them, so a writer cannot bump a version the reader has
+# not been taught. The manifest and `meta.FAILED.json` carry no provenance block, so they keep
+# their own version rather than inheriting the arm record's.
 
 # ---------------------------------------------------------------------------
 # Config
@@ -88,15 +116,29 @@ SEEDS = [DEFAULT_SEED]
 TRAIN_SIZE = 2000
 TEST_SIZE = 1000
 
+# The registry the pilot reads when it is given an experiment id (#238). One file serves
+# both runners; the pilot reads its own experiment kind from it.
+REGISTRY_TOML = REPO_ROOT / "scripts" / "eval" / "insurance_benchmark_v1" / "experiments.toml"
+
 DATASETS = {
     "coil2000": {"file": "coil2000.csv", "target": "CARAVAN"},
     "uslapseagent": {"file": "uslapseagent.csv", "target": "surrender"},
     "eudirectlapse": {"file": "eudirectlapse.csv", "target": "lapse"},
-    "spanish_motor_lapse": {"file": "spanish_motor_lapse.csv", "target": "LapseB"},
+    "spanish_motor_lapse": {
+        "file": "spanish_motor_lapse.csv",
+        "target": "LapseB",
+        # Post-outcome columns: both describe claims during the policy year whose end state is
+        # the label. The readiness study measured 0.023 AUC from them and P2 requires their
+        # exclusion (#444). Applied by `load_dataset`, recorded by `dataset_fingerprint`.
+        "drop": ("N_claims_year", "Cost_claims_year"),
+    },
 }
 
 DATA_DIR = REPO_ROOT / "data" / "raw"
 OUTPUT_DIR = REPO_ROOT / "outputs" / "finetune" / "pilot"
+# The experiment this run named and its declared config, or None (#238). Set once in
+# main(); read by the record writer, so the artifact states declared beside resolved.
+DECLARED_EXPERIMENT: dict | None = None
 
 # Where the datasets come from. `main` is a MOVING reference: if a CSV changes on that
 # branch, a re-run silently gets different bytes -- the content fingerprint can only
@@ -109,30 +151,10 @@ OUTPUT_DIR = REPO_ROOT / "outputs" / "finetune" / "pilot"
 DATA_REPO = os.environ.get("TFM_DATA_REPO", "IFoA-ADSWP/tabular-foundation-model")
 DATA_REF = os.environ.get("TFM_DATA_REF", "main")
 
-# Which arms are fine-tuning arms (subject to the matched-context assertion).
-FT_ARMS = ("B_in_domain", "B_ft3", "B_ft10", "B_ft30", "C_pooled_all", "D_pooled_homog")
-BASELINE_TABPFN_ARM = "A_raw"
-
 
 # ---------------------------------------------------------------------------
 # Fingerprints, versions, hashes  (PR-6, PR-1)
 # ---------------------------------------------------------------------------
-def _sha256_file(path, chunk=1 << 20):
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        while True:
-            b = f.read(chunk)
-            if not b:
-                break
-            h.update(b)
-    return h.hexdigest()
-
-
-def _sha256_array(arr):
-    a = np.ascontiguousarray(arr)
-    return hashlib.sha256(a.tobytes()).hexdigest()
-
-
 def _git_info():
     def run(*args):
         try:
@@ -204,33 +226,54 @@ def _host_info():
     return info
 
 
-def dataset_fingerprint(name):
-    """Content hash + shape + class balance for a dataset (PR-6)."""
-    path = DATA_DIR / f"{name}.csv"
-    if not path.exists():
-        return {"name": name, "path": str(path), "exists": False}
-    df = pd.read_csv(path)
-    target = DATASETS[name]["target"]
-    y = df[target].astype(int)
-    return {
-        "name": name,
-        "path": str(path.relative_to(REPO_ROOT)),
-        "file": f"{name}.csv",
-        "sha256": _sha256_file(path),
-        "n_rows": int(len(df)),
-        "n_cols": int(df.shape[1]),
-        "columns": list(df.columns),
-        "target_col": target,
-        "positive_rate": round(float(y.mean()), 6),
-        "n_positive": int(y.sum()),
-        # Provenance of the bytes: a content hash alone tells you a file CHANGED, not
-        # where to get the original back. DATA_REF pins the source; default `main` is a
-        # moving branch and is recorded as such so the gap is visible rather than implied.
-        "source_url": data_source_url(f"{name}.csv"),
-        "source_repo": DATA_REPO,
-        "source_ref": DATA_REF,
-        "source_ref_is_pinned": DATA_REF != "main",
-    }
+def declared_drop(name):
+    """The leak-drops a dataset declaration applies, before encoding and in the record.
+
+    One declaration, read by both `load_dataset` and `dataset_fingerprint`, so the matrix a run
+    trains on and the `drop` its record names cannot drift apart (#241, #444).
+    """
+    return tuple(DATASETS[name].get("drop") or ())
+
+
+def dataset_fingerprint(name, *, frame=None, drop=None, source=None):
+    """Pilot adapter over `provenance.dataset_fingerprint` (PR-6, moved by #211).
+
+    Which file and which target a dataset *name* means, and which ref this run pinned, are
+    this runner's declarations -- not facts `src/provenance.py` can know. The mechanics of the
+    fingerprint (hash, shape, balance, recorded source) are shared with the diagnostics; the
+    binding is six lines here. #241 narrowed the shared helper to a frame plus target and drop
+    columns, so this adapter reads the file (or takes the frame the caller already loaded) and
+    passes it on.
+
+    `drop` comes from the dataset declaration unless the caller names its own, so the leak-drops
+    a run actually applied are recorded by the runner that applied them. A dataset with no
+    declaration drop records `[]`; a declared drop is read through `declared_drop`, the same
+    helper `load_dataset` uses, so the record and the matrix share one declaration. The entry's
+    `columns` and `n_cols` describe the source file, not the encoded matrix.
+
+    A table that is not on disk is STATE, not an error: the shared helper returns
+    `exists: false` rather than omitting the dataset, so a run that could not find its data is
+    legible.
+    """
+    info = DATASETS[name]
+    path = DATA_DIR / info["file"]
+    if drop is None:
+        drop = declared_drop(name)
+    return _shared_dataset_fingerprint(
+        name,
+        frame=frame,
+        target=info["target"],
+        drop=drop,
+        path=path,
+        repo_root=REPO_ROOT,
+        source=source
+        or DataSource(
+            url=data_source_url(info["file"]),
+            repo=DATA_REPO,
+            ref=DATA_REF,
+            ref_is_pinned=DATA_REF != "main",
+        ),
+    )
 
 
 def _checkpoints():
@@ -249,6 +292,30 @@ def _checkpoints():
         if root.is_dir():
             found += sorted(p.name for p in root.glob("*.ckpt"))
     return found
+
+
+def _assert_expected_checkpoint():
+    """Refuse a launch whose cached weights are not the line it claims to run.
+
+    `auto` is honest about *intent* and silent about *outcome*: `TABPFN_PIN` decides which package
+    runs, the package decides what `auto` loads, and the record says `auto` either way. D15 had to
+    correct a draft that claimed a pin the run did not have, and a breadth cell that silently moved
+    from v3 to another line would be compared against the anchor as if it were the same model.
+
+    Empty means nobody asked; the paid-path bootstrap sets it, so a launch that skips the assertion
+    records `expected_checkpoint: null` rather than passing for a check it never ran.
+    """
+    expected = expected_checkpoint()
+    if not expected:
+        return None
+    reason = checkpoint_mismatch(_checkpoints(), expected)
+    if reason is not None:
+        raise SystemExit(
+            f"\nREFUSING: this launch claims to run {expected!r} and cannot confirm it. {reason}.\n"
+            "  The breadth specification says a cell that ran a different model line is not "
+            "comparable with the anchor (docs/current/FINETUNING_BREADTH_SPEC.md)."
+        )
+    return expected
 
 
 def _weights_provenance():
@@ -335,6 +402,48 @@ def _runtime_versions():
     return versions
 
 
+@lru_cache(maxsize=1)
+def pinned_model_path() -> str | None:
+    """The model path an operator set, resolved once; None means the library's own default.
+
+    One resolution per run, so the record and every estimator read the same value. `None` is a
+    finding, not a failure: a label like `v3_default` is not a valid `model_path`, and passing one
+    failed every arm of the 2026-10-31 smoke (#285).
+    """
+    return explicit_model_path()
+
+
+def _model_provenance(weights=None, versions=None):
+    """The model the record is about: the RESOLVED version, and the hash that corroborates it.
+
+    No pilot record has ever carried a version, so two pilot numbers from different model eras
+    are indistinguishable today. `weights_sha256` alone cannot fix it: a hash cannot be mapped
+    back to a version label without reading docs/MODEL_VERSIONS.md and guessing. The resolver
+    is env-first (src/model_version.py), so a re-test under TABPFN_MODEL_PATH is recorded as
+    the version it actually used rather than the one the baseline assumes.
+    """
+    pinned = pinned_model_path()
+    return model_section(
+        # "auto" is the honest label when nothing was pinned: the library chose, and the record
+        # must not borrow the baseline's name for a choice nobody made (#285).
+        version="auto" if pinned is None else pinned,
+        version_source="auto" if pinned is None else "pinned",
+        weights_sha256=(weights or {}).get("sha256"),
+        client_version=(versions or {}).get("tabpfn"),
+    )
+
+
+def _code_provenance(git=None, versions=None):
+    """The code that ran: commit, whether that commit describes it, the stack, the image."""
+    git = _git_info() if git is None else git
+    return code_section(
+        git_sha=git.get("commit_sha") or None,
+        dirty=bool(git.get("dirty")),
+        runtime=versions,
+        image=_container_provenance().get("image_ref"),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Data
 # ---------------------------------------------------------------------------
@@ -388,19 +497,31 @@ def check_data():
 def load_dataset(name, target_col, max_rows=None):
     """Load and encode a dataset.
 
+    A dataset declaration may carry leak-drops; they are applied here, before encoding, through
+    the same `declared_drop` helper `dataset_fingerprint` records, so the matrix a run trains on
+    and the `drop` its record names share one declaration (#241, #444). A declared drop whose
+    column is absent fails closed rather than silently leaving a leak in the matrix.
+
     Note (PR-6): the row cap is a *uniform* sample, not stratified, so the sampled
     class balance can differ from the population. This is recorded in the
     fingerprint rather than hidden.
     """
     path = DATA_DIR / f"{name}.csv"
     df = pd.read_csv(path)
+    drop = declared_drop(name)
+    absent = [column for column in drop if column not in df.columns]
+    if absent:
+        raise ValueError(
+            f"{name}: declared drop column(s) {absent} are not in {path.name}; "
+            "a declared leak-drop that is not applied is a leak"
+        )
     sampled = False
     if max_rows is not None and len(df) > max_rows:
         df = df.sample(n=max_rows, random_state=DEFAULT_SEED)
         sampled = True
     y = df[target_col].values.astype(int)
     X = (
-        pd.get_dummies(df.drop(columns=[target_col]), drop_first=False)
+        pd.get_dummies(df.drop(columns=[target_col, *drop]), drop_first=False)
         .fillna(0)
         .values.astype(np.float64)
     )
@@ -579,19 +700,33 @@ def make_split(X, y, *, seed, train_size, test_size, fold=None, n_folds=None):
         "seed": seed,
         "fold": fold,
         "n_folds": n_folds,
+        # #241: the fold construction recorded as a RULE. A description string is prose that
+        # two different constructions can share; a constructor plus its parameters is
+        # comparable, so a fold change shows up as a rule change rather than as a metric move.
+        "rule": (
+            split_rule("StratifiedKFold", n_splits=n_folds, shuffle=True, random_state=seed)
+            if fold is not None
+            else split_rule(
+                "train_test_split",
+                test_size=n_test,
+                train_size=train_size,
+                random_state=seed,
+                stratify="y",
+            )
+        ),
         "n_train": int(len(train_idx)),
         "n_test": int(len(test_idx)),
         "pos_train": int(y[train_idx].sum()),
         "pos_test": int(y[test_idx].sum()),
-        "train_index_sha256": _sha256_array(train_idx),
-        "test_index_sha256": _sha256_array(test_idx),
+        "train_index_sha256": sha256_array(train_idx),
+        "test_index_sha256": sha256_array(test_idx),
         "test_rows_excluded_from_fit": True,
         # PR-10: recorded, not assumed.
         # PR-10: the rows dropped by the train-size cap, fingerprinted so the
         # selection step is visible rather than implied by the row counts.
         "n_dropped": int(dropped_idx.size) if dropped_idx is not None else 0,
         "dropped_index_sha256": (
-            _sha256_array(dropped_idx) if dropped_idx is not None else None
+            sha256_array(dropped_idx) if dropped_idx is not None else None
         ),
         "leakage_assertion": contamination,
     }
@@ -601,30 +736,10 @@ def make_split(X, y, *, seed, train_size, test_size, fold=None, n_folds=None):
 # ---------------------------------------------------------------------------
 # Metrics  (log loss primary, per PILOT_2_DESIGN.md §3)
 # ---------------------------------------------------------------------------
-def expected_calibration_error(y_true, y_prob, n_bins=10):
-    """Expected calibration error, equal-width bins."""
-    y_true = np.asarray(y_true, dtype=float)
-    y_prob = np.asarray(y_prob, dtype=float)
-    edges = np.linspace(0.0, 1.0, n_bins + 1)
-    idx = np.clip(np.digitize(y_prob, edges[1:-1], right=True), 0, n_bins - 1)
-    ece = 0.0
-    n = len(y_true)
-    for b in range(n_bins):
-        m = idx == b
-        if not m.any():
-            continue
-        ece += (m.sum() / n) * abs(y_true[m].mean() - y_prob[m].mean())
-    return float(ece)
-
-
-def compute_metrics(y_true, y_prob):
-    return {
-        "roc_auc": float(roc_auc_score(y_true, y_prob)),
-        "brier": float(brier_score_loss(y_true, y_prob)),
-        "pr_auc": float(average_precision_score(y_true, y_prob)),
-        "log_loss": float(log_loss(y_true, np.clip(y_prob, 1e-15, 1 - 1e-15))),
-        "ece": expected_calibration_error(y_true, y_prob),
-    }
+# Defined in `src/metrics.py` since #361, so the rescore tool and the run share one
+# implementation and the registry names code that exists once. Re-exported here because
+# tests and ad-hoc callers reach them through the runner.
+from metrics import compute_metrics, expected_calibration_error  # noqa: E402,F401
 
 
 # ---------------------------------------------------------------------------
@@ -688,40 +803,6 @@ def effective_config(arm, config):
     }
 
 
-def inference_context_rows(arm, n_train):
-    """Effective inference context for an arm, and the mechanism behind it.
-
-    This is what the historic study got wrong: the fine-tuned arm there was
-    evaluated with SUBSAMPLE_SAMPLES=64/128 while the raw arm used the whole
-    training split. In the shipped trainer the inference model is refit on the
-    full training data (`_setup_inference_model` -> `fit(self.X_, self.y_)`), so
-    both arms carry the full training split as context.
-    """
-    if arm == BASELINE_TABPFN_ARM:
-        return n_train, "TabPFNClassifier.fit(X_train) -- full training split"
-    if arm in FT_ARMS:
-        return n_train, "FinetunedTabPFNClassifier refits inference on full X_ (shipped trainer)"
-    return None, "not a TabPFN context-carrying arm"
-
-
-def assert_matched_context(per_arm):
-    """Refuse to compare TabPFN arms whose inference contexts differ (PR-4)."""
-    a = per_arm.get(BASELINE_TABPFN_ARM)
-    if a is None or a[0] is None:
-        return True
-    ft = {k: v for k, v in per_arm.items() if k in FT_ARMS and v[0] is not None}
-    if not ft:
-        return True
-    mismatched = {k: v[0] for k, v in ft.items() if v[0] != a[0]}
-    if mismatched:
-        raise AssertionError(
-            "MATCHED-CONTEXT VIOLATION: raw arm context="
-            f"{a[0]} but {mismatched} differ. The historic comparison was invalidated "
-            "by exactly this; fix the context before reporting any delta."
-        )
-    return True
-
-
 # ---------------------------------------------------------------------------
 # Pool construction  (PR-5)
 # ---------------------------------------------------------------------------
@@ -761,7 +842,7 @@ def build_pool(target, pool_names, fingerprints):
 def run_arm_a_raw(X_train, X_test, y_train, y_test, config):
     from tabpfn import TabPFNClassifier
 
-    clf = TabPFNClassifier(
+    _kwargs = dict(
         ignore_pretraining_limits=True,
         device="cuda" if torch.cuda.is_available() else "cpu",
         n_estimators=config["n_estimators"],
@@ -769,6 +850,11 @@ def run_arm_a_raw(X_train, X_test, y_train, y_test, config):
         inference_precision=torch.float32,
         fit_mode=config["fit_mode"],
     )
+    # A label is not a filename: `model_path` is passed only when an operator set one (#285).
+    _pin = pinned_model_path()
+    if _pin is not None:
+        _kwargs["model_path"] = _pin
+    clf = TabPFNClassifier(**_kwargs)
     clf.fit(X_train, y_train)
     probs = clf.predict_proba(X_test)[:, 1]
     return probs, clf
@@ -812,7 +898,11 @@ def run_arm_b_in_domain(X_train, X_test, y_train, y_test, config):
 
     # P8: pass the pin explicitly. If it is ever enabled (not for this pilot), patience is passed
     # too -- the package takes the pair together and no default is assumed here.
+    _pin = pinned_model_path()
     _ft_kwargs = dict(
+        # The fine-tuner has no model_path of its own; it forwards classifier kwargs, so the pin
+        # travels the same route the raw arm uses (#285) -- and only when one was set.
+        **({"extra_classifier_kwargs": {"model_path": _pin}} if _pin is not None else {}),
         device="cuda" if torch.cuda.is_available() else "cpu",
         epochs=config["epochs"],
         learning_rate=config["learning_rate"],
@@ -864,9 +954,26 @@ ARM_EPOCH_OVERRIDES = {"B_ft3": 3, "B_ft10": 10, "B_ft30": 30}
 LADDER_ARMS = ("B_ft3", "B_ft10", "B_ft30")
 
 
+# Set when the run named a declared experiment: its arms' budgets, from the registry,
+# replace the module's ladder table. None means "no declaration" and the table stands,
+# which is what keeps an invocation without an id behaving as it did before (#238).
+ARM_BUDGETS: dict[str, int] | None = None
+
+
 def arm_epochs(arm, config):
     """The epoch budget an arm will actually run."""
+    if ARM_BUDGETS is not None and arm in ARM_BUDGETS:
+        return ARM_BUDGETS[arm]
     return ARM_EPOCH_OVERRIDES.get(arm, config["epochs"])
+
+
+def resolved_config(arm, config):
+    """The config an arm executes: the base, with its own budget applied (ADR 0004).
+
+    A record that copied `declared` into `resolved` could never show a drift, which is the
+    one thing the pair exists to show.
+    """
+    return {**config, "epochs": arm_epochs(arm, config)}
 
 
 def _arm_b_at_epochs(epochs):
@@ -990,8 +1097,14 @@ def save_results(
 
     run_id = f"{dataset}_{arm}_seed{seed}" + (f"_fold{fold}" if fold is not None else "")
 
+    # Collected once so the legacy top-level keys and the provenance block cannot disagree:
+    # they hold the same objects, not two readings of the environment.
+    versions = _runtime_versions()
+    weights = _weights_provenance()
+    git = _git_info()
+
     meta = {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": ARM_RECORD_SCHEMA_VERSION,
         "run_id": run_id,
         "dataset": dataset,
         "arm": arm,
@@ -1008,21 +1121,47 @@ def save_results(
         "run_time_seconds": run_time,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "status": "success",
-        "versions": _runtime_versions(),
+        "versions": versions,
         "checkpoints": _checkpoints(),
         # PR-1 provenance: WHICH weights (hash, not just filename) and WHICH container
         # (image, machine) -- both are moving parts a re-run has to be able to pin.
-        "weights": _weights_provenance(),
+        "weights": weights,
         "container": _container_provenance(),
         # The estimator that ACTUALLY ran. Arm F silently falls back to a RandomForest
         # when catboost is unavailable, so the label alone is not evidence.
         "estimator_class": estimator_class,
         # PR-4: effective inference context, per arm
         "inference_context": {"rows": context_rows, "mechanism": context_note},
-        # PR-6
+        # #241: the record contract. One block, four sections, key names defined once in
+        # `src/provenance.py`, so the pilot states its provenance in the vocabulary the
+        # diagnostics and the frontier runner are meant to share.
+        "provenance": provenance_block(
+            dataset=dataset_fp,
+            split=split_section(
+                n_folds=split_fp.get("n_folds", n_folds),
+                seed=split_fp.get("seed"),
+                sha256=split_fp.get("train_index_sha256"),
+                rule=split_fp.get("rule"),
+            ),
+            model=_model_provenance(weights, versions),
+            code=_code_provenance(git, versions),
+            experiment=(
+                experiment_section(
+                    id=DECLARED_EXPERIMENT["id"],
+                    model_version=DECLARED_EXPERIMENT["model_version"],
+                    # The arm's budget is its own when one is declared, so `resolved`
+                    # states what executed rather than repeating the base (ADR 0004).
+                    declared=DECLARED_EXPERIMENT["config"],
+                    resolved=resolved_config(arm, config),
+                )
+                if DECLARED_EXPERIMENT else None
+            ),
+        ),
+        # PR-6. Retained alongside the block, pointing at the same objects: a reader of the
+        # old layout keeps working, and cannot see two fingerprints that disagree.
         "dataset_fingerprint": dataset_fp,
         "split_fingerprint": split_fp,
-        "predictions_sha256": _sha256_array(y_prob),
+        "predictions_sha256": sha256_array(y_prob),
         # PR-1 / PR-7: what this arm actually used
         "effective_config": arm_fp,
         # legacy key retained so existing readers do not break
@@ -1219,7 +1358,7 @@ def save_failure_record(output_dir, dataset, arm, seed, fold, config, error, ela
         run_dir = run_dir / f"seed{seed}_fold{fold}"
     run_dir.mkdir(parents=True, exist_ok=True)
     rec = {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": PILOT_RUN_SCHEMA_VERSION,
         "status": "failed",
         "dataset": dataset,
         "arm": arm,
@@ -1322,9 +1461,140 @@ def aggregate_results(output_dir=None):
     print(f"\nSaved: {output_dir / 'pilot_metrics.parquet'}")
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Fine-tuning pilot (Pilot 2 schema v2)")
+class InvocationError(ValueError):
+    """A command line that contradicts the experiment it names (#238)."""
+
+
+def _parse_seeds(raw: str) -> list[int]:
+    try:
+        seeds = [int(part) for part in raw.split(",") if part.strip()]
+    except ValueError:
+        raise InvocationError(f"--seeds must be integers, got {raw!r}") from None
+    if not seeds:
+        raise InvocationError("--seeds must name at least one seed")
+    return seeds
+
+
+def _config_dict(config) -> dict:
+    """The experiment's base config as the dict the arm runners already take."""
+    return {
+        "epochs": config.epochs,
+        "early_stopping": config.early_stopping,
+        "n_estimators": config.n_estimators,
+        "learning_rate": config.learning_rate,
+        "fit_mode": config.fit_mode,
+        "context_samples": config.context_samples,
+    }
+
+
+def _refuse(experiment_id: str, flag: str, declared, given) -> None:
+    """A flag may repeat the declaration, but not contradict it -- naming both (#238)."""
+    if given != declared:
+        raise InvocationError(
+            f"--experiment {experiment_id!r} declares {flag.replace('--', '').replace('-', '_')}"
+            f" = {declared!r}, but {flag} = {given!r} was given; drop {flag}, or run without "
+            f"--experiment"
+        )
+
+
+def resolve_invocation(args):
+    """(dataset, arms, seeds, train_size, test_size, config) for this command line (#238).
+
+    Without `--experiment` this is exactly the pre-#238 behaviour, from the module
+    constants. With it, the registry owns those values and an explicit flag may repeat the
+    declaration but not contradict it: two sources of truth is worse than a missing one.
+    """
+    seeds = None if args.seeds is None else _parse_seeds(args.seeds)
+    arms = None
+    if args.arms:
+        arms = [arm.strip() for arm in args.arms.split(",") if arm.strip()]
+        unknown = [arm for arm in arms if arm not in ARMS]
+        if unknown:
+            raise InvocationError(f"unknown arm(s) {unknown}; choose from {list(ARMS)}")
+
+    if args.experiment is None:
+        train_size, test_size = TRAIN_SIZE, TEST_SIZE
+        if args.rung:
+            preset = RUNG[args.rung]
+            train_size, test_size = preset["train_size"], preset["test_size"]
+        if args.train_size is not None:
+            train_size = args.train_size
+        if args.test_size is not None:
+            test_size = args.test_size
+        config = dict(DEFAULT_CONFIG)
+        for key in ("epochs", "learning_rate", "n_estimators"):
+            value = getattr(args, key)
+            if value is not None:
+                config[key] = value
+        return (args.dataset, arms or list(ARMS), seeds or [DEFAULT_SEED], train_size,
+                test_size, args.folds, config, None, None, None, None, None)
+
+    registry = load_registry(REGISTRY_TOML)
+    declared = registry.pilot_experiment(args.experiment)
+
+    if args.dataset is not None:
+        _refuse(declared.id, "--dataset", declared.dataset, args.dataset)
+    if arms is not None:
+        # A subset SELECTS within the declaration (the launcher runs one arm per process);
+        # an arm the declaration does not name is a contradiction, not a selection.
+        undeclared = [arm for arm in arms if arm not in declared.arms]
+        if undeclared:
+            raise InvocationError(
+                f"--experiment {declared.id!r} does not declare arm(s) {undeclared}; "
+                f"--arms selects within the declaration"
+            )
+    if seeds is not None:
+        # A subset SELECTS within the declaration -- the launcher splits a probe across launches,
+        # so each launch carries part of the declared range by design (#450). A seed the
+        # declaration does not name is a contradiction, exactly as an undeclared arm is.
+        undeclared = [seed for seed in seeds if seed not in declared.seeds]
+        if undeclared:
+            raise InvocationError(
+                f"--experiment {declared.id!r} declares seeds {list(declared.seeds)}, but "
+                f"--seeds named {undeclared} outside it; --seeds selects within the declaration"
+            )
+    if args.folds is not None:
+        _refuse(declared.id, "--folds", declared.folds, args.folds)
+    if args.train_size is not None:
+        _refuse(declared.id, "--train-size", declared.train_size, args.train_size)
+    if args.test_size is not None:
+        _refuse(declared.id, "--test-size", declared.test_size, args.test_size)
+    if args.rung:
+        preset = RUNG[args.rung]
+        _refuse(declared.id, "--rung",
+                (declared.train_size, declared.test_size),
+                (preset["train_size"], preset["test_size"]))
+    for flag, key in (("--epochs", "epochs"), ("--learning-rate", "learning_rate"),
+                      ("--n-estimators", "n_estimators")):
+        given = getattr(args, key)
+        if given is not None:
+            _refuse(declared.id, flag, getattr(declared.config, key), given)
+
+    budgets = {
+        method.name: arm_epoch_budget(declared, method)
+        for method in registry.pilot_methods_of(declared)
+    }
+    base_config = _config_dict(declared.config)
+    return (declared.dataset, list(arms or declared.arms), list(seeds or declared.seeds),
+            declared.train_size, declared.test_size, declared.folds,
+            base_config, budgets, declared.id, base_config, declared.model_version,
+            declared.preregistration)
+
+
+def make_parser():
+    parser = argparse.ArgumentParser(
+        description=f"Fine-tuning pilot (arm record schema v{ARM_RECORD_SCHEMA_VERSION})"
+    )
     parser.add_argument("--dataset", type=str, help="Run one dataset")
+    parser.add_argument(
+        "--experiment",
+        type=str,
+        default=None,
+        help="Run the pilot experiment registered under this id in experiments.toml "
+             "(#238): it owns the dataset, arms, seed, folds, row sizes and base config. "
+             "A flag that repeats the declaration is accepted; one that contradicts it "
+             "is refused.",
+    )
     parser.add_argument(
         "--outdir",
         type=str,
@@ -1346,16 +1616,17 @@ def main():
     parser.add_argument(
         "--epochs",
         type=int,
-        default=DEFAULT_CONFIG["epochs"],
-        help="Fine-tuning passes (PR-7). Library default is 30; 3 preserves R1 parity.",
+        default=None,
+        help="Fine-tuning passes (PR-7). Default: the experiment's, or 3 without one.",
     )
-    parser.add_argument("--seeds", type=str, default=str(DEFAULT_SEED), help="e.g. 42,43,44")
+    parser.add_argument("--seeds", type=str, default=None,
+                        help=f"e.g. 42,43,44 (default: the experiment's, or {DEFAULT_SEED})")
     parser.add_argument("--folds", type=int, default=None, help="Stratified k-fold count")
     parser.add_argument("--rung", type=str, choices=sorted(RUNG), help="Scale preset (P1a/P1b/P1c)")
     parser.add_argument("--train-size", type=int, default=None)
     parser.add_argument("--test-size", type=int, default=None)
-    parser.add_argument("--learning-rate", type=float, default=DEFAULT_CONFIG["learning_rate"])
-    parser.add_argument("--n-estimators", type=int, default=DEFAULT_CONFIG["n_estimators"])
+    parser.add_argument("--learning-rate", type=float, default=None)
+    parser.add_argument("--n-estimators", type=int, default=None)
     parser.add_argument(
         "--save-models", action="store_true", help="Persist fitted models with hashes (PR-3)"
     )
@@ -1368,32 +1639,25 @@ def main():
     parser.add_argument(
         "--pool", type=str, default=None, help="Comma-separated pool datasets (PR-5)"
     )
+    return parser
+
+
+def main():
+    parser = make_parser()
     args = parser.parse_args()
 
-    arms = None
-    if args.arms:
-        arms = [a.strip() for a in args.arms.split(",") if a.strip()]
-        unknown = [a for a in arms if a not in ARMS]
-        if unknown:
-            parser.error(f"unknown arm(s) {unknown}; choose from {list(ARMS)}")
-
-    seeds = [int(s) for s in args.seeds.split(",") if s.strip()]
-
-    train_size, test_size = TRAIN_SIZE, TEST_SIZE
+    global ARM_BUDGETS, DECLARED_EXPERIMENT
+    try:
+        (dataset, arms, seeds, train_size, test_size, folds, config, ARM_BUDGETS,
+         experiment_id, declared_config, declared_version, preregistration) = resolve_invocation(args)
+    except (InvocationError, RegistryError) as exc:
+        parser.error(str(exc))
+    DECLARED_EXPERIMENT = (
+        {"id": experiment_id, "config": declared_config, "model_version": declared_version,
+         "preregistration": preregistration}
+        if experiment_id else None
+    )
     rung_name = args.rung
-    if rung_name:
-        preset = RUNG[rung_name]
-        train_size = preset["train_size"]
-        test_size = preset["test_size"]
-    if args.train_size is not None:
-        train_size = args.train_size
-    if args.test_size is not None:
-        test_size = args.test_size
-
-    config = dict(DEFAULT_CONFIG)
-    config["epochs"] = args.epochs
-    config["learning_rate"] = args.learning_rate
-    config["n_estimators"] = args.n_estimators
 
     # ---------------- Reproducibility gates, before any work runs ----------------
     # 1. Route records elsewhere when asked, so an ad-hoc run cannot land in the tree
@@ -1407,14 +1671,14 @@ def main():
     #    default path overwrote the committed R1 record for coil2000/E_glm and deleted
     #    the aggregate -- damage invisible until somebody opened the file. Refusing is
     #    the only failure mode that cannot lose data quietly.
-    run_datasets = [args.dataset] if args.dataset else DATASETS
+    run_datasets = [dataset] if dataset else DATASETS
     run_arms = arms or list(ARMS)
     clashes = []
     for _ds in run_datasets:
         for _arm in run_arms:
             for _seed in seeds:
                 # Same helper as the writer -- never a second copy of this rule.
-                for _fold in (range(args.folds) if args.folds else [None]):
+                for _fold in (range(folds) if folds else [None]):
                     _slot = record_slot(OUTPUT_DIR, _ds, _arm, _seed, _fold)
                     if (_slot / "meta.json").exists():
                         _rel = _slot.relative_to(OUTPUT_DIR)
@@ -1448,11 +1712,16 @@ def main():
                 print(f"  {_f}")
             raise SystemExit(3)
 
+    # 4. The weights this launch claims, before a single arm runs. Cheap, and the failure it
+    #    catches is silent: `auto` resolves per package version, so a moved pin changes the model
+    #    line while the record still says `auto`.
+    _assert_expected_checkpoint()
+
     started = datetime.now(timezone.utc)
     run_id = started.strftime("%Y%m%dT%H%M%SZ")
 
     print("=" * 70)
-    print("FINE-TUNING PILOT — Pilot 2 schema v%d" % SCHEMA_VERSION)
+    print("FINE-TUNING PILOT — arm record schema v%d" % ARM_RECORD_SCHEMA_VERSION)
     print("=" * 70)
     print(f"Run id:   {run_id}")
     print(f"Config:   {config}")
@@ -1482,12 +1751,12 @@ def main():
     pool_meta = None
     if args.pool:
         pool_names = [p.strip() for p in args.pool.split(",") if p.strip()]
-        target = args.assert_lodo_for or (args.dataset or "")
+        target = args.assert_lodo_for or (dataset or "")
         pool_meta = build_pool(target, pool_names, fingerprints)
         print(f"[LODO] target '{target}' asserted absent from pool {pool_names}")
 
     manifest = {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": PILOT_RUN_SCHEMA_VERSION,
         "run_id": run_id,
         "started_at": started.isoformat(),
         "status": "running",
@@ -1495,6 +1764,9 @@ def main():
         "host": _host_info(),
         "env": _runtime_versions(),
         "checkpoints": _checkpoints(),
+        # The line this launch ASSERTED it runs, checked before any arm started. null means nobody
+        # asked, which must not read like a pass (D15, docs/current/FINETUNING_BREADTH_SPEC.md).
+        "expected_checkpoint": expected_checkpoint() or None,
         # Reproducibility inputs that were previously implicit or absent:
         "weights": _weights_provenance(),
         "container": _container_provenance(),
@@ -1508,12 +1780,16 @@ def main():
         "epochs": config["epochs"],
         "legacy_config_keys_ignored": list(LEGACY_UNUSED_KEYS),
         "seeds": seeds,
-        "folds": args.folds,
+        # The document a multi-seed design was fixed against (#450). null is an absence, not a
+        # pass: a single-seed experiment declares no seed count, and a multi-seed one cannot parse
+        # without this, so a record that carries null here was not a replication.
+        "preregistration": (DECLARED_EXPERIMENT or {}).get("preregistration"),
+        "folds": folds,
         "rung": rung_name,
         "train_size": train_size,
         "test_size": test_size,
         "arms": arms or list(ARMS),
-        "datasets": [d for d in ([args.dataset] if args.dataset else DATASETS)],
+        "datasets": [d for d in ([dataset] if dataset else DATASETS)],
         "dataset_fingerprints": fingerprints,
         "pool": pool_meta,
         "save_models": bool(args.save_models),
@@ -1532,14 +1808,14 @@ def main():
     write_run_manifest(manifest, OUTPUT_DIR)
 
     try:
-        if args.dataset:
+        if dataset:
             run_single_dataset(
-                args.dataset,
+                dataset,
                 arms,
                 config=config,
                 seeds=seeds,
                 overwrite=args.overwrite,
-                folds=args.folds,
+                folds=folds,
                 train_size=train_size,
                 test_size=test_size,
                 save_models=args.save_models,
@@ -1553,7 +1829,7 @@ def main():
                     config=config,
                     seeds=seeds,
                     overwrite=args.overwrite,
-                    folds=args.folds,
+                    folds=folds,
                     train_size=train_size,
                     test_size=test_size,
                     save_models=args.save_models,
@@ -1568,7 +1844,7 @@ def main():
         manifest["finished_at"] = datetime.now(timezone.utc).isoformat()
         write_run_manifest(manifest, OUTPUT_DIR)
 
-    if not args.dataset:
+    if not dataset:
         aggregate_results()
 
 

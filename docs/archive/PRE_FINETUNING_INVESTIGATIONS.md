@@ -1,5 +1,8 @@
 # Pre-Fine-Tuning Investigation Log
 
+> **Historical document.** Kept for the record; it describes a state that has since been superseded.
+
+
 > Date: 2026-09-11 | Purpose: Single source of truth for all pre-pilot investigations
 > Related: #22 (GPU), #129 (E4), #156 (provider), #159 (feedback)
 > Consumes: ~~STAGE_A_B_FINDINGS_AND_RECOMMENDATIONS~~, ~~TABPFN_FINE_TUNING_LIMIT_STUDY~~, ~~INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL~~, ~~INSURANCE_SPECIFIC_FINETUNING_EVIDENCE~~, ~~MULTI_DATASET_GLM_VS_TABPFN_SUMMARY~~, ~~POST_HOC_OPTIMISATION~~, ~~MODEL_VERSIONS~~, **master report**

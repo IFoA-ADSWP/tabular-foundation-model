@@ -1,0 +1,370 @@
+# Experiments for the v1 insurance frontier suite (#230).
+#
+# One experiment is declared once: a dataset (which owns its metric), the methods
+# compared, the seed and fold count, and the TabPFN model version as a literal.
+# Read by src/experiment_spec.py, which refuses anything it cannot account for.
+#
+# Method ids resolve inside the experiment's own mode, because the runner reports
+# `poissonglm`, `tweedieglm`, `rf`, `cat`, `lgbm` and `xgb` in both modes from
+# different constructors. Hyperparameters stay in the constructors until #231
+# dispatches through this file; TOML has no null, and make_logisticglm passes
+# penalty=None deliberately.
+
+schema_version = 1
+
+# ---- datasets ---------------------------------------------------------------
+
+[datasets.bemtl97]
+file = "bemtl97.csv"
+target = "claim"
+drop = ["nclaims", "amount"]
+metric = "log_loss"
+
+[datasets.coil2000]
+file = "coil2000.csv"
+target = "CARAVAN"
+drop = []
+metric = "log_loss"
+
+[datasets.uslapseagent]
+file = "uslapseagent.csv"
+target = "surrender"
+drop = []
+metric = "log_loss"
+
+[datasets.norauto]
+file = "norauto.csv"
+target = "NbClaim"
+drop = []
+metric = "log_loss"
+
+[datasets.ausprivauto0405]
+file = "ausprivauto0405.csv"
+target = "ClaimOcc"
+drop = []
+metric = "log_loss"
+
+[datasets.bemtl16]
+file = "bemtl16.csv"
+target = "number_of_liability_claims"
+drop = []
+metric = "log_loss"
+
+[datasets.ausautoBI8999]
+file = "ausautoBI8999.csv"
+target = "AggClaim"
+drop = []
+metric = "rmse"
+
+[datasets.ausprivauto0405_vehvalue]
+file = "ausprivauto0405.csv"
+target = "VehValue"
+drop = []
+metric = "rmse"
+
+[datasets.bemtl97_amount]
+file = "bemtl97.csv"
+target = "amount"
+drop = ["claim"]
+metric = "rmse"
+
+[datasets.freMTPL2freq]
+file = "freMTPL2freq.csv"
+target = "ClaimNb"
+drop = ["IDpol"]
+metric = "poisson_deviance"
+transform = "log_exposure"
+
+[datasets.spanish_motor_freq]
+file = "spanish_motor_freq.csv"
+target = "N_claims_year"
+drop = []
+metric = "poisson_deviance"
+
+[datasets.spanish_motor_severity]
+file = "spanish_motor_severity.csv"
+target = "Cost_claims_year"
+drop = []
+metric = "rmse"
+
+# ---- pilot datasets (#238) ---------------------------------------------------
+# Their own section: file and target only. The pilot's leak-drops live in its runner's dataset
+# table and are applied there (#444), so this section stays a registry view with no metric --
+# a frontier dataset's metric would be a claim the pilot never uses. Keeping them out of
+# [datasets] also keeps #235's rule true -- every frontier dataset has one experiment.
+
+[pilot_datasets.eudirectlapse]
+file = "eudirectlapse.csv"
+target = "lapse"
+
+[pilot_datasets.spanish_motor_lapse]
+file = "spanish_motor_lapse.csv"
+target = "LapseB"
+
+# ---- methods ----------------------------------------------------------------
+
+[methods.classification.cat]
+n_params = "trees"
+
+[methods.classification.lgbm]
+n_params = "trees"
+
+[methods.classification.xgb]
+n_params = "trees"
+
+[methods.classification.lr]
+n_params = "glm"
+
+[methods.classification.logisticglm]
+n_params = "glm"
+
+[methods.classification.tweedieglm]
+n_params = "glm"
+
+[methods.classification.poissonglm]
+n_params = "glm"
+
+[methods.classification.rf]
+n_params = "trees"
+
+[methods.classification.tabpfn]
+n_params = "tabpfn"
+
+[methods.regression.ols]
+n_params = "glm"
+
+[methods.regression.poissonglm]
+n_params = "glm"
+
+[methods.regression.tweedieglm]
+n_params = "glm"
+
+[methods.regression.rf]
+n_params = "trees"
+
+[methods.regression.cat]
+n_params = "trees"
+
+[methods.regression.lgbm]
+n_params = "trees"
+
+[methods.regression.xgb]
+n_params = "trees"
+
+[methods.regression.tabpfn]
+n_params = "tabpfn"
+
+# ---- experiments ------------------------------------------------------------
+
+[experiments.bemtl97]
+dataset = "bemtl97"
+methods = ["cat", "lgbm", "xgb", "lr", "logisticglm", "tweedieglm", "poissonglm", "rf", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+row_sizes = [1000, 5000]
+
+[experiments.coil2000]
+dataset = "coil2000"
+methods = ["cat", "lgbm", "xgb", "lr", "logisticglm", "tweedieglm", "poissonglm", "rf", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+row_sizes = [1000, 5000]
+
+[experiments.uslapseagent]
+dataset = "uslapseagent"
+methods = ["cat", "lgbm", "xgb", "lr", "logisticglm", "tweedieglm", "poissonglm", "rf", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+row_sizes = [1000, 5000]
+
+[experiments.norauto]
+dataset = "norauto"
+methods = ["cat", "lgbm", "xgb", "lr", "logisticglm", "tweedieglm", "poissonglm", "rf", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+[experiments.ausprivauto0405]
+dataset = "ausprivauto0405"
+methods = ["cat", "lgbm", "xgb", "lr", "logisticglm", "tweedieglm", "poissonglm", "rf", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+[experiments.bemtl16]
+dataset = "bemtl16"
+methods = ["cat", "lgbm", "xgb", "lr", "logisticglm", "tweedieglm", "poissonglm", "rf", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+[experiments.ausautoBI8999]
+dataset = "ausautoBI8999"
+methods = ["ols", "poissonglm", "tweedieglm", "rf", "cat", "lgbm", "xgb", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+[experiments.ausprivauto0405_vehvalue]
+dataset = "ausprivauto0405_vehvalue"
+methods = ["ols", "poissonglm", "tweedieglm", "rf", "cat", "lgbm", "xgb", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+[experiments.bemtl97_amount]
+dataset = "bemtl97_amount"
+methods = ["ols", "poissonglm", "tweedieglm", "rf", "cat", "lgbm", "xgb", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+[experiments.freMTPL2freq]
+dataset = "freMTPL2freq"
+methods = ["ols", "poissonglm", "tweedieglm", "rf", "cat", "lgbm", "xgb", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+[experiments.spanish_motor_freq]
+dataset = "spanish_motor_freq"
+methods = ["ols", "poissonglm", "tweedieglm", "rf", "cat", "lgbm", "xgb", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+[experiments.spanish_motor_severity]
+dataset = "spanish_motor_severity"
+methods = ["ols", "poissonglm", "tweedieglm", "rf", "cat", "lgbm", "xgb", "tabpfn"]
+n_folds = 5
+seed = 42
+model_version = "v3_default"
+
+
+# ---- pilot arms and experiments (#238) --------------------------------------
+#
+# The pilot's arms are its methods: the file names the id and the arm's own epoch
+# budget, the code owns construction. An arm with no budget inherits the experiment's
+# base config. The ladder arms carry their budget here because a rung that ran 30
+# epochs while its record said 3 is exactly the mismatch the record exists to prevent.
+#
+# These four experiments reproduce the committed pilot metrics: four datasets, seed 42,
+# a single split at train 2 000 / test 1 000 rows, and the base config below.
+
+[pilot_methods.A_raw]
+
+[pilot_methods.B_in_domain]
+
+[pilot_methods.E_glm]
+
+[pilot_methods.F_catboost]
+
+[pilot_methods.B_ft3]
+epochs = 3
+
+[pilot_methods.B_ft10]
+epochs = 10
+
+[pilot_methods.B_ft30]
+epochs = 30
+
+[pilot_experiments.coil2000_p1a]
+dataset = "coil2000"
+arms = ["A_raw", "B_in_domain", "E_glm", "F_catboost"]
+seed = 42
+train_size = 2000
+test_size = 1000
+model_version = "v3_default"
+
+[pilot_experiments.coil2000_p1a.config]
+epochs = 3
+early_stopping = false
+n_estimators = 2
+learning_rate = 1e-5
+fit_mode = "batched"
+context_samples = 64
+
+[pilot_experiments.uslapseagent_p1a]
+dataset = "uslapseagent"
+arms = ["A_raw", "B_in_domain", "E_glm", "F_catboost"]
+seed = 42
+train_size = 2000
+test_size = 1000
+model_version = "v3_default"
+
+[pilot_experiments.uslapseagent_p1a.config]
+epochs = 3
+early_stopping = false
+n_estimators = 2
+learning_rate = 1e-5
+fit_mode = "batched"
+context_samples = 64
+
+[pilot_experiments.eudirectlapse_p1a]
+dataset = "eudirectlapse"
+arms = ["A_raw", "B_in_domain", "E_glm", "F_catboost"]
+seed = 42
+train_size = 2000
+test_size = 1000
+model_version = "v3_default"
+
+[pilot_experiments.eudirectlapse_p1a.config]
+epochs = 3
+early_stopping = false
+n_estimators = 2
+learning_rate = 1e-5
+fit_mode = "batched"
+context_samples = 64
+
+[pilot_experiments.spanish_motor_lapse_p1a]
+dataset = "spanish_motor_lapse"
+arms = ["A_raw", "B_in_domain", "E_glm", "F_catboost"]
+seed = 42
+train_size = 2000
+test_size = 1000
+model_version = "v3_default"
+
+[pilot_experiments.spanish_motor_lapse_p1a.config]
+epochs = 3
+early_stopping = false
+n_estimators = 2
+learning_rate = 1e-5
+fit_mode = "batched"
+context_samples = 64
+
+# ---- the Spanish lapse cell (D19, #450) --------------------------------------
+#
+# Pre-registered in `docs/current/FINETUNING_PREREGISTRATION_SPANISH_2026-11.md`: 10,000 training
+# rows and 10,000 test rows, the size at which the readiness study's P1 floor (paired half-width
+# <= 0.006) is met at a measured 0.0051. The four arms are the probe's ladder -- A_raw plus the three
+# epoch rungs -- so one seed answers what each budget buys against its own baseline.
+#
+# This experiment declares TEN seeds because a probe's power is a property of the design, not of the
+# launch: splitting 331-340 across launches is a batching decision, and `--seeds` selects a subset of
+# this range rather than replacing it. It is therefore refused without a preregistration (#450).
+#
+# The probe is NOT authorised. D19 sets a $0.50 ceiling and records the replication as unfunded; this
+# entry makes the design expressible, not approved.
+
+[pilot_experiments.spanish_motor_lapse_cell]
+dataset = "spanish_motor_lapse"
+arms = ["A_raw", "B_ft3", "B_ft10", "B_ft30"]
+# 331-340 the probe (run 20261106T164833Z); 341-356 the replication, fresh per D13.
+seeds = [331, 332, 333, 334, 335, 336, 337, 338, 339, 340,
+         341, 342, 343, 344, 345, 346, 347, 348, 349, 350,
+         351, 352, 353, 354, 355, 356]
+train_size = 10000
+test_size = 10000
+model_version = "v3_default"
+preregistration = "docs/current/FINETUNING_PREREGISTRATION_SPANISH_2026-11.md"
+
+[pilot_experiments.spanish_motor_lapse_cell.config]
+epochs = 30
+early_stopping = false
+n_estimators = 2
+learning_rate = 1e-5
+fit_mode = "batched"
+context_samples = 64

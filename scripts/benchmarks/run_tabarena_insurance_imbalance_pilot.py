@@ -28,6 +28,8 @@ What it does:
 
 from __future__ import annotations
 
+import sys
+
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -52,9 +54,8 @@ if TYPE_CHECKING:
 # Paths
 # ---------------------------------------------------------------------------
 HERE = Path(__file__).resolve().parent
-import sys as _sys
-_sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
-from src.tabpfn_client_model import TabPFNClientModel  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
+from src.tabpfn_client_model import TabPFNClientModel  # noqa: E402  (src import after the path insert above)
 REPO = HERE.parent.parent
 DATA_RAW = REPO / "data" / "raw"
 

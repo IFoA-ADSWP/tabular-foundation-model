@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -40,6 +41,16 @@ from scipy import stats
 from sklearn.metrics import mean_absolute_error, mean_gamma_deviance, mean_tweedie_deviance
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent.parent.parent))  # repo root
+from src.experiment_spec import (  # noqa: E402
+    REGRESSION,
+    RegistryError,
+    datasets_by_mode,
+    load_registry,
+    mode_methods,
+)
+
+_REGISTRY = load_registry(HERE / "experiments.toml")
 PREDICTIONS_DIR = HERE / "predictions"
 PER_FOLD_CSV = HERE / "alt_metrics_per_fold.csv"
 SUMMARY_CSV = HERE / "alt_metrics_summary.csv"
@@ -56,7 +67,7 @@ EURO_CEILING = 1e7  # post-inverse ceiling guard, domain-reasonable (no claim/se
                     # euro-scale RESULT to a sane domain bound avoids both the raw
                     # overflow and the downstream squaring overflow.
 
-METHODS = ["ols", "poissonglm", "tweedieglm", "rf", "cat", "lgbm", "xgb", "tabpfn"]
+METHODS = [m.name for m in mode_methods(_REGISTRY, REGRESSION)]
 GLM_FAMILY = ["ols", "poissonglm", "tweedieglm"]   # regression-mode analog of analyze_pr_auc.GLM_FAMILY; rf excluded, same as that precedent
 GBDT_FAMILY = ["cat", "lgbm", "xgb"]
 
@@ -69,6 +80,13 @@ REG_ALT_CONFIG: dict[str, dict] = {
     "freMTPL2freq":             dict(scale="raw",    inverse="identity", metrics=["mae"]),
     "spanish_motor_freq":       dict(scale="raw",    inverse="identity", metrics=["mae"]),
 }
+
+_REGISTRY_DATASETS = {d.name for d in datasets_by_mode(_REGISTRY, REGRESSION)}
+if set(REG_ALT_CONFIG) != _REGISTRY_DATASETS:
+    raise RegistryError(
+        "rescore config and registry disagree: "
+        f"{sorted(set(REG_ALT_CONFIG) ^ _REGISTRY_DATASETS)}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -177,20 +195,44 @@ def compute_fold_metrics(y_true_raw: np.ndarray, y_pred_raw: np.ndarray, cfg: di
 # ---------------------------------------------------------------------------
 # Loading captured predictions
 # ---------------------------------------------------------------------------
-def load_prediction_store(dataset: str, seed: int, predictions_dir: Path) -> tuple[dict[str, np.ndarray], dict] | None:
-    """Load predictions/<dataset>__seed<seed>.npz + sibling .manifest.json. Returns None
-    if the capture doesn't exist (caller decides whether that's a skip or an error).
-    Asserts the manifest matches expectations (regression, right dataset, right methods)
-    so a stale/partial capture never rescoring silently."""
-    npz_path = predictions_dir / f"{dataset}__seed{seed}.npz"
-    manifest_path = predictions_dir / f"{dataset}__seed{seed}.manifest.json"
-    if not npz_path.exists() or not manifest_path.exists():
-        return None
+def load_prediction_store(
+    dataset: str, seed: int, predictions_dir: Path, model_version: str | None = None
+) -> tuple[dict[str, np.ndarray], dict] | None:
+    """Load predictions/<dataset>__seed<seed>__<model_version>.npz + sibling .manifest.json.
 
-    manifest = json.loads(manifest_path.read_text())
+    The version suffix is written by run_frontier_benchmark.write_predictions_npz so that a
+    version re-test cannot overwrite the baseline it is being diffed against, so the capture name
+    is discovered rather than reconstructed: rebuilding it from the *current* model version would
+    tie the reader to today's release, which is backwards for a script whose job is to score
+    captures produced earlier.
+
+    Returns None if no capture exists (caller decides whether that's a skip or an error).
+    Ambiguity is an error, not a silent pick: two generations on disk is a question only the
+    caller can answer, with --model-version."""
+    candidates = []
+    for npz_path in sorted(predictions_dir.glob(f"{dataset}__seed{seed}__*.npz")):
+        manifest_path = npz_path.with_name(npz_path.name.replace(".npz", ".manifest.json"))
+        if not manifest_path.exists():
+            raise FileNotFoundError(f"{npz_path.name}: capture has no sibling manifest, so it has no provenance")
+        manifest = json.loads(manifest_path.read_text())
+        if model_version is None or manifest.get("model_version") == model_version:
+            candidates.append((npz_path, manifest))
+
+    if not candidates:
+        return None
+    if len(candidates) > 1:
+        found = ", ".join(sorted(str(m.get("model_version", "?")) for _, m in candidates))
+        raise SystemExit(
+            f"{dataset}: {len(candidates)} captures for seed {seed} ({found}); "
+            f"pass --model-version to choose one"
+        )
+
+    npz_path, manifest = candidates[0]
+
     assert manifest["problem_type"] == "regression", f"{dataset}: expected regression manifest, got {manifest['problem_type']}"
     assert manifest["dataset"] == dataset, f"manifest dataset mismatch: {manifest['dataset']} != {dataset}"
     assert set(manifest["methods"]) == set(METHODS), f"{dataset}: method set mismatch: {manifest['methods']}"
+    assert manifest.get("seed") == seed, f"{dataset}: capture is seed {manifest.get('seed')}, asked for {seed}"
 
     data = np.load(npz_path)
     pred_store = {k: data[k] for k in data.files}
@@ -209,7 +251,8 @@ def build_per_fold_rows(dataset: str, seed: int, pred_store: dict, manifest: dic
             y_pred = pred_store[f"{method}__fold{fold}"]
             for m in compute_fold_metrics(y_true, y_pred, cfg):
                 rows.append({
-                    "dataset": dataset, "seed": seed, "method": method, "fold": fold,
+                    "dataset": dataset, "seed": seed, "model_version": manifest.get("model_version"),
+                    "method": method, "fold": fold,
                     "scale": cfg["scale"], "inverse_fn": cfg["inverse"], **m,
                 })
     return rows
@@ -238,12 +281,23 @@ def paired_test(a: np.ndarray, b: np.ndarray) -> tuple[float, float]:
 
 
 def summarize(per_fold_df: pd.DataFrame) -> pd.DataFrame:
-    """Per (dataset, seed, metric): mean/SE/rank per method; on the tabpfn row only,
-    paired-test deltas vs the best GLM-family member and best GBDT-family member.
+    """Per (dataset, seed, model_version, metric): mean/SE/rank per method; on the tabpfn row
+    only, paired-test deltas vs the best GLM-family member and best GBDT-family member.
     Lower is always better for mae/gamma_deviance/tweedie_deviance_p1.5 (no DIRECTION
-    dict needed, unlike analyze_pr_auc.py's mixed-direction classification metrics)."""
+    dict needed, unlike analyze_pr_auc.py's mixed-direction classification metrics).
+
+    model_version is carried through from the capture manifest: the repo runs two model
+    lines at once (docs/MODEL_VERSIONS.md), so a metric row that does not name its version
+    cannot be placed in the per-artifact table or cited. Frames built without the column
+    (older callers, tests) still group, with the version left empty."""
+    has_version = "model_version" in per_fold_df.columns
+    keys = ["dataset", "seed"] + (["model_version"] if has_version else []) + ["metric"]
     rows: list[dict] = []
-    for (dataset, seed, metric), sub in per_fold_df.groupby(["dataset", "seed", "metric"]):
+    # dropna=False: an empty version is a value to group on, not a group to discard.
+    for key, sub in per_fold_df.groupby(keys, dropna=False):
+        dataset, seed = key[0], key[1]
+        model_version = key[2] if has_version else None
+        metric = key[-1]
         means: dict[str, tuple[float, float]] = {}
         folds: dict[str, np.ndarray] = {}
         for method, msub in sub.groupby("method"):
@@ -258,7 +312,8 @@ def summarize(per_fold_df: pd.DataFrame) -> pd.DataFrame:
 
         for method, (mean, se) in means.items():
             row = {
-                "dataset": dataset, "seed": seed, "metric": metric, "method": method,
+                "dataset": dataset, "seed": seed, "model_version": model_version,
+                "metric": metric, "method": method,
                 "n_folds": len(folds[method]), "mean": mean, "se": se, "rank": ranks[method],
                 "best_glm": np.nan, "delta_vs_glm": np.nan, "t_vs_glm": np.nan, "p_vs_glm": np.nan,
                 "best_gbdt": np.nan, "delta_vs_gbdt": np.nan, "t_vs_gbdt": np.nan, "p_vs_gbdt": np.nan,
@@ -292,7 +347,7 @@ def sanity_check_altmetrics(per_fold_df: pd.DataFrame, summary_df: pd.DataFrame)
     g = per_fold_df[per_fold_df.metric == "gamma_deviance"]
     if not g.empty:
         subset_rows = g[g.gamma_subset_used == True]  # noqa: E712 (explicit bool compare vs NaN)
-        full_rows = g[g.gamma_subset_used == False]  # noqa: E712
+        full_rows = g[g.gamma_subset_used == False]  # noqa: E712  (explicit bool compare keeps NaN rows out)
         assert (subset_rows["n_used"] < subset_rows["n_fold"]).all(), "subset flagged but n_used >= n_fold"
         assert (full_rows["n_used"] == full_rows["n_fold"]).all(), "full-fold flagged but n_used != n_fold"
         assert (g["n_used"] > 0).all(), "empty gamma-deviance subset slipped through"
@@ -302,7 +357,8 @@ def sanity_check_altmetrics(per_fold_df: pd.DataFrame, summary_df: pd.DataFrame)
         "non-finite (inf) summary mean/se — a per-fold value was too extreme even after "
         "the euro-scale ceiling clip; notna() alone doesn't catch inf"
     )
-    for _, sub in summary_df.groupby(["dataset", "seed", "metric"]):
+    rank_keys = [k for k in ("dataset", "seed", "model_version", "metric") if k in summary_df.columns]
+    for _, sub in summary_df.groupby(rank_keys, dropna=False):
         assert sorted(sub["rank"]) == list(range(1, len(sub) + 1)), "rank is not a 1..k permutation"
     for col in ("p_vs_glm", "p_vs_gbdt"):
         vals = summary_df[col].dropna()
@@ -331,6 +387,9 @@ def make_parser() -> argparse.ArgumentParser:
                              "(default 42; matches run_frontier_benchmark.py --save-predictions --seed)")
     parser.add_argument("--predictions-dir", metavar="DIR", default=None,
                         help="override predictions/ directory (default: <script-dir>/predictions)")
+    parser.add_argument("--model-version", metavar="V", default=None,
+                        help="rescore captures produced by this model version; required only when "
+                             "more than one version's captures exist for a dataset and seed")
     parser.add_argument("--out-dir", metavar="DIR", default=None,
                         help="override output directory for the two CSVs "
                              "(default: <script-dir>, beside frontier_results_*.csv)")
@@ -351,9 +410,10 @@ def main() -> None:
     all_rows: list[dict] = []
     for dataset in datasets:
         cfg = REG_ALT_CONFIG[dataset]
-        loaded = load_prediction_store(dataset, args.seed, predictions_dir)
+        loaded = load_prediction_store(dataset, args.seed, predictions_dir, args.model_version)
         if loaded is None:
-            print(f"SKIP {dataset}: no capture at {predictions_dir}/{dataset}__seed{args.seed}.npz")
+            suffix = f"__{args.model_version}" if args.model_version else "__*"
+            print(f"SKIP {dataset}: no capture at {predictions_dir}/{dataset}__seed{args.seed}{suffix}.npz")
             continue
         pred_store, manifest = loaded
         if len(cfg["metrics"]) < 3:

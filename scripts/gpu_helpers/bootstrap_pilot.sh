@@ -23,10 +23,15 @@ set -uo pipefail
 BRANCH="${BRANCH:-main}"   # the box must run the reviewed code, not a stale branch
 REPO="https://github.com/IFoA-ADSWP/tabular-foundation-model.git"
 WORKDIR="${WORKDIR:-/workspace/tfm}"
-ARMS="${ARMS:-A_raw,B_in_domain,E_glm,F_catboost}"
+EXPERIMENT="${EXPERIMENT:-}"   # empty = no declared experiment (#238)
+ARMS="${ARMS:-}"   # empty + no experiment: the four committed arms below
 DATASET="${DATASET:-}"   # empty = every registered dataset
 TRAIN_SIZE="${TRAIN_SIZE:-}"   # empty = the runner's own default
 TEST_SIZE="${TEST_SIZE:-}"
+# Empty = the runner's own DEFAULT_SEED. Forwarded, never defaulted here: the record must
+# state the seed that actually ran, and the runner is the only thing that knows it. Accepts
+# the runner's own format -- a comma-separated list -- so a two-seed replication is one run.
+SEEDS="${SEEDS:-}"
 
 # A real run must record a commit_sha that describes the code that ran. The tree is a
 # fresh clone here, so any modification is a genuine provenance problem. Untracked files
@@ -42,7 +47,7 @@ PYARROW_PIN="${PYARROW_PIN:-pyarrow>=15,<20}"
 CATBOOST_PIN="${CATBOOST_PIN:-catboost>=1.2,<2}"
 
 echo "============================================================"
-echo "BOOTSTRAP — branch=$BRANCH arms=$ARMS workdir=$WORKDIR"
+echo "BOOTSTRAP — branch=$BRANCH experiment=${EXPERIMENT:-none} arms=$ARMS workdir=$WORKDIR"
 echo "============================================================"
 
 # ---- 0. Always emit the completion marker, on EVERY exit path ----
@@ -160,6 +165,12 @@ if [ "$WEIGHTS_CACHED" = "true" ]; then
 else
     echo "    weights not cached (rc=$WEIGHTS_RC) -- falling through to the preflight"
 fi
+# The model line this launch claims, asserted by run_pilot.py before any arm runs. `auto` is
+# resolved by the installed package, so moving TABPFN_PIN changes what loads while the record
+# still says `auto` -- and a breadth cell that quietly moved line would be compared against the
+# anchor as if it were the same model. Override only when the move is intended and recorded
+# (docs/current/FINETUNING_BREADTH_SPEC.md).
+export TFM_EXPECT_CHECKPOINT="${TFM_EXPECT_CHECKPOINT:-tabpfn-v3-classifier-v3_default.ckpt}"
 
 # ---- 3b. Prove the TabPFN licence BEFORE running any arm ----
 # A token being PRESENT is not the same as a token WORKING. With an un-accepted
@@ -295,12 +306,33 @@ fi
 # the loop is deliberately non-fatal, so rc=0 has always meant "the bootstrap finished",
 # never "the arms worked" -- which is how a run whose arms all died recorded as success.
 ARMS_OK=""; ARMS_FAILED=""
+# No id and no arm list: the four committed arms, as before (#238).
+if [ -z "$EXPERIMENT" ] && [ -z "$ARMS" ]; then
+    ARMS="A_raw,B_in_domain,E_glm,F_catboost"
+fi
+if [ -n "$EXPERIMENT" ] && [ -z "$ARMS" ]; then
+    # No arm list given: let the declaration name them, in one process. The seeds still come
+    # from this launch: dropping them here ran the whole declared range, so a batch that the
+    # pre-flight sized at three seeds fitted the poll window and then ran ten (#450).
+    echo; echo "########## EXPERIMENT $EXPERIMENT (declared arms) ##########"
+    python3 scripts/run_pilot.py --experiment "$EXPERIMENT" ${SEEDS:+--seeds "$SEEDS"}
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+        echo "########## EXPERIMENT EXITED rc=$rc (137 = OOM SIGKILL) ##########"
+        ARMS_FAILED="declared(rc=$rc)"
+    else
+        ARMS_OK="declared"
+    fi
+else
 for arm in ${ARMS//,/ }; do
     echo
     echo "########## ARM $arm ##########"
     # shellcheck disable=SC2086  # DATASET is a dataset name, not unquoted input
-    python3 scripts/run_pilot.py --arms "$arm" ${DATASET:+--dataset "$DATASET"} \
-        ${TRAIN_SIZE:+--train-size "$TRAIN_SIZE"} ${TEST_SIZE:+--test-size "$TEST_SIZE"}
+    # The id owns the dataset, sizes and seed; --arms selects within its declaration, so
+    # one process per arm still isolates a failure (#238).
+    python3 scripts/run_pilot.py ${EXPERIMENT:+--experiment "$EXPERIMENT"} --arms "$arm" \
+        ${DATASET:+--dataset "$DATASET"} ${TRAIN_SIZE:+--train-size "$TRAIN_SIZE"} \
+        ${TEST_SIZE:+--test-size "$TEST_SIZE"} ${SEEDS:+--seeds "$SEEDS"}
     rc=$?
     if [ "$rc" -ne 0 ]; then
         # 137 => 128+9 SIGKILL, i.e. the OOM killer. Reported, not fatal.
@@ -310,6 +342,7 @@ for arm in ${ARMS//,/ }; do
         ARMS_OK="$ARMS_OK $arm"
     fi
 done
+fi
 
 # One line, greppable, stated rather than inferred. bootstrap_rc still cannot carry this: the loop
 # is non-fatal by design, so the script exits 0 either way.

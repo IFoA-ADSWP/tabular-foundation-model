@@ -1,5 +1,8 @@
 # Reserving with Foundational Models: Evidence from the TabPFN Benchmark
 
+> **Historical document.** Kept for the record; it describes a state that has since been superseded.
+
+
 **Document purpose:** Summary of findings relevant to using foundational models (specifically TabPFN) for insurance reserving tasks. Compiled from the IFoA ADSWP benchmark suite.
 
 **Date:** 2026-08-20  
