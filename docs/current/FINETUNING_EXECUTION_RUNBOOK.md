@@ -52,7 +52,9 @@ bash scripts/gpu_helpers/vast_run.sh \
 ```
 
 The mode owns the frame, so the arm, dataset, size and seed flags are refused alongside it
-rather than ignored. The record comes back through the artifact channel like a pilot run's
+rather than ignored. A pinned `--offer-id` must declare its CUDA ceiling: the launcher reads it
+from the live offer list and refuses if the offer has gone, in which case set `CUDA=<host cuda>`
+(the image tier is chosen from it, and a wrong tier fails at the first kernel). The record comes back through the artifact channel like a pilot run's
 predictions, into `outputs/gpu-pilot/runs/<run stamp>/regressor-fit-<run stamp>.json`, and the
 launcher refuses the run (exit 1) if it does not arrive intact — including an incomplete
 payload or a verifier crash, not only a missing one. `verify_artifacts.py

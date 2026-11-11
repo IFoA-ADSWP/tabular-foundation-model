@@ -4,7 +4,8 @@
 #   bash scripts/gpu_helpers/vast_run.sh [options]
 #
 # Options:
-#   --offer-id N     use a specific offer (skips selection)
+#   --offer-id N     use a specific offer (skips selection); the offer's CUDA ceiling is read
+#                    from the live offer list, or taken from CUDA=<host cuda> when set
 #   --query 'Q'      extra offer search filters
 #   --pick HOW       value | cheapest | fastest      (default: value = dlperf/$)
 #   --max-dph N      hard price ceiling in $/hr      (default 0.60)
@@ -280,7 +281,10 @@ fi
 
 INSTANCE_ID=""
 T_CREATE=""; T_RUNNING=""; T_END=""
-GPU_NAME=""; DPH=""; GPU_RAM=""; CPU_RAM="${CPU_RAM:-}"; REL=""; CUDA=""
+# CUDA is RESOLVED, not initialised: an exported CUDA=<host cuda> is the operator's answer for a
+# pinned offer whose entry has gone from the live list (#528). Blanking it here made every
+# `CUDA=` override silently a default.
+GPU_NAME=""; DPH=""; GPU_RAM=""; CPU_RAM="${CPU_RAM:-}"; REL=""; CUDA="${CUDA:-}"
 BOOTSTRAP_RC=""
 # Recorded so a host that successfully pulls this image can be reused: a warm
 # image cache is what separates the pulls that completed from the ones that stalled.
@@ -609,7 +613,32 @@ if [ -z "$OFFER_ID" ]; then
     echo "selected: id=$OFFER_ID gpu=$GPU_NAME \$$DPH/hr dlperf=$DLPERF cuda<=$CUDA ram=${CPU_RAM}GB vram=${GPU_RAM}GB disk=${DISK_SP}GB rel=$REL"
 else
     echo "using caller-supplied offer id $OFFER_ID"
-    CUDA="${CUDA:-12.4}"
+    # THE IMAGE IS CHOSEN BEFORE CREATE, so a pinned offer must still supply the host's CUDA
+    # ceiling. This used to hardcode 12.4, which silently selected a torch build with no kernels
+    # for the card: measured 2026-11-11, a Blackwell RTX PRO 4000 (sm_120) on a cu124 image
+    # reached the first epoch and died with "no kernel image is available" (#528, $0.0226).
+    # Ask the live offer list rather than guess; CUDA=<host cuda> overrides.
+    if [ -z "${CUDA:-}" ]; then
+        CUDA="$(vastai search offers "$QUERY" -o dph --raw 2>/dev/null | python3 -c '
+import json, sys
+want = sys.argv[1]
+try:
+    rows = json.load(sys.stdin)
+except Exception:
+    raise SystemExit
+for row in rows if isinstance(rows, list) else []:
+    if str(row.get("id")) == want and row.get("cuda_max_good"):
+        print(row["cuda_max_good"])
+        break
+' "$OFFER_ID" 2>/dev/null || true)"
+    fi
+    if [ -z "${CUDA:-}" ]; then
+        echo "FATAL: --offer-id $OFFER_ID is not in the current offer list, so its CUDA ceiling" >&2
+        echo "       cannot be read. Set CUDA=<host cuda> (e.g. CUDA=13.0), or drop --offer-id" >&2
+        echo "       so the selector reads it from the offer it picks." >&2
+        exit 2
+    fi
+    echo "host cuda<=$CUDA (from the offer)"
 fi
 
 # ---- 3. Image matched to host CUDA ----

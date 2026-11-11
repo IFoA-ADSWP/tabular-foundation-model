@@ -129,6 +129,53 @@ def test_an_unknown_mode_is_refused_before_anything_is_rented(tmp_path):
     assert not (state / "created.txt").exists()
 
 
+# ---------------------------------------------------------------------------
+# 1b. The image must match the card (#528)
+# ---------------------------------------------------------------------------
+def test_a_pinned_offer_reads_its_cuda_and_picks_the_matching_image(tmp_path):
+    """`--offer-id` used to hardcode CUDA=12.4 and select a torch build the card cannot run.
+
+    Measured 2026-11-11: a Blackwell RTX PRO 4000 (sm_120) on the cu124 image reached the first
+    epoch and died with "no kernel image is available". The offer knows its ceiling; read it.
+    """
+    state, result = _launch(tmp_path)
+    combined = result.stdout + result.stderr
+
+    assert result.returncode == 0, combined
+    assert "host cuda<=13.0 (from the offer)" in combined, combined
+    assert "image: pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime" in combined, combined
+    assert (state / "created.txt").exists(), combined
+
+
+def test_a_pinned_offer_whose_cuda_cannot_be_read_is_refused(tmp_path):
+    """A guess is worse than a refusal: the last guess cost a paid run that never fitted."""
+    offers = tmp_path / "no-offers.json"
+    offers.write_text("[]")
+
+    state, result = _launch(tmp_path, extra_env={"MOCK_OFFERS": str(offers)})
+    combined = result.stdout + result.stderr
+
+    assert result.returncode == 2, combined
+    assert "cannot be read" in combined, combined
+    assert "CUDA=<host cuda>" in combined, combined
+    assert not (state / "created.txt").exists()
+
+
+def test_the_cuda_ceiling_can_be_stated_for_a_pinned_offer(tmp_path):
+    """When the offer is gone from the list, the operator may state the ceiling explicitly."""
+    offers = tmp_path / "no-offers.json"
+    offers.write_text("[]")
+
+    state, result = _launch(
+        tmp_path, extra_env={"MOCK_OFFERS": str(offers), "CUDA": "13.0"}
+    )
+    combined = result.stdout + result.stderr
+
+    assert result.returncode == 0, combined
+    assert "image: pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime" in combined, combined
+    assert (state / "created.txt").exists(), combined
+
+
 def test_the_ssh_transport_pulls_the_modes_tree():
     """The two modes write different trees, and the ssh path copies a directory, not the log.
 
