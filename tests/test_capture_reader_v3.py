@@ -107,7 +107,7 @@ def test_a_v3_fremtpl2freq_slot_without_exposure_refuses(tmp_path):
 def test_an_unknown_schema_version_refuses(tmp_path):
     run = _run(tmp_path)
     manifest = json.loads((run / "capture.json").read_text())
-    manifest["schema_version"] = 4
+    manifest["schema_version"] = 99
     (run / "capture.json").write_text(json.dumps(manifest))
 
     with pytest.raises(CaptureRefused, match="unknown capture schema_version"):

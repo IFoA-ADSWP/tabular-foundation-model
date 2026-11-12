@@ -29,7 +29,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--targets",
         default=None,
-        help="comma-separated target names (claimnb,severity,vehvalue,exposure); default all",
+        help=(
+            "comma-separated target names (frequency_french, frequency_spanish, "
+            "severity_french, severity_spanish); default all"
+        ),
     )
     parser.add_argument(
         "--smoke",

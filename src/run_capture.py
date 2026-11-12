@@ -32,6 +32,7 @@ from provenance import sha256_array
 CAPTURE_SCHEMA_VERSION = 1
 CAPTURE_SCHEMA_VERSION_FOLDED = 2
 CAPTURE_SCHEMA_VERSION_ARRAYS = 3
+CAPTURE_SCHEMA_VERSION_WEIGHTS = 4
 
 _RUN_ID = re.compile(r"^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$")
 _SLOT = re.compile(r"^seed(\d+)_fold(\w+)$")
@@ -41,6 +42,8 @@ TRUTH = "ground_truth.npy"
 TEST_INDEX = "test_index.npy"
 EXPOSURE = "exposure.npy"
 QUANTILES = "quantiles.npy"
+WEIGHTS = "weights.npy"
+CLUSTER = "cluster_id.npy"
 RECORD = "meta.json"
 
 # The v3 arrays (#538). Nine deciles, ascending; exposure applies to one dataset only.
@@ -81,6 +84,14 @@ class Slot:
     @property
     def quantiles(self) -> Path:
         return self.directory / QUANTILES
+
+    @property
+    def weights(self) -> Path:
+        return self.directory / WEIGHTS
+
+    @property
+    def cluster(self) -> Path:
+        return self.directory / CLUSTER
 
     @property
     def relative_record(self) -> str:
@@ -242,6 +253,48 @@ def _v3_arrays(slot: Slot, dataset: str, rows: int) -> dict:
     return arrays
 
 
+def _v4_arrays(slot: Slot, dataset: str, rows: int) -> dict:
+    """The v3 arrays plus the two a grouped severity target needs (#555).
+
+    The weight and the cluster id are what make a claim-level or policy-grouped severity target
+    honest: without the weight a 5-claim policy counts as one observation, and without the cluster
+    the interval treats its claims as independent. A frequency slot carrying them is refused, so
+    the arrays cannot become decoration.
+    """
+    arrays = _v3_arrays(slot, dataset, rows)
+    task = json.loads(slot.record.read_text(encoding="utf-8")).get("task")
+    weights = _load(slot.weights)
+    cluster = _load(slot.cluster)
+
+    if task == "severity":
+        missing = [
+            name
+            for name, array in ((WEIGHTS, weights), (CLUSTER, cluster))
+            if array is None
+        ]
+        if missing:
+            raise CaptureRefused(
+                f"{slot.directory} is a severity slot and declares schema v4, but lacks "
+                f"{', '.join(missing)}; both are required for a grouped severity target"
+            )
+        _check_vector(weights, rows, slot.weights)
+        if cluster.ndim != 1 or cluster.shape[0] != rows:
+            raise CaptureRefused(
+                f"{slot.cluster} has shape {cluster.shape}; v4 requires one cluster id per row "
+                f"({rows},)"
+            )
+        if cluster.dtype != np.int64:
+            raise CaptureRefused(f"{slot.cluster} has dtype {cluster.dtype}; v4 requires int64")
+        arrays["weights_sha256"] = sha256_array(weights)
+        arrays["cluster_sha256"] = sha256_array(cluster)
+    elif weights is not None or cluster is not None:
+        raise CaptureRefused(
+            f"{slot.directory} carries {WEIGHTS} or {CLUSTER} for task {task!r}; the arrays are "
+            "defined for severity only"
+        )
+    return arrays
+
+
 def _entry(slot: Slot, version: int, dataset: str) -> dict:
     predictions = _load(slot.predictions)
     truth = _load(slot.truth)
@@ -269,7 +322,9 @@ def _entry(slot: Slot, version: int, dataset: str) -> dict:
             "reason": reason,
         }
     )
-    if version == CAPTURE_SCHEMA_VERSION_ARRAYS:
+    if version == CAPTURE_SCHEMA_VERSION_WEIGHTS:
+        entry.update(_v4_arrays(slot, dataset, rows))
+    elif version == CAPTURE_SCHEMA_VERSION_ARRAYS:
         entry.update(_v3_arrays(slot, dataset, rows))
     return entry
 
@@ -282,7 +337,20 @@ def _capture_version(dataset: str, slots: list[Slot]) -> int:
     unhashed (#538).
     """
     folded = any(slot.fold is not None for slot in slots)
+    declared_v4 = any(slot.weights.is_file() or slot.cluster.is_file() for slot in slots)
     declared = any(slot.test_index.is_file() for slot in slots)
+    if declared_v4:
+        if not folded:
+            raise CaptureRefused(
+                "a foldless run carries the v4 weight/cluster arrays, but a v1 manifest has no "
+                "fold to carry them; v4 requires folds"
+            )
+        if not declared:
+            raise CaptureRefused(
+                "a slot carries the v4 weight/cluster arrays without test_index/quantiles; "
+                "v4 is v3 plus those arrays, never a replacement for them"
+            )
+        return CAPTURE_SCHEMA_VERSION_WEIGHTS
     if not declared:
         return CAPTURE_SCHEMA_VERSION_FOLDED if folded else CAPTURE_SCHEMA_VERSION
     if not folded:
@@ -314,7 +382,7 @@ def build_capture(run_dir: Path) -> dict:
     run_dir = Path(run_dir)
     dataset, slots = discover_slots(run_dir)
     version = _capture_version(dataset, slots)
-    if version == CAPTURE_SCHEMA_VERSION_ARRAYS:
+    if version >= CAPTURE_SCHEMA_VERSION_ARRAYS:
         _check_shared_indices(slots)
     return {
         "schema_version": version,
