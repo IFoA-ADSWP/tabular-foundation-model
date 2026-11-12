@@ -23,7 +23,7 @@ def test_primary_below_the_poll_ceiling_is_refused_before_provisioning(tmp_path)
     combined = result.stdout + result.stderr
 
     assert result.returncode == 2, combined
-    assert "below the 160 min a primary run needs" in combined, combined
+    assert "is below the" in combined and "target(s)" in combined, combined
     assert not (state / "created.txt").exists(), "the refusal happened after provisioning"
 
 

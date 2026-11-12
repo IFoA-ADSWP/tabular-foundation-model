@@ -240,13 +240,23 @@ if [ -n "$FAIRTEST" ]; then
         echo "       Wire the ssh pull to results/ before using it, or drop --transport ssh." >&2
         exit 2
     fi
-    if [ "$FAIRTEST" = "primary" ] && [ "$POLL_MINUTES" -lt 160 ]; then
+    # The ceiling follows the number of targets: one target is ~15 min of fits plus two transfer
+    # passes, not the four-target figure the first version hardcoded and then refused a legitimate
+    # single-target launch with (#570). Counted here rather than read from EXPECT_CAPTURES: this
+    # check runs before the mode block that computes it.
+    TARGET_COUNT=4
+    if [ -n "${TFM_FAIRTEST_TARGETS:-}" ]; then
+        TARGET_COUNT=0
+        for _target_name in $TFM_FAIRTEST_TARGETS; do TARGET_COUNT=$(( TARGET_COUNT + 1 )); done
+    fi
+    REQUIRED_POLL_MINUTES=$(( 15 + 30 * TARGET_COUNT ))
+    if [ "$FAIRTEST" = "primary" ] && [ "$POLL_MINUTES" -lt "$REQUIRED_POLL_MINUTES" ]; then
         # The ceiling must cover ~60 min of fits plus ~40 min of paced transfer plus cold start.
         # The gate's own 120 fits took 58.9 min; below this the launch destroys the box mid-emit
         # and pays for compute whose evidence never lands.
-        echo "FATAL: --poll-minutes $POLL_MINUTES is below the 160 min a primary run needs" >&2
-        echo "       (60 min fits + ~40 min paced transfer + cold start)." >&2
-        echo "       Pass --poll-minutes 180; a short ceiling pays for the fits and discards them." >&2
+        echo "FATAL: --poll-minutes $POLL_MINUTES is below the $REQUIRED_POLL_MINUTES min this" >&2
+        echo "       launch needs for $TARGET_COUNT target(s)." >&2
+        echo "       A short ceiling pays for the fits and then destroys the evidence." >&2
         exit 2
     fi
 fi
@@ -418,7 +428,8 @@ if [ "$PRIMARY_MODE" = 1 ]; then
     : "${TFM_CHUNK_LINES:=1500}"
     : "${TFM_CHUNK_PAUSE:=20}"
     : "${TFM_CHUNK_REPEAT:=2}"
-    export TFM_CHUNK_LINES TFM_CHUNK_PAUSE TFM_CHUNK_REPEAT
+    : "${TFM_CHUNK_PASSES:=2}"
+    export TFM_CHUNK_LINES TFM_CHUNK_PAUSE TFM_CHUNK_REPEAT TFM_CHUNK_PASSES
 fi
 cleanup_launch_tmp() { [ -n "${LAUNCH_TMP:-}" ] && rm -rf "$LAUNCH_TMP"; }
 
@@ -845,7 +856,8 @@ BOOTSTRAP_B64="$(gzip -9c "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh" | b
     # bootstrap, so forwarding it would be a control that cannot move. A dead entry is worse than
     # no entry, because it reads like one.
     for _passthrough in TFM_EXPECT_CHECKPOINT TFM_DATA_REF TFM_DATA_REPO TFM_WEIGHTS_MANIFEST \
-                       TFM_CHUNK_LINES TFM_CHUNK_PAUSE TFM_CHUNK_REPEAT TFM_FAIRTEST_TARGETS \
+                       TFM_CHUNK_LINES TFM_CHUNK_PAUSE TFM_CHUNK_REPEAT TFM_CHUNK_PASSES \
+                       TFM_FAIRTEST_TARGETS \
                        TABPFN_PIN SKLEARN_PIN PANDAS_PIN PYARROW_PIN CATBOOST_PIN; do
         if [ -n "${!_passthrough:-}" ]; then
             printf 'export %s=%q\n' "$_passthrough" "${!_passthrough}"
@@ -1087,6 +1099,10 @@ else
             cp "$ARTIFACTS_RAW" "$OUTDIR/runs/$RUN_STAMP/artifacts.raw" 2>/dev/null || true
         else
             echo "REFUSING: the capture payload is incomplete -- not every emitted chunk arrived." >&2
+            # Keep the chunks that DID arrive: a refused batch is debuggable only if its partial
+            # transfer survives the launch's cleanup trap (#570).
+            mkdir -p "$OUTDIR/runs/$RUN_STAMP" 2>/dev/null
+            cp -R "$CHUNKS_DIR" "$OUTDIR/runs/$RUN_STAMP/chunks" 2>/dev/null || true
             : > "$ARTIFACTS_RAW"
             RUN_RC=1
         fi

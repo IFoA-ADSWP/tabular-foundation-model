@@ -83,13 +83,14 @@ def capture_run(tmp_path: Path) -> Path:
     return run
 
 
-def _emit(run: Path, *, chunk_lines: int, pause: int = 0, repeat: int = 1) -> str:
+def _emit(run: Path, *, chunk_lines: int, pause: int = 0, repeat: int = 1, passes: int = 1) -> str:
     env = dict(os.environ)
     env.update({
         "PAYLOAD_ID": run.name,
         "TFM_CHUNK_LINES": str(chunk_lines),
         "TFM_CHUNK_PAUSE": str(pause),
         "TFM_CHUNK_REPEAT": str(repeat),
+        "TFM_CHUNK_PASSES": str(passes),
     })
     done = subprocess.run(
         ["bash", str(EMIT), str(run)],
@@ -350,5 +351,32 @@ def test_each_chunk_is_emitted_twice_when_repeat_is_two(tmp_path, capture_run):
          "--expect-captures", "1"],
         capture_output=True,
         text=True,
+    )
+    assert verified.returncode == 0, verified.stdout + verified.stderr
+
+
+def test_every_chunk_gets_a_second_pass_over_the_whole_payload(tmp_path, capture_run):
+    """Three times on 2026-11-12 a single chunk of ~14 arrived neither of its two adjacent copies.
+
+    A second pass over the whole payload puts minutes between the copies, which is the only retry
+    a one-way channel offers (#570). The receiver ignores the duplicates by sequence number.
+    """
+    log = _emit(capture_run, chunk_lines=2, repeat=1, passes=2)
+    declared = int(log.split("chunks=")[1].split()[0])
+    markers = [line for line in log.splitlines() if line.startswith("__ART_CHUNK__ seq=")]
+    assert len(markers) == 2 * declared, f"{len(markers)} markers for {declared} chunks over 2 passes"
+
+    state = tmp_path / "chunks"
+    _merge(_polls(log, 9), state, tmp_path)
+    raw = tmp_path / "artifacts.raw"
+    assembled = subprocess.run(
+        [sys.executable, str(COLLECT), "assemble", "--state", str(state), "--out", str(raw)],
+        capture_output=True, text=True,
+    )
+    assert assembled.returncode == 0, assembled.stdout
+    verified = subprocess.run(
+        [sys.executable, str(VERIFY), "--raw", str(raw), "--dest", str(tmp_path / "results"),
+         "--expect-captures", "1"],
+        capture_output=True, text=True,
     )
     assert verified.returncode == 0, verified.stdout + verified.stderr
