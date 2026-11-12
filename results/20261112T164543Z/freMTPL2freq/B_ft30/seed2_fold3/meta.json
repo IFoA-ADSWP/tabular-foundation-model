@@ -1,0 +1,79 @@
+{
+  "arm": "B_ft30",
+  "dataset": "freMTPL2freq",
+  "drop": [
+    "IDpol"
+  ],
+  "epochs": 30,
+  "features": [
+    "Exposure",
+    "Area",
+    "VehPower",
+    "VehAge",
+    "DrivAge",
+    "BonusMalus",
+    "VehBrand",
+    "VehGas",
+    "Density",
+    "Region"
+  ],
+  "fold": 3,
+  "fold_seed": 42,
+  "log_features": [
+    "Exposure"
+  ],
+  "n_folds": 5,
+  "predictions_sha256": "74587eddbbc6ff992b0b7ccc7c6d2434b35cfcf338dfc0be1bd7b9553073968c",
+  "provenance": {
+    "dataset": {
+      "files": [
+        {
+          "name": "freMTPL2freq.csv",
+          "path": "/workspace/tfm/data/raw/freMTPL2freq.csv",
+          "sha256": "6577226166e0e83efe52a431141f1ff5262a4d8fe6626c1d53912cc8943a9893"
+        }
+      ],
+      "name": "freMTPL2freq",
+      "path": "/workspace/tfm/data/raw/freMTPL2freq.csv",
+      "sha256": "6577226166e0e83efe52a431141f1ff5262a4d8fe6626c1d53912cc8943a9893"
+    },
+    "split": {
+      "n_folds": 5,
+      "rule": "KFold(shuffle=True, random_state=42)",
+      "seed": 42,
+      "sha256": null
+    }
+  },
+  "quantile_levels": [
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9
+  ],
+  "quantile_scale": "native",
+  "reported_scale": "native",
+  "rmse": 0.22805430394378606,
+  "seed": 2,
+  "target": "ClaimNb",
+  "task": "frequency",
+  "test_rows": 10000,
+  "train_rows": 10000,
+  "transform": "native",
+  "unit": "policy",
+  "verdict_metric": "poisson_deviance",
+  "verdict_metric_value": 3189.069326159206,
+  "versions": {
+    "python": "3.11.12",
+    "tabpfn": "8.5.0"
+  },
+  "weighted": false,
+  "weights": {
+    "path": "/root/.cache/tabpfn/tabpfn-v3-regressor-v3_default.ckpt",
+    "sha256": "311ce18d97e9533d8585eaadafe040fbdd8070533209ed8696641dadc97a7301"
+  }
+}
