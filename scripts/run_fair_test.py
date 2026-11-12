@@ -69,9 +69,11 @@ def main(argv: list[str] | None = None) -> int:
 
     caps: dict[str, int] = {}
     if args.gate:
-        # The gate is A_raw alone on the real five folds and one seed: twenty in-context fits,
-        # which is what the pre-registration prices as the pre-spend step (#552).
-        config = RunConfig(folds=5, seeds=(0,), targets=selected, arms=("A_raw",))
+        # The gate pairs the raw and 30-epoch Arms on the real five folds and one seed: forty
+        # in-context fits, which is what the pre-registration prices as the pre-spend step (#552).
+        config = RunConfig(
+            folds=5, seeds=(0,), targets=selected, arms=("A_raw", "B_ft30")
+        )
     elif args.smoke:
         config = RunConfig(folds=1, seeds=(0,), test_rows=64, targets=selected)
         caps = {"train_rows_cap": 128, "epochs_cap": 2}
@@ -89,7 +91,10 @@ def main(argv: list[str] | None = None) -> int:
         gate_path.write_text(json.dumps(summary, indent=2) + "\n")
         print(f"gate -> {gate_path}")
         for target, row in summary.items():
-            print(f"  {target:<18} mean={row['mean']:.4f} sd={row['sd']:.4f} mde={row['mde']:.4f}")
+            print(
+                f"  {target:<18} r={row['mean_improvement']:+.2%} "
+                f"sd={row['sd_r']:.4f} mde={row['mde']:.2%}"
+            )
     return 0
 
 

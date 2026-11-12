@@ -125,15 +125,21 @@ The full derivation is in `docs/analyses/freq_sev_power.md`. Measured or bounded
 | French severity | 1.95% | conservative bound from `log(amount)` SD 1.13 at 26,444 claims |
 | Spanish severity | 1.83% | conservative bound from weighted SD 0.69 at 11,167 claim-equivalents |
 
-The gate, run before any fair-test spend: `A_raw` on the five folds of all four targets (twenty
-in-context fits), the fold-level metric SD per target, and
+The gate, run before any fair-test spend: `A_raw` **and** `B_ft30` on the five folds of all four
+targets (forty in-context fits), the fold-level paired improvement per target, and
 
 ```
-MDE_gate = 2.8016 * SD_fold(metric) / sqrt(5)
+MDE_gate = 2.8016 * SD_fold(r) / sqrt(5)
 ```
 
-The paired difference is at most as variable as either Arm's metric when the errors are positively
-correlated, which they are. The gate costs roughly \$0.02–\$0.05 and is released separately.
+> **2026-11-12 — amendment after the first gate run.** The gate originally measured
+> `SD_fold(M_A_raw)` and called it an upper bound on the paired difference. It is not: fold
+> difficulty is a shared component that moves both Arms together and cancels in `r`, so the
+> A_raw-only SD overstated the MDE by an order of magnitude on the frequency targets — 10.05% and
+> 7.36% relative against a 2% floor, where the paired quantity is what the decision uses. The gate
+> now runs both Arms and measures `r_f = (M_A_raw − M_B_ft30) / M_A_raw` per fold; the severity and
+> frequency floors are fixed from the paired MDE. The first run's summary is retained locally; it
+> took 2.88 min and cost \$0.0129. The gate costs roughly \$0.02–\$0.05 and is released separately.
 
 A **positive control** still gates the trainer before the gate: weights moved, training loss fell,
 and a paired held-out gain on a synthetic known-signal target. It is the existing control (#498,
@@ -187,3 +193,4 @@ a target, an Arm, a fold or a floor after that is an amendment with a date, not 
 | Date | Change | By |
 |---|---|---|
 | 2026-11-11 | Filed: replaces the 2026-11-08 target set with frequency and per-claim severity across two portfolios. | agent, for owner review |
+| 2026-11-12 | The resolution gate runs `A_raw` and `B_ft30` and fixes the floors from `SD_fold(r)`; the A_raw-only gate measured fold difficulty and overstated the MDE (10.05% / 7.36% on frequency). Owner released the correction before any fair-test data. | agent, owner approved |
