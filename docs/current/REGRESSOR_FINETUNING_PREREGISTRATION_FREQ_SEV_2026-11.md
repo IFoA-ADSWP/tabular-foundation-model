@@ -159,8 +159,9 @@ MDE_gate = 2.8016 * SD_fold(r) / sqrt(5)
 > therefore registered as **that same primary pair, run again with its captures retained**: 120 fits,
 > about \$0.26. The `B_ft10` / `B_ft3` epoch ladder is a **follow-up**, run under its own dated
 > amendment if it is wanted; no floor is registered for those arms, so they cannot move a verdict and
-> the 240-fit matrix is not authorised by this document. The ladder remains a registered part of the
-> target set — this narrows the authorisation, it does not retract the arms.
+> the 240-fit matrix is not authorised by this document, so "Order of work" item 4's "240 fits" is read
+> as 120 under this amendment. The ladder remains a registered part of the target set — this narrows
+> the authorisation, it does not retract the arms.
 
 A **positive control** still gates the trainer before the gate: weights moved, training loss fell,
 and a paired held-out gain on a synthetic known-signal target. It is the existing control (#498,

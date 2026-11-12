@@ -59,7 +59,10 @@ contains its start, and the emitter refuses a `TFM_CHUNK_LINES` above 18,000 bec
 slack for the lines that arrive while a poll is in flight. `scripts/gpu_helpers/collect_chunks.py`
 merges each poll's window into an accumulator keyed by `(payload, seq)`, seals a chunk only on
 `__ART_CHUNK_END__` (a half-printed chunk is never sealed), and reports any missing `seq` by number.
-Without `chunks=` on the INFO line the launch behaves exactly as today — the pilot path is untouched.
+Without `chunks=` on the INFO line the framing is exactly as today and no pause is taken; the emitter
+does now include the v3/v4 array names in the file list, so a non-chunked payload only grows where
+those files exist (the pilot path writes none of them). A payload too large for the window still fails
+loudly on the declared line count, as before.
 Chunk-level checksums are deliberately *not* part of the protocol: the payload's own sha256 on the
 INFO line covers the whole archive end to end, and a second, weaker checksum would add a way for the
 transfer to refuse a payload that is intact.
@@ -86,10 +89,15 @@ last chunk would also destroy an hour of paid fits.
 
 ## Cost and runtime
 
-120 fits ≈ 1 h at the measured 41.7 s/fit card time. Pacing adds roughly 45 s per ~2 MB chunk: four
-targets at ~30 MB each, gzip ~20 MB and base64 ~27 MB per target ≈ 13 chunks ≈ 10 min per target, so
-~40 min of transfer, ~\$0.18. Total ≈ \$0.45 against \$12.30 credit. The estimate the harness prints
-before launch remains the release gate.
+The gate's own 120 fits took **58.9 min** and \$0.2629, and that is the figure this plan uses — not the
+41.7 s single-fit benchmark, which describes a 30-epoch fit on one target and does not add up to the
+gate's measured wall time.
+
+Pacing adds roughly 45 s per ~2 MB chunk: four targets at ~30 MB each, gzip ~20 MB and base64
+~27 MB per target ≈ 13 chunks ≈ 10 min per target, so ~40 min of transfer, ~\$0.18. Total ≈
+**\$0.45** against \$12.30 credit. The ceiling must cover both, plus cold start, which is why a
+primary launch refuses `--poll-minutes` below 160. The estimate the harness prints before launch
+remains the release gate.
 
 ## Acceptance
 
@@ -97,7 +105,8 @@ before launch remains the release gate.
   `python scripts/check_citations.py`.
 - A dropped chunk fails loudly, names the missing `seq`, and does not exit 0 — proven locally by
   deleting a chunk from a synthetic log.
-- The pilot path's single-payload transfer still round-trips (existing tests unchanged and green).
+- The pilot path's single-payload transfer still round-trips: its round-trip tests pass unchanged
+  (the only test edit outside the new files is a box-local name in the environment-seam allowlist).
 - `./scripts/check.sh` green: ruff, pytest, shellcheck, evidence, doclinks, docstatus, citation,
   verdict.
 
