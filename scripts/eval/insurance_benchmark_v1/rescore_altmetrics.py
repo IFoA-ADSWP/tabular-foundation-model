@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -40,6 +41,16 @@ from scipy import stats
 from sklearn.metrics import mean_absolute_error, mean_gamma_deviance, mean_tweedie_deviance
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent.parent.parent))  # repo root
+from src.experiment_spec import (  # noqa: E402
+    REGRESSION,
+    RegistryError,
+    datasets_by_mode,
+    load_registry,
+    mode_methods,
+)
+
+_REGISTRY = load_registry(HERE / "experiments.toml")
 PREDICTIONS_DIR = HERE / "predictions"
 PER_FOLD_CSV = HERE / "alt_metrics_per_fold.csv"
 SUMMARY_CSV = HERE / "alt_metrics_summary.csv"
@@ -56,7 +67,7 @@ EURO_CEILING = 1e7  # post-inverse ceiling guard, domain-reasonable (no claim/se
                     # euro-scale RESULT to a sane domain bound avoids both the raw
                     # overflow and the downstream squaring overflow.
 
-METHODS = ["ols", "poissonglm", "tweedieglm", "rf", "cat", "lgbm", "xgb", "tabpfn"]
+METHODS = [m.name for m in mode_methods(_REGISTRY, REGRESSION)]
 GLM_FAMILY = ["ols", "poissonglm", "tweedieglm"]   # regression-mode analog of analyze_pr_auc.GLM_FAMILY; rf excluded, same as that precedent
 GBDT_FAMILY = ["cat", "lgbm", "xgb"]
 
@@ -69,6 +80,13 @@ REG_ALT_CONFIG: dict[str, dict] = {
     "freMTPL2freq":             dict(scale="raw",    inverse="identity", metrics=["mae"]),
     "spanish_motor_freq":       dict(scale="raw",    inverse="identity", metrics=["mae"]),
 }
+
+_REGISTRY_DATASETS = {d.name for d in datasets_by_mode(_REGISTRY, REGRESSION)}
+if set(REG_ALT_CONFIG) != _REGISTRY_DATASETS:
+    raise RegistryError(
+        "rescore config and registry disagree: "
+        f"{sorted(set(REG_ALT_CONFIG) ^ _REGISTRY_DATASETS)}"
+    )
 
 
 # ---------------------------------------------------------------------------

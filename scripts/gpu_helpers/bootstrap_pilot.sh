@@ -8,6 +8,9 @@
 # or, already on the box:
 #   TABPFN_TOKEN=pk_... bash bootstrap_pilot.sh
 #
+# To time one benchmark fit instead of running arms (#528):
+#   TABPFN_TOKEN=pk_... BENCHMARK=regressor-fit bash bootstrap_pilot.sh
+#
 # Unlike the Colab launcher this does NOT detach: over SSH you keep the
 # terminal, so blocking is correct and simpler. The per-arm subprocess
 # isolation is kept -- on the 12 GB CPU runtime a fine-tuning OOM SIGKILLed
@@ -23,10 +26,20 @@ set -uo pipefail
 BRANCH="${BRANCH:-main}"   # the box must run the reviewed code, not a stale branch
 REPO="https://github.com/IFoA-ADSWP/tabular-foundation-model.git"
 WORKDIR="${WORKDIR:-/workspace/tfm}"
-ARMS="${ARMS:-A_raw,B_in_domain,E_glm,F_catboost}"
+EXPERIMENT="${EXPERIMENT:-}"   # empty = no declared experiment (#238)
+ARMS="${ARMS:-}"   # empty + no experiment: the four committed arms below
 DATASET="${DATASET:-}"   # empty = every registered dataset
 TRAIN_SIZE="${TRAIN_SIZE:-}"   # empty = the runner's own default
 TEST_SIZE="${TEST_SIZE:-}"
+# Empty = the runner's own DEFAULT_SEED. Forwarded, never defaulted here: the record must
+# state the seed that actually ran, and the runner is the only thing that knows it. Accepts
+# the runner's own format -- a comma-separated list -- so a two-seed replication is one run.
+SEEDS="${SEEDS:-}"
+# A benchmark MODE instead of the pilot's arms (#528). Empty = arms. `regressor-fit` runs one
+# timed fine-tune through scripts/benchmarks/benchmark_regressor_fit.py and returns its record
+# through the artifact channel below. The mode owns the frame (10,000 rows x 30 epochs of
+# freMTPL2freq:ClaimNb), so the launcher forwards it alone -- see the refusal in section 3c.
+BENCHMARK="${BENCHMARK:-}"
 
 # A real run must record a commit_sha that describes the code that ran. The tree is a
 # fresh clone here, so any modification is a genuine provenance problem. Untracked files
@@ -42,7 +55,7 @@ PYARROW_PIN="${PYARROW_PIN:-pyarrow>=15,<20}"
 CATBOOST_PIN="${CATBOOST_PIN:-catboost>=1.2,<2}"
 
 echo "============================================================"
-echo "BOOTSTRAP — branch=$BRANCH arms=$ARMS workdir=$WORKDIR"
+echo "BOOTSTRAP — branch=$BRANCH experiment=${EXPERIMENT:-none} arms=$ARMS workdir=$WORKDIR"
 echo "============================================================"
 
 # ---- 0. Always emit the completion marker, on EVERY exit path ----
@@ -58,6 +71,26 @@ finish() {
     echo "BOOTSTRAP FINISHED"
 }
 trap finish EXIT
+
+# ---- 0b. Validate the mode BEFORE the paid work ----
+# Deliberately after the completion trap and before the GPU check, deps and weight fetch: a
+# typo, or a launch that names a frame alongside a mode, must still emit BOOTSTRAP FINISHED
+# (or the launcher polls out its whole ceiling and destroys the instance) but must not install
+# dependencies or download a checkpoint first. These are the same two checks the launcher makes
+# for free; this copy is authoritative when the script is run directly on a box.
+if [ -n "$BENCHMARK" ]; then
+    case "$BENCHMARK" in
+        regressor-fit) ;;
+        *) echo "FATAL: unknown BENCHMARK '$BENCHMARK' (known: regressor-fit)." >&2
+           exit 2 ;;
+    esac
+    if [ -n "$EXPERIMENT" ] || [ -n "$ARMS" ] || [ -n "$DATASET" ] || [ -n "$TRAIN_SIZE" ] \
+       || [ -n "$TEST_SIZE" ] || [ -n "$SEEDS" ]; then
+        echo "FATAL: BENCHMARK=$BENCHMARK owns the frame; drop EXPERIMENT/ARMS/DATASET/" >&2
+        echo "       TRAIN_SIZE/TEST_SIZE/SEEDS rather than have them silently ignored." >&2
+        exit 2
+    fi
+fi
 
 # ---- 1. Verify the GPU BEFORE spending time or money ----
 echo "--- GPU check ---"
@@ -116,8 +149,24 @@ if ! python3 -c "
 import sys, torch
 if not torch.cuda.is_available():
     sys.exit('FATAL: torch.cuda.is_available() is False — refusing to run on CPU.')
-print('torch', torch.__version__, '| cuda', torch.version.cuda,
-      '|', torch.cuda.get_device_name(0))
+cap = torch.cuda.get_device_capability(0)
+name = torch.cuda.get_device_name(0)
+print('torch', torch.__version__, '| cuda', torch.version.cuda, '|', name)
+print('  compute capability sm_%d%d | build archs: %s'
+      % (cap[0], cap[1], ' '.join(torch.cuda.get_arch_list())))
+# is_available() checks the DRIVER, not whether this build carries kernels for the card. A
+# Blackwell card on a cu124 build passes is_available(), then dies at the first kernel with
+# 'no kernel image is available' — after the deps and the weights were paid for. Measured
+# 2026-11-11: RTX PRO 4000 sm_120 on a cu124 image, \$0.0226 for a run that never fitted (#528).
+# Launch a real kernel here, where failing costs nothing.
+try:
+    a = torch.ones((8, 8), device='cuda')
+    float((a @ a).sum())
+except Exception as e:
+    sys.exit('FATAL: this torch build cannot run a kernel on %s (sm_%d%d): %s: %s. '
+             'Use an image tier whose CUDA matches the card (CUDA=13.0 selects cu128).'
+             % (name, cap[0], cap[1], type(e).__name__, e))
+print('  CUDA kernel test OK')
 "; then
     echo "FATAL: CUDA unavailable to torch. Stopping before doing CPU work on a paid GPU." >&2
     exit 2
@@ -160,6 +209,12 @@ if [ "$WEIGHTS_CACHED" = "true" ]; then
 else
     echo "    weights not cached (rc=$WEIGHTS_RC) -- falling through to the preflight"
 fi
+# The model line this launch claims, asserted by run_pilot.py before any arm runs. `auto` is
+# resolved by the installed package, so moving TABPFN_PIN changes what loads while the record
+# still says `auto` -- and a breadth cell that quietly moved line would be compared against the
+# anchor as if it were the same model. Override only when the move is intended and recorded
+# (docs/current/FINETUNING_BREADTH_SPEC.md).
+export TFM_EXPECT_CHECKPOINT="${TFM_EXPECT_CHECKPOINT:-tabpfn-v3-classifier-v3_default.ckpt}"
 
 # ---- 3b. Prove the TabPFN licence BEFORE running any arm ----
 # A token being PRESENT is not the same as a token WORKING. With an un-accepted
@@ -290,17 +345,69 @@ fi
 echo "########## PREFLIGHT OK ##########"
 fi
 
+# ---- 3c. Benchmark mode: one timed fit, and no arms (#528) ----
+# This is the paid half of #526: a single fit whose wall time sizes the fair test. It rides the
+# same instance, deps, weights and licence checks as a pilot run -- those are exactly what makes
+# the timing representative -- and then replaces the arm loop with one command. The mode and its
+# frame were validated in section 0b, before any of that paid work.
+#
+# The record travels through the SAME channel as the arms' evidence: emit_artifacts.sh writes the
+# __ARTIFACTS_* markers into the log and verify_artifacts.py unpacks them. No second transport.
+if [ -n "$BENCHMARK" ]; then
+    BENCH_OUT="outputs/benchmark"
+    # The launcher's run stamp is the join key with the cost record. A direct run on a box has
+    # no launcher, so it falls back to its own UTC stamp rather than borrowing a stale one.
+    BENCH_STAMP="${TFM_RUN_STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}"
+    BENCH_RECORD="$BENCH_OUT/regressor-fit-$BENCH_STAMP.json"
+    echo
+    echo "########## BENCHMARK $BENCHMARK ##########"
+    echo "    one fit -> $BENCH_RECORD"
+    python3 scripts/benchmarks/benchmark_regressor_fit.py --measure --out "$BENCH_RECORD"
+    BENCH_RC=$?
+    if [ "$BENCH_RC" -ne 0 ]; then
+        echo "########## BENCHMARK EXITED rc=$BENCH_RC (no measurement record) ##########" >&2
+    fi
+
+    echo
+    echo "########## ARTIFACTS ##########"
+    ls -l "$BENCH_OUT" 2>/dev/null
+    bash scripts/gpu_helpers/emit_artifacts.sh "$BENCH_OUT"
+    finish
+    exit "$BENCH_RC"
+fi
+
 # ---- 4. Run each arm in its own process ----
 # Tracked so this script can STATE which arms ran and which died. The exit code cannot:
 # the loop is deliberately non-fatal, so rc=0 has always meant "the bootstrap finished",
 # never "the arms worked" -- which is how a run whose arms all died recorded as success.
 ARMS_OK=""; ARMS_FAILED=""
+# No id and no arm list: the four committed arms, as before (#238).
+if [ -z "$EXPERIMENT" ] && [ -z "$ARMS" ]; then
+    ARMS="A_raw,B_in_domain,E_glm,F_catboost"
+fi
+if [ -n "$EXPERIMENT" ] && [ -z "$ARMS" ]; then
+    # No arm list given: let the declaration name them, in one process. The seeds still come
+    # from this launch: dropping them here ran the whole declared range, so a batch that the
+    # pre-flight sized at three seeds fitted the poll window and then ran ten (#450).
+    echo; echo "########## EXPERIMENT $EXPERIMENT (declared arms) ##########"
+    python3 scripts/run_pilot.py --experiment "$EXPERIMENT" ${SEEDS:+--seeds "$SEEDS"}
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+        echo "########## EXPERIMENT EXITED rc=$rc (137 = OOM SIGKILL) ##########"
+        ARMS_FAILED="declared(rc=$rc)"
+    else
+        ARMS_OK="declared"
+    fi
+else
 for arm in ${ARMS//,/ }; do
     echo
     echo "########## ARM $arm ##########"
     # shellcheck disable=SC2086  # DATASET is a dataset name, not unquoted input
-    python3 scripts/run_pilot.py --arms "$arm" ${DATASET:+--dataset "$DATASET"} \
-        ${TRAIN_SIZE:+--train-size "$TRAIN_SIZE"} ${TEST_SIZE:+--test-size "$TEST_SIZE"}
+    # The id owns the dataset, sizes and seed; --arms selects within its declaration, so
+    # one process per arm still isolates a failure (#238).
+    python3 scripts/run_pilot.py ${EXPERIMENT:+--experiment "$EXPERIMENT"} --arms "$arm" \
+        ${DATASET:+--dataset "$DATASET"} ${TRAIN_SIZE:+--train-size "$TRAIN_SIZE"} \
+        ${TEST_SIZE:+--test-size "$TEST_SIZE"} ${SEEDS:+--seeds "$SEEDS"}
     rc=$?
     if [ "$rc" -ne 0 ]; then
         # 137 => 128+9 SIGKILL, i.e. the OOM killer. Reported, not fatal.
@@ -310,6 +417,7 @@ for arm in ${ARMS//,/ }; do
         ARMS_OK="$ARMS_OK $arm"
     fi
 done
+fi
 
 # One line, greppable, stated rather than inferred. bootstrap_rc still cannot carry this: the loop
 # is non-fatal by design, so the script exits 0 either way.

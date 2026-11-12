@@ -1,0 +1,583 @@
+{
+  "schema_version": 1,
+  "diagnostic": "d2_importance",
+  "run_id": "20261104T1725Z-eudirectlapse",
+  "created_utc": "2026-11-04T18:15:28Z",
+  "git_sha": "23681b0fdfa23cda7dc2af6a521c7ee7bdb9aa56",
+  "git_dirty": false,
+  "model_version": "auto",
+  "seed": 42,
+  "dataset_name": "eudirectlapse",
+  "dataset_sha256": "c05777d10cdc18f55b2562f732212ddb61d8ffe56c9403f2b352cde008098850",
+  "matched_context": {
+    "checked": false,
+    "baseline_arm": "A_raw",
+    "arms": {}
+  },
+  "runtime": {
+    "python": "3.12.7",
+    "numpy": "1.26.4",
+    "pandas": "2.3.3",
+    "scikit-learn": "1.6.1",
+    "torch": "2.7.1",
+    "tabpfn": "6.4.1",
+    "catboost": "1.2.10"
+  },
+  "measurements": {
+    "question": "which features does each family use, and where do they disagree",
+    "subsample": {
+      "cap_rows": 2000,
+      "rows_available": 23060,
+      "rows_sampled": 2000,
+      "train_rows": 1500,
+      "test_rows": 500,
+      "seed": 42,
+      "train_positive_rate": 0.128,
+      "test_positive_rate": 0.128,
+      "note": "importance is estimated from a 2000-row subsample (1500 train / 500 test) and is therefore an approximation; the full table was not used"
+    },
+    "preprocessing": {
+      "regime": "R1 default -- per-column category codes, missing to 0",
+      "note": "categories come from the training rows only; a categorical's code ordering is arbitrary, which D4 tests rather than assumes",
+      "n_features": 18,
+      "n_dropped_constant": 0,
+      "dropped_constant": []
+    },
+    "tabpfn": {
+      "requested_model_path": "auto",
+      "resolved_version": "v2.5",
+      "checkpoint": "tabpfn-v2.5-classifier-v2.5_default.ckpt",
+      "resolution_reason": null,
+      "package_version": "6.4.1",
+      "n_estimators": 1,
+      "fit_mode": "fit_preprocessors",
+      "fit_mode_note": "the pilot fits with n_estimators=2 and fit_mode='batched'; this diagnostic uses one estimator and the library default because a permutation run makes features x repeats predictions against one context on CPU. fit_with_cache was measured and rejected -- see docs/plans/d2-feature-importance.md, measurement B."
+    },
+    "importance": {
+      "method": "permutation on the held-out rows",
+      "metric": "drop in ROC AUC",
+      "repeats": 3,
+      "seed": 42,
+      "predict_batch": 10,
+      "top_k": 10
+    },
+    "families": {
+      "tabpfn": {
+        "test_auc": 0.563432,
+        "no_better_than_chance": false,
+        "solver": null,
+        "top_k": [
+          "policy_age",
+          "polholder_gender",
+          "polholder_age",
+          "vehicl_garage",
+          "prem_pure",
+          "prem_last",
+          "policy_caruse",
+          "polholder_BMCevol",
+          "prem_market",
+          "vehicl_age"
+        ],
+        "ranking": [
+          {
+            "feature": "policy_age",
+            "importance": 0.043972,
+            "std": 0.015953
+          },
+          {
+            "feature": "polholder_gender",
+            "importance": 0.031979,
+            "std": 0.021194
+          },
+          {
+            "feature": "polholder_age",
+            "importance": 0.013499,
+            "std": 0.01693
+          },
+          {
+            "feature": "vehicl_garage",
+            "importance": 0.011098,
+            "std": 0.012263
+          },
+          {
+            "feature": "prem_pure",
+            "importance": 0.010261,
+            "std": 0.006721
+          },
+          {
+            "feature": "prem_last",
+            "importance": 0.008816,
+            "std": 0.009017
+          },
+          {
+            "feature": "policy_caruse",
+            "importance": 0.008422,
+            "std": 0.005912
+          },
+          {
+            "feature": "polholder_BMCevol",
+            "importance": 0.007239,
+            "std": 0.00407
+          },
+          {
+            "feature": "prem_market",
+            "importance": 0.00651,
+            "std": 0.005498
+          },
+          {
+            "feature": "vehicl_age",
+            "importance": 0.006152,
+            "std": 0.002807
+          },
+          {
+            "feature": "vehicl_powerkw",
+            "importance": 0.004886,
+            "std": 0.006535
+          },
+          {
+            "feature": "prem_freqperyear",
+            "importance": 0.002353,
+            "std": 0.003208
+          },
+          {
+            "feature": "prem_final",
+            "importance": 0.00227,
+            "std": 0.006748
+          },
+          {
+            "feature": "vehicl_agepurchase",
+            "importance": 0.00141,
+            "std": 0.004505
+          },
+          {
+            "feature": "polholder_diffdriver",
+            "importance": -0.000227,
+            "std": 0.009037
+          },
+          {
+            "feature": "polholder_job",
+            "importance": -0.001195,
+            "std": 0.002493
+          },
+          {
+            "feature": "vehicl_region",
+            "importance": -0.003034,
+            "std": 0.010226
+          },
+          {
+            "feature": "policy_nbcontract",
+            "importance": -0.004396,
+            "std": 0.007238
+          }
+        ]
+      },
+      "glm": {
+        "test_auc": 0.592101,
+        "no_better_than_chance": false,
+        "solver": {
+          "iterations": 3423,
+          "max_iter": 20000,
+          "converged": true
+        },
+        "top_k": [
+          "prem_final",
+          "policy_age",
+          "prem_market",
+          "polholder_gender",
+          "vehicl_age",
+          "prem_last",
+          "vehicl_garage",
+          "polholder_age",
+          "polholder_job",
+          "prem_freqperyear"
+        ],
+        "ranking": [
+          {
+            "feature": "prem_final",
+            "importance": 0.091421,
+            "std": 0.023722
+          },
+          {
+            "feature": "policy_age",
+            "importance": 0.057829,
+            "std": 0.014326
+          },
+          {
+            "feature": "prem_market",
+            "importance": 0.043244,
+            "std": 0.019001
+          },
+          {
+            "feature": "polholder_gender",
+            "importance": 0.026316,
+            "std": 0.022179
+          },
+          {
+            "feature": "vehicl_age",
+            "importance": 0.020511,
+            "std": 0.007813
+          },
+          {
+            "feature": "prem_last",
+            "importance": 0.018886,
+            "std": 0.009781
+          },
+          {
+            "feature": "vehicl_garage",
+            "importance": 0.017405,
+            "std": 0.006233
+          },
+          {
+            "feature": "polholder_age",
+            "importance": 0.015529,
+            "std": 0.016521
+          },
+          {
+            "feature": "polholder_job",
+            "importance": 0.009282,
+            "std": 0.001065
+          },
+          {
+            "feature": "prem_freqperyear",
+            "importance": 0.007574,
+            "std": 0.004496
+          },
+          {
+            "feature": "polholder_BMCevol",
+            "importance": -0.000203,
+            "std": 0.000551
+          },
+          {
+            "feature": "vehicl_region",
+            "importance": -0.000275,
+            "std": 0.003383
+          },
+          {
+            "feature": "vehicl_agepurchase",
+            "importance": -0.001529,
+            "std": 0.000689
+          },
+          {
+            "feature": "vehicl_powerkw",
+            "importance": -0.001529,
+            "std": 0.000586
+          },
+          {
+            "feature": "policy_caruse",
+            "importance": -0.003715,
+            "std": 0.002168
+          },
+          {
+            "feature": "policy_nbcontract",
+            "importance": -0.005411,
+            "std": 0.004629
+          },
+          {
+            "feature": "prem_pure",
+            "importance": -0.005889,
+            "std": 0.003811
+          },
+          {
+            "feature": "polholder_diffdriver",
+            "importance": -0.007753,
+            "std": 0.004368
+          }
+        ]
+      },
+      "lgbm": {
+        "test_auc": 0.49423,
+        "no_better_than_chance": true,
+        "solver": {
+          "iterations": 100,
+          "max_iter": null,
+          "converged": null
+        },
+        "top_k": [
+          "prem_market",
+          "polholder_diffdriver",
+          "polholder_BMCevol",
+          "polholder_age",
+          "vehicl_age",
+          "policy_caruse",
+          "polholder_gender",
+          "policy_age",
+          "prem_freqperyear",
+          "polholder_job"
+        ],
+        "ranking": [
+          {
+            "feature": "prem_market",
+            "importance": 0.013272,
+            "std": 0.013891
+          },
+          {
+            "feature": "polholder_diffdriver",
+            "importance": 0.006558,
+            "std": 0.012759
+          },
+          {
+            "feature": "polholder_BMCevol",
+            "importance": 0.005471,
+            "std": 0.009343
+          },
+          {
+            "feature": "polholder_age",
+            "importance": 0.001183,
+            "std": 0.017024
+          },
+          {
+            "feature": "vehicl_age",
+            "importance": 0.001183,
+            "std": 0.01382
+          },
+          {
+            "feature": "policy_caruse",
+            "importance": 0.000442,
+            "std": 0.000762
+          },
+          {
+            "feature": "polholder_gender",
+            "importance": -0.002353,
+            "std": 0.018288
+          },
+          {
+            "feature": "policy_age",
+            "importance": -0.004133,
+            "std": 0.016911
+          },
+          {
+            "feature": "prem_freqperyear",
+            "importance": -0.004802,
+            "std": 0.00664
+          },
+          {
+            "feature": "polholder_job",
+            "importance": -0.005352,
+            "std": 0.001639
+          },
+          {
+            "feature": "policy_nbcontract",
+            "importance": -0.005591,
+            "std": 0.005018
+          },
+          {
+            "feature": "vehicl_powerkw",
+            "importance": -0.008338,
+            "std": 0.003708
+          },
+          {
+            "feature": "vehicl_garage",
+            "importance": -0.008935,
+            "std": 0.017533
+          },
+          {
+            "feature": "vehicl_region",
+            "importance": -0.014884,
+            "std": 0.01214
+          },
+          {
+            "feature": "vehicl_agepurchase",
+            "importance": -0.021514,
+            "std": 0.013557
+          },
+          {
+            "feature": "prem_pure",
+            "importance": -0.023903,
+            "std": 0.007405
+          },
+          {
+            "feature": "prem_last",
+            "importance": -0.029112,
+            "std": 0.010745
+          },
+          {
+            "feature": "prem_final",
+            "importance": -0.030617,
+            "std": 0.002092
+          }
+        ]
+      }
+    },
+    "univariate": {
+      "polholder_age": 0.448193,
+      "polholder_BMCevol": 0.527266,
+      "polholder_diffdriver": 0.504195,
+      "polholder_gender": 0.449924,
+      "polholder_job": 0.507789,
+      "policy_age": 0.445062,
+      "policy_caruse": 0.46426,
+      "policy_nbcontract": 0.509121,
+      "prem_final": 0.523266,
+      "prem_freqperyear": 0.49553,
+      "prem_last": 0.525379,
+      "prem_market": 0.525355,
+      "prem_pure": 0.518534,
+      "vehicl_age": 0.469767,
+      "vehicl_agepurchase": 0.51231,
+      "vehicl_garage": 0.459118,
+      "vehicl_powerkw": 0.496771,
+      "vehicl_region": 0.527153
+    },
+    "readings": {
+      "same_features_ranked_differently": [
+        {
+          "a": "tabpfn",
+          "b": "glm",
+          "spearman_all_features": 0.420021,
+          "shared_top_k": 7,
+          "largest_rank_moves": [
+            {
+              "feature": "prem_market",
+              "rank_a": 9,
+              "rank_b": 3,
+              "rank_delta": 6
+            },
+            {
+              "feature": "polholder_age",
+              "rank_a": 3,
+              "rank_b": 8,
+              "rank_delta": 5
+            },
+            {
+              "feature": "vehicl_age",
+              "rank_a": 10,
+              "rank_b": 5,
+              "rank_delta": 5
+            }
+          ]
+        },
+        {
+          "a": "tabpfn",
+          "b": "lgbm",
+          "spearman_all_features": 0.162023,
+          "shared_top_k": 7,
+          "largest_rank_moves": [
+            {
+              "feature": "prem_market",
+              "rank_a": 9,
+              "rank_b": 1,
+              "rank_delta": 8
+            },
+            {
+              "feature": "policy_age",
+              "rank_a": 1,
+              "rank_b": 8,
+              "rank_delta": 7
+            },
+            {
+              "feature": "polholder_BMCevol",
+              "rank_a": 8,
+              "rank_b": 3,
+              "rank_delta": 5
+            }
+          ]
+        },
+        {
+          "a": "glm",
+          "b": "lgbm",
+          "spearman_all_features": 0.017544,
+          "shared_top_k": 7,
+          "largest_rank_moves": [
+            {
+              "feature": "policy_age",
+              "rank_a": 2,
+              "rank_b": 8,
+              "rank_delta": 6
+            },
+            {
+              "feature": "polholder_age",
+              "rank_a": 8,
+              "rank_b": 4,
+              "rank_delta": 4
+            },
+            {
+              "feature": "polholder_gender",
+              "rank_a": 4,
+              "rank_b": 7,
+              "rank_delta": 3
+            }
+          ]
+        }
+      ],
+      "different_features": [
+        {
+          "a": "tabpfn",
+          "b": "glm",
+          "only_a": [
+            "prem_pure",
+            "policy_caruse",
+            "polholder_BMCevol"
+          ],
+          "only_b": [
+            "prem_final",
+            "polholder_job",
+            "prem_freqperyear"
+          ],
+          "jaccard_top_k": 0.538462
+        },
+        {
+          "a": "tabpfn",
+          "b": "lgbm",
+          "only_a": [
+            "vehicl_garage",
+            "prem_pure",
+            "prem_last"
+          ],
+          "only_b": [
+            "polholder_diffdriver",
+            "prem_freqperyear",
+            "polholder_job"
+          ],
+          "jaccard_top_k": 0.538462
+        },
+        {
+          "a": "glm",
+          "b": "lgbm",
+          "only_a": [
+            "prem_final",
+            "prem_last",
+            "vehicl_garage"
+          ],
+          "only_b": [
+            "polholder_diffdriver",
+            "polholder_BMCevol",
+            "policy_caruse"
+          ],
+          "jaccard_top_k": 0.538462
+        }
+      ],
+      "interaction_only": {
+        "compared_against": [
+          "tabpfn",
+          "glm"
+        ],
+        "rule": "an LGBM top-k feature outside every other family's top-k whose univariate AUC is within 0.02 of 0.5 -- no marginal signal, so any value the tree model finds comes from a combination",
+        "tree_only_features": [
+          "polholder_diffdriver"
+        ],
+        "candidates": [
+          "polholder_diffdriver"
+        ],
+        "detail": [
+          {
+            "feature": "polholder_diffdriver",
+            "lgbm_rank": 2,
+            "ranks": {
+              "tabpfn": 15,
+              "glm": 18
+            },
+            "univariate_auc": 0.504195,
+            "marginal": true
+          }
+        ]
+      }
+    },
+    "control": null,
+    "limitations": [
+      "importance is measured on a 2000-row subsample, not the whole table",
+      "permutation importance credits a correlated pair twice: a feature with a near-duplicate can look unimportant because the model can fall back on its twin",
+      "the TabPFN arm is the local open checkpoint, not the v3 the frontier numbers used",
+      "lgbm is at chance (test AUC 0.4942): its importance ranking is a ranking of noise, and any reading taken from it is uninterpretable"
+    ]
+  }
+}

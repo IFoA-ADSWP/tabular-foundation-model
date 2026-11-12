@@ -35,7 +35,7 @@ MOCK_OFFERS_FILE="${MOCK_OFFERS:-/tmp/mock_offers.json}"
 MOCK_STATE_DIR="${MOCK_STATE_DIR:-/tmp/mockstate}"
 
 case "${1:-} ${2:-}" in
-  "show user")        echo '{"credit": 10.0, "balance": 0, "total_spend": 0.0}' ;;
+  "show user")        echo "{\"credit\": ${MOCK_CREDIT:-10.0}, \"balance\": 0, \"total_spend\": 0.0}" ;;
   "show instances")   echo '[]' ;;
   "show ssh-keys")    echo '[]' ;;
   "search offers")    cat "$MOCK_OFFERS_FILE" 2>/dev/null || echo '[]' ;;
@@ -43,8 +43,37 @@ case "${1:-} ${2:-}" in
   "create instance")
       # Record the create so a test can assert what was requested, not just that
       # something happened.
-      echo '{"success": true, "new_contract": 12345678}'
-      printf '%s\n' "${MOCK_INSTANCE_ID:-12345678}" >> "$MOCK_STATE_DIR/created.txt"
+      # Snapshot the lease record first: the proof is that it existed before this create
+      # call was recorded (#325).
+      if [ -n "${MOCK_LEASE_DIR:-}" ]; then
+          lease_file="$(ls -1 "$MOCK_LEASE_DIR"/*.json 2>/dev/null | head -1)"
+          if [ -n "$lease_file" ]; then
+              cp "$lease_file" "$MOCK_STATE_DIR/lease_at_create.json"
+          fi
+      fi
+      create_attempts=$(( $(cat "$MOCK_STATE_DIR/create_attempts" 2>/dev/null || echo 0) + 1 ))
+      printf '%s\n' "$create_attempts" > "$MOCK_STATE_DIR/create_attempts"
+      instance_id="${MOCK_INSTANCE_ID:-12345678}"
+      if [ -n "${MOCK_INSTANCE_ID_SEQ:-}" ]; then
+          IFS=',' read -ra IDS <<< "$MOCK_INSTANCE_ID_SEQ"
+          idx=$((create_attempts - 1))
+          instance_id="${IDS[$idx]:-$instance_id}"
+      fi
+      echo "{\"success\": true, \"new_contract\": $instance_id}"
+      printf '%s\n' "$instance_id" >> "$MOCK_STATE_DIR/created.txt"
+      # Capture the generated onstart payload as well. vast_run.sh deletes it on
+      # every exit path (it carries the licence token), so `create` is the only
+      # moment it exists -- which made "what environment does the box actually
+      # get?" unassertable at $0 until #263. The token line is REDACTED, so a test
+      # run cannot leave a live secret behind in the state directory.
+      _prev=""
+      for _a in "$@"; do
+          if [ "$_prev" = "--onstart" ] && [ -f "$_a" ]; then
+              sed 's/^export TABPFN_TOKEN=.*/export TABPFN_TOKEN=REDACTED/' "$_a" \
+                  > "$MOCK_STATE_DIR/onstart.sh"
+          fi
+          _prev="$_a"
+      done
       ;;
   "show instance")
       # MOCK_SEQUENCE: comma-separated statuses consumed one per call, so a test
@@ -75,7 +104,18 @@ case "${1:-} ${2:-}" in
           # intended_status and machine_id are emitted because the runner now
           # DEPENDS on them: intended_status drives the early abort, machine_id is
           # what a retry excludes. A mock missing them silently disables both.
-          echo "{\"actual_status\": \"$MOCK_STATUS\", \"gpu_name\": \"RTX A6000\", \"dph_total\": 0.469, \"gpu_ram\": 49140, \"cpu_ram\": 128000, \"reliability\": 0.9951, \"cuda_max_good\": 13.0, \"intended_status\": \"${MOCK_INTENDED:-running}\", \"machine_id\": ${MOCK_MACHINE_ID:-424242}, \"host_id\": 909090}"
+          show_attempt=$(cat "$MOCK_STATE_DIR/create_attempts" 2>/dev/null || echo 1)
+          show_status="${MOCK_STATUS}"
+          show_intended="${MOCK_INTENDED:-running}"
+          if [ -n "${MOCK_STATUS_SEQ:-}" ]; then
+              IFS=',' read -ra SSTATES <<< "$MOCK_STATUS_SEQ"
+              show_status="${SSTATES[$((show_attempt - 1))]:-$show_status}"
+          fi
+          if [ -n "${MOCK_INTENDED_SEQ:-}" ]; then
+              IFS=',' read -ra SINTENDED <<< "$MOCK_INTENDED_SEQ"
+              show_intended="${SINTENDED[$((show_attempt - 1))]:-$show_intended}"
+          fi
+          echo "{\"actual_status\": \"$show_status\", \"gpu_name\": \"RTX A6000\", \"dph_total\": 0.469, \"gpu_ram\": 49140, \"cpu_ram\": 128000, \"reliability\": 0.9951, \"cuda_max_good\": 13.0, \"intended_status\": \"$show_intended\", \"machine_id\": ${MOCK_MACHINE_ID:-424242}, \"host_id\": 909090}"
       else
           cat <<'JSON'
 {"actual_status": "running", "ssh_host": "203.0.113.9", "ssh_port": 41234,
@@ -86,6 +126,17 @@ JSON
       fi
       ;;
   "destroy instance")
+      # MOCK_DESTROY_FAIL_ONCE makes the first destroy fail, so a test can prove the
+      # failed path keeps the id and the next attempt can still succeed (#325).
+      attempts_file="$MOCK_STATE_DIR/destroy_attempts"
+      attempts=$(cat "$attempts_file" 2>/dev/null || echo 0)
+      attempts=$((attempts + 1))
+      printf '%s\n' "$attempts" > "$attempts_file"
+      if [ -n "${MOCK_DESTROY_FAIL_ALWAYS:-}" ] || \
+         { [ -n "${MOCK_DESTROY_FAIL_ONCE:-}" ] && [ "$attempts" -eq 1 ]; }; then
+          echo "mock: destroy failed" >&2
+          exit 1
+      fi
       echo "destroying instance $3."
       # Record the teardown. The acceptance test for PR-8 is that the destroy FIRED
       # -- a mock that only prints cannot prove the trap ran.

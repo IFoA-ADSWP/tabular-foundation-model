@@ -14,21 +14,36 @@ from sklearn.metrics import (
     brier_score_loss,
 )
 from typing import Tuple, Dict, Optional
+from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
 
+# The notebook-era source of truth for paths and the seed (#234). These replace
+# the retired config module: the repo layout decides DATA_DIR, and the suite's seed is 42.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DATA_DIR = REPO_ROOT / "data" / "raw"
+RANDOM_SEED = 42
 
-class BaselineConfig:
-    """Configuration wrapper for easier access in functions."""
-    
-    def __init__(self, config_module):
-        self.config = config_module
-        self.set_seeds()
-    
-    def set_seeds(self):
-        """Set random seeds for reproducibility."""
-        self.config.set_random_seeds()
+
+def set_random_seeds() -> None:
+    """Set the random seeds the notebook-era code relies on."""
+    import random
+
+    random.seed(RANDOM_SEED)
+    np.random.seed(RANDOM_SEED)
+    try:
+        import tensorflow as tf
+        tf.random.set_seed(RANDOM_SEED)
+    except ImportError:
+        pass
+    try:
+        import torch
+        torch.manual_seed(RANDOM_SEED)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(RANDOM_SEED)
+    except ImportError:
+        pass
 
 
 # ============================================================================

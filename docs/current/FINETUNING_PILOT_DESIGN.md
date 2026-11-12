@@ -5,7 +5,17 @@
 > Diagnostics: `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md`
 > Status summary: `docs/current/FINETUNING_STATUS_BRIEF.md`
 
+> **Dated marker (2026-11-09).** Executed in part, deferred in part. Phase 2 closed on 2026-11-07 (D22);
+> Phase 3 — transfer and pooling — remains unrun and unauthorised. The outcome is in
+> [`FINETUNING_PHASE2_OUTCOME.md`](FINETUNING_PHASE2_OUTCOME.md). This page remains the authority for the
+> method and the gates, not for the result.
+
 > **Start here.** This is the canonical current proposal. The status brief is the short stakeholder summary; the diagnostics, cost, statistical, decision, and execution documents are supporting appendices. If another document appears to describe a different programme, this document takes precedence.
+
+> **2026-11-09** (#518). "Supporting appendices" and "takes precedence" are scoped by subject, not by rank:
+> this document wins on the design, and the statistical analysis plan wins on analysis rules.
+> `docs/DOCUMENT_AUTHORITY.md` states the order. This sentence is the collision that left the metric rule
+> ambiguous.
 
 ---
 
@@ -135,6 +145,9 @@ The primary dataset is `uslapseagent`, because it produced the 10K positive resu
 
 The four-dataset family is the in-domain pilot scope. A wider 15-dataset sweep, pooled training, and cross-dataset transfer are not part of Phase 2; pooling and transfer are addressed conditionally in Phase 3.
 
+> **2026-11-09** (#521). This governs the scope. `coil2000`'s absence from Phase 2 is a resolution stop (D21), not a
+> scope limit.
+
 ### Phase 2.1 — Canonical arm labels
 
 Display labels are phase-qualified. Implementation labels preserve the names already used by the pilot runner and artifacts.
@@ -202,7 +215,14 @@ Probability quality is primary because insurance decisions depend on usable prob
 | Secondary | ROC AUC, PR AUC |
 | Diagnostic | Prediction distributions, subgroup error, calibration by score band |
 
+*2026-11-09 (#518): this table sets what Phase 2 **reports**. The claim rested on ROC AUC with a Brier veto (D12, 2026-11-03).*
+
 Report discrimination and calibration separately. A fine-tuned model that improves ROC AUC while worsening calibration is not a general performance improvement for pricing or probability decisions.
+
+> **2026-11-09** (#518). D12 made this numeric: the tolerance is a rise of no more than 0.001 above the in-run
+> `A_raw`, and the anchor rose 0.0003, so the claim stands. Above 0.001 it would have been refused. Read as a
+> prohibition this sentence is stricter than the rule that governed the result — that is the recorded
+> departure.
 
 The existing GLM and tree baselines remain comparison points. Fine-tuning is not being treated as a replacement for every baseline; it is being tested as an in-domain improvement to TabPFN.
 

@@ -14,6 +14,12 @@ A report satisfies the check if one of its first WINDOW lines is a bolded status
     > **Historical document.** Superseded by ...
 Prose that merely contains the word "current" does not pass: the marker has to lead a line.
 
+The same script enforces the claim registry's shape. `docs/current/FINETUNING_FINDINGS.md` is a pointer,
+not a store: a row that restates a number its owning document owns goes stale silently, which is how two
+rows kept asserting what their owners had contradicted. Each row must be Claim | Status | Owner, and no
+claim cell may contain a digit. Row references (F1, L3) and ISO dates are identifiers, not measurements, so
+they are stripped first.
+
 Usage:
   python3 scripts/check_doc_status.py                     # list unlabelled reports; exit 1 if any
   python3 scripts/check_doc_status.py --warn              # list them, always exit 0
@@ -35,6 +41,37 @@ MARKER = re.compile(
     r"^\s*(?:>\s*)?[*_]{0,2}(status|current|superseded|historical|proposed|draft|archived)\b",
     re.IGNORECASE,
 )
+
+# The registry is checked only when the whole collection is being checked; --dir stays a
+# per-directory status check. A missing registry is a failure, never a skip: a check that passes
+# because its subject moved is worse than no check at all.
+CLAIM_REGISTRY = pathlib.Path("docs/current/FINETUNING_FINDINGS.md")
+ROW_REF = re.compile(r"\b[FL]\d+\b")
+ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+ANY_DIGIT = re.compile(r"\d")
+
+
+def registry_problems(path: pathlib.Path) -> list[str]:
+    """Return one line per registry row that restates a number or is not three columns."""
+    if not path.exists():
+        return [f"missing claim registry: {path}"]
+    problems: list[str] = []
+    for lineno, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
+        text = line.strip()
+        if not text.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in text.strip("|").split("|")]
+        label_match = ROW_REF.search(cells[0]) if cells else None
+        label = label_match.group(0) if label_match else "claim"
+        if len(cells) != 3:
+            problems.append(f"{path}:{lineno}: {label} — a registry row is Claim | Status | Owner")
+            continue
+        residue = ANY_DIGIT.search(ISO_DATE.sub("", ROW_REF.sub("", cells[0])))
+        if residue:
+            problems.append(
+                f"{path}:{lineno}: {label} restates a number — move it to the owner and link"
+            )
+    return problems
 
 
 def unlabelled(root: pathlib.Path) -> tuple[list[str], int]:
@@ -77,8 +114,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  unlabelled: {name}")
     print(f"  {total - len(missing)}/{total} reports state their status (first {WINDOW} lines)")
 
-    if missing and not args.warn:
-        print("  FAIL: a report that does not say what it is cannot be trusted to be current")
+    registry: list[str] = []
+    if args.dir is None:
+        registry = registry_problems(CLAIM_REGISTRY)
+        if registry:
+            for problem in registry:
+                print(f"  {problem}")
+        else:
+            print("  claim registry: every claim names its owner and carries no number")
+
+    if (missing or registry) and not args.warn:
+        if missing:
+            print("  FAIL: a report that does not say what it is cannot be trusted to be current")
+        if registry:
+            print("  FAIL: a registry row that restates a number goes stale without anyone noticing")
         return 1
     return 0
 

@@ -53,11 +53,11 @@ HERE = Path(__file__).resolve().parent
 OUT_CSV = HERE / "frontier_tuned_baseline_results.csv"
 
 from run_frontier_benchmark import (  # noqa: E402  (UNMODIFIED module)
-    DATASETS,
     load_Xy,
     metric_fn,
     top_decile_lift,
 )
+from src.experiment_spec import CLASSIFICATION, load_dataset_entries  # noqa: E402
 
 N_FOLDS = 5
 SEED = 42
@@ -66,6 +66,11 @@ GBDT_GRID = [(0.05, 31), (0.05, 127), (0.1, 31), (0.1, 127)]  # (lr, num_leaves)
 CAT_GRID = [(0.05, 6), (0.05, 10), (0.1, 6), (0.1, 10)]  # (lr, depth) for catboost (max depth 16)
 C_GRID = [0.01, 0.1, 1.0, 10.0]
 MAX_POLY_FEATURES = 100_000
+
+
+def classification_datasets() -> list[dict]:
+    """The registry's classification Datasets, in declared order (#235)."""
+    return load_dataset_entries(HERE / "experiments.toml", CLASSIFICATION)
 
 
 def say(msg: str) -> None:
@@ -286,7 +291,7 @@ def run_dataset(ds: dict, out_rows: list[dict]) -> None:
 def main() -> None:
     t0 = time.time()
     wanted = {a.lower() for a in sys.argv[1:]} if len(sys.argv) > 1 else None
-    for ds in DATASETS:
+    for ds in classification_datasets():
         if wanted is not None and ds["name"].lower() not in wanted:
             continue
         print(f"\n{'=' * 70}\nDATASET {ds['name']}\n{'=' * 70}", flush=True)

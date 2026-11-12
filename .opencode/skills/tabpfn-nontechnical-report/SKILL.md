@@ -36,3 +36,6 @@ argument-hint: "Business question, source findings, source notebooks, evidence f
 
 ## Registry Update Rule
 After writing/updating report, update docs/reports/REPORT_REGISTRY.md with metadata and links.
+
+## Pre-Ship Check
+- Run the `analysis-review` skill against the draft before calling the report done.

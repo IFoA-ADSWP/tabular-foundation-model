@@ -1,0 +1,661 @@
+{
+  "schema_version": 1,
+  "diagnostic": "d2_importance",
+  "run_id": "20261104T1725Z-spanish_motor_lapse",
+  "created_utc": "2026-11-04T18:21:52Z",
+  "git_sha": "23681b0fdfa23cda7dc2af6a521c7ee7bdb9aa56",
+  "git_dirty": false,
+  "model_version": "auto",
+  "seed": 42,
+  "dataset_name": "spanish_motor_lapse",
+  "dataset_sha256": "baccd8bc6b1dfc900d71a80d15f358b1fe786d7eea27d5614d38d28ae3fa4db6",
+  "matched_context": {
+    "checked": false,
+    "baseline_arm": "A_raw",
+    "arms": {}
+  },
+  "runtime": {
+    "python": "3.12.7",
+    "numpy": "1.26.4",
+    "pandas": "2.3.3",
+    "scikit-learn": "1.6.1",
+    "torch": "2.7.1",
+    "tabpfn": "6.4.1",
+    "catboost": "1.2.10"
+  },
+  "measurements": {
+    "question": "which features does each family use, and where do they disagree",
+    "subsample": {
+      "cap_rows": 2000,
+      "rows_available": 53502,
+      "rows_sampled": 2000,
+      "train_rows": 1500,
+      "test_rows": 500,
+      "seed": 42,
+      "train_positive_rate": 0.354667,
+      "test_positive_rate": 0.354,
+      "note": "importance is estimated from a 2000-row subsample (1500 train / 500 test) and is therefore an approximation; the full table was not used"
+    },
+    "preprocessing": {
+      "regime": "R1 default -- per-column category codes, missing to 0",
+      "note": "categories come from the training rows only; a categorical's code ordering is arbitrary, which D4 tests rather than assumes",
+      "n_features": 22,
+      "n_dropped_constant": 0,
+      "dropped_constant": []
+    },
+    "tabpfn": {
+      "requested_model_path": "auto",
+      "resolved_version": "v2.5",
+      "checkpoint": "tabpfn-v2.5-classifier-v2.5_default.ckpt",
+      "resolution_reason": null,
+      "package_version": "6.4.1",
+      "n_estimators": 1,
+      "fit_mode": "fit_preprocessors",
+      "fit_mode_note": "the pilot fits with n_estimators=2 and fit_mode='batched'; this diagnostic uses one estimator and the library default because a permutation run makes features x repeats predictions against one context on CPU. fit_with_cache was measured and rejected -- see docs/plans/d2-feature-importance.md, measurement B."
+    },
+    "importance": {
+      "method": "permutation on the held-out rows",
+      "metric": "drop in ROC AUC",
+      "repeats": 3,
+      "seed": 42,
+      "predict_batch": 10,
+      "top_k": 10
+    },
+    "families": {
+      "tabpfn": {
+        "test_auc": 0.718389,
+        "no_better_than_chance": false,
+        "solver": null,
+        "top_k": [
+          "Seniority",
+          "Premium",
+          "N_claims_year",
+          "Cylinder_capacity",
+          "Payment",
+          "Value_vehicle",
+          "Second_driver",
+          "Policies_in_force",
+          "Type_fuel",
+          "Distribution_channel"
+        ],
+        "ranking": [
+          {
+            "feature": "Seniority",
+            "importance": 0.123151,
+            "std": 0.003691
+          },
+          {
+            "feature": "Premium",
+            "importance": 0.048282,
+            "std": 0.010756
+          },
+          {
+            "feature": "N_claims_year",
+            "importance": 0.03486,
+            "std": 0.005134
+          },
+          {
+            "feature": "Cylinder_capacity",
+            "importance": 0.018576,
+            "std": 0.005866
+          },
+          {
+            "feature": "Payment",
+            "importance": 0.014261,
+            "std": 0.008129
+          },
+          {
+            "feature": "Value_vehicle",
+            "importance": 0.005632,
+            "std": 0.005212
+          },
+          {
+            "feature": "Second_driver",
+            "importance": 0.005428,
+            "std": 0.004351
+          },
+          {
+            "feature": "Policies_in_force",
+            "importance": 0.004711,
+            "std": 0.003902
+          },
+          {
+            "feature": "Type_fuel",
+            "importance": 0.003492,
+            "std": 0.002663
+          },
+          {
+            "feature": "Distribution_channel",
+            "importance": 0.002857,
+            "std": 0.002181
+          },
+          {
+            "feature": "vehicle_age",
+            "importance": 0.002151,
+            "std": 0.005903
+          },
+          {
+            "feature": "Weight",
+            "importance": 0.001691,
+            "std": 0.001057
+          },
+          {
+            "feature": "Cost_claims_year",
+            "importance": 0.000606,
+            "std": 0.00169
+          },
+          {
+            "feature": "Type_risk",
+            "importance": -8.7e-05,
+            "std": 0.000983
+          },
+          {
+            "feature": "Length",
+            "importance": -0.000309,
+            "std": 0.001389
+          },
+          {
+            "feature": "driver_age",
+            "importance": -0.000437,
+            "std": 0.000608
+          },
+          {
+            "feature": "Power",
+            "importance": -0.001615,
+            "std": 0.001734
+          },
+          {
+            "feature": "N_doors",
+            "importance": -0.001656,
+            "std": 0.000942
+          },
+          {
+            "feature": "licence_age",
+            "importance": -0.001668,
+            "std": 0.002953
+          },
+          {
+            "feature": "Max_products",
+            "importance": -0.002326,
+            "std": 0.001104
+          },
+          {
+            "feature": "Area",
+            "importance": -0.003557,
+            "std": 0.002489
+          },
+          {
+            "feature": "Max_policies",
+            "importance": -0.005312,
+            "std": 0.002344
+          }
+        ]
+      },
+      "glm": {
+        "test_auc": 0.643211,
+        "no_better_than_chance": false,
+        "solver": {
+          "iterations": 12481,
+          "max_iter": 20000,
+          "converged": true
+        },
+        "top_k": [
+          "Cylinder_capacity",
+          "Distribution_channel",
+          "Premium",
+          "N_doors",
+          "Max_policies",
+          "Policies_in_force",
+          "Value_vehicle",
+          "Length",
+          "Second_driver",
+          "Cost_claims_year"
+        ],
+        "ranking": [
+          {
+            "feature": "Cylinder_capacity",
+            "importance": 0.080839,
+            "std": 0.013912
+          },
+          {
+            "feature": "Distribution_channel",
+            "importance": 0.028937,
+            "std": 0.008057
+          },
+          {
+            "feature": "Premium",
+            "importance": 0.027905,
+            "std": 0.002456
+          },
+          {
+            "feature": "N_doors",
+            "importance": 0.022267,
+            "std": 0.007518
+          },
+          {
+            "feature": "Max_policies",
+            "importance": 0.021718,
+            "std": 0.010986
+          },
+          {
+            "feature": "Policies_in_force",
+            "importance": 0.020377,
+            "std": 0.007582
+          },
+          {
+            "feature": "Value_vehicle",
+            "importance": 0.017212,
+            "std": 0.008028
+          },
+          {
+            "feature": "Length",
+            "importance": 0.012763,
+            "std": 0.007701
+          },
+          {
+            "feature": "Second_driver",
+            "importance": 0.012658,
+            "std": 0.0059
+          },
+          {
+            "feature": "Cost_claims_year",
+            "importance": 0.007381,
+            "std": 0.003067
+          },
+          {
+            "feature": "Weight",
+            "importance": 0.006792,
+            "std": 0.006595
+          },
+          {
+            "feature": "Area",
+            "importance": 0.001236,
+            "std": 0.010373
+          },
+          {
+            "feature": "Power",
+            "importance": 0.001061,
+            "std": 0.001216
+          },
+          {
+            "feature": "N_claims_year",
+            "importance": 0.00102,
+            "std": 0.000661
+          },
+          {
+            "feature": "Payment",
+            "importance": 0.000542,
+            "std": 0.001449
+          },
+          {
+            "feature": "Type_fuel",
+            "importance": 0.000536,
+            "std": 8.7e-05
+          },
+          {
+            "feature": "licence_age",
+            "importance": 0.000239,
+            "std": 0.000608
+          },
+          {
+            "feature": "vehicle_age",
+            "importance": -7e-05,
+            "std": 4.9e-05
+          },
+          {
+            "feature": "Seniority",
+            "importance": -0.00207,
+            "std": 0.001864
+          },
+          {
+            "feature": "Type_risk",
+            "importance": -0.00214,
+            "std": 0.000401
+          },
+          {
+            "feature": "Max_products",
+            "importance": -0.002501,
+            "std": 0.000229
+          },
+          {
+            "feature": "driver_age",
+            "importance": -0.004058,
+            "std": 0.001942
+          }
+        ]
+      },
+      "lgbm": {
+        "test_auc": 0.66943,
+        "no_better_than_chance": false,
+        "solver": {
+          "iterations": 100,
+          "max_iter": null,
+          "converged": null
+        },
+        "top_k": [
+          "Seniority",
+          "Premium",
+          "Cylinder_capacity",
+          "Distribution_channel",
+          "Cost_claims_year",
+          "licence_age",
+          "vehicle_age",
+          "Policies_in_force",
+          "Value_vehicle",
+          "Payment"
+        ],
+        "ranking": [
+          {
+            "feature": "Seniority",
+            "importance": 0.102838,
+            "std": 0.004655
+          },
+          {
+            "feature": "Premium",
+            "importance": 0.033082,
+            "std": 0.012835
+          },
+          {
+            "feature": "Cylinder_capacity",
+            "importance": 0.022348,
+            "std": 0.001768
+          },
+          {
+            "feature": "Distribution_channel",
+            "importance": 0.017521,
+            "std": 0.004236
+          },
+          {
+            "feature": "Cost_claims_year",
+            "importance": 0.010355,
+            "std": 0.004062
+          },
+          {
+            "feature": "licence_age",
+            "importance": 0.009253,
+            "std": 0.002032
+          },
+          {
+            "feature": "vehicle_age",
+            "importance": 0.004793,
+            "std": 0.007102
+          },
+          {
+            "feature": "Policies_in_force",
+            "importance": 0.004763,
+            "std": 0.000465
+          },
+          {
+            "feature": "Value_vehicle",
+            "importance": 0.004653,
+            "std": 0.004631
+          },
+          {
+            "feature": "Payment",
+            "importance": 0.003836,
+            "std": 0.00088
+          },
+          {
+            "feature": "Max_policies",
+            "importance": 0.003761,
+            "std": 0.003535
+          },
+          {
+            "feature": "N_claims_year",
+            "importance": 0.002385,
+            "std": 0.00107
+          },
+          {
+            "feature": "Second_driver",
+            "importance": 0.002373,
+            "std": 0.001892
+          },
+          {
+            "feature": "Power",
+            "importance": 0.002012,
+            "std": 0.001684
+          },
+          {
+            "feature": "Area",
+            "importance": 0.001621,
+            "std": 0.000654
+          },
+          {
+            "feature": "Type_fuel",
+            "importance": -4.7e-05,
+            "std": 0.00184
+          },
+          {
+            "feature": "Max_products",
+            "importance": -0.000198,
+            "std": 0.000111
+          },
+          {
+            "feature": "Length",
+            "importance": -0.000204,
+            "std": 0.002207
+          },
+          {
+            "feature": "Type_risk",
+            "importance": -0.000257,
+            "std": 0.000172
+          },
+          {
+            "feature": "Weight",
+            "importance": -0.001428,
+            "std": 0.004246
+          },
+          {
+            "feature": "N_doors",
+            "importance": -0.002321,
+            "std": 0.001263
+          },
+          {
+            "feature": "driver_age",
+            "importance": -0.005026,
+            "std": 0.004725
+          }
+        ]
+      }
+    },
+    "univariate": {
+      "Distribution_channel": 0.551202,
+      "Seniority": 0.540086,
+      "Policies_in_force": 0.476909,
+      "Max_policies": 0.495837,
+      "Max_products": 0.495738,
+      "Payment": 0.539641,
+      "Premium": 0.554586,
+      "Type_risk": 0.504919,
+      "Area": 0.538297,
+      "Second_driver": 0.483976,
+      "driver_age": 0.462571,
+      "licence_age": 0.461374,
+      "vehicle_age": 0.513785,
+      "Power": 0.495849,
+      "Cylinder_capacity": 0.541723,
+      "Value_vehicle": 0.491047,
+      "N_doors": 0.488829,
+      "Type_fuel": 0.505895,
+      "Length": 0.494905,
+      "Weight": 0.503129,
+      "N_claims_year": 0.477499,
+      "Cost_claims_year": 0.476509
+    },
+    "readings": {
+      "same_features_ranked_differently": [
+        {
+          "a": "tabpfn",
+          "b": "glm",
+          "spearman_all_features": 0.184641,
+          "shared_top_k": 6,
+          "largest_rank_moves": [
+            {
+              "feature": "Distribution_channel",
+              "rank_a": 10,
+              "rank_b": 2,
+              "rank_delta": 8
+            },
+            {
+              "feature": "Cylinder_capacity",
+              "rank_a": 4,
+              "rank_b": 1,
+              "rank_delta": 3
+            },
+            {
+              "feature": "Policies_in_force",
+              "rank_a": 8,
+              "rank_b": 6,
+              "rank_delta": 2
+            }
+          ]
+        },
+        {
+          "a": "tabpfn",
+          "b": "lgbm",
+          "spearman_all_features": 0.546019,
+          "shared_top_k": 7,
+          "largest_rank_moves": [
+            {
+              "feature": "Distribution_channel",
+              "rank_a": 10,
+              "rank_b": 4,
+              "rank_delta": 6
+            },
+            {
+              "feature": "Payment",
+              "rank_a": 5,
+              "rank_b": 10,
+              "rank_delta": 5
+            },
+            {
+              "feature": "Value_vehicle",
+              "rank_a": 6,
+              "rank_b": 9,
+              "rank_delta": 3
+            }
+          ]
+        },
+        {
+          "a": "glm",
+          "b": "lgbm",
+          "spearman_all_features": 0.330322,
+          "shared_top_k": 6,
+          "largest_rank_moves": [
+            {
+              "feature": "Cost_claims_year",
+              "rank_a": 10,
+              "rank_b": 5,
+              "rank_delta": 5
+            },
+            {
+              "feature": "Cylinder_capacity",
+              "rank_a": 1,
+              "rank_b": 3,
+              "rank_delta": 2
+            },
+            {
+              "feature": "Distribution_channel",
+              "rank_a": 2,
+              "rank_b": 4,
+              "rank_delta": 2
+            }
+          ]
+        }
+      ],
+      "different_features": [
+        {
+          "a": "tabpfn",
+          "b": "glm",
+          "only_a": [
+            "Seniority",
+            "N_claims_year",
+            "Payment",
+            "Type_fuel"
+          ],
+          "only_b": [
+            "N_doors",
+            "Max_policies",
+            "Length",
+            "Cost_claims_year"
+          ],
+          "jaccard_top_k": 0.428571
+        },
+        {
+          "a": "tabpfn",
+          "b": "lgbm",
+          "only_a": [
+            "N_claims_year",
+            "Second_driver",
+            "Type_fuel"
+          ],
+          "only_b": [
+            "Cost_claims_year",
+            "licence_age",
+            "vehicle_age"
+          ],
+          "jaccard_top_k": 0.538462
+        },
+        {
+          "a": "glm",
+          "b": "lgbm",
+          "only_a": [
+            "N_doors",
+            "Max_policies",
+            "Length",
+            "Second_driver"
+          ],
+          "only_b": [
+            "Seniority",
+            "licence_age",
+            "vehicle_age",
+            "Payment"
+          ],
+          "jaccard_top_k": 0.428571
+        }
+      ],
+      "interaction_only": {
+        "compared_against": [
+          "tabpfn",
+          "glm"
+        ],
+        "rule": "an LGBM top-k feature outside every other family's top-k whose univariate AUC is within 0.02 of 0.5 -- no marginal signal, so any value the tree model finds comes from a combination",
+        "tree_only_features": [
+          "licence_age",
+          "vehicle_age"
+        ],
+        "candidates": [
+          "vehicle_age"
+        ],
+        "detail": [
+          {
+            "feature": "licence_age",
+            "lgbm_rank": 6,
+            "ranks": {
+              "tabpfn": 19,
+              "glm": 17
+            },
+            "univariate_auc": 0.461374,
+            "marginal": false
+          },
+          {
+            "feature": "vehicle_age",
+            "lgbm_rank": 7,
+            "ranks": {
+              "tabpfn": 11,
+              "glm": 18
+            },
+            "univariate_auc": 0.513785,
+            "marginal": true
+          }
+        ]
+      }
+    },
+    "control": null,
+    "limitations": [
+      "importance is measured on a 2000-row subsample, not the whole table",
+      "permutation importance credits a correlated pair twice: a feature with a near-duplicate can look unimportant because the model can fall back on its twin",
+      "the TabPFN arm is the local open checkpoint, not the v3 the frontier numbers used"
+    ]
+  }
+}

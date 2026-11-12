@@ -1,5 +1,8 @@
 # Smoke Test Scope — What R1 Has and Has Not Established
 
+> **Historical document.** Kept for the record; it describes a state that has since been superseded.
+
+
 > Date: 2026-09-12 | Status: current | Related: #22
 > Design: `docs/current/FINETUNING_EXPERIMENT_REFERENCE.md` (this is rung **R1** of that design)
 > Results: `docs/reference/FINE_TUNING_PILOT_RESULTS.md` (the numbers; §5d covers statistical validity)

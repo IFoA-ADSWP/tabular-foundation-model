@@ -1,5 +1,8 @@
 # Pilot 2 — alternative design: staged isolation
 
+> **Status:** current as of 2026-10-31.
+
+
 **This is an alternative to the design in `docs/reference/PILOT_2_DESIGN.md`, not a revision of it.** It differs in
 kind, not just in budget: it changes **one factor at a time** and treats every step as a screening
 question with its own stop rule. The design in `docs/reference/PILOT_2_DESIGN.md` changes several factors together

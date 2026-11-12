@@ -1,5 +1,8 @@
 # Fine-Tuning Literature Review — What It Means Here
 
+> **Status:** current as of 2026-10-31.
+
+
 **Purpose.** External evidence, kept deliberately separate from our own measurements. This file records what
 the published work and the vendor's own guidance claim, **and whether we have checked it**. Our own results
 live in `docs/current/FINETUNING_PROBE_RESULTS.md`, `docs/reference/FINE_TUNING_PILOT_RESULTS.md` and the run records — not here.

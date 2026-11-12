@@ -4,6 +4,11 @@
 >
 > **Status: DRAFT for sign-off.** This plan fixes the analysis **before** any data exists, so that the
 > result cannot be chosen after seeing it. Any departure is recorded as a dated deviation (§10).
+
+> **Dated marker (2026-11-09).** Applied, not draft. The probes and the Phase 2 cells this plan governs have
+> run and the phase closed on 2026-11-07 (D22); the outcome is in
+> [`FINETUNING_PHASE2_OUTCOME.md`](FINETUNING_PHASE2_OUTCOME.md). Its sign-off is one pass by the owner, not
+> two independent reviewers — a limitation the plan records and this marker does not repair.
 > Related historical design: `docs/reference/PILOT_2_DESIGN.md` (§5, §6.5), `docs/current/FINETUNING_DECISION_LOG.md` (D4, D8), `docs/reference/PILOT_2_DECISION_GRAPH.md`.
 
 ## 1. Purpose and scope
@@ -33,9 +38,14 @@ Scope: the funded in-domain pilot in `docs/current/FINETUNING_PILOT_DESIGN.md`, 
 
 The old pooled labels are retained only as implementation identifiers; they are not reused as Phase 2 labels. The full experiment matrix and seed/split policy are frozen in the canonical pilot design before execution.
 
-**Sign convention is stated once and used everywhere.** For loss-type metrics, Δ is *arm − `A_raw`*, so
-**negative means the fine-tuned arm wins**. For discrimination and calibration metrics (ROC AUC, PR AUC,
-Brier), positive means improvement. Every reported number states which convention it uses.
+**Sign convention is stated once and used everywhere.** For loss-type metrics — log loss and Brier — Δ is
+*arm − `A_raw`*, so **negative means the fine-tuned arm wins**. For discrimination metrics (ROC AUC, PR
+AUC), positive means improvement. Every reported number states which convention it uses.
+
+> **2026-11-09** (#518). Brier was listed above as a metric where positive means improvement. It is a loss: every
+> analysis reads ΔBrier as *arm − `A_raw`*, so a positive value is worse, and D12's veto is a ceiling on that
+> increase. Replaced wording: *"For discrimination and calibration metrics (ROC AUC, PR AUC, Brier),
+> positive means improvement."*
 
 | Level | Estimand |
 | --- | --- |
@@ -45,6 +55,10 @@ Brier), positive means improvement. Every reported number states which conventio
 | **Tertiary (ladder)** | Marginal differences between adjacent epoch rungs (30 vs 10 vs 3) — exploratory, not a decision |
 | **Interaction (off-ramp only)** | The difference-of-differences between two factors, with everything else held fixed |
 
+> **2026-11-09** (#518). The claim measure for Phase 2 was ROC AUC, with a Brier veto (D12, 2026-11-03). The paired
+> log-loss estimand named above as primary was **not carried into the Phase 2 report** — a stated gap, not a
+> silent demotion. See [`FINETUNING_PHASE2_OUTCOME.md`](FINETUNING_PHASE2_OUTCOME.md) §4.
+
 ## 3. Metrics
 
 - **Primary:** log loss — the pre-registered probability-quality measure for the in-domain anchor and transfer comparison.
@@ -53,6 +67,12 @@ Brier), positive means improvement. Every reported number states which conventio
 - **Calibration tolerance must be numeric.** Design §6.5 criterion 5 requires the ECE/Brier tolerance to
   be set **in advance** — *an unset tolerance is not a pre-registration*. This is currently **TBD** and
   is flagged in §12 as a required number before sign-off.
+
+> **2026-11-09** (#518) — Brier and log loss. Brier carries a **veto** under D12, so it has a decision role rather
+> than none. Log loss keeps the primary reporting role stated above and is unreported in the Phase 2 outcome.
+>
+> **2026-11-09** (#518) — the calibration tolerance. It is no longer TBD: set at sign-off on 2026-10-30, and §12
+> item 1 records the value. The paragraph above is stale, not an open question.
 
 All metrics are computed on the held-out test rows only. What the pipeline **asserts** is that no test row
 is in the training indices, the dropped remainder, the pool, or the inference **context** we construct
@@ -167,6 +187,29 @@ Any departure from this plan is recorded as a **dated deviation** stating what c
 result computed **both ways** where that is possible. Deviations are listed in the report itself; they
 are never resolved silently. A deviation agreed after seeing the result is stated as such.
 
+### D-1 (2026-10-30) — §12.1's resolution figure contradicts the measured half-widths
+
+**Stated:** §12.1 says `uslapseagent` "can resolve >= 0.009 ROC", computed from "R1's own paired 95%
+intervals on 1,000 test rows".
+
+**Observed:** `FINETUNING_PROBE_RESULTS.md` records the paired 95% half-widths actually achieved on
+that dataset at 2,000 training rows as **0.0022 / 0.0023 / 0.0043** — four times tighter than the
+figure §12.1 attributes to the same source.
+
+**Consequence:** the anchor's acceptance rests on the interval rule in
+`FINETUNING_EXECUTION_RUNBOOK.md` and on decision **D9**, not on the 0.009 figure. Nothing is
+recomputed here; the discrepancy is recorded so the figure cannot be quoted as settled, and the
+reconciliation is owed before the breadth phase. If §12.1 turns out to describe between-seed resolution
+rather than within-run interval width, that will be stated when it is reconciled.
+
+**Reconciled (2026-10-31), from the anchor's own records.** `docs/analyses/anchor_power_diagnosis.md`
+measures the design's achieved resolution at **0.0036 AUC** median half-width (0.0026–0.0046) on
+1,000 test rows, pooled and per seed. The probe's 0.0022–0.0043 and this figure agree; the claimed
+**≥0.009 is not what this design achieves** and must not be quoted. Whatever §12.1's number was
+measuring, it was not within-run interval width. The anchor's acceptance (D9) never depended on it —
+D9 uses interval exclusion — so no result changes; only the sentence does.
+
+
 ## 11. Reproducibility linkage
 
 Seeds, splits, data ref, container image and package versions are recorded per run by the pipeline's
@@ -180,8 +223,11 @@ pinned to it.
 
 Stated so a reviewer can see the remaining gaps rather than assume the plan is complete:
 
-1. **The numeric ECE/Brier calibration tolerance** (design §6.5 criterion 5) — required in advance, and
-   currently unset. **This must be a number before sign-off, or criterion 5 is not pre-registered.**
+1. **The numeric ECE/Brier calibration tolerance** (design §6.5 criterion 5) — **set at sign-off
+   (2026-10-30): Brier must not increase against the in-run `A_raw` by more than 0.001**, and a gain is
+   claimed only when the paired ROC AUC interval excludes zero. The threshold sits inside the measured
+   3→30 epoch Brier spread (0.0887 → 0.0875), so it separates a real calibration effect from noise
+   rather than rubber-stamping every result.
 2. **The primary target for the transfer step** (D4) — named before the run, not after.
 3. **The minimum detectable effect** — computed rather than deferred: see §12.1.
 
@@ -197,6 +243,8 @@ Using R1's own **paired** 95% intervals on 1,000 test rows, each dataset resolve
 | uslapseagent | 1,000 | 369 | >= 0.009 |
 | **Pooled** (inverse-variance) | | | **~>= 0.008** |
 
+*2026-10-31 (#518): the `uslapseagent` resolution figure in this table is superseded by the reconciliation in §10 — it must not be quoted. The measured half-width is 0.0036. The two later sentences in §12.1 that repeat it are superseded with it.*
+
 R1's observed in-domain deltas were **0.0008-0.0095**. So **three of the four datasets cannot resolve
 an effect of that size at 1,000 test rows**, and this design is a test for **large** effects
 (roughly >= 0.02 per dataset), not for the R1 band. Stated here so that "we were underpowered" cannot
@@ -206,6 +254,10 @@ be discovered after a null.
 **row-sampling** variance, which is what sets this floor. Only more test rows (or more positives) move
 it. The 15x repeat structure therefore buys **stability, not sensitivity**, and should not be expected
 to convert a 0.005 effect into a detectable one.
+
+> **2026-11-09** (#518). True of the **row-sampling floor**. Repeats do move the **between-split** variance, which is
+> what the anchor's replication bought (D13); D22 names the conflation a "resolution-for-variance
+> substitution". The sentence is scoped, not withdrawn.
 
 Two worked consequences:
 
@@ -224,6 +276,17 @@ minimum detectable effect** -- it costs nothing at run time, and it is worth str
 additional repeats, which (above) buy no sensitivity at all. Recorded here as a candidate change
 rather than made, because it changes the split every existing number was computed on.
 
+*2026-10-31 (#518): the resolution figure in the sentence above is superseded by the reconciliation in §10; it must not be quoted.*
+
+**Decision (2026-10-30): the anchor keeps the uniform cap.** A stratified cap is the cheapest available
+improvement to the minimum detectable effect, but it changes the split every existing number was
+computed on. Adopting it before the anchor would make the two-seed replication incomparable with R1's
+10,000-row result, which is the one comparison the anchor exists to make. It is recorded here as a
+change to adopt **after** the gate, as its own step. `uslapseagent` already resolves 0.009 ROC — the
+best of the four datasets — so the anchor pays least for the deferral.
+
+*2026-10-31 (#518): the figure in this sentence is superseded by the reconciliation in §10; it must not be quoted.*
+
 **What this means for the design's claims.** A positive result at these settings is evidence of a
 large effect; a null is *not* evidence that fine-tuning is worthless at the 0.001-0.010 scale. Every
 null is therefore reported **with its minimum detectable effect beside it**, so a reader can see what
@@ -233,8 +296,15 @@ the experiment could and could not have seen.
 
 | Role | Name | Date |
 | --- | --- | --- |
-| Statistical review | ______ | ______ |
-| Technical review | ______ | ______ |
-| Owner (@scotthawes) | ______ | ______ |
+| Statistical review | Scott Hawes — one-pass review | 2026-10-30 |
+| Technical review | Scott Hawes — one-pass review | 2026-10-30 |
+| Owner (@scotthawes) | Scott Hawes | 2026-10-30 |
+
+**Both review rows record one pass by the owner, not two independent reviewers.** Stated plainly so the
+table is not read as independent statistical review; the plan's claims rest on its own worked numbers
+(§12.1), not on a second signature.
+
+**Authority.** This plan is authoritative on analysis. The campaign spec (#286) is authoritative on
+execution, and a conflict between them is a bug in the spec.
 
 **Once signed, this plan is fixed.** Changes are deviations under §10.

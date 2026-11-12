@@ -35,7 +35,6 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup and contribution gui
 │   ├── data_loader_class.py        #   OOP wrapper for notebook use
 │   ├── evaluation_metrics.py       #   AUC, accuracy, F1, RMSE, MAE
 │   ├── model_training.py           #   Baseline models + train/predict pipeline
-│   ├── baseline_config.py          #   Centralised config (seeds, paths, params)
 │   ├── baseline_utils.py           #   Preprocessing, metrics, scaling helpers
 │   └── cleanup_outputs.py          #   Output directory maintenance
 │
@@ -123,7 +122,7 @@ The docs are extensive. Start here:
 - **`docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md`** — detailed diagnostic methods for Phase 1
 - **`docs/archive/TECHNICAL_COMPANION.md`** — explains all metrics in actuarial context (best first read)
 - **`docs/REPLICATION_SETUP_GUIDE.md`** — step-by-step to reproduce the paper results
-- **`docs/archive/archive/status/STATUS_REPORT_FINAL.md`** — summary of validated findings and recommendations
+- **`docs/archive/status/STATUS_REPORT_FINAL.md`** — summary of validated findings and recommendations
 
 The other `docs/current/PILOT_2_*` files are supporting execution, cost, statistical, and decision appendices. If a document conflicts with the canonical full pilot design, use the canonical design and treat the older text as historical or supporting material.
 

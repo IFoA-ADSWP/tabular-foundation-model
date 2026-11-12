@@ -28,7 +28,13 @@ byte-identical, because the ticket also requires each row to state the id.
 
 `[datasets.<name>]` — `file`, `target`, `drop`, `metric`, optional `transform`.
 `[methods.classification.<id>]` / `[methods.regression.<id>]` — `n_params`.
-`[experiments.<id>]` — `dataset`, `methods`, `n_folds`, `seed`, `model_version`.
+`[experiments.<id>]` — `dataset`, `methods`, `n_folds`, `seed`, `model_version`, optional
+`row_sizes` (#264; full is always a point, so a declaration adds capped points to it).
+`[pilot_methods.<id>]` — optional `epochs`; the arm's own budget (#238).
+`[pilot_experiments.<id>]` — `dataset`, `arms`, `seed`, optional `folds`, `train_size`,
+`test_size`, `model_version`, and a complete `config` table (#238). A pilot experiment is
+its own section because it shares only the dataset and the model version with a frontier
+experiment; every setting is required, so nothing is left to a module default.
 
 Two decisions worth stating:
 
@@ -111,6 +117,7 @@ Each rejection names the offending entry and the file:
 | experiment method whose mode disagrees with the dataset's metric | names both |
 | duplicate method in one experiment's list | names it |
 | `n_folds < 2`, negative `seed`, empty `model_version` | names the field |
+| `row_sizes` not a list of positive integers, or a size declared twice | names the entry and the size |
 | a section that is not a table | names the section |
 | `schema_version = true` (a bool is not version 1) | names the field |
 
@@ -150,7 +157,7 @@ Each rejection names the offending entry and the file:
 
 ## Gate state at the start of this work
 
-Three of the four checks are already red on `origin/main`, independently of this change:
+Three of the checks the instructions then named are already red on `origin/main`, independently of this change (the fourth, the doc link/status checks, is not in today's `ci.yml` — see #260):
 
 - `ruff check scripts/ src/ tests/` — 64 errors, no `pyproject.toml`/`ruff.toml` in the
   repo, so ruff's defaults decide. Reproduced on a clean `git archive` of `origin/main`.

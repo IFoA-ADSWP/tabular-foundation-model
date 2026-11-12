@@ -37,8 +37,8 @@ leak-drop cannot be silently left out of the record. The pilot keeps a four-line
 binds its own registry (`DATASETS`, `DATA_DIR`, `DATA_REF`) to the shared helper — that binding
 is the runner's declaration, not a fact `src/` can know.
 
-`version_source` says what kind of claim `version` is. The pilot writes `resolver`: it records
-the label the repository resolves to and does not pass it to `TabPFNClassifier`, so the block
+`version_source` says what kind of claim `version` is. The pilot wrote `resolver`; since #285 it writes `pinned`, because it records
+the label the repository resolves to; #285 made the pilot pass it to `TabPFNClassifier`, so the block
 states the gap rather than implying a pin (follow-up #285).
 
 The existing top-level `dataset_fingerprint` and `split_fingerprint` keys stay, pointing at the

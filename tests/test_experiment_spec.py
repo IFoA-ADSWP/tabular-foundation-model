@@ -10,7 +10,13 @@ from pathlib import Path
 
 import pytest
 
-from src.experiment_spec import Registry, RegistryError, load_registry
+from src.experiment_spec import (
+    Registry,
+    RegistryError,
+    arm_epoch_budget,
+    load_registry,
+    resolve_row_size,
+)
 
 MINIMAL = """
 schema_version = 1
@@ -188,12 +194,10 @@ def test_the_experiments_methods_resolve_in_its_own_mode_in_declared_order(tmp_p
     assert registry.dataset_of(experiment).name == "toy"
 
 
-# ---- the committed file vs the code it was generated from --------------------
+# ---- the committed file vs the code it declares -----------------------------
 #
-# DATASETS is deprecated for the classification frontier (#231 reads the registry) but
-# run_tuned_baselines still imports it until #235; REG_DATASETS serves regression until
-# #232/#235. This test keeps the committed file and those remaining code lists from
-# drifting apart.
+# The dataset constants are gone (#235); this keeps the method table and the committed
+# experiments from drifting apart.
 
 REGISTRY = (
     Path(__file__).resolve().parents[1]
@@ -214,6 +218,17 @@ N_PARAMS_BY_METHOD = {
 }
 
 
+def _pilot():
+    import importlib.util
+
+    script = REGISTRY.parents[3] / "scripts" / "run_pilot.py"
+    spec = importlib.util.spec_from_file_location("run_pilot_for_registry_test", script)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _runner():
     import importlib.util
 
@@ -223,37 +238,6 @@ def _runner():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
-
-def test_the_committed_registry_covers_the_remaining_code_dataset_lists():
-    runner = _runner()
-    registry = load_registry(REGISTRY)
-
-    expected = {d["name"]: d for d in runner.DATASETS + runner.REG_DATASETS}
-    assert set(registry.datasets) == set(expected)
-
-    for name, declared in expected.items():
-        dataset = registry.datasets[name]
-        assert dataset.file == declared["file"], name
-        assert dataset.target == declared["target"], name
-        assert dataset.drop == tuple(declared["drop"]), name
-        assert dataset.metric == declared.get("metric", "log_loss"), name
-        assert dataset.transform == declared.get("transform"), name
-
-    # every dataset has exactly one experiment, at the runner's fold count and seed
-    assert set(registry.experiments) == set(expected)
-    for name, experiment in registry.experiments.items():
-        assert experiment.dataset == name
-        assert experiment.n_folds == runner.N_FOLDS
-        assert experiment.seed == runner.SEED
-
-    # the runner compares the same method list for every dataset in a mode, so the
-    # registry must too — checking only one experiment per mode would let the other ten
-    # drift silently
-    for mode in ("classification", "regression"):
-        lists = {experiment.methods for experiment in registry.experiments.values()
-                 if experiment.mode == mode}
-        assert len(lists) == 1, f"{mode} experiments disagree about which methods: {lists}"
 
 
 def test_the_committed_registry_declares_every_method_in_runner_order():
@@ -320,3 +304,285 @@ def test_make_folds_refuses_an_unknown_kind_and_names_it():
 
     with pytest.raises(RegistryError, match=r"unknown fold kind 'nope'"):
         make_folds("nope", 5, 42)
+
+
+def test_make_folds_kfold_matches_the_pre_change_seed_42_split():
+    # Stored pin, not a re-derivation: sha256 over the concatenated test indices from
+    # KFold(n_splits=5, shuffle=True, random_state=42).split(np.zeros((120, 3))),
+    # captured from the pre-#232 call site. A constructor change that moved the split
+    # would fail here even if the new call still looked like a KFold.
+    import hashlib
+
+    import numpy as np
+
+    from src.experiment_spec import make_folds
+
+    X = np.zeros((120, 3))
+    digest = hashlib.sha256()
+    for _, te in make_folds("kfold", 5, 42).split(X):
+        digest.update(np.asarray(te, dtype=np.int64).tobytes())
+
+    assert digest.hexdigest() == (
+        "00fe19c76ccec896226199505d3032d06bfd50c7aef1e61b0c727ee686dbbe5a"
+    )
+
+
+def test_make_folds_kfold_honours_a_changed_seed():
+    import numpy as np
+
+    from src.experiment_spec import make_folds
+
+    X = np.zeros((120, 3))
+    first = list(make_folds("kfold", 5, 42).split(X))
+    second = list(make_folds("kfold", 5, 7).split(X))
+
+    assert any(not np.array_equal(a[1], b[1]) for a, b in zip(first, second))
+
+
+# ---- the row-size axis (#264) ----------------------------------------------
+
+def _with_sizes(tmp_path, declared="[1000, 5000]"):
+    return load_registry(write(tmp_path, MINIMAL.replace(
+        'model_version = "v3_default"',
+        f'model_version = "v3_default"\nrow_sizes = {declared}',
+    )))
+
+
+def test_an_experiment_declares_row_sizes_and_full_is_always_a_point(tmp_path):
+    experiment = _with_sizes(tmp_path).experiment("toy")
+
+    assert experiment.row_sizes == (1000, 5000)
+    assert experiment.row_size_points == (1000, 5000, None)
+
+
+def test_an_experiment_that_declares_no_sizes_is_measured_at_full(tmp_path):
+    experiment = load_registry(write(tmp_path, MINIMAL)).experiment("toy")
+
+    assert experiment.row_sizes == ()
+    assert experiment.row_size_points == (None,)
+
+
+@pytest.mark.parametrize("declared, message", [
+    ("[1000, 1000]", "declares row size 1000 more than once"),
+    ("[0]", "positive integers"),
+    ("[-5]", "positive integers"),
+    ("[1.5]", "positive integers"),
+    ('["full"]', "positive integers"),
+    ("[true]", "positive integers"),
+    ("1000", "list of positive integers"),
+])
+def test_a_bad_row_size_declaration_is_refused_by_name(tmp_path, declared, message):
+    path = write(tmp_path, MINIMAL.replace(
+        'model_version = "v3_default"',
+        f'model_version = "v3_default"\nrow_sizes = {declared}',
+    ))
+
+    with pytest.raises(RegistryError, match=message):
+        load_registry(path)
+
+
+def test_a_run_selects_a_declared_point_or_full(tmp_path):
+    experiment = _with_sizes(tmp_path).experiment("toy")
+
+    assert resolve_row_size(experiment, None) is None
+    assert resolve_row_size(experiment, 1000) == 1000
+
+
+def test_a_size_the_declaration_does_not_contain_is_refused_by_name(tmp_path):
+    experiment = _with_sizes(tmp_path).experiment("toy")
+
+    with pytest.raises(RegistryError) as raised:
+        resolve_row_size(experiment, 2000)
+
+    message = str(raised.value)
+    assert "'toy'" in message
+    assert "2000" in message
+    assert "full, 1000, 5000" in message
+
+
+def test_the_declared_sizes_are_the_points_the_committed_sweep_holds():
+    # The acceptance criterion is that the declared axis does not move the committed
+    # table: every size it holds for these three experiments is declared, and its largest
+    # point is the full table.
+    import pandas as pd
+
+    registry = load_registry(REGISTRY)
+    table = pd.read_csv(REGISTRY.parent / "home_turf_sweep_results.csv")
+
+    for dataset in ("bemtl97", "coil2000", "uslapseagent"):
+        declared = {n for n in registry.experiment(dataset).row_size_points if n is not None}
+        observed = set(table.loc[table.dataset == dataset, "n_rows"].unique())
+        assert declared <= observed, (dataset, declared, observed)
+        assert observed - declared == {max(observed)}, (dataset, declared, observed)
+
+
+# ---- the pilot's experiment kind (#238) -------------------------------------
+
+PILOT_MINIMAL = MINIMAL + """
+[pilot_datasets.toy_p]
+file = "toy.csv"
+target = "y"
+
+[pilot_methods.A_raw]
+
+[pilot_methods.B_ft10]
+epochs = 10
+
+[pilot_experiments.toy_p1a]
+dataset = "toy_p"
+arms = ["A_raw", "B_ft10"]
+seed = 42
+train_size = 2000
+test_size = 1000
+model_version = "v3_default"
+
+[pilot_experiments.toy_p1a.config]
+epochs = 3
+early_stopping = false
+n_estimators = 2
+learning_rate = 1e-5
+fit_mode = "batched"
+context_samples = 64
+"""
+
+
+def test_a_pilot_experiment_loads_with_its_arms_and_base_config(tmp_path):
+    registry = load_registry(write(tmp_path, PILOT_MINIMAL))
+    experiment = registry.pilot_experiment("toy_p1a")
+
+    assert (experiment.dataset, experiment.arms) == ("toy_p", ("A_raw", "B_ft10"))
+    assert experiment.seed == 42
+    assert experiment.folds is None  # absent means one split, not a default fold count
+    assert (experiment.train_size, experiment.test_size) == (2000, 1000)
+    assert experiment.config.context_samples == 64
+
+    # The arm's own budget wins; an arm without one inherits the experiment's base.
+    assert arm_epoch_budget(experiment, registry.pilot_methods["B_ft10"]) == 10
+    assert arm_epoch_budget(experiment, registry.pilot_methods["A_raw"]) == 3
+
+
+def test_an_unknown_pilot_experiment_names_it_and_lists_the_known_ones(tmp_path):
+    registry = load_registry(write(tmp_path, PILOT_MINIMAL))
+
+    with pytest.raises(RegistryError, match="unknown pilot experiment 'nope'"):
+        registry.pilot_experiment("nope")
+
+
+@pytest.mark.parametrize("old, new, message", [
+    ('dataset = "toy_p"\narms', 'dataset = "ghost"\narms', "unknown dataset 'ghost'"),
+    ('arms = ["A_raw", "B_ft10"]', 'arms = ["A_raw", "nope"]', "unknown pilot arm 'nope'"),
+    ('arms = ["A_raw", "B_ft10"]', 'arms = ["A_raw", "A_raw"]', "more than once"),
+    ("seed = 42", "seed = -1", "must be at least 0"),
+    ("train_size = 2000", "train_size = 0", "must be at least 1"),
+    ("learning_rate = 1e-5", "learning_rate = 0", "greater than 0.0"),
+    ("epochs = 3", "epochs = 0", "must be at least 1"),
+    ("early_stopping = false", 'early_stopping = "no"', "must be a boolean"),
+    ('fit_mode = "batched"', "", "missing required key 'fit_mode'"),
+    ("n_estimators = 2", "n_estimators = 2\nextra = 1", "unknown key"),
+])
+def test_a_bad_pilot_declaration_is_refused_by_name(tmp_path, old, new, message):
+    text = PILOT_MINIMAL.replace(old, new, 1)
+    assert text != PILOT_MINIMAL, f"fixture has no {old!r} to replace"
+
+    with pytest.raises(RegistryError, match=message):
+        load_registry(write(tmp_path, text))
+
+
+def test_the_committed_registry_declares_the_pilot_experiments_the_pilot_runs():
+    pilot = _pilot()
+    registry = load_registry(REGISTRY)
+
+    assert set(registry.pilot_experiments) == {
+        *(f"{name}_p1a" for name in pilot.DATASETS),
+        "spanish_motor_lapse_cell",
+    }
+    for name in pilot.DATASETS:
+        experiment = registry.pilot_experiment(f"{name}_p1a")
+        assert experiment.dataset == name
+        assert experiment.seed == pilot.DEFAULT_SEED
+        assert (experiment.train_size, experiment.test_size) == (
+            pilot.TRAIN_SIZE, pilot.TEST_SIZE)
+        assert experiment.config.context_samples == pilot.DEFAULT_CONFIG["context_samples"]
+        assert experiment.model_version == "v3_default"
+
+
+# ---------------------------------------------------------------------------
+# A seed range, and the pre-registration it is fixed against (#450)
+# ---------------------------------------------------------------------------
+def _with_seed_block(seed_line: str) -> str:
+    """The pilot fixture with its single `seed = 42` line replaced by a seed declaration.
+
+    Scoped to the pilot block on purpose: the frontier experiment in the same fixture also carries
+    `seed = 42`, and replacing the first occurrence edits that one and proves nothing about the
+    pilot's parser.
+    """
+    marker = "[pilot_experiments.toy_p1a]"
+    head, tail = PILOT_MINIMAL.split(marker, 1)
+    assert "seed = 42" in tail
+    return head + marker + tail.replace("seed = 42", seed_line, 1)
+
+
+def test_a_seed_list_loads_and_keeps_its_order(tmp_path):
+    text = _with_seed_block(
+        'seeds = [331, 332, 333]\n'
+        'preregistration = "docs/current/FINETUNING_PREREGISTRATION_SPANISH_2026-11.md"'
+    )
+    experiment = load_registry(write(tmp_path, text)).pilot_experiment("toy_p1a")
+
+    assert experiment.seeds == (331, 332, 333)
+    assert experiment.seed == 331  # the single-seed spelling still reads
+    assert experiment.preregistration.endswith("FINETUNING_PREREGISTRATION_SPANISH_2026-11.md")
+
+
+def test_a_single_seed_needs_no_preregistration(tmp_path):
+    """A reproduction has no seed count to choose, so the field stays optional for it."""
+    experiment = load_registry(write(tmp_path, PILOT_MINIMAL)).pilot_experiment("toy_p1a")
+    assert experiment.seeds == (42,)
+    assert experiment.preregistration is None
+
+
+def test_a_multi_seed_declaration_without_a_preregistration_is_refused(tmp_path):
+    """The rule that makes the field load-bearing rather than decorative."""
+    text = _with_seed_block("seeds = [331, 332]")
+    with pytest.raises(RegistryError, match="no preregistration"):
+        load_registry(write(tmp_path, text))
+
+
+@pytest.mark.parametrize("seed_line, message", [
+    ('seed = 42\nseeds = [331, 332]', "both 'seed' and 'seeds'"),
+    ("seeds = []", "non-empty list"),
+    ('seeds = "331,332"', "non-empty list"),
+    ('seeds = [331, "332"]', "must contain integers"),
+    ("seeds = [331, -1]", "must be non-negative"),
+    ("seeds = [331, 331]", "more than once"),
+])
+def test_a_malformed_seed_declaration_is_refused_by_name(tmp_path, seed_line, message):
+    text = _with_seed_block(seed_line)
+    with pytest.raises(RegistryError, match=message):
+        load_registry(write(tmp_path, text))
+
+
+def test_an_empty_preregistration_is_refused_rather_than_stored(tmp_path):
+    """One spelling of "declared nothing": absent. An empty string is not a document."""
+    text = _with_seed_block('seeds = [331, 332]\npreregistration = ""')
+    with pytest.raises(RegistryError, match="non-empty string"):
+        load_registry(write(tmp_path, text))
+
+
+def test_the_spanish_cell_resolves_to_its_pre_registered_design():
+    """D19's design, checked against the registry rather than against prose."""
+    registry = load_registry(REGISTRY)
+    cell = registry.pilot_experiment("spanish_motor_lapse_cell")
+
+    assert cell.dataset == "spanish_motor_lapse"
+    # 331-340 is the probe; 341-356 the replication, amended after the probe's k (#466).
+    assert cell.seeds == tuple(range(331, 357))
+    assert set(range(331, 341)) < set(cell.seeds), "the probe's seeds must remain declared"
+    assert not (set(range(331, 341)) & set(range(341, 357))), "probe and replication stay disjoint"
+    assert cell.arms == ("A_raw", "B_ft3", "B_ft10", "B_ft30")
+    assert (cell.train_size, cell.test_size) == (10000, 10000)
+    assert cell.model_version == "v3_default"
+    assert cell.preregistration == "docs/current/FINETUNING_PREREGISTRATION_SPANISH_2026-11.md"
+
+    # The document must exist, or the record would name a file a reader cannot open.
+    assert (Path(__file__).resolve().parents[1] / cell.preregistration).is_file()

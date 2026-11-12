@@ -1,0 +1,20 @@
+# Legacy v2-era environment.
+#
+# The current default is tabpfn==8.5.0 (v3_default); see requirements.txt and
+# docs/current/REGRESSOR_FINETUNING_PREREGISTRATION_2026-11.md.
+#
+# The v2 scripts under scripts/legacy_finetuning/ and the v2 notebooks were written
+# against tabpfn>=6,<7. They do not run on 8.5.0: tabpfn.finetune_utils and
+# TabPFNRegressor.get_preprocessed_datasets were removed. Install this file only when
+# you deliberately need the v2 path:
+#
+#   pip install -r requirements-legacy.txt
+#
+numpy>=1.24,<2
+pandas>=2.0,<3
+scikit-learn>=1.3,<2
+scipy>=1.10,<2
+joblib>=1.2,<2
+torch>=2.0,<3
+tabpfn>=6,<7
+tabpfn-extensions>=0.2,<0.3
