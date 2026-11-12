@@ -71,6 +71,19 @@ def rmse(y_true, y_pred) -> float:
     return float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
 
 
+def weighted_rmse(y_true, y_pred, weights) -> float:
+    """RMSE with one weight per row, for a grouped severity target (#552).
+
+    A Spanish claiming policy contributes `N_claims_year` claim-equivalents at its mean cost, so an
+    unweighted RMSE would count a one-claim policy as much as a five-claim one. The weight is the
+    count; the estimator is the same squared error, weighted.
+    """
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    weights = np.asarray(weights, dtype=float)
+    return float(np.sqrt(np.average((y_true - y_pred) ** 2, weights=weights)))
+
+
 def mae(y_true, y_pred) -> float:
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)

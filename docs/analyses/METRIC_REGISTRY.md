@@ -30,7 +30,7 @@ that put it there. This is the table #356 decided and the rows #361 built.
 | `log_loss` | 1 | Cross-entropy of the predicted probabilities, with probabilities clipped to `[1e-15, 1 - 1e-15]`. | `PILOT_2_DESIGN.md` §3 names log loss the primary loss; the clip is what makes the recorded value finite on confident mistakes. |
 | `ece` | 1 | Expected calibration error over 10 equal-width probability bins: the bin-weighted gap between mean predicted probability and observed frequency. | D11 redirected the next step to calibration, which needs a number for "how far off are the levels" rather than for ranking. |
 
-## The regression six (#538)
+## The regression six (#538), plus the weighted variant (#555)
 
 A regression slot's record holds its verdict metric by name (`verdict_metric`) and its value in
 `verdict_metric_value`, so `rescore` compares a value only when the names match.
@@ -38,6 +38,7 @@ A regression slot's record holds its verdict metric by name (`verdict_metric`) a
 | Metric | Version | Definition | Motivated by |
 | --- | --- | --- | --- |
 | `rmse` | 1 | Root mean squared error over all rows, on the stored target scale. | The pre-registered verdict metric for `spanish_motor_severity` and `ausprivauto0405` `VehValue`. |
+| `weighted_rmse` | 1 | Root mean squared error with one weight per row, `Σw(y−ŷ)²/Σw`, on the stored target scale. | The grouped severity target (#552): a Spanish claiming policy contributes `N_claims_year` claim-equivalents at its mean cost, so an unweighted RMSE would count a one-claim policy as much as a five-claim one. |
 | `mae` | 1 | Mean absolute error over all rows, on the stored target scale. | A colleague's preferred summary when a squared loss overweights the tail; it needs no input the capture lacked. |
 | `medae` | 1 | Median absolute error over all rows. | Reported beside MAE because severity and vehicle value are heavy-tailed, and the median shows typical rather than average error. |
 | `rmsle` | 1 | Root mean squared error of `log1p` on truth and prediction, with predictions clipped below at 0; rows with negative truth are excluded (none of the three targets has one). | The metric colleagues asked for when proportional error matters; the clip makes it defined when a model predicts below zero. |

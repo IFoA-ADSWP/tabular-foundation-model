@@ -202,6 +202,13 @@ printf '%s\\n' "$*" >> "$TFM_TEST_ARGV"
 if [ -n "${TFM_TEST_FAIL_MEASURE:-}" ]; then
   case "$*" in *benchmark_regressor_fit.py*) exit 1 ;; esac
 fi
+case "$*" in
+  *run_fair_test.py*--gate*)
+    mkdir -p results
+    printf '%s\\n' '{"frequency_french": {"folds": 5, "mean": 1.0, "sd": 0.1, "mde": 0.125}}' \
+      > "results/resolution_gate_${TFM_RUN_STAMP}.json"
+    exit 0 ;;
+esac
 out=""
 prev=""
 for a in "$@"; do
@@ -536,3 +543,82 @@ def test_a_probe_run_that_returns_nothing_is_not_a_success(tmp_path):
 
     assert result.returncode == 1, combined
     assert "did not arrive intact" in combined, combined
+
+
+# ---------------------------------------------------------------------------
+# 5. The fair-test gate rides the same channel (#555)
+# ---------------------------------------------------------------------------
+def test_the_onstart_payload_exports_the_fairtest_mode(tmp_path):
+    payload = _payload_after_launch(tmp_path, "--fairtest", "gate")
+
+    assert "export FAIRTEST=" in payload, payload
+    assert _payload_export(payload, "FAIRTEST") == "gate", payload
+
+
+def test_the_fairtest_mode_refuses_a_frame_alongside_it(tmp_path):
+    state, result = _launch(tmp_path, "--fairtest", "gate", "--arms", "A_raw")
+    combined = result.stdout + result.stderr
+
+    assert result.returncode == 2, combined
+    assert "owns the frame" in combined, combined
+    assert not (state / "created.txt").exists()
+
+
+def test_the_bootstrap_runs_the_gate_and_emits_its_summary(tmp_path):
+    result, argv, emit = _run_bootstrap(tmp_path, FAIRTEST="gate")
+    combined = result.stdout + result.stderr
+
+    assert "BOOTSTRAP FINISHED" in result.stdout, combined
+    assert "########## FAIRTEST gate ##########" in result.stdout, combined
+    gate_calls = [line for line in argv if "run_fair_test.py" in line]
+    assert gate_calls and "--gate" in gate_calls[0], argv
+
+    assert emit.read_text().strip() == "outputs/fairtest", emit.read_text()
+    emitted = tmp_path / "workspace" / "tfm" / "outputs" / "fairtest" / (
+        f"resolution_gate_{RUN_STAMP}.json"
+    )
+    assert emitted.exists(), combined
+    assert "frequency_french" in emitted.read_text(), emitted.read_text()
+
+
+def test_a_gate_summary_verifies_and_names_the_mde(tmp_path):
+    dest = tmp_path / "returned"
+    dest.mkdir()
+    (dest / "resolution_gate.json").write_text(
+        json.dumps(
+            {
+                "frequency_french": {"folds": 5, "mean": 1.0, "sd": 0.1, "mde": 0.1253},
+                "severity_french": {"folds": 5, "mean": 1.1, "sd": 0.2, "mde": 0.2506},
+            }
+        )
+    )
+
+    result = _verify(dest, "--expect-gate")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "mde=0.1253" in result.stdout, result.stdout
+    assert "mde=0.2506" in result.stdout, result.stdout
+
+
+def test_a_payload_without_a_gate_summary_is_refused(tmp_path):
+    dest = tmp_path / "returned"
+    dest.mkdir()
+
+    result = _verify(dest, "--expect-gate")
+
+    assert result.returncode == 7, result.stdout + result.stderr
+    assert "found 0" in result.stdout, result.stdout
+
+
+def test_one_fold_is_not_a_gate(tmp_path):
+    """An MDE from one fold has no spread; it is not a resolution estimate."""
+    dest = tmp_path / "returned"
+    dest.mkdir()
+    (dest / "resolution_gate.json").write_text(
+        json.dumps({"frequency_french": {"folds": 1, "mean": 1.0, "sd": 0.0, "mde": 0.0}})
+    )
+
+    result = _verify(dest, "--expect-gate")
+
+    assert result.returncode == 7, result.stdout + result.stderr
+    assert "at least two folds" in result.stdout, result.stdout

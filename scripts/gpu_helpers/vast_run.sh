@@ -24,6 +24,8 @@
 #   --seeds LIST     seeds to run, comma-separated  (default: the runner's DEFAULT_SEED)
 #   --benchmark MODE run a benchmark instead of arms; `regressor-fit` times one fine-tune
 #                    (10,000 rows x 30 epochs) and returns its record (#528)
+#   --fairtest MODE  run a fair-test step instead of arms; `gate` runs the resolution gate
+#                    and returns the per-target MDE summary (#555)
 #   --image NAME     override the docker image
 #   --transport T    execute | ssh                   (default: execute)
 #   --keep           do NOT destroy on exit
@@ -108,6 +110,9 @@ SEEDS_GIVEN=0
 # 10,000 rows x 30 epochs of freMTPL2freq:ClaimNb), so it is mutually exclusive with the
 # arm/dataset/size/seed options -- refused below rather than silently ignored (#450).
 BENCHMARK="${BENCHMARK:-}"
+# A fair-test mode instead of arms/benchmark (#555). `gate` runs the resolution gate — the raw Arm
+# on five folds of the four targets — and returns only the per-target MDE summary.
+FAIRTEST="${FAIRTEST:-}"
 IMAGE=""
 TRANSPORT="onstart"
 KEEP=0
@@ -163,6 +168,7 @@ while [ $# -gt 0 ]; do
         --test-size)  TEST_SIZE="$2"; shift 2 ;;
         --seeds)      SEEDS="$2"; SEEDS_GIVEN=1; shift 2 ;;
         --benchmark)  BENCHMARK="$2"; shift 2 ;;
+        --fairtest)   FAIRTEST="$2"; shift 2 ;;
         --image)     IMAGE="$2"; shift 2 ;;
         --transport) TRANSPORT="$2"; shift 2 ;;
         --max-attempts) MAX_ATTEMPTS="$2"; shift 2 ;;
@@ -170,7 +176,7 @@ while [ $# -gt 0 ]; do
         --estimate-sec-per-seed) EST_SEC_PER_SEED="$2"; shift 2 ;;
         --keep)      KEEP=1; shift ;;
         --yes)       ASSUME_YES=1; shift ;;
-        -h|--help)   sed -n '2,29p' "$0"; exit 0 ;;
+        -h|--help)   sed -n '2,31p' "$0"; exit 0 ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
 done
@@ -196,6 +202,23 @@ if [ -n "$BENCHMARK" ]; then
         echo "FATAL: --benchmark $BENCHMARK owns the frame (one fit: 10,000 rows x 30 epochs)." >&2
         echo "       Drop --experiment/--arms/--dataset/--train-size/--test-size/--seeds;" >&2
         echo "       the probe is one fixed point, not a batch." >&2
+        exit 2
+    fi
+fi
+
+# The fair-test gate is its own mode and owns the frame for the same reason.
+if [ -n "$FAIRTEST" ]; then
+    case "$FAIRTEST" in
+        gate) ;;
+        *) echo "FATAL: unknown --fairtest '$FAIRTEST' (known: gate)." >&2; exit 2 ;;
+    esac
+    if [ -n "$BENCHMARK" ]; then
+        echo "FATAL: --fairtest and --benchmark are different modes; set one." >&2; exit 2
+    fi
+    if [ -n "$EXPERIMENT" ] || [ -n "$ARMS" ] || [ -n "$DATASET" ] || [ -n "$TRAIN_SIZE" ] \
+       || [ -n "$TEST_SIZE" ] || [ -n "$SEEDS" ]; then
+        echo "FATAL: --fairtest $FAIRTEST owns the frame; drop --experiment/--arms/--dataset/" >&2
+        echo "       --train-size/--test-size/--seeds rather than have them ignored." >&2
         exit 2
     fi
 fi
@@ -733,6 +756,7 @@ BOOTSTRAP_B64="$(gzip -9c "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh" | b
     # The benchmark mode travels as its own export: the box branches on it before the arm
     # loop, so an empty value must not be exported (the box's default is "run arms").
     [ -n "$BENCHMARK" ] && printf 'export BENCHMARK=%q\n' "$BENCHMARK"
+    [ -n "$FAIRTEST" ] && printf 'export FAIRTEST=%q\n' "$FAIRTEST"
     # Identity for the audit record. The container image is chosen at RUN TIME from the
     # host's CUDA capability, so it is a moving part -- a re-run has to be able to say
     # which image produced the numbers, and the box has no way to know it otherwise.
@@ -903,7 +927,7 @@ RUN_RC=0
 if [ "$TRANSPORT" = "ssh" ]; then
     SSH_OPTS=(-o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 -o ServerAliveInterval=30)
     ssh -p "$PORT" "${SSH_OPTS[@]}" "root@$HOST" \
-        "TABPFN_TOKEN='$TABPFN_TOKEN' EXPERIMENT='$EXPERIMENT' ARMS='$ARMS' DATASET='$DATASET' TRAIN_SIZE='$TRAIN_SIZE' TEST_SIZE='$TEST_SIZE' SEEDS='$SEEDS' BENCHMARK='$BENCHMARK' TFM_RUN_STAMP='$RUN_STAMP' bash -s" \
+        "TABPFN_TOKEN='$TABPFN_TOKEN' EXPERIMENT='$EXPERIMENT' ARMS='$ARMS' DATASET='$DATASET' TRAIN_SIZE='$TRAIN_SIZE' TEST_SIZE='$TEST_SIZE' SEEDS='$SEEDS' BENCHMARK='$BENCHMARK' FAIRTEST='$FAIRTEST' TFM_RUN_STAMP='$RUN_STAMP' bash -s" \
         < "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh"
     RUN_RC=$?
 else
@@ -969,7 +993,7 @@ mkdir -p "$RUN_OUTDIR"
 # Each mode writes its own tree on the box: pilot artifacts under outputs/finetune/pilot, a
 # benchmark measurement under outputs/benchmark. The onstart transport ships through the log
 # and needs no choice here; the ssh transport copies a directory, so it must name the right one.
-if [ -n "$BENCHMARK" ]; then PULL_SUBDIR="outputs/benchmark"; else PULL_SUBDIR="outputs/finetune/pilot"; fi
+if [ -n "$BENCHMARK" ]; then PULL_SUBDIR="outputs/benchmark"; elif [ -n "$FAIRTEST" ]; then PULL_SUBDIR="outputs/fairtest"; else PULL_SUBDIR="outputs/finetune/pilot"; fi
 if [ "$TRANSPORT" = "ssh" ]; then
     scp -P "$PORT" -o StrictHostKeyChecking=accept-new -r \
         "root@$HOST:/workspace/tfm/$PULL_SUBDIR/*" \
@@ -998,6 +1022,7 @@ if [ -n "$SEEDS" ]; then SEED_ARGS=(--expect-seeds "$SEEDS"); fi
 # itself (its shape and its wall time) rather than reporting zero verified predictions (#528).
 MODE_ARGS=()
 if [ -n "$BENCHMARK" ]; then MODE_ARGS=(--expect-measurement); fi
+if [ -n "$FAIRTEST" ]; then MODE_ARGS=(--expect-gate); fi
 python3 "$REPO_DIR/scripts/gpu_helpers/verify_artifacts.py" \
     "${VERIFY_SOURCE[@]}" \
     --dest "$RUN_OUTDIR" \
@@ -1018,19 +1043,19 @@ case "$ART_RC" in
        echo "          Evidence kept at $RUN_OUTDIR for inspection; do not publish" >&2
        echo "          from it and do not retry into the same range." >&2
        RUN_RC=1 ;;
-    7) echo "REFUSING: the benchmark measurement did not arrive intact." >&2
-       echo "          One complete benchmark_fit record is the whole point of the" >&2
-       echo "          launch; a run without it measured nothing and does not ship." >&2
+    7) echo "REFUSING: the run's payload did not arrive intact." >&2
+       echo "          A benchmark measurement, or a gate summary, is the whole point" >&2
+       echo "          of the launch; a run without it measured nothing and does not ship." >&2
        echo "          Log kept at $RUN_OUT; use --keep to inspect." >&2
        RUN_RC=1 ;;
     *) echo "WARNING: artifact verification exited $ART_RC" >&2 ;;
 esac
-# A benchmark launch exists to return its measurement, so EVERY non-zero verification outcome
-# means the run measured nothing usable -- including an incomplete payload (4) and a verifier
-# crash (1), which the pilot path can afford to warn about because its artifacts are inspected
-# later. Do not let a paid probe exit 0 without a verified record.
-if [ -n "$BENCHMARK" ] && [ "$ART_RC" -ne 0 ]; then
-    echo "REFUSING: --benchmark $BENCHMARK returned no verified measurement (rc=$ART_RC)." >&2
+# A benchmark or fair-test launch exists to return its payload, so EVERY non-zero verification
+# outcome means the run produced nothing usable -- including an incomplete payload (4) and a
+# verifier crash (1), which the pilot path can afford to warn about because its artifacts are
+# inspected later. Do not let a paid run exit 0 without a verified payload.
+if { [ -n "$BENCHMARK" ] || [ -n "$FAIRTEST" ]; } && [ "$ART_RC" -ne 0 ]; then
+    echo "REFUSING: the $([ -n "$BENCHMARK" ] && echo benchmark || echo fair-test) payload did not arrive intact (rc=$ART_RC)." >&2
     RUN_RC=1
 fi
 
