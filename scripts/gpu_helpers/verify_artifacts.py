@@ -276,6 +276,51 @@ def verify_measurement(dest: str) -> tuple[int, str]:
     )
 
 
+def verify_gate(dest: str) -> tuple[int, str]:
+    """Check a resolution-gate payload: one summary of target -> folds/mean/sd/mde (#555).
+
+    The gate's captures are working files, not evidence; the summary is what the launch returns.
+    Exactly one such object, with at least two folds and a non-negative MDE per target.
+    """
+    summaries: list[tuple[str, dict]] = []
+    for root, _dirs, files in os.walk(dest):
+        for name in files:
+            if not name.endswith(".json"):
+                continue
+            path = os.path.join(root, name)
+            try:
+                with open(path) as f:
+                    payload = json.load(f)
+            except Exception:
+                continue
+            if not isinstance(payload, dict) or not payload:
+                continue
+            if all(
+                isinstance(row, dict) and "mde" in row and "folds" in row
+                for row in payload.values()
+            ):
+                summaries.append((path, payload))
+
+    if len(summaries) != 1:
+        return EXIT_MEASUREMENT, f"expected exactly one gate summary, found {len(summaries)}"
+
+    path, payload = summaries[0]
+    parts = []
+    for target, row in sorted(payload.items()):
+        try:
+            folds = int(row["folds"])
+            mde = float(row["mde"])
+        except (TypeError, ValueError):
+            return EXIT_MEASUREMENT, f"{os.path.basename(path)}: {target} has no numeric folds/mde"
+        if folds < 2 or mde < 0:
+            return (
+                EXIT_MEASUREMENT,
+                f"{target} has folds={folds} mde={mde}; a gate needs at least two folds",
+            )
+        parts.append(f"{target} folds={folds} mde={mde:.4f}")
+    return EXIT_OK, "gate " + "; ".join(parts)
+
+
 def parse_seeds(spec: str) -> list[int]:
     """Turn `225,226,227` or `225-236` (or a mix) into an ordered list of ints.
 
@@ -366,10 +411,25 @@ def main() -> int:
             "complete record and skip the prediction/seed checks (refuses both flags)"
         ),
     )
+    ap.add_argument(
+        "--expect-gate",
+        action="store_true",
+        help=(
+            "the payload is the fair-test resolution-gate summary (#555): one JSON object of "
+            "target -> folds/mean/sd/mde, checked and reported"
+        ),
+    )
     args = ap.parse_args()
 
-    if args.expect_measurement and args.expect_seeds is not None:
-        print("FAIL --expect-measurement and --expect-seeds describe different payloads")
+    modes = sum(
+        (
+            bool(args.expect_measurement),
+            bool(args.expect_gate),
+            args.expect_seeds is not None,
+        )
+    )
+    if modes > 1:
+        print("FAIL --expect-measurement, --expect-gate and --expect-seeds describe different payloads")
         return 2
 
     try:
@@ -385,21 +445,28 @@ def main() -> int:
     else:
         if not os.path.exists(args.raw):
             print(f"FAIL missing captured log: {args.raw}")
-            return EXIT_MEASUREMENT if args.expect_measurement else EXIT_NO_PAYLOAD
+            if args.expect_measurement or args.expect_gate:
+                return EXIT_MEASUREMENT
+            return EXIT_NO_PAYLOAD
         with open(args.raw, errors="replace") as f:
             raw = f.read()
         rc, report = restore(raw, args.dest)
 
     print(f"{'OK' if rc == EXIT_OK else 'FAIL'} {report}")
     if rc != EXIT_OK:
-        # A benchmark launch exists to return its measurement, so "the box produced no
-        # outputs" is not a warning there -- it is the run having measured nothing.
-        if args.expect_measurement and rc == EXIT_NO_PAYLOAD:
+        # A benchmark or gate launch exists to return its payload, so "the box produced no
+        # outputs" is not a warning there -- it is the run having produced nothing.
+        if (args.expect_measurement or args.expect_gate) and rc == EXIT_NO_PAYLOAD:
             return EXIT_MEASUREMENT
         return rc
 
     if args.expect_measurement:
         rc, report = verify_measurement(args.dest)
+        print(f"{'OK' if rc == EXIT_OK else 'FAIL'} {report}")
+        return rc
+
+    if args.expect_gate:
+        rc, report = verify_gate(args.dest)
         print(f"{'OK' if rc == EXIT_OK else 'FAIL'} {report}")
         return rc
 
