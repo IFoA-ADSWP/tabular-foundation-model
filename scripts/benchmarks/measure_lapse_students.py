@@ -237,7 +237,7 @@ def mean_se(values) -> tuple[float, float]:
 
 
 def summarise(dataset: str, rows: list[dict]) -> dict:
-    """Per-method mean ± SE, the teacher-minus-student gap, and the D3 test on each student."""
+    """Per-method mean ± SE, the teacher-minus-student gap, and the beyond-SE test on each student."""
     by_method: dict[str, list[dict]] = {}
     for r in rows:
         by_method.setdefault(r["method"], []).append(r)
@@ -274,11 +274,17 @@ def summarise(dataset: str, rows: list[dict]) -> dict:
             "best_mean_auc": pool[best]["mean_auc"],
             "best_se_auc": pool[best]["se_auc"],
             "gap_auc": teacher_mean - pool[best]["mean_auc"],
-            # The D3 rule, GLOSSARY.md: best_student_mean + SE < teacher_mean - SE.
-            "d3_clears": bool(
+            # Beyond-SE only: best_student_mean + SE < teacher_mean - SE. The glossary's D3
+            # rule (GLOSSARY.md, Frontier) additionally requires B to have strictly fewer
+            # parameters than A, and that ordering is not established for a hosted teacher
+            # versus a fitted tree ensemble — so this field does not claim D3.
+            "beyond_se_clears": bool(
                 pool[best]["mean_auc"] + pool[best]["se_auc"] < teacher_mean - teacher_se
             ),
-            "method": "D3: best_student_mean + SE_best < teacher_mean - SE_teacher (GLOSSARY.md, Frontier)",
+            "method": (
+                "beyond-SE: best_student_mean + SE_best < teacher_mean - SE_teacher; "
+                "D3 additionally needs B to have strictly fewer parameters, not established here"
+            ),
         }
 
     return {
@@ -563,7 +569,7 @@ def main() -> int:
     print(f"record: {OUT_DIR / 'record.json'}")
     print(f"scores: {OUT_DIR / 'per_fold.csv'}")
 
-    print("\n| Dataset | Model | Role | AUC (mean ± SE) | Brier | Gap vs teacher | D3 clears |")
+    print("\n| Dataset | Model | Role | AUC (mean ± SE) | Brier | Gap vs teacher | Beyond SE |")
     print("| --- | --- | --- | ---: | ---: | ---: | --- |")
     for s in summaries:
         for name, m in sorted(s["methods"].items(), key=lambda kv: -kv[1]["mean_auc"]):
@@ -575,7 +581,7 @@ def main() -> int:
             d3 = ""
             for key in ("best_pinned_student_gap", "best_gbdt_gap"):
                 if s[key] and name == s[key]["best_student"]:
-                    d3 = "yes" if s[key]["d3_clears"] else "no"
+                    d3 = "yes" if s[key]["beyond_se_clears"] else "no"
             brier = f"{m['mean_brier']:.4f}" if m["mean_brier"] is not None else "—"
             print(
                 f"| {s['dataset']} | {name} | {m['role']} | "
@@ -592,7 +598,7 @@ def main() -> int:
                     f"{s['dataset']} / {label}: {g['best_student']} {g['best_mean_auc']:.4f} "
                     f"± {g['best_se_auc']:.4f} vs teacher {s['teacher_mean_auc']:.4f} "
                     f"± {s['teacher_se_auc']:.4f} -> gap {g['gap_auc']:+.4f}, "
-                    f"D3 {'clears' if g['d3_clears'] else 'does not clear'}"
+                    f"beyond-SE {'clears' if g['beyond_se_clears'] else 'does not clear'}"
                 )
     return 0
 

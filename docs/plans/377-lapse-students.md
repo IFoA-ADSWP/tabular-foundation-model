@@ -71,10 +71,13 @@ and `rmse` only. Teacher Brier on the canonical folds cannot be produced without
 so it is recorded as `null` with a reason, not estimated, not back-filled from the 2,000-row
 pilot.
 
-**Students (fit here, CPU).** The four pinned in `src/baseline_config.py`:
+**Students (fit here, CPU).** The four configurations, restated in the script:
 `catboost {iterations:100, verbose:0}`, `xgboost {n_estimators:100, random_state:42}`,
 `random_forest {n_estimators:100, random_state:42}`, `logistic_regression {max_iter:1000}`.
-Parameters come from `BASELINE_MODELS` rather than being retyped. Brier and AUC are computed per
+They were `BASELINE_MODELS` in `src/baseline_config.py`; that module was retired in #234
+after this measurement was first run, so the script states them inline rather than
+importing a module that no longer exists — the record must be reproducible from the tree.
+Brier and AUC are computed per
 fold from `predict_proba[:, 1]`.
 
 The pinned `logistic_regression` carries no scaler, and lbfgs reports non-convergence on raw

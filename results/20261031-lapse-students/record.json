@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "kind": "capture",
-  "created_utc": "2026-10-31T11:54:24.859813+00:00",
+  "created_utc": "2026-11-12T01:05:39.792881+00:00",
   "issue": 377,
   "title": "Lapse student measurement \u2014 teacher folds reused, four pinned students fitted",
   "protocol": "StratifiedKFold(n_splits=5, shuffle=True, random_state=42); roc_auc (primary) + brier per fold; unscaled features encoded as cat.codes, fillna(0), float32 (the repository's home-harness convention)",
@@ -108,14 +108,14 @@
       "client_version": null
     },
     "code": {
-      "git_sha": "47fb1322ea816f9f382a426bbf3e08033126d3da",
+      "git_sha": "3a8147cde0fb197a8c757a73ffbe5fbdd3297076",
       "dirty": true,
       "runtime": {
-        "python": "3.12.7",
+        "python": "3.12.2",
         "numpy": "1.26.4",
         "pandas": "2.3.3",
         "scikit-learn": "1.6.1",
-        "xgboost": "3.4.1",
+        "xgboost": "2.1.4",
         "catboost": "1.2.10",
         "lightgbm": "4.7.0",
         "accelerator": "cpu",
@@ -137,7 +137,7 @@
   "measurements": {
     "per_fold_csv": "results/20261031-lapse-students/per_fold.csv",
     "predictions_npz": "results/20261031-lapse-students/predictions/lapse__seed42__students.npz",
-    "predictions_sha256": "35bf7e3c76ac075a26e52ee5bcd2f4a334d14a804dcc65a0ee80696e7995083f",
+    "predictions_sha256": "59ee304523e95b62207ef3003e7d179efa17c1016a9a8b9bc98749f88ded6130",
     "predictions_sha256_scheme": "sha256 over arrays in sorted key order; per array: key, NUL, dtype.str, NUL, shape, NUL, C-contiguous data bytes",
     "se_definition": "sample std (ddof=1) / sqrt(n_folds)",
     "split_index_sha256": {
@@ -181,9 +181,9 @@
           },
           "xgboost": {
             "role": "student",
-            "mean_auc": 0.5815031643925537,
-            "se_auc": 0.0053492831747001856,
-            "mean_brier": 0.11607953050571718,
+            "mean_auc": 0.5835728293066704,
+            "se_auc": 0.0060537496145367945,
+            "mean_brier": 0.11609300666439837,
             "brier_note": null
           },
           "random_forest": {
@@ -195,9 +195,9 @@
           },
           "logistic_regression": {
             "role": "student",
-            "mean_auc": 0.6155781555758345,
-            "se_auc": 0.004651404343458795,
-            "mean_brier": 0.10950809819021154,
+            "mean_auc": 0.6151895180401504,
+            "se_auc": 0.004515969895282312,
+            "mean_brier": 0.10950820727522056,
             "brier_note": null
           },
           "logistic_regression_scaled": {
@@ -220,16 +220,16 @@
           "best_mean_auc": 0.6162312270966888,
           "best_se_auc": 0.0061701391837830355,
           "gap_auc": -0.006165342450343392,
-          "d3_clears": false,
-          "method": "D3: best_student_mean + SE_best < teacher_mean - SE_teacher (GLOSSARY.md, Frontier)"
+          "beyond_se_clears": false,
+          "method": "beyond-SE: best_student_mean + SE_best < teacher_mean - SE_teacher; D3 additionally needs B to have strictly fewer parameters, not established here"
         },
         "best_gbdt_gap": {
           "best_student": "catboost",
           "best_mean_auc": 0.6162312270966888,
           "best_se_auc": 0.0061701391837830355,
           "gap_auc": -0.006165342450343392,
-          "d3_clears": false,
-          "method": "D3: best_student_mean + SE_best < teacher_mean - SE_teacher (GLOSSARY.md, Frontier)"
+          "beyond_se_clears": false,
+          "method": "beyond-SE: best_student_mean + SE_best < teacher_mean - SE_teacher; D3 additionally needs B to have strictly fewer parameters, not established here"
         }
       },
       {
@@ -267,9 +267,9 @@
           },
           "xgboost": {
             "role": "student",
-            "mean_auc": 0.7444651042591172,
-            "se_auc": 0.002583910964604713,
-            "mean_brier": 0.19143699278860268,
+            "mean_auc": 0.7439887558449592,
+            "se_auc": 0.0015466982314075832,
+            "mean_brier": 0.19160811301708652,
             "brier_note": null
           },
           "random_forest": {
@@ -281,16 +281,16 @@
           },
           "logistic_regression": {
             "role": "student",
-            "mean_auc": 0.6196705077546226,
-            "se_auc": 0.0016056895567729047,
-            "mean_brier": 0.22026143800750103,
+            "mean_auc": 0.6211309811362673,
+            "se_auc": 0.0019167492785104885,
+            "mean_brier": 0.22008503569274346,
             "brier_note": null
           },
           "logistic_regression_scaled": {
             "role": "sensitivity",
             "mean_auc": 0.6401599099066078,
             "se_auc": 0.0025363926101648693,
-            "mean_brier": 0.21669198591884342,
+            "mean_brier": 0.2166919859188435,
             "brier_note": null
           },
           "lightgbm_control": {
@@ -303,19 +303,19 @@
         },
         "best_pinned_student_gap": {
           "best_student": "xgboost",
-          "best_mean_auc": 0.7444651042591172,
-          "best_se_auc": 0.002583910964604713,
-          "gap_auc": 0.010789509258946062,
-          "d3_clears": true,
-          "method": "D3: best_student_mean + SE_best < teacher_mean - SE_teacher (GLOSSARY.md, Frontier)"
+          "best_mean_auc": 0.7439887558449592,
+          "best_se_auc": 0.0015466982314075832,
+          "gap_auc": 0.011265857673104063,
+          "beyond_se_clears": true,
+          "method": "beyond-SE: best_student_mean + SE_best < teacher_mean - SE_teacher; D3 additionally needs B to have strictly fewer parameters, not established here"
         },
         "best_gbdt_gap": {
           "best_student": "lightgbm_tabarena",
           "best_mean_auc": 0.7500005341713322,
           "best_se_auc": 0.0022444313613726175,
           "gap_auc": 0.005254079346731055,
-          "d3_clears": true,
-          "method": "D3: best_student_mean + SE_best < teacher_mean - SE_teacher (GLOSSARY.md, Frontier)"
+          "beyond_se_clears": true,
+          "method": "beyond-SE: best_student_mean + SE_best < teacher_mean - SE_teacher; D3 additionally needs B to have strictly fewer parameters, not established here"
         }
       }
     ]
