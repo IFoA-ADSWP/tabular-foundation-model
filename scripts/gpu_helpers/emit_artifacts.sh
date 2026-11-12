@@ -41,6 +41,7 @@ LINE_WIDTH=440
 CHUNK_LINES="${TFM_CHUNK_LINES:-0}"
 CHUNK_PAUSE="${TFM_CHUNK_PAUSE:-45}"
 CHUNK_REPEAT="${TFM_CHUNK_REPEAT:-1}"
+CHUNK_PASSES="${TFM_CHUNK_PASSES:-1}"
 PAYLOAD_ID="${PAYLOAD_ID:-}"
 
 # The launcher reads `--tail 20000`, so a chunk at that size would leave no room for the
@@ -162,6 +163,13 @@ fi
 # Chunked: each block is self-identifying, so a poll that lands mid-chunk leaves it
 # unsealed rather than half-assembled, and a repeated poll cannot duplicate it.
 split -l "$CHUNK_LINES" "$FOLDED" "$SPLIT_DIR/part-"
+# WHOLE-PAYLOAD PASSES. Repeating a chunk twice is not enough on a channel that can drop a poll
+# for a minute: measured three times (2026-11-12) that a single chunk of 14 arrives neither of its
+# two copies. A second pass over the whole payload gives every chunk an independent second chance
+# minutes later, which the receiver ignores as duplicates if the first copy already landed (#570).
+pass_no=0
+while [ "$pass_no" -lt "$CHUNK_PASSES" ]; do
+pass_no=$((pass_no + 1))
 chunk_no=0
 for part in "$SPLIT_DIR"/part-*; do
     chunk_no=$((chunk_no + 1))
@@ -181,6 +189,11 @@ for part in "$SPLIT_DIR"/part-*; do
             sleep "$CHUNK_PAUSE"
         fi
     done
+done
+if [ "$pass_no" -lt "$CHUNK_PASSES" ]; then
+    echo "########## ARTIFACT PASS $pass_no/$CHUNK_PASSES done; repeating payload ##########"
+    sleep "${CHUNK_PASS_GAP:-$CHUNK_PAUSE}"
+fi
 done
 echo "__ARTIFACTS_END__"
 rm -rf "$SPLIT_DIR"

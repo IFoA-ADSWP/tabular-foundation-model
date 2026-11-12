@@ -452,7 +452,7 @@ print((datetime.strptime(sys.argv[1], "%Y%m%dT%H%M%SZ") + timedelta(seconds=int(
             echo "########## EMIT $target ($run_id) ##########"
             PAYLOAD_ID="$run_id" TFM_CHUNK_LINES="${TFM_CHUNK_LINES:-1500}" \
                 TFM_CHUNK_PAUSE="${TFM_CHUNK_PAUSE:-20}" \
-                TFM_CHUNK_REPEAT="${TFM_CHUNK_REPEAT:-2}" \
+                TFM_CHUNK_REPEAT="${TFM_CHUNK_REPEAT:-2}" TFM_CHUNK_PASSES="${TFM_CHUNK_PASSES:-2}" \
                 bash scripts/gpu_helpers/emit_artifacts.sh "results/$run_id"
         fi
         index=$((index + 1))
