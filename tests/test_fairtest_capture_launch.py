@@ -66,7 +66,7 @@ def test_a_payload_that_is_not_four_captures_is_refused_and_the_instance_is_kept
     )
 
 
-def _four_target_tree(tmp_path):
+def _target_tree(tmp_path, count=4):
     """Four sealed v4 captures, laid out as the box leaves them under results/."""
     import sys
 
@@ -76,7 +76,7 @@ def _four_target_tree(tmp_path):
     from run_capture import build_capture, render_capture
 
     tree = tmp_path / "captures"
-    ids = [f"20261112T09000{index}Z" for index in range(4)]
+    ids = [f"20261112T09000{index}Z" for index in range(count)]
     for run_id in ids:
         run = tree / run_id
         run.mkdir(parents=True)
@@ -91,7 +91,7 @@ def test_a_primary_launch_restores_four_captures_into_results(tmp_path):
     Without this the transport could pass in isolation and still be overwritten by the
     launcher's single-window copy -- which is exactly what happened on the first cut of #564.
     """
-    tree, ids = _four_target_tree(tmp_path)
+    tree, ids = _target_tree(tmp_path)
 
     state, result = _launch(
         tmp_path,
@@ -113,3 +113,31 @@ def test_a_primary_launch_restores_four_captures_into_results(tmp_path):
     for run_id in ids:
         assert (results / run_id / "capture.json").is_file(), combined
     assert (state / "destroyed.txt").exists(), "a successful run must release the instance"
+
+
+def test_a_canary_launch_restores_one_capture_for_one_target(tmp_path):
+    """One target first is how ~20 minutes is risked instead of ~105 (#566).
+
+    The registered matrix is four targets; a narrower list must also narrow what verification
+    expects, or a correct canary is refused for restoring one capture instead of four.
+    """
+    tree, ids = _target_tree(tmp_path, count=1)
+
+    state, result = _launch(
+        tmp_path,
+        "--fairtest", "primary",
+        "--poll-minutes", "180",
+        extra_env={
+            "MOCK_OUTPUT_TREE": str(tree),
+            "MOCK_PER_TARGET": "1",
+            "TFM_CHUNK_LINES": "3",
+            "TFM_CHUNK_PAUSE": "0",
+            "TFM_FAIRTEST_TARGETS": "frequency_french",
+        },
+    )
+    combined = result.stdout + result.stderr
+
+    assert result.returncode == 0, combined
+    assert "1 capture(s) restored and capturable" in combined, combined
+    assert sorted(path.name for path in (tmp_path / "repo" / "results").iterdir()) == ids
+    assert (state / "destroyed.txt").exists()

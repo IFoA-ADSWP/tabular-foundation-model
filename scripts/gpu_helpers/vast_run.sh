@@ -393,6 +393,13 @@ CAPTURE_DEST="$REPO_DIR/results"
 # chunks, 20 s of pause keeps one visible for ~3 minutes, and each chunk is emitted twice because
 # a `vastai logs` poll can stall for 13 minutes -- the first live run sealed 2 chunks of 9.
 if [ "$PRIMARY_MODE" = 1 ]; then
+    # Which targets this launch runs. The registered matrix is all four; a narrower list is how a
+    # transport canary costs one target instead of four, and how a single lost target is re-run
+    # without re-running the rest (#566).
+    TFM_FAIRTEST_TARGETS="${TFM_FAIRTEST_TARGETS:-frequency_french frequency_spanish severity_french severity_spanish}"
+    export TFM_FAIRTEST_TARGETS
+    EXPECT_CAPTURES=0
+    for _target in $TFM_FAIRTEST_TARGETS; do EXPECT_CAPTURES=$(( EXPECT_CAPTURES + 1 )); done
     : "${TFM_CHUNK_LINES:=2000}"
     : "${TFM_CHUNK_PAUSE:=20}"
     : "${TFM_CHUNK_REPEAT:=2}"
@@ -823,7 +830,7 @@ BOOTSTRAP_B64="$(gzip -9c "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh" | b
     # bootstrap, so forwarding it would be a control that cannot move. A dead entry is worse than
     # no entry, because it reads like one.
     for _passthrough in TFM_EXPECT_CHECKPOINT TFM_DATA_REF TFM_DATA_REPO TFM_WEIGHTS_MANIFEST \
-                       TFM_CHUNK_LINES TFM_CHUNK_PAUSE TFM_CHUNK_REPEAT \
+                       TFM_CHUNK_LINES TFM_CHUNK_PAUSE TFM_CHUNK_REPEAT TFM_FAIRTEST_TARGETS \
                        TABPFN_PIN SKLEARN_PIN PANDAS_PIN PYARROW_PIN CATBOOST_PIN; do
         if [ -n "${!_passthrough:-}" ]; then
             printf 'export %s=%q\n' "$_passthrough" "${!_passthrough}"
@@ -1113,7 +1120,7 @@ if [ -n "$BENCHMARK" ]; then MODE_ARGS=(--expect-measurement); fi
 if [ "$PRIMARY_MODE" = 1 ]; then
     # One payload block per target, restored into results/<run id> so the citation check can
     # read them (#564).
-    MODE_ARGS=(--expect-captures 4)
+    MODE_ARGS=(--expect-captures "$EXPECT_CAPTURES")
 elif [ -n "$FAIRTEST" ]; then MODE_ARGS=(--expect-gate); fi
 VERIFY_DEST="$RUN_OUTDIR"
 [ "$PRIMARY_MODE" = 1 ] && VERIFY_DEST="$CAPTURE_DEST"

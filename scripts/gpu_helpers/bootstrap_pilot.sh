@@ -430,7 +430,7 @@ if [ "$FAIRTEST" = "primary" ]; then
     FT_STAMP="${TFM_RUN_STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}"
     FAILED_TARGETS=""
     index=0
-    for target in frequency_french frequency_spanish severity_french severity_spanish; do
+    for target in ${TFM_FAIRTEST_TARGETS:-frequency_french frequency_spanish severity_french severity_spanish}; do
         echo
         echo "########## FAIRTEST primary $target ##########"
         # One process per target, so the captures of the finished targets are already on the wire
