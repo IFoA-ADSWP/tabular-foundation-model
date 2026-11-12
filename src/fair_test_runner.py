@@ -76,6 +76,8 @@ class RunConfig:
     test_rows: int = 10_000
     fold_seed: int = 42
     targets: tuple[TargetSpec, ...] = FREQ_SEV_TARGETS
+    # The gate runs `A_raw` alone; the fair test runs every Arm (#552).
+    arms: tuple[str, ...] = TARGET_ARMS
 
 
 @dataclass(frozen=True)
@@ -90,7 +92,7 @@ def slot_matrix(config: RunConfig) -> list[SlotSpec]:
     """Every Arm × fold × model seed, in a fixed order."""
     slots = []
     for target in config.targets:
-        for arm_name in TARGET_ARMS:
+        for arm_name in config.arms:
             for fold in range(config.folds):
                 for seed in config.seeds:
                     slots.append(SlotSpec(target, ARMS[arm_name], fold, seed))
@@ -277,7 +279,7 @@ def run(
             weights_test = loaded.weights[test_index]
             clusters_test = loaded.clusters[test_index]
 
-            for arm_name in TARGET_ARMS:
+            for arm_name in config.arms:
                 arm = ARMS[arm_name]
                 rows = arm.train_rows if train_rows_cap is None else min(
                     arm.train_rows, train_rows_cap
@@ -344,6 +346,33 @@ def run(
         (run_dir / "capture.json").write_text(render_capture(build_capture(run_dir)))
         produced[target.name] = run_dir
     return produced
+
+
+GATE_MDE_CONSTANT = 2.8016
+
+
+def gate_summary(runs: dict[str, Path]) -> dict[str, dict]:
+    """Per-target fold-level SD and the 80%-power MDE from an `A_raw` gate run (#552).
+
+    The gate runs one Arm on the five folds. Its fold-level metric SD bounds the paired difference
+    SD from above (the Arms share rows and context), so `MDE = 2.8016 * SD / sqrt(folds)` is
+    conservative. The pre-spend decision uses this number, not the target-SD bound.
+    """
+    summary: dict[str, dict] = {}
+    for target, run_dir in runs.items():
+        metas = sorted(Path(run_dir).glob("*/A_raw/seed*_fold*/meta.json"))
+        values = [float(json.loads(path.read_text())["verdict_metric_value"]) for path in metas]
+        if not values:
+            raise ValueError(f"{run_dir} holds no A_raw slots; the gate needs one per fold")
+        folds = len(values)
+        sd = float(np.std(values, ddof=1)) if folds > 1 else 0.0
+        summary[target] = {
+            "folds": folds,
+            "mean": float(np.mean(values)),
+            "sd": sd,
+            "mde": GATE_MDE_CONSTANT * sd / np.sqrt(folds),
+        }
+    return summary
 
 
 # ---------------------------------------------------------------------------

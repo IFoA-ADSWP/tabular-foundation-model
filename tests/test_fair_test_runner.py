@@ -203,3 +203,22 @@ def test_the_cli_forwards_smoke_and_targets(tmp_path, monkeypatch):
     )
     assert record["epochs"] == 2  # the smoke cap, not the Arm's 30
     assert record["train_rows"] == 128
+
+
+def test_the_gate_summary_is_the_fold_level_mde(tmp_path):
+    """The pre-spend decision uses the measured fold-level SD, not the target-SD bound."""
+    from fair_test_runner import gate_summary
+
+    run_dir = tmp_path / "20261112T000000Z"
+    values = [1.00, 1.10, 0.90, 1.05, 0.95]
+    for fold, value in enumerate(values):
+        slot = run_dir / "freMTPL2freq" / "A_raw" / f"seed0_fold{fold}"
+        slot.mkdir(parents=True)
+        (slot / "meta.json").write_text(json.dumps({"verdict_metric_value": value}))
+
+    row = gate_summary({"frequency_french": run_dir})["frequency_french"]
+
+    assert row["folds"] == 5
+    assert row["mean"] == pytest.approx(float(np.mean(values)))
+    assert row["sd"] == pytest.approx(float(np.std(values, ddof=1)))
+    assert row["mde"] == pytest.approx(2.8016 * float(np.std(values, ddof=1)) / np.sqrt(5))
