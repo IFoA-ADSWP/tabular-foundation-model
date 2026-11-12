@@ -10,20 +10,22 @@ Canonical role -> label string used here:
 - enhancement -> `enhancement`
 - needs-triage -> `needs-triage`
 - needs-info -> `needs-info`
-- ready-for-agent -> `ready-to-build`
-- ready-for-human -> `needs-decision`
+- ready-to-build -> `ready-to-build`
+- needs-decision -> `needs-decision`
 - wontfix -> `wontfix`
 
 Exactly one category label (`bug`/`enhancement`) and one state label on every triaged issue.
 
-**The label strings are deliberately not the skill defaults (renamed 2026-11-11).** This
-tracker is read by contributors, reviewers and external stakeholders, not only by the
-workflow. `ready-for-agent` read as an internal instruction leaked into a public place, and
-neither default said what a *reader* should do. The pair now describes the issue, not its
-executor: `ready-to-build` means fully specified and unblocked, so start now;
-`needs-decision` means a maintainer must choose or sign off first. The skills route on the
-**role** through this table, so the rename changes nothing in the workflow — which is why
-re-running `/setup-matt-pocock-skills` should keep this column, not restore the defaults.
+**The two state labels were renamed 2026-11-11.** They were `ready-for-agent` and
+`ready-for-human`, which named the *executor* — a distinction only the workflow cares about
+— on a tracker that contributors, reviewers and external stakeholders also read, where the
+first read as an internal instruction leaked into a public place. The pair now describes the
+issue's state: `ready-to-build` means fully specified and unblocked, so start now;
+`needs-decision` means a maintainer must choose or sign off first.
+
+These are now the skill defaults as well, so this repo and a fresh `/setup-matt-pocock-skills`
+agree. The column is written out rather than left implicit because the skills route on the
+**role**, and an explicit map is what stops a future re-run quietly changing the vocabulary.
 
 ## External PR rule
 
