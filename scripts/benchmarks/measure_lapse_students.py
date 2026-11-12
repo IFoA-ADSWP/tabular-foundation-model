@@ -51,7 +51,6 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 sys.path.insert(0, str(REPO))  # repo root, so `src.` imports resolve
 
-from src.baseline_config import BASELINE_MODELS, RANDOM_SEED  # noqa: E402
 from src.provenance import (  # noqa: E402
     CAPTURE_KIND,
     CAPTURE_SCHEMA_VERSION,
@@ -65,6 +64,19 @@ from src.provenance import (  # noqa: E402
     split_section,
     verdict,
 )
+
+# `src/baseline_config.py` was retired in #234, after this measurement was first run. The
+# four student configurations it carried are restated here rather than imported, so the
+# capture stays reproducible: same keys, same hyper-parameters, same seed. Retyping them is
+# the point — the retired module is not importable, and a record whose producer cannot run
+# is not evidence.
+RANDOM_SEED = 42
+BASELINE_MODELS = {
+    "logistic_regression": {"max_iter": 1000},
+    "catboost": {"iterations": 100, "verbose": 0},
+    "xgboost": {"n_estimators": 100, "random_state": RANDOM_SEED},
+    "random_forest": {"n_estimators": 100, "random_state": RANDOM_SEED},
+}
 
 DATA_RAW = REPO / "data" / "raw"
 COMMITTED_RESULTS = REPO / "scripts" / "eval" / "lapse_benchmark_v1" / "results_per_split.csv"
