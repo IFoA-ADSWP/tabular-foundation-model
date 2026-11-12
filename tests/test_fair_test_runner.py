@@ -338,3 +338,53 @@ def test_the_run_id_offset_keeps_the_runners_id_scheme(tmp_path, monkeypatch):
 
     assert code == 0
     assert [path.name for path in tmp_path.iterdir() if path.is_dir()] == ["20261112T000003Z"]
+
+
+def test_a_raised_row_budget_reaches_every_arm(tmp_path, monkeypatch):
+    """The control trains on the raised budget too, or the comparison stops being matched (#572)."""
+    module = _cli(monkeypatch)
+
+    code = module.main(
+        [
+            "--smoke",
+            "--targets",
+            "frequency_french",
+            "--arms",
+            "A_raw,B_ft30",
+            "--train-rows",
+            "256",
+            "--out-root",
+            str(tmp_path),
+            "--run-id",
+            "20261112T010203Z",
+        ]
+    )
+
+    assert code == 0
+    for arm in ("A_raw", "B_ft30"):
+        record = json.loads(
+            (tmp_path / "20261112T010203Z" / "freMTPL2freq" / arm / "seed0_fold0" / "meta.json").read_text()
+        )
+        assert record["train_rows"] == 256, f"{arm} did not receive the raised budget"
+
+
+def test_the_row_budget_never_exceeds_the_training_pool(tmp_path, monkeypatch):
+    """An oversize budget is clamped to the fold's rows rather than sampling with replacement."""
+    module = _cli(monkeypatch)
+
+    code = module.main(
+        [
+            "--smoke",
+            "--targets", "frequency_french",
+            "--arms", "A_raw",
+            "--train-rows", "100000000",
+            "--out-root", str(tmp_path),
+            "--run-id", "20261112T010204Z",
+        ]
+    )
+
+    assert code == 0
+    record = json.loads(
+        (tmp_path / "20261112T010204Z" / "freMTPL2freq" / "A_raw" / "seed0_fold0" / "meta.json").read_text()
+    )
+    assert 0 < record["train_rows"] <= 100000000
