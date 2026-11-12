@@ -130,6 +130,8 @@ MAX_ATTEMPTS="${MAX_ATTEMPTS:-2}"
 # which the box emits only at the end -- was never shipped. A thirty-seed batch took 46 min
 # against a 40 min ceiling and lost $0.21 and 46 minutes of compute (2026-11-04).
 POLL_MINUTES="${POLL_MINUTES:-40}"
+POLL_TIMEOUT="${POLL_TIMEOUT:-45}"
+POLL_TIMEOUTS=0
 # Per-seed wall clock, for the pre-flight refusal below. Deliberately blunt and overridable:
 # the cost of a wrong estimate in one direction is a refusal a human must re-issue, and in
 # the other it is a silently discarded batch.
@@ -387,6 +389,15 @@ CHUNKS_DIR="$LAUNCH_TMP/chunks"
 PRIMARY_MODE=0
 [ "${FAIRTEST:-}" = "primary" ] && PRIMARY_MODE=1
 CAPTURE_DEST="$REPO_DIR/results"
+# Primary-mode defaults, measured 2026-11-12 (#566): a 20,000-line window holds ten 2,000-line
+# chunks, 20 s of pause keeps one visible for ~3 minutes, and each chunk is emitted twice because
+# a `vastai logs` poll can stall for 13 minutes -- the first live run sealed 2 chunks of 9.
+if [ "$PRIMARY_MODE" = 1 ]; then
+    : "${TFM_CHUNK_LINES:=2000}"
+    : "${TFM_CHUNK_PAUSE:=20}"
+    : "${TFM_CHUNK_REPEAT:=2}"
+    export TFM_CHUNK_LINES TFM_CHUNK_PAUSE TFM_CHUNK_REPEAT
+fi
 cleanup_launch_tmp() { [ -n "${LAUNCH_TMP:-}" ] && rm -rf "$LAUNCH_TMP"; }
 
 # Record what a run actually cost, so the cost model in the runbook can be
@@ -812,7 +823,7 @@ BOOTSTRAP_B64="$(gzip -9c "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh" | b
     # bootstrap, so forwarding it would be a control that cannot move. A dead entry is worse than
     # no entry, because it reads like one.
     for _passthrough in TFM_EXPECT_CHECKPOINT TFM_DATA_REF TFM_DATA_REPO TFM_WEIGHTS_MANIFEST \
-                       TFM_CHUNK_LINES TFM_CHUNK_PAUSE \
+                       TFM_CHUNK_LINES TFM_CHUNK_PAUSE TFM_CHUNK_REPEAT \
                        TABPFN_PIN SKLEARN_PIN PANDAS_PIN PYARROW_PIN CATBOOST_PIN; do
         if [ -n "${!_passthrough:-}" ]; then
             printf 'export %s=%q\n' "$_passthrough" "${!_passthrough}"
@@ -980,7 +991,24 @@ else
         # box declares its payload's line count and sha256, and the receiver refuses a
         # short read, so a mis-sized window now fails loudly instead of silently.
         # Do not raise this to the 200000 range that caused the original leak.
-        ERR="$(vastai logs "$INSTANCE_ID" --tail 20000 2>&1 > $LOG_NEXT)"
+        # BOUNDED (#566). The CLI retries internally for minutes when its S3 result is not
+        # ready, and one measured poll was in flight for 13 minutes while the window moved past
+        # three chunks. A poll that cannot answer in POLL_TIMEOUT seconds is killed and retried.
+        : > $LOG_NEXT
+        vastai logs "$INSTANCE_ID" --tail 20000 > $LOG_NEXT 2> "$LAUNCH_TMP/log_err.txt" &
+        POLL_PID=$!
+        POLL_WAITED=0
+        while kill -0 "$POLL_PID" 2>/dev/null && [ "$POLL_WAITED" -lt "$POLL_TIMEOUT" ]; do
+            sleep 2
+            POLL_WAITED=$(( POLL_WAITED + 2 ))
+        done
+        if kill -0 "$POLL_PID" 2>/dev/null; then
+            kill "$POLL_PID" 2>/dev/null
+            POLL_TIMEOUTS=$(( POLL_TIMEOUTS + 1 ))
+            echo "  WARNING: log poll exceeded ${POLL_TIMEOUT}s (${POLL_TIMEOUTS} so far); retrying" >&2
+        fi
+        wait "$POLL_PID" 2>/dev/null
+        ERR="$(head -c 200 "$LAUNCH_TMP/log_err.txt" 2>/dev/null)"
         if [ -s $LOG_NEXT ]; then
             cp $LOG_NEXT $RUN_OUT
             EMPTY_STREAK=0

@@ -40,6 +40,7 @@ OUTDIR="${1:-outputs/finetune/pilot}"
 LINE_WIDTH=440
 CHUNK_LINES="${TFM_CHUNK_LINES:-0}"
 CHUNK_PAUSE="${TFM_CHUNK_PAUSE:-45}"
+CHUNK_REPEAT="${TFM_CHUNK_REPEAT:-1}"
 PAYLOAD_ID="${PAYLOAD_ID:-}"
 
 # The launcher reads `--tail 20000`, so a chunk at that size would leave no room for the
@@ -161,12 +162,20 @@ for part in "$SPLIT_DIR"/part-*; do
     chunk_no=$((chunk_no + 1))
     marker="__ART_CHUNK__ seq=$chunk_no/$NCHUNKS"
     [ -n "$PAYLOAD_ID" ] && marker="$marker payload=$PAYLOAD_ID"
-    echo "$marker lines=$(awk 'END { print NR }' "$part")"
-    sed 's/^/__ART__/' "$part"
-    echo "__ART_CHUNK_END__"
-    # Paced so the chunk outlives several polls: a window of 20,000 lines holds about
-    # four of these, and the launcher reads one window every 20 seconds.
-    if [ "$chunk_no" -lt "$NCHUNKS" ]; then sleep "$CHUNK_PAUSE"; fi
+    marker="$marker lines=$(awk 'END { print NR }' "$part")"
+    pass=0
+    while [ "$pass" -lt "$CHUNK_REPEAT" ]; do
+        pass=$((pass + 1))
+        echo "$marker"
+        sed 's/^/__ART__/' "$part"
+        echo "__ART_CHUNK_END__"
+        # Paced so the chunk outlives several polls, and REPEATED because a poll can stall: the
+        # measured failure was a `vastai logs` call in flight for 13 minutes while the window
+        # moved on, and a second copy is the only retry this one-way channel has (#566).
+        if [ "$pass" -lt "$CHUNK_REPEAT" ] || [ "$chunk_no" -lt "$NCHUNKS" ]; then
+            sleep "$CHUNK_PAUSE"
+        fi
+    done
 done
 echo "__ARTIFACTS_END__"
 rm -rf "$SPLIT_DIR"

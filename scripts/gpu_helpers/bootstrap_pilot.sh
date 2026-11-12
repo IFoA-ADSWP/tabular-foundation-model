@@ -450,8 +450,9 @@ print((datetime.strptime(sys.argv[1], "%Y%m%dT%H%M%SZ") + timedelta(seconds=int(
             # Emit this target now. The pause lets each chunk outlive several polls of the
             # launcher's ~6.6 MB window; the collector stitches them by sequence number.
             echo "########## EMIT $target ($run_id) ##########"
-            PAYLOAD_ID="$run_id" TFM_CHUNK_LINES="${TFM_CHUNK_LINES:-4500}" \
-                TFM_CHUNK_PAUSE="${TFM_CHUNK_PAUSE:-45}" \
+            PAYLOAD_ID="$run_id" TFM_CHUNK_LINES="${TFM_CHUNK_LINES:-2000}" \
+                TFM_CHUNK_PAUSE="${TFM_CHUNK_PAUSE:-20}" \
+                TFM_CHUNK_REPEAT="${TFM_CHUNK_REPEAT:-2}" \
                 bash scripts/gpu_helpers/emit_artifacts.sh "results/$run_id"
         fi
         index=$((index + 1))

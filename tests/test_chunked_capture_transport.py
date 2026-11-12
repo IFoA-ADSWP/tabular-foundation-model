@@ -83,12 +83,13 @@ def capture_run(tmp_path: Path) -> Path:
     return run
 
 
-def _emit(run: Path, *, chunk_lines: int, pause: int = 0) -> str:
+def _emit(run: Path, *, chunk_lines: int, pause: int = 0, repeat: int = 1) -> str:
     env = dict(os.environ)
     env.update({
         "PAYLOAD_ID": run.name,
         "TFM_CHUNK_LINES": str(chunk_lines),
         "TFM_CHUNK_PAUSE": str(pause),
+        "TFM_CHUNK_REPEAT": str(repeat),
     })
     done = subprocess.run(
         ["bash", str(EMIT), str(run)],
@@ -271,3 +272,68 @@ def test_four_targets_restore_as_four_captures(tmp_path, capture_run):
     assert restored == sorted(ids)
     for run_id in ids:
         assert check_run_dir(results / run_id, run_id) == []
+
+
+def _window_of(log: str, start: int, size: int) -> str:
+    lines = log.splitlines()
+    return "\n".join(lines[start : start + size]) + "\n"
+
+
+def test_a_chunk_whose_end_marker_is_glued_to_a_truncated_line_is_not_sealed(
+    tmp_path, capture_run
+):
+    """Measured 2026-11-12: the window's edge truncates a 447-char payload line to 296 and glues
+    `__ART_CHUNK_END__` onto it. Sealing that would hash a mangled archive and refuse the whole
+    payload at the end; dropping it unsealed lets the repeat pass supply a whole chunk (#566).
+    """
+    log = _emit(capture_run, chunk_lines=2)
+    lines = log.splitlines()
+
+    # Truncate the last payload line of the first chunk and glue the end marker to it.
+    first_end = next(i for i, line in enumerate(lines) if line == "__ART_CHUNK_END__")
+    truncated = lines[first_end - 1][:200] + "__ART_CHUNK_END__"
+    mangled = lines[: first_end - 1] + [truncated] + lines[first_end + 1 :]
+
+    state = tmp_path / "chunks"
+    window = tmp_path / "poll.log"
+    window.write_text("\n".join(mangled) + "\n")
+    subprocess.run(
+        [sys.executable, str(COLLECT), "merge", "--window", str(window), "--state", str(state)],
+        check=True, capture_output=True, text=True,
+    )
+
+    assert not (state / RUN_ID / "001.txt").exists(), "a truncated chunk was sealed as if whole"
+
+    # The repeat pass -- the same chunk again, intact -- seals it.
+    window.write_text(log)
+    subprocess.run(
+        [sys.executable, str(COLLECT), "merge", "--window", str(window), "--state", str(state)],
+        check=True, capture_output=True, text=True,
+    )
+    assert (state / RUN_ID / "001.txt").exists()
+
+
+def test_each_chunk_is_emitted_twice_when_repeat_is_two(tmp_path, capture_run):
+    """The one-way channel's only retry is a second copy (#566)."""
+    log = _emit(capture_run, chunk_lines=2, repeat=2)
+
+    markers = [line for line in log.splitlines() if line.startswith("__ART_CHUNK__ seq=")]
+    declared = int(log.split("chunks=")[1].split()[0])
+    assert len(markers) == 2 * declared, log[:200]
+
+    state = tmp_path / "chunks"
+    _merge(_polls(log, 9), state, tmp_path)
+    raw = tmp_path / "artifacts.raw"
+    assembled = subprocess.run(
+        [sys.executable, str(COLLECT), "assemble", "--state", str(state), "--out", str(raw)],
+        capture_output=True,
+        text=True,
+    )
+    assert assembled.returncode == 0, assembled.stdout
+    verified = subprocess.run(
+        [sys.executable, str(VERIFY), "--raw", str(raw), "--dest", str(tmp_path / "results"),
+         "--expect-captures", "1"],
+        capture_output=True,
+        text=True,
+    )
+    assert verified.returncode == 0, verified.stdout + verified.stderr

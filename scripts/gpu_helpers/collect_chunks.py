@@ -151,6 +151,26 @@ def merge_window(window: Path, state: Path) -> dict[str, dict[str, int]]:
         if line.startswith(END):
             seal()
             continue
+        if CHUNK_END in line:
+            # The window's edge truncates a payload line and glues the end marker onto it:
+            # measured 2026-11-12, a 296-character line where every intact one is 447. The
+            # chunk is short, so sealing it would hash a mangled archive; drop it unsealed and
+            # let the next copy (the emitter repeats each chunk) supply a whole one.
+            buffering, seq = None, None
+            continue
+        if CHUNK in line:
+            # A marker can also arrive glued to the tail of a payload line. Base64 cannot
+            # contain '_', so a marker token inside a line is never data.
+            prefix, _, rest = line.partition(CHUNK)
+            if buffering is not None and prefix.startswith(LINE_TAG):
+                buffering.append(prefix)
+            match = CHUNK_RE.match(CHUNK + rest)
+            if match:
+                seq = int(match.group(1))
+                if match.group(3):
+                    current_payload = match.group(3)
+                buffering = []
+            continue
         if buffering is not None and line.startswith(LINE_TAG):
             buffering.append(line)
 
