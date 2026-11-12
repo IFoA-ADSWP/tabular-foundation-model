@@ -366,38 +366,47 @@ def gate_summary(
 ) -> dict[str, dict]:
     """Per-target fold-level SD of the paired improvement, and the 80%-power MDE (#552).
 
-    The first version used `SD_fold(metric_A_raw)`. That includes fold difficulty — the shared
-    component that makes one fold harder than another — which cancels in the paired difference and
-    inflated the MDE by an order of magnitude on the frequency targets. The gate now measures the
-    quantity the decision uses: `r_f = (M_control - M_treatment) / M_control` per fold, then
-    `MDE = 2.8016 * SD_fold(r) / sqrt(folds)`.
+    The gate must predict the statistic the fair test reports: for each fold, average
+    `r_{t,f,s} = (M_control - M_treatment) / M_control` over the model seeds, then take the
+    fold-level SD. Two earlier versions are superseded: one used `SD_fold(M_A_raw)` (which
+    includes fold difficulty), the next averaged the metric across seeds before taking the ratio
+    (a ratio of means, not the registered mean of ratios).
     """
     summary: dict[str, dict] = {}
     for target, run_dir in runs.items():
 
-        def fold_means(arm: str) -> dict[int, float]:
+        def by_seed(arm: str) -> dict[tuple[int, int], float]:
             metas = sorted(Path(run_dir).glob(f"*/{arm}/seed*_fold*/meta.json"))
-            by_fold: dict[int, list[float]] = {}
+            values: dict[tuple[int, int], float] = {}
             for path in metas:
                 record = json.loads(path.read_text())
-                by_fold.setdefault(int(record["fold"]), []).append(
-                    float(record["verdict_metric_value"])
+                values[(int(record["fold"]), int(record["seed"]))] = float(
+                    record["verdict_metric_value"]
                 )
-            return {fold: float(np.mean(values)) for fold, values in by_fold.items()}
+            return values
 
-        raw = fold_means(control)
-        fine = fold_means(treatment)
-        folds = sorted(set(raw) & set(fine))
+        raw = by_seed(control)
+        fine = by_seed(treatment)
+        paired = sorted(set(raw) & set(fine))
+        if not paired:
+            raise ValueError(f"{run_dir} has no fold with both {control} and {treatment}")
+        by_fold: dict[int, list[float]] = {}
+        for fold, seed in paired:
+            by_fold.setdefault(fold, []).append(
+                (raw[(fold, seed)] - fine[(fold, seed)]) / raw[(fold, seed)]
+            )
+        folds = sorted(by_fold)
         if len(folds) < 2:
             raise ValueError(
                 f"{run_dir} has fewer than two folds with both {control} and {treatment}"
             )
-        improvements = [(raw[fold] - fine[fold]) / raw[fold] for fold in folds]
+        improvements = [float(np.mean(by_fold[fold])) for fold in folds]
         sd = float(np.std(improvements, ddof=1))
         summary[target] = {
             "folds": len(folds),
-            "mean_control": float(np.mean([raw[fold] for fold in folds])),
-            "mean_treatment": float(np.mean([fine[fold] for fold in folds])),
+            "seeds_per_fold": int(len(paired) / len(folds)),
+            "mean_control": float(np.mean([raw[key] for key in paired])),
+            "mean_treatment": float(np.mean([fine[key] for key in paired])),
             "mean_improvement": float(np.mean(improvements)),
             "sd_r": sd,
             "mde": GATE_MDE_CONSTANT * sd / np.sqrt(len(folds)),

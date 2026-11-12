@@ -69,10 +69,11 @@ def main(argv: list[str] | None = None) -> int:
 
     caps: dict[str, int] = {}
     if args.gate:
-        # The gate pairs the raw and 30-epoch Arms on the real five folds and one seed: forty
-        # in-context fits, which is what the pre-registration prices as the pre-spend step (#552).
+        # The gate matches the Run's statistic: five folds, both Arms, and the same three model
+        # seeds per fold. That is 120 fits, and it is the only way `SD_fold(r)` predicts the fair
+        # test's variance rather than a single-seed upper bound (#555).
         config = RunConfig(
-            folds=5, seeds=(0,), targets=selected, arms=("A_raw", "B_ft30")
+            folds=5, seeds=(0, 1, 2), targets=selected, arms=("A_raw", "B_ft30")
         )
     elif args.smoke:
         config = RunConfig(folds=1, seeds=(0,), test_rows=64, targets=selected)
