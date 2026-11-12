@@ -1,13 +1,13 @@
-"""The regressor fair-test runner (#539).
+"""The regressor fair-test runner (#539, #555).
 
-The pre-registration fixes what a run is: four targets, seven Arms, five folds, three model seeds
-inside each fold, 10,000 training rows (50,000 for the `S_50k` sensitivity), and 10,000 test rows
-shared by every Arm and seed of a fold. This module produces that run and nothing else — the
-model sits behind `Backend`, so the matrix is testable without `tabpfn` and a paid launch is a
-separate decision.
+The pre-registration fixes what a run is: four targets (frequency and severity across a French and
+a Spanish portfolio), four Arms, five folds built on policies, three model seeds inside each fold,
+and 10,000-row training and test caps for the policy-level targets. This module produces that run
+and nothing else — the model sits behind `Backend`, so the matrix is testable without `tabpfn` and
+a paid launch is a separate decision.
 
-Writes the v3 capture (#538): `test_index`, `quantiles`, and exposure for freMTPL2freq, each
-hashed in the manifest, plus the four record keys the citation gate requires.
+Writes capture v4 (#555): `test_index`, `quantiles`, exposure for freMTPL2freq, and the claim
+weight and cluster id for severity, each hashed in the manifest. Frequency runs stay v3.
 """
 
 from __future__ import annotations
@@ -162,6 +162,16 @@ def _write_slot(
     verdict = _metric_value(
         spec.target, truth, predictions, weights if weights is not None else np.ones(len(truth))
     )
+    # A weighted estimate is not `rmse`; recording it under that name made rescore disagree with
+    # the record on every Spanish severity slot (review, 2026-11-12).
+    metric_name = "weighted_rmse" if spec.target.weight_source is not None else spec.target.metric
+    unit = (
+        "claim"
+        if spec.target.name == "severity_french"
+        else "claiming_policy"
+        if severity
+        else "policy"
+    )
     meta = {
         "arm": spec.arm.name,
         "seed": spec.seed,
@@ -169,7 +179,7 @@ def _write_slot(
         "dataset": spec.target.dataset,
         "target": spec.target.target_column,
         "task": spec.target.task,
-        "unit": "claim" if severity else "policy",
+        "unit": unit,
         "weighted": spec.target.weight_source is not None,
         "transform": spec.target.target_scale,
         "reported_scale": reported_scale,
@@ -178,7 +188,7 @@ def _write_slot(
         "drop": list(spec.target.drop),
         "test_rows": int(len(truth)),
         "quantile_levels": list(QUANTILE_LEVELS),
-        "verdict_metric": spec.target.metric,
+        "verdict_metric": metric_name,
         "verdict_metric_value": float(verdict),
         "rmse": float(metrics.rmse(truth, predictions)),
         "predictions_sha256": sha256_array(np.asarray(predictions, dtype=float)),
@@ -361,9 +371,18 @@ def gate_summary(runs: dict[str, Path]) -> dict[str, dict]:
     summary: dict[str, dict] = {}
     for target, run_dir in runs.items():
         metas = sorted(Path(run_dir).glob("*/A_raw/seed*_fold*/meta.json"))
-        values = [float(json.loads(path.read_text())["verdict_metric_value"]) for path in metas]
-        if not values:
+        records = [json.loads(path.read_text()) for path in metas]
+        if not records:
             raise ValueError(f"{run_dir} holds no A_raw slots; the gate needs one per fold")
+        # Average the seeds inside a fold, then take the fold-level SD. Counting every
+        # seed-slot as a fold mixed the within-fold seed spread into the MDE and understated it
+        # (review, 2026-11-12).
+        by_fold: dict[int, list[float]] = {}
+        for record in records:
+            by_fold.setdefault(int(record["fold"]), []).append(
+                float(record["verdict_metric_value"])
+            )
+        values = [float(np.mean(fold_values)) for fold_values in by_fold.values()]
         folds = len(values)
         sd = float(np.std(values, ddof=1)) if folds > 1 else 0.0
         summary[target] = {

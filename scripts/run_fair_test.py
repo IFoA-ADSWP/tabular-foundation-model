@@ -64,7 +64,9 @@ def main(argv: list[str] | None = None) -> int:
         if unknown:
             parser.error(f"unknown target(s): {', '.join(sorted(unknown))}")
 
-    config = RunConfig(targets=selected)
+    if args.gate and args.smoke:
+        parser.error("--gate and --smoke describe different runs; pick one")
+
     caps: dict[str, int] = {}
     if args.gate:
         # The gate is A_raw alone on the real five folds and one seed: twenty in-context fits,
@@ -73,6 +75,8 @@ def main(argv: list[str] | None = None) -> int:
     elif args.smoke:
         config = RunConfig(folds=1, seeds=(0,), test_rows=64, targets=selected)
         caps = {"train_rows_cap": 128, "epochs_cap": 2}
+    else:
+        config = RunConfig(targets=selected)
 
     backend = TabPFNBackend(device=args.device)
     runs = run(config, backend, args.out_root, run_id=args.run_id, **caps)

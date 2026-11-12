@@ -196,7 +196,13 @@ def _verify_arrays(
         wanted[EXPOSURE] = "exposure_sha256"
     if version == CAPTURE_SCHEMA_VERSION_WEIGHTS:
         task = json.loads(slot.record.read_text(encoding="utf-8")).get("task")
-        if task == "severity":
+        # The manifest is the artifact under verification: if it carries the hashes, the arrays
+        # are owed and checked even when the record's pointer forgot to say `task`.
+        has_hashes = (
+            entry.get("weights_sha256") is not None
+            or entry.get("cluster_sha256") is not None
+        )
+        if task == "severity" or has_hashes:
             wanted[WEIGHTS] = "weights_sha256"
             wanted[CLUSTER] = "cluster_sha256"
 

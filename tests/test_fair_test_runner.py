@@ -11,11 +11,14 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from capture_reader import read_run
 from fair_test_runner import ARMS, RunConfig, run, slot_matrix
-from freq_sev_data import TARGETS, load_target
+from freq_sev_data import TARGETS
+
+RAW = Path(__file__).resolve().parents[1] / "data" / "raw"
 
 
 class StubBackend:
@@ -100,9 +103,9 @@ def test_french_severity_is_stored_on_the_log_scale(tmp_path):
     slot = run_dir / "freMTPL2sev" / "B_ft30" / "seed0_fold0"
     index = np.load(slot / "test_index.npy")
     truth = np.load(slot / "ground_truth.npy")
-    loaded = load_target(next(spec for spec in TARGETS if spec.name == "severity_french"))
+    amounts = pd.read_csv(RAW / "freMTPL2sev.csv")["ClaimAmount"].to_numpy()
 
-    assert truth == pytest.approx(loaded.y[index])
+    assert truth == pytest.approx(np.log(amounts[index]))
     record = json.loads((slot / "meta.json").read_text())
     assert record["task"] == "severity"
     assert record["unit"] == "claim"
@@ -116,13 +119,15 @@ def test_a_severity_slot_carries_the_weight_and_the_cluster(tmp_path):
     index = np.load(slot / "test_index.npy")
     weights = np.load(slot / "weights.npy")
     cluster = np.load(slot / "cluster_id.npy")
-    loaded = load_target(next(spec for spec in TARGETS if spec.name == "severity_spanish"))
+    frequency = pd.read_csv(RAW / "spanish_motor_freq.csv")
+    counts = frequency.loc[frequency["N_claims_year"] > 0, "N_claims_year"].to_numpy()
     record = json.loads((slot / "meta.json").read_text())
 
-    assert weights == pytest.approx(loaded.weights[index])
+    assert weights == pytest.approx(counts[index])
     assert cluster.dtype == np.int64
     assert record["weighted"] is True
-    assert record["verdict_metric"] == "rmse"
+    assert record["unit"] == "claiming_policy"
+    assert record["verdict_metric"] == "weighted_rmse"
 
 
 def test_a_frequency_slot_carries_no_weight_or_cluster(tmp_path):
@@ -206,19 +211,29 @@ def test_the_cli_forwards_smoke_and_targets(tmp_path, monkeypatch):
 
 
 def test_the_gate_summary_is_the_fold_level_mde(tmp_path):
-    """The pre-spend decision uses the measured fold-level SD, not the target-SD bound."""
+    """The pre-spend decision uses the fold-level SD, with seeds averaged inside a fold."""
     from fair_test_runner import gate_summary
 
     run_dir = tmp_path / "20261112T000000Z"
-    values = [1.00, 1.10, 0.90, 1.05, 0.95]
-    for fold, value in enumerate(values):
-        slot = run_dir / "freMTPL2freq" / "A_raw" / f"seed0_fold{fold}"
-        slot.mkdir(parents=True)
-        (slot / "meta.json").write_text(json.dumps({"verdict_metric_value": value}))
+    per_fold = {
+        0: (1.00, 1.20),
+        1: (1.10, 1.30),
+        2: (0.90, 1.00),
+        3: (1.05, 1.05),
+        4: (0.95, 0.85),
+    }
+    for fold, values in per_fold.items():
+        for seed, value in enumerate(values):
+            slot = run_dir / "freMTPL2freq" / "A_raw" / f"seed{seed}_fold{fold}"
+            slot.mkdir(parents=True)
+            (slot / "meta.json").write_text(
+                json.dumps({"fold": fold, "verdict_metric_value": value})
+            )
 
     row = gate_summary({"frequency_french": run_dir})["frequency_french"]
+    fold_means = [float(np.mean(values)) for values in per_fold.values()]
 
-    assert row["folds"] == 5
-    assert row["mean"] == pytest.approx(float(np.mean(values)))
-    assert row["sd"] == pytest.approx(float(np.std(values, ddof=1)))
-    assert row["mde"] == pytest.approx(2.8016 * float(np.std(values, ddof=1)) / np.sqrt(5))
+    assert row["folds"] == 5, "two seeds per fold is still five folds"
+    assert row["mean"] == pytest.approx(float(np.mean(fold_means)))
+    assert row["sd"] == pytest.approx(float(np.std(fold_means, ddof=1)))
+    assert row["mde"] == pytest.approx(2.8016 * float(np.std(fold_means, ddof=1)) / np.sqrt(5))

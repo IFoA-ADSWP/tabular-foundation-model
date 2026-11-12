@@ -126,3 +126,10 @@ def test_grouped_folds_never_split_a_policy():
         test = set(french.groups[split.test].tolist())
         assert not (train & test), "a policy's claims are on both sides of a fold"
     assert sum(len(split.test) for split in splits) == french.rows
+
+
+def test_the_spanish_frequency_file_excludes_its_sibling_and_history_columns():
+    """The preparation drops them; a replacement file that added them back must fail here."""
+    header = set(pd.read_csv(RAW / "spanish_motor_freq.csv", nrows=0).columns)
+
+    assert not header & {"Cost_claims_year", "N_claims_history", "R_Claims_history"}

@@ -337,7 +337,15 @@ def _capture_version(dataset: str, slots: list[Slot]) -> int:
     unhashed (#538).
     """
     folded = any(slot.fold is not None for slot in slots)
-    declared_v4 = any(slot.weights.is_file() or slot.cluster.is_file() for slot in slots)
+    # The record's task declares v4, not only the files: a severity slot that lost BOTH arrays
+    # would otherwise demote to v3 and read silently (review, 2026-11-12).
+    severity_records = any(
+        json.loads(slot.record.read_text(encoding="utf-8")).get("task") == "severity"
+        for slot in slots
+    )
+    declared_v4 = severity_records or any(
+        slot.weights.is_file() or slot.cluster.is_file() for slot in slots
+    )
     declared = any(slot.test_index.is_file() for slot in slots)
     if declared_v4:
         if not folded:

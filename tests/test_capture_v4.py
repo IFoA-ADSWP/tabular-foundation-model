@@ -107,3 +107,27 @@ def test_a_float_cluster_id_is_refused(tmp_path):
 
     with pytest.raises(CaptureRefused, match="int64"):
         build_capture(run)
+
+
+def test_a_severity_slot_that_lost_both_arrays_is_refused_not_demoted(tmp_path):
+    """Presence alone cannot decide the version: a record that says severity owes the arrays."""
+    run = tmp_path / "20261112T000000Z"
+    _slot(run, fold=0, weights=False, cluster=None)
+
+    with pytest.raises(CaptureRefused, match="weights.npy"):
+        build_capture(run)
+
+
+def test_the_reader_verifies_what_the_manifest_names_even_without_a_task_key(tmp_path):
+    """The manifest is the artifact under verification; a pointer without `task` cannot hide it."""
+    run = _run(tmp_path)
+    for meta in run.rglob("meta.json"):
+        payload = json.loads(meta.read_text())
+        payload.pop("task", None)
+        meta.write_text(json.dumps(payload))
+
+    assert read_run(run).slots[0].weights is not None
+
+    (run / "spanish_motor_severity" / "A_raw" / "seed0_fold0" / "weights.npy").unlink()
+    with pytest.raises(CaptureRefused, match="weights.npy is missing"):
+        read_run(run)
