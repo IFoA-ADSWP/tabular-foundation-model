@@ -1,0 +1,93 @@
+{
+  "arm": "B_ft30",
+  "dataset": "spanish_motor_severity",
+  "drop": [
+    "Cost_claims_year",
+    "Policies_in_force"
+  ],
+  "epochs": 30,
+  "features": [
+    "Distribution_channel",
+    "Seniority",
+    "Max_policies",
+    "Max_products",
+    "Payment",
+    "Premium",
+    "Type_risk",
+    "Area",
+    "Second_driver",
+    "driver_age",
+    "licence_age",
+    "vehicle_age",
+    "Power",
+    "Cylinder_capacity",
+    "Value_vehicle",
+    "N_doors",
+    "Type_fuel",
+    "Length",
+    "Weight"
+  ],
+  "fold": 4,
+  "fold_seed": 42,
+  "log_features": [],
+  "n_folds": 5,
+  "predictions_sha256": "56f8e88ecae9ef601f0c050f16432dfc2086d3ae307e824d7127b8e6d5b67505",
+  "provenance": {
+    "dataset": {
+      "files": [
+        {
+          "name": "spanish_motor_severity.csv",
+          "path": "/workspace/tfm/data/raw/spanish_motor_severity.csv",
+          "sha256": "d474bea983188da97ca53f1fcca94c3e53dfdd9e268276f66f0be8afa13fb871"
+        },
+        {
+          "name": "spanish_motor_freq.csv",
+          "path": "/workspace/tfm/data/raw/spanish_motor_freq.csv",
+          "sha256": "4efbef8d0f3fe44654c964e3c0aad317853f26799b41ed60d1753f17601d2708"
+        }
+      ],
+      "join_key": "IDpol",
+      "name": "spanish_motor_severity",
+      "path": "/workspace/tfm/data/raw/spanish_motor_severity.csv",
+      "sha256": "d474bea983188da97ca53f1fcca94c3e53dfdd9e268276f66f0be8afa13fb871"
+    },
+    "split": {
+      "n_folds": 5,
+      "rule": "KFold(shuffle=True, random_state=42)",
+      "seed": 42,
+      "sha256": null
+    }
+  },
+  "quantile_levels": [
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9
+  ],
+  "quantile_scale": "log",
+  "reported_scale": "log",
+  "rmse": 0.49083141101251837,
+  "seed": 2,
+  "target": "Cost_claims_year",
+  "task": "severity",
+  "test_rows": 1190,
+  "train_rows": 4760,
+  "transform": "log",
+  "unit": "claiming_policy",
+  "verdict_metric": "weighted_rmse",
+  "verdict_metric_value": 0.6442174407463521,
+  "versions": {
+    "python": "3.11.12",
+    "tabpfn": "8.5.0"
+  },
+  "weighted": true,
+  "weights": {
+    "path": "/root/.cache/tabpfn/tabpfn-v3-regressor-v3_default.ckpt",
+    "sha256": "311ce18d97e9533d8585eaadafe040fbdd8070533209ed8696641dadc97a7301"
+  }
+}
