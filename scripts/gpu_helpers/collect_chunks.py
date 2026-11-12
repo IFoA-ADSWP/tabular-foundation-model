@@ -70,6 +70,28 @@ def _payload_dir(state: Path, payload: str) -> Path:
     return path
 
 
+def declared_chunks(directory: Path) -> int | None:
+    """How many chunks a payload declared, or None when its INFO line was never seen.
+
+    None is not zero: an unknown count cannot be reported as complete, and treating it as 0
+    would let a payload whose declaration scrolled away assemble as an empty success.
+    """
+    meta = directory / "meta.json"
+    if not meta.is_file():
+        return None
+    try:
+        record = json.loads(meta.read_text())
+    except (json.JSONDecodeError, ValueError):
+        return None
+    declared = record.get("chunks")
+    if declared is None:
+        return None
+    try:
+        return int(declared)
+    except (TypeError, ValueError):
+        return None
+
+
 def merge_window(window: Path, state: Path) -> dict[str, dict[str, int]]:
     """Ingest one polled window. Returns payload -> {chunks, expected}."""
     if not window.is_file():
@@ -98,20 +120,17 @@ def merge_window(window: Path, state: Path) -> dict[str, dict[str, int]]:
             fields = _info_fields(line)
             payload = fields.get("payload", "default")
             count = fields.get("chunks")
+            # No `chunks=` means a single block (the pilot and benchmark framing); a count
+            # that is not a number is recorded as null, which `declared_chunks` reads as
+            # unknown rather than as a complete payload of zero chunks.
+            declared = int(count) if count is not None and count.isdigit() else (None if count is not None else 1)
             meta_path = state / payload / "meta.json"
             # The first INFO wins: it declares the payload the box produced, and a later
             # poll cannot know better than the box did.
             if not meta_path.exists():
                 meta_path.parent.mkdir(parents=True, exist_ok=True)
                 meta_path.write_text(
-                    json.dumps(
-                        {
-                            "info": line,
-                            "payload": payload,
-                            "chunks": int(count) if count and count.isdigit() else (1 if count is None else 0),
-                        },
-                        indent=2,
-                    )
+                    json.dumps({"info": line, "payload": payload, "chunks": declared}, indent=2)
                     + "\n"
                 )
             current_payload = payload
@@ -139,29 +158,22 @@ def merge_window(window: Path, state: Path) -> dict[str, dict[str, int]]:
     for payload in sorted(p.name for p in state.iterdir() if p.is_dir()):
         directory = state / payload
         have = len([p for p in directory.glob("[0-9][0-9][0-9].txt")])
-        meta = directory / "meta.json"
-        declared = 0
-        if meta.exists():
-            try:
-                declared = int(json.loads(meta.read_text()).get("chunks") or 0)
-            except (json.JSONDecodeError, ValueError):
-                declared = 0
-        report[payload] = {"chunks": have, "expected": declared}
+        declared = declared_chunks(directory)
+        report[payload] = {"chunks": have, "expected": declared if declared is not None else 0}
     return report
 
 
-def missing_chunks(state: Path) -> dict[str, list[int]]:
-    """Per payload, the sequence numbers the box declared and the log never carried."""
-    gaps: dict[str, list[int]] = {}
+def missing_chunks(state: Path) -> dict[str, list[int] | None]:
+    """Per payload, the sequence numbers the box declared and the log never carried.
+
+    `None` means the payload's declaration never survived a poll: its chunks cannot be
+    reported complete, and `assemble` refuses rather than writing a short archive.
+    """
+    gaps: dict[str, list[int] | None] = {}
     for directory in sorted(p for p in state.iterdir() if p.is_dir()):
-        meta = directory / "meta.json"
-        if not meta.exists():
-            gaps[directory.name] = []
-            continue
-        try:
-            declared = int(json.loads(meta.read_text()).get("chunks") or 0)
-        except (json.JSONDecodeError, ValueError):
-            gaps[directory.name] = []
+        declared = declared_chunks(directory)
+        if declared is None:
+            gaps[directory.name] = None
             continue
         have = {int(p.stem) for p in directory.glob("[0-9][0-9][0-9].txt")}
         gaps[directory.name] = [seq for seq in range(1, declared + 1) if seq not in have]
@@ -171,15 +183,23 @@ def missing_chunks(state: Path) -> dict[str, list[int]]:
 def assemble(state: Path, out: Path) -> tuple[int, str]:
     """Write the reassembled raw log, or refuse and name the missing chunks."""
     gaps = missing_chunks(state)
+    if not gaps:
+        return 1, "INCOMPLETE no payload was collected"
+
+    undeclared = sorted(payload for payload, seqs in gaps.items() if seqs is None)
+    if undeclared:
+        return 1, (
+            "INCOMPLETE no declaration arrived for "
+            + ", ".join(undeclared)
+            + " (its INFO line never landed in a polled window)"
+        )
     broken = {payload: seqs for payload, seqs in gaps.items() if seqs}
     if broken:
         detail = "; ".join(
-            f"{payload}: missing seq {','.join(str(s) for s in seqs)}"
+            f"{payload}: missing seq {','.join(str(s) for s in seqs or [])}"
             for payload, seqs in sorted(broken.items())
         )
         return 1, f"INCOMPLETE {detail}"
-    if not gaps:
-        return 1, "INCOMPLETE no payload was collected"
 
     lines: list[str] = []
     for payload in sorted(gaps):

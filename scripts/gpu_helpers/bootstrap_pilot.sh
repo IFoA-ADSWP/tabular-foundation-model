@@ -406,18 +406,18 @@ fi
 #          target, each sealed and emitted as it completes, so a late failure forfeits one target
 #          rather than four and each transfer is ~30 MB instead of ~120 MB.
 if [ "$FAIRTEST" = "gate" ]; then
-    GATE_STAMP="${TFM_RUN_STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}"
+    FT_STAMP="${TFM_RUN_STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}"
     FAIR_OUT="outputs/fairtest"
     mkdir -p "$FAIR_OUT"
     echo
     echo "########## FAIRTEST $FAIRTEST ##########"
-    python3 scripts/run_fair_test.py --gate --out-root results --run-id "$GATE_STAMP"
+    python3 scripts/run_fair_test.py --gate --out-root results --run-id "$FT_STAMP"
     FT_RC=$?
     if [ "$FT_RC" -ne 0 ]; then
         echo "########## FAIRTEST EXITED rc=$FT_RC (no gate summary) ##########" >&2
     fi
     # The CLI writes results/resolution_gate_<run id>.json; emit a directory holding it.
-    cp "results/resolution_gate_${GATE_STAMP}.json" "$FAIR_OUT/" 2>/dev/null || true
+    cp "results/resolution_gate_${FT_STAMP}.json" "$FAIR_OUT/" 2>/dev/null || true
     echo
     echo "########## ARTIFACTS ##########"
     ls -l "$FAIR_OUT" 2>/dev/null
@@ -427,7 +427,7 @@ if [ "$FAIRTEST" = "gate" ]; then
 fi
 
 if [ "$FAIRTEST" = "primary" ]; then
-    GATE_STAMP="${TFM_RUN_STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}"
+    FT_STAMP="${TFM_RUN_STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}"
     FAILED_TARGETS=""
     index=0
     for target in frequency_french frequency_spanish severity_french severity_spanish; do
@@ -437,12 +437,12 @@ if [ "$FAIRTEST" = "primary" ]; then
         # when a later one fails. The offset keeps the runner's own id scheme: `_run_ids` would
         # have named them <stamp>+0..3 seconds inside a single process.
         python3 scripts/run_fair_test.py --targets "$target" --arms A_raw,B_ft30 \
-            --out-root results --run-id "$GATE_STAMP" --run-id-offset "$index"
+            --out-root results --run-id "$FT_STAMP" --run-id-offset "$index"
         rc=$?
         run_id="$(python3 -c 'import sys
 from datetime import datetime, timedelta
 print((datetime.strptime(sys.argv[1], "%Y%m%dT%H%M%SZ") + timedelta(seconds=int(sys.argv[2]))).strftime("%Y%m%dT%H%M%SZ"))' \
-            "$GATE_STAMP" "$index")"
+            "$FT_STAMP" "$index")"
         if [ "$rc" -ne 0 ] || [ ! -f "results/$run_id/capture.json" ]; then
             echo "########## FAIRTEST EXITED rc=$rc ($target wrote no capture) ##########" >&2
             FAILED_TARGETS="$FAILED_TARGETS $target"
@@ -450,8 +450,8 @@ print((datetime.strptime(sys.argv[1], "%Y%m%dT%H%M%SZ") + timedelta(seconds=int(
             # Emit this target now. The pause lets each chunk outlive several polls of the
             # launcher's ~6.6 MB window; the collector stitches them by sequence number.
             echo "########## EMIT $target ($run_id) ##########"
-            PAYLOAD_ID="$run_id" CHUNK_LINES="${TFM_CHUNK_LINES:-4500}" \
-                CHUNK_PAUSE="${TFM_CHUNK_PAUSE:-45}" \
+            PAYLOAD_ID="$run_id" TFM_CHUNK_LINES="${TFM_CHUNK_LINES:-4500}" \
+                TFM_CHUNK_PAUSE="${TFM_CHUNK_PAUSE:-45}" \
                 bash scripts/gpu_helpers/emit_artifacts.sh "results/$run_id"
         fi
         index=$((index + 1))

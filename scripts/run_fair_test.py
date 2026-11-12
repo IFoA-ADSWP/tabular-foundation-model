@@ -114,10 +114,16 @@ def main(argv: list[str] | None = None) -> int:
 
     backend = TabPFNBackend(device=args.device)
     base = args.run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    if args.run_id_offset:
+    try:
         base = (
-            datetime.strptime(base, "%Y%m%dT%H%M%SZ") + timedelta(seconds=args.run_id_offset)
+            datetime.strptime(base, "%Y%m%dT%H%M%SZ")
+            + timedelta(seconds=args.run_id_offset)
         ).strftime("%Y%m%dT%H%M%SZ")
+    except ValueError:
+        parser.error(
+            f"--run-id {args.run_id!r} is not a run id (YYYYMMDDTHHMMSSZ); "
+            "the capture's directory name is what the citation check resolves"
+        )
     runs = run(config, backend, args.out_root, run_id=base, **caps)
     for target, run_dir in runs.items():
         print(f"{target}: {run_dir}  ({run_dir / 'capture.json'})")

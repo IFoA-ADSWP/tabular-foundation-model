@@ -87,8 +87,8 @@ def _emit(run: Path, *, chunk_lines: int, pause: int = 0) -> str:
     env = dict(os.environ)
     env.update({
         "PAYLOAD_ID": run.name,
-        "CHUNK_LINES": str(chunk_lines),
-        "CHUNK_PAUSE": str(pause),
+        "TFM_CHUNK_LINES": str(chunk_lines),
+        "TFM_CHUNK_PAUSE": str(pause),
     })
     done = subprocess.run(
         ["bash", str(EMIT), str(run)],

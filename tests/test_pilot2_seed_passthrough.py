@@ -52,6 +52,12 @@ def _launcher_repo(tmp_path):
     repo = tmp_path / "repo"
     (repo / "scripts").mkdir(parents=True)
     shutil.copytree(GH, repo / "scripts" / "gpu_helpers")
+    # The fair-test capture check IS the citation check (#564), and the verifier imports it
+    # from beside gpu_helpers/. A scratch repo without it would refuse every restored capture
+    # with "the citation check is not beside the verifier", which is not what the box sees.
+    citation = GH.parent / "check_citations.py"
+    if citation.is_file():
+        shutil.copy2(citation, repo / "scripts" / "check_citations.py")
     # keys.sh owns reading the secrets. Replace it with a stub so this test needs no
     # ~/.config/tfm/keys.env, makes no auth call, and cannot leak a live token into a
     # payload that the mock then writes to disk.
@@ -720,7 +726,7 @@ _BOX_COMPUTED = {
     # The benchmark branch's own locals (#528): the record's directory, name, stamp and rc.
     "BENCH_OUT", "BENCH_RECORD", "BENCH_STAMP", "BENCH_RC",
     # The fair-test gate branch's locals (#555).
-    "FAIR_OUT", "FT_RC", "GATE_STAMP",
+    "FAIR_OUT", "FT_RC", "FT_STAMP",
     # The primary-run branch's locals (#564): the targets that failed, and the run id it derives
     # from the stamp the launcher forwarded.
     "FAILED_TARGETS",

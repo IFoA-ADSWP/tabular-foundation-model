@@ -30,16 +30,16 @@
 # CHUNK_PAUSE (seconds between chunks, default 45) plus PAYLOAD_ID so two payloads in
 # one log cannot mix.
 #
-# Usage: [PAYLOAD_ID=<run id> CHUNK_LINES=4500 CHUNK_PAUSE=45] emit_artifacts.sh [output_dir]
+# Usage: [PAYLOAD_ID=<run id> TFM_CHUNK_LINES=4500 TFM_CHUNK_PAUSE=45] emit_artifacts.sh [output_dir]
 #
-# TFM_CHUNK_LINES / TFM_CHUNK_PAUSE are the names the launcher forwards (the environment seam
-# test requires that), so they win over the bare ones a local caller sets.
+# The chunk knobs are TFM_-prefixed because the launcher forwards them by that name; one name,
+# one default (0 = a single block, today's behaviour for a direct caller).
 set -u
 
 OUTDIR="${1:-outputs/finetune/pilot}"
 LINE_WIDTH=440
-CHUNK_LINES="${TFM_CHUNK_LINES:-${CHUNK_LINES:-0}}"
-CHUNK_PAUSE="${TFM_CHUNK_PAUSE:-${CHUNK_PAUSE:-45}}"
+CHUNK_LINES="${TFM_CHUNK_LINES:-0}"
+CHUNK_PAUSE="${TFM_CHUNK_PAUSE:-45}"
 PAYLOAD_ID="${PAYLOAD_ID:-}"
 
 # The launcher reads `--tail 20000`, so a chunk at that size would leave no room for the

@@ -233,10 +233,11 @@ if [ -n "$FAIRTEST" ]; then
         echo "       Wire the ssh pull to results/ before using it, or drop --transport ssh." >&2
         exit 2
     fi
-    if [ "$FAIRTEST" = "primary" ] && [ "$POLL_MINUTES" -lt 120 ]; then
-        # The ceiling must cover ~1 h of fits plus ~40 min of paced transfer, or the launch
-        # destroys the box mid-emit and pays for compute whose evidence never lands.
-        echo "FATAL: --poll-minutes $POLL_MINUTES is below the ~160 min a primary run needs" >&2
+    if [ "$FAIRTEST" = "primary" ] && [ "$POLL_MINUTES" -lt 160 ]; then
+        # The ceiling must cover ~60 min of fits plus ~40 min of paced transfer plus cold start.
+        # The gate's own 120 fits took 58.9 min; below this the launch destroys the box mid-emit
+        # and pays for compute whose evidence never lands.
+        echo "FATAL: --poll-minutes $POLL_MINUTES is below the 160 min a primary run needs" >&2
         echo "       (60 min fits + ~40 min paced transfer + cold start)." >&2
         echo "       Pass --poll-minutes 180; a short ceiling pays for the fits and discards them." >&2
         exit 2
@@ -376,7 +377,10 @@ RUN_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 LAUNCH_TMP="$(mktemp -d "${TMPDIR:-/tmp}/tfm-launch.XXXXXX")"
 RUN_OUT="$LAUNCH_TMP/run_out.txt"
 LOG_NEXT="$LAUNCH_TMP/log_next.txt"
+# Two names, deliberately: the merged chunks and a single log window must not share a file, or
+# the one that arrives last silently becomes the payload (the first cut of #564 did exactly that).
 ARTIFACTS_RAW="$LAUNCH_TMP/artifacts.raw"
+LOG_WINDOW_RAW="$LAUNCH_TMP/log_window.raw"
 # The registered fair test ships a capture per target, far larger than one poll of the log can
 # read, so it arrives as sequence-numbered chunks merged across polls (#564).
 CHUNKS_DIR="$LAUNCH_TMP/chunks"
@@ -1009,19 +1013,18 @@ else
         RUN_RC=1
     fi
     if [ "$PRIMARY_MODE" = 1 ]; then
-        # A capture arrives in chunks because no single window can hold it. Assemble here, and
-        # keep the instance if a chunk never made it: the fits behind it are an hour of paid
-        # compute, and destroying the box would discard the evidence with the transfer fault.
+        # A capture arrives in chunks because no single window can hold it. Assemble here; a
+        # chunk that never arrived is refused below by the verifier (exit 8), which is also
+        # where the instance is kept -- so this reports the gap and leaves the teardown to the
+        # one path that knows what a refused payload costs.
         if python3 "$REPO_DIR/scripts/gpu_helpers/collect_chunks.py" assemble \
             --state "$CHUNKS_DIR" --out "$ARTIFACTS_RAW"; then
             mkdir -p "$OUTDIR/runs/$RUN_STAMP" 2>/dev/null
             cp "$ARTIFACTS_RAW" "$OUTDIR/runs/$RUN_STAMP/artifacts.raw" 2>/dev/null || true
         else
             echo "REFUSING: the capture payload is incomplete -- not every emitted chunk arrived." >&2
-            echo "          Keeping the instance ($INSTANCE_ID): the transfer can be retried," >&2
-            echo "          and destroying it would discard the fits the chunks belong to." >&2
+            : > "$ARTIFACTS_RAW"
             RUN_RC=1
-            KEEP=1
         fi
     fi
     echo "--- log tail ---"
@@ -1056,8 +1059,16 @@ else
     # The bootstrap printed its payload between markers on stdout, so the container
     # log -- already captured in $RUN_OUT -- IS the transfer channel.
     # (`vastai execute` cannot read files; it only runs ls/rm/du.)
-    VERIFY_SOURCE=(--raw "$ARTIFACTS_RAW")
-    cp $RUN_OUT $ARTIFACTS_RAW 2>/dev/null || : > $ARTIFACTS_RAW
+    #
+    # EXCEPT in primary mode, where ARTIFACTS_RAW is the CHUNKS already merged across polls:
+    # copying the last window over it would discard every chunk that had scrolled out, and
+    # verification would then refuse four captures that had in fact all arrived.
+    if [ "$PRIMARY_MODE" = 1 ]; then
+        VERIFY_SOURCE=(--raw "$ARTIFACTS_RAW")
+    else
+        VERIFY_SOURCE=(--raw "$LOG_WINDOW_RAW")
+        cp $RUN_OUT $LOG_WINDOW_RAW 2>/dev/null || : > $LOG_WINDOW_RAW
+    fi
 fi
 # The seeds this launch was GIVEN, not the ones the box says it ran. Without this
 # comparison a batch that wrote another launch's range reports `verified=24` and
