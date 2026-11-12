@@ -88,9 +88,11 @@ judgement calls in `CODING_STANDARDS.md`.
 ## Branch protection — admin, once
 
 Two settings on `main`. A pull request cannot apply or verify either, so they stay a setup
-step. Measured 2026-11-11: **neither is applied** — `main`'s protection has no
-`required_status_checks` at all, so a pull request that has never run `ci.yml` still reads
-`MERGEABLE/CLEAN`.
+step for a repository admin. **Applied 2026-11-12.** Measured both ways with a throwaway
+pull request: with the settings off it read `MERGEABLE/CLEAN` having never run `ci.yml`;
+with them on it reads `BLOCKED` before any check runs and `CLEAN` only once all eight have
+passed. The eight contexts are bound to the GitHub Actions app, so a check by another app
+with the same name does not satisfy them.
 
 1. **Require status checks to pass before merging**, selecting all eight jobs `ci.yml`
    schedules — ruff, pytest, shellcheck, evidence, doclinks, docstatus, citation, verdict.
@@ -99,6 +101,10 @@ step. Measured 2026-11-11: **neither is applied** — `main`'s protection has no
    reads `MERGEABLE/CLEAN` and the merge fails on conflicts instead; measured 2026-10-31 on
    #347, where `main` had advanced three commits and the squash-merge was refused. With it,
    the pull request shows `BEHIND` and waits for a refresh instead of failing late.
+
+A pull request whose base is another pull request's branch — a stack — is not covered: the
+protection is on `main`, so the top of a stack can still read `CLEAN` while its parent is
+red. Check the parent before merging the child.
 
 ## Issue tracker
 
