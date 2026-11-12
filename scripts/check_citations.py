@@ -4,7 +4,9 @@
 A **citation** is a bare run id (`YYYYMMDDTHHMMSSZ`) in any file under `docs/`. A cited run must
 have `results/<id>/capture.json` whose entries cover every arm × seed × fold present in the run
 with non-null hashes. A `schema_version: 2` capture also requires each record to name
-`versions.tabpfn`, `versions.python` and `weights.path` or `weights.sha256`. Ids predating the
+`versions.tabpfn`, `versions.python` and `weights.path` or `weights.sha256`. A `schema_version: 4`
+capture additionally owes `weights_sha256` and `cluster_sha256` on every severity entry (#555), and
+is refused if a frequency entry carries them. Ids predating the
 rule live in `docs/analyses/legacy_citations.txt`; that file is append-only and may not gain an id
 from after the rule date.
 
@@ -167,9 +169,28 @@ def _record_problems(run_id: str, exp: "Expected", entry: dict) -> list[str]:
     return [f"{run_id}: {where} v3 record has no {key}" for key in required if record.get(key) is None]
 
 
-def check_run(root: Path, run_id: str) -> list[str]:
-    """Every reason this cited run is not capturable. Empty means fine."""
-    run_dir = root / "results" / run_id
+def _v4_problems(run_id: str, exp: "Expected", entry: dict) -> list[str]:
+    """v4 carries the two arrays a grouped severity target needs (#555, #564).
+
+    The writer refuses a frequency slot that declares them, so the same rule runs here: a
+    weight without a cluster (or the pair on a frequency target) is not a richer capture, it
+    is a capture whose reader cannot tell which rows were weighted.
+    """
+    try:
+        record = json.loads(exp.record.read_text())
+    except json.JSONDecodeError as exc:
+        return [f"{run_id}: {exp.record} is not valid JSON ({exc})"]
+
+    where = f"{exp.arm} seed {exp.seed} fold {exp.fold}"
+    keys = ("weights_sha256", "cluster_sha256")
+    if record.get("task") == "severity":
+        return [f"{run_id}: {where} v4 severity entry has no {key}" for key in keys if not entry.get(key)]
+    return [f"{run_id}: {where} v4 frequency entry carries {key}" for key in keys if entry.get(key)]
+
+
+def check_run_dir(run_dir: Path, run_id: str) -> list[str]:
+    """Every reason this run directory is not capturable. Empty means fine."""
+    run_dir = Path(run_dir)
     manifest_path = run_dir / "capture.json"
     if not manifest_path.is_file():
         where = "no run directory" if not run_dir.is_dir() else "no capture.json"
@@ -180,10 +201,10 @@ def check_run(root: Path, run_id: str) -> list[str]:
     except json.JSONDecodeError as exc:
         return [f"{run_id}: capture.json is not valid JSON ({exc})"]
 
-    if manifest.get("schema_version") not in (1, 2, 3):
+    if manifest.get("schema_version") not in (1, 2, 3, 4):
         return [
             f"{run_id}: capture.json schema_version {manifest.get('schema_version')!r} "
-            "is not 1, 2 or 3"
+            "is not 1, 2, 3 or 4"
         ]
 
     entries = {
@@ -208,19 +229,26 @@ def check_run(root: Path, run_id: str) -> list[str]:
                 f"{run_id}: {exp.arm} seed {exp.seed} fold {exp.fold} "
                 f"was not retained ({reason})"
             )
-        if manifest.get("schema_version") == 3:
+        if manifest.get("schema_version") in (3, 4):
             problems.extend(
                 _array_problems(run_id, exp, entry, manifest.get("dataset"))
             )
             problems.extend(_record_problems(run_id, exp, entry))
-        if manifest.get("schema_version") in (2, 3):
-            # v3 is a superset: the environment fields v2 required are still required.
+        if manifest.get("schema_version") == 4:
+            problems.extend(_v4_problems(run_id, exp, entry))
+        if manifest.get("schema_version") in (2, 3, 4):
+            # v3 is a superset of v2 and v4 of v3: the environment fields are still required.
             problems.extend(_environment_problems(run_id, exp, entry))
     if not expected:
         problems.append(
             f"{run_id}: no arm records found, so the capture cannot be checked"
         )
     return problems
+
+
+def check_run(root: Path, run_id: str) -> list[str]:
+    """The `results/<id>/` form of `check_run_dir`, for the repository-wide check."""
+    return check_run_dir(root / "results" / run_id, run_id)
 
 
 def main(argv: list[str] | None = None) -> int:

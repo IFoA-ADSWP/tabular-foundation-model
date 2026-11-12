@@ -10,23 +10,51 @@
 # exercised locally, at zero spend, instead of only on a paid instance.
 #
 # WHAT IT EMITS
-#   __ARTIFACTS_INFO__ bytes=<n> sha256=<hex> lines=<n> files=<n>
+#   __ARTIFACTS_INFO__ bytes=<n> sha256=<hex> lines=<n> files=<n> [payload=<id> chunks=<n> lines_per_chunk=<k>]
 #   __ARTIFACTS_BEGIN__
+#   [__ART_CHUNK__ seq=<i>/<n> lines=<k>]
 #   __ART__<440-char base64 chunk>
 #   ...
+#   [__ART_CHUNK_END__]
 #   __ARTIFACTS_END__
 #
 # The self-declared size is the point: the receiver REFUSES a short read instead of
 # reporting a cryptic unpack failure, so a mis-sized --tail window fails loudly.
 #
-# Usage: emit_artifacts.sh [output_dir]     (default: outputs/finetune/pilot)
+# CHUNKED MODE (#564). At ~120 MB a fair-test capture is far larger than the ~6.6 MB
+# window (`--tail 20000` x 440 chars) that a single poll can read, and the log is the
+# only transport this account has: `--transport ssh` needs a key the team context
+# refuses. So a fair-test payload is emitted in sequence-numbered chunks with a pause
+# between them, slower than the window scrolls, and `collect_chunks.py` merges the
+# polls by `seq`. Set CHUNK_LINES (0 disables -- the pilot path's single block) and
+# CHUNK_PAUSE (seconds between chunks, default 45) plus PAYLOAD_ID so two payloads in
+# one log cannot mix.
+#
+# Usage: [PAYLOAD_ID=<run id> TFM_CHUNK_LINES=4500 TFM_CHUNK_PAUSE=45] emit_artifacts.sh [output_dir]
+#
+# The chunk knobs are TFM_-prefixed because the launcher forwards them by that name; one name,
+# one default (0 = a single block, today's behaviour for a direct caller).
 set -u
 
 OUTDIR="${1:-outputs/finetune/pilot}"
 LINE_WIDTH=440
+CHUNK_LINES="${TFM_CHUNK_LINES:-0}"
+CHUNK_PAUSE="${TFM_CHUNK_PAUSE:-45}"
+PAYLOAD_ID="${PAYLOAD_ID:-}"
+
+# The launcher reads `--tail 20000`, so a chunk at that size would leave no room for the
+# lines that arrive while a poll is in flight, and the next poll could read past a chunk's
+# start while still seeing its end. Refuse rather than emit a transfer that cannot seal.
+if [ "$CHUNK_LINES" -gt 18000 ]; then
+    echo "REFUSING: CHUNK_LINES=$CHUNK_LINES leaves no slack under the launcher's 20000-line" >&2
+    echo "          window; a chunk would scroll out before its end marker was read." >&2
+    exit 2
+fi
 
 emit_empty() {
-    echo "__ARTIFACTS_INFO__ bytes=0 sha256=- lines=0 files=0"
+    local extra=""
+    [ -n "$PAYLOAD_ID" ] && extra=" payload=$PAYLOAD_ID chunks=0"
+    echo "__ARTIFACTS_INFO__ bytes=0 sha256=- lines=0 files=0$extra"
     echo "__ARTIFACTS_BEGIN__"
     echo "__ARTIFACTS_END__"
 }
@@ -55,8 +83,13 @@ if [ -f pilot_predictions.parquet ] && [ "$(wc -c < pilot_predictions.parquet)" 
     echo pilot_predictions.parquet >> "$FILE_LIST"
 fi
 # Per-arm predictions and ground truth -- the evidence a third party needs to
-# recompute the metrics. Includes the seed/fold-nested layout.
-find . -name predictions.npy -o -name ground_truth.npy 2>/dev/null \
+# recompute the metrics. Includes the seed/fold-nested layout. The v3/v4 arrays are
+# listed too (#564): a fair-test capture is nothing but these files plus its manifest,
+# and shipping only predictions/truth would hand back a capture whose quantiles and
+# severity weights the manifest hashes but the transfer never carried.
+find . \( -name predictions.npy -o -name ground_truth.npy -o -name test_index.npy \
+    -o -name quantiles.npy -o -name exposure.npy -o -name weights.npy \
+    -o -name cluster_id.npy \) 2>/dev/null \
     | sed 's|^\./||' >> "$FILE_LIST"
 
 FILE_COUNT="$(awk 'NF' "$FILE_LIST" 2>/dev/null | wc -l | tr -d ' ')"
@@ -98,7 +131,43 @@ fi
 fold -w "$LINE_WIDTH" "$B64FILE" > "$FOLDED"
 ART_LINES="$(awk 'END { print NR }' "$FOLDED")"
 
-echo "__ARTIFACTS_INFO__ bytes=$ART_BYTES sha256=$ART_SHA lines=$ART_LINES files=$FILE_COUNT"
+SPLIT_DIR="$(mktemp -d)"
+NCHUNKS=1
+CHUNKED=0
+if [ "$CHUNK_LINES" -gt 0 ] && [ "$ART_LINES" -gt "$CHUNK_LINES" ]; then
+    NCHUNKS=$(( (ART_LINES + CHUNK_LINES - 1) / CHUNK_LINES ))
+    CHUNKED=1
+fi
+
+INFO="__ARTIFACTS_INFO__ bytes=$ART_BYTES sha256=$ART_SHA lines=$ART_LINES files=$FILE_COUNT"
+[ -n "$PAYLOAD_ID" ] && INFO="$INFO payload=$PAYLOAD_ID"
+if [ "$CHUNKED" -eq 1 ]; then
+    INFO="$INFO chunks=$NCHUNKS lines_per_chunk=$CHUNK_LINES"
+fi
+echo "$INFO"
 echo "__ARTIFACTS_BEGIN__"
-sed 's/^/__ART__/' "$FOLDED"
+if [ "$CHUNKED" -eq 0 ]; then
+    # One block: the pilot and benchmark paths, unchanged. The window can carry it.
+    sed 's/^/__ART__/' "$FOLDED"
+    echo "__ARTIFACTS_END__"
+    rm -rf "$SPLIT_DIR"
+    exit 0
+fi
+# Chunked: each block is self-identifying, so a poll that lands mid-chunk leaves it
+# unsealed rather than half-assembled, and a repeated poll cannot duplicate it.
+split -l "$CHUNK_LINES" "$FOLDED" "$SPLIT_DIR/part-"
+chunk_no=0
+for part in "$SPLIT_DIR"/part-*; do
+    chunk_no=$((chunk_no + 1))
+    marker="__ART_CHUNK__ seq=$chunk_no/$NCHUNKS"
+    [ -n "$PAYLOAD_ID" ] && marker="$marker payload=$PAYLOAD_ID"
+    echo "$marker lines=$(awk 'END { print NR }' "$part")"
+    sed 's/^/__ART__/' "$part"
+    echo "__ART_CHUNK_END__"
+    # Paced so the chunk outlives several polls: a window of 20,000 lines holds about
+    # four of these, and the launcher reads one window every 20 seconds.
+    if [ "$chunk_no" -lt "$NCHUNKS" ]; then sleep "$CHUNK_PAUSE"; fi
+done
 echo "__ARTIFACTS_END__"
+rm -rf "$SPLIT_DIR"
+

@@ -167,7 +167,20 @@ JSON
       EMITTER="${MOCK_EMITTER:-scripts/gpu_helpers/emit_artifacts.sh}"
       TREE="${MOCK_OUTPUT_TREE:-$MOCK_STATE_DIR/finetune/pilot}"
       if [ -f "$EMITTER" ]; then
-          bash "$EMITTER" "$TREE"
+          if [ "${MOCK_PER_TARGET:-0}" = "1" ]; then
+              # The primary fair test emits ONE payload per target, chunked (#564). Mirror the
+              # real bootstrap: one emit per subdirectory, each naming its own payload, so a
+              # launcher that merges chunks by payload id is tested rather than assumed.
+              for target_tree in "$TREE"/*/; do
+                  [ -d "$target_tree" ] || continue
+                  PAYLOAD_ID="$(basename "$target_tree")" \
+                      TFM_CHUNK_LINES="${TFM_CHUNK_LINES:-4500}" \
+                      TFM_CHUNK_PAUSE="${TFM_CHUNK_PAUSE:-45}" \
+                      bash "$EMITTER" "$target_tree"
+              done
+          else
+              bash "$EMITTER" "$TREE"
+          fi
       else
           echo "[mock] WARNING: emitter not found at '$EMITTER' -- emitting an empty payload" >&2
           echo "__ARTIFACTS_INFO__ bytes=0 sha256=- lines=0 files=0"

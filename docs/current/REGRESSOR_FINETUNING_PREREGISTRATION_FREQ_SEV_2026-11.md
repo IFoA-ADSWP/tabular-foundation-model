@@ -153,6 +153,16 @@ MDE_gate = 2.8016 * SD_fold(r) / sqrt(5)
 > **2%**; both severity targets clear it comfortably. The gate's point estimates are a preview, not
 > a verdict. The gate costs roughly \$0.02–\$0.05 and is released separately.
 
+> **2026-11-12 — the fair test runs the primary pair, and keeps its capture.** The gate already fitted
+> `A_raw` and `B_ft30` on all four targets, all five folds and all three seeds — the primary comparison
+> — but shipped only its summary, so the 120 fits bought the floors and no evidence. The fair test is
+> therefore registered as **that same primary pair, run again with its captures retained**: 120 fits,
+> about \$0.26. The `B_ft10` / `B_ft3` epoch ladder is a **follow-up**, run under its own dated
+> amendment if it is wanted; no floor is registered for those arms, so they cannot move a verdict and
+> the 240-fit matrix is not authorised by this document, so "Order of work" item 4's "240 fits" is read
+> as 120 under this amendment. The ladder remains a registered part of the target set — this narrows
+> the authorisation, it does not retract the arms.
+
 A **positive control** still gates the trainer before the gate: weights moved, training loss fell,
 and a paired held-out gain on a synthetic known-signal target. It is the existing control (#498,
 #516); this document does not change it.
@@ -208,3 +218,4 @@ a target, an Arm, a fold or a floor after that is an amendment with a date, not 
 | 2026-11-12 | The resolution gate runs `A_raw` and `B_ft30` and fixes the floors from `SD_fold(r)`; the A_raw-only gate measured fold difficulty and overstated the MDE (10.05% / 7.36% on frequency). Owner released the correction before any fair-test data. | agent, owner approved |
 | 2026-11-12 | The gate runs the Run's three model seeds per fold (120 fits), so `SD_fold(r)` predicts the Run's variance; a one-seed gate includes seed noise the Run averages away. | agent, owner approved |
 | 2026-11-12 | Gate result fixes the floors: frequency task 2% (pooled), Spanish frequency 4% per target (3.85% MDE), severity task 2% (0.50% / 1.35% MDE). | agent, owner approved |
+| 2026-11-12 | The fair test is authorised as the primary pair only — `A_raw` vs `B_ft30`, 120 fits, captures retained. The `B_ft10`/`B_ft3` epoch ladder is a follow-up under its own amendment; no floor is registered for it. (#564) | agent, owner approved |
