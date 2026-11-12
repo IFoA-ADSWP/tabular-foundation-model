@@ -53,8 +53,14 @@ line and glues the end marker on, so a naive seal would hash a mangled archive.
 4. **A truncated tail is dropped, not sealed.** A line containing the end marker but not starting
    with it is the window's edge; the chunk is discarded unsealed so the next copy supplies a whole
    one. A marker glued to the *start* of a payload line is split, since base64 cannot contain `_`.
-5. Transfer budget: ~20 chunks × 2 copies × 20 s ≈ 13 min per target, ~50 min of transfer against
-   ~50 min of fits, so ~105 min inside the existing 180 min ceiling.
+5. **The window is 8,000 lines, because the API will not serve more.** Measured on the canary's
+   ~45,000-line log: `--tail 500` in 3 s, `2,100` in 4 s, `5,000` in 4 s, `8,000` in 4 s, `10,000` in
+   5 s — and `12,000`, `16,000` and `20,000` all fail with `Result not ready after 9.0s`. The CLI
+   gives the API nine seconds and no more, so 10,000 lines is the hard ceiling and 8,000 leaves
+   margin. The default 20,000 was above it, which is why the canary sealed 2 chunks of 20 before
+   every poll started returning nothing.
+6. Transfer budget: ~27 chunks × 2 copies × 20 s ≈ 18 min per target, ~72 min of transfer against
+   ~50 min of fits, so ~125 min inside the existing 180 min ceiling.
 
 ## Acceptance
 

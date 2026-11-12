@@ -131,6 +131,11 @@ MAX_ATTEMPTS="${MAX_ATTEMPTS:-2}"
 # against a 40 min ceiling and lost $0.21 and 46 minutes of compute (2026-11-04).
 POLL_MINUTES="${POLL_MINUTES:-40}"
 POLL_TIMEOUT="${POLL_TIMEOUT:-45}"
+# How many log lines one poll asks for. MEASURED 2026-11-12 on a ~45,000-line log: `--tail 8000`
+# answers in 4 s and `--tail 10000` in 5 s, while 12000, 16000 and the old default 20000 all fail
+# with "Result not ready after 9.0s" -- the CLI gives the API nine seconds and no more. A payload
+# is 40,000+ lines, so the window is the transport's hard ceiling, not a tuning knob.
+POLL_TAIL="${POLL_TAIL:-}"
 POLL_TIMEOUTS=0
 # Per-seed wall clock, for the pre-flight refusal below. Deliberately blunt and overridable:
 # the cost of a wrong estimate in one direction is a refusal a human must re-issue, and in
@@ -409,7 +414,8 @@ if [ "$PRIMARY_MODE" = 1 ]; then
     export TFM_FAIRTEST_TARGETS
     EXPECT_CAPTURES=0
     for _target in $TFM_FAIRTEST_TARGETS; do EXPECT_CAPTURES=$(( EXPECT_CAPTURES + 1 )); done
-    : "${TFM_CHUNK_LINES:=2000}"
+    : "${POLL_TAIL:=8000}"
+    : "${TFM_CHUNK_LINES:=1500}"
     : "${TFM_CHUNK_PAUSE:=20}"
     : "${TFM_CHUNK_REPEAT:=2}"
     export TFM_CHUNK_LINES TFM_CHUNK_PAUSE TFM_CHUNK_REPEAT
@@ -1023,7 +1029,7 @@ else
         # ready, and one measured poll was in flight for 13 minutes while the window moved past
         # three chunks. A poll that cannot answer in POLL_TIMEOUT seconds is killed and retried.
         : > $LOG_NEXT
-        vastai logs "$INSTANCE_ID" --tail 20000 > $LOG_NEXT 2> "$LAUNCH_TMP/log_err.txt" &
+        vastai logs "$INSTANCE_ID" --tail "${POLL_TAIL:-20000}" > $LOG_NEXT 2> "$LAUNCH_TMP/log_err.txt" &
         POLL_PID=$!
         POLL_WAITED=0
         while kill -0 "$POLL_PID" 2>/dev/null && [ "$POLL_WAITED" -lt "$POLL_TIMEOUT" ]; do
@@ -1059,7 +1065,9 @@ else
         # Surface progress without flooding: the most recent milestone line.
         PROG="$(grep -aE '^##########|PILOT RESULTS|ROC=|EXITED rc=' $RUN_OUT 2>/dev/null | tail -1)"
         [ -n "$PROG" ] && echo "  [$i] $PROG"
-        sleep 20
+        # Shorter than the old 20s because each poll now answers in ~5s: a chunk stays inside an
+        # 8,000-line window for about five chunk-blocks, and more polls per window is free.
+        sleep 10
     done
     if [ "$BOOTSTRAP_DONE" != "1" ]; then
         echo "WARNING: bootstrap did not report BOOTSTRAP FINISHED within ${POLL_MINUTES} min." >&2
