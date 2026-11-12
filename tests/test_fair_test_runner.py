@@ -210,30 +210,41 @@ def test_the_cli_forwards_smoke_and_targets(tmp_path, monkeypatch):
     assert record["train_rows"] == 128
 
 
-def test_the_gate_summary_is_the_fold_level_mde(tmp_path):
-    """The pre-spend decision uses the fold-level SD, with seeds averaged inside a fold."""
+def test_the_gate_summary_is_the_paired_fold_level_mde(tmp_path):
+    """The gate measures SD_fold(r); fold difficulty cancels, which the A_raw-only SD did not."""
     from fair_test_runner import gate_summary
 
     run_dir = tmp_path / "20261112T000000Z"
-    per_fold = {
-        0: (1.00, 1.20),
-        1: (1.10, 1.30),
-        2: (0.90, 1.00),
-        3: (1.05, 1.05),
-        4: (0.95, 0.85),
-    }
-    for fold, values in per_fold.items():
-        for seed, value in enumerate(values):
-            slot = run_dir / "freMTPL2freq" / "A_raw" / f"seed{seed}_fold{fold}"
+    raw = {0: 100.0, 1: 101.0, 2: 99.0, 3: 100.5, 4: 99.5}
+    fine = {0: 98.0, 1: 99.5, 2: 98.0, 3: 99.0, 4: 97.5}
+    for arm, values in (("A_raw", raw), ("B_ft30", fine)):
+        for fold, value in values.items():
+            slot = run_dir / "freMTPL2freq" / arm / f"seed0_fold{fold}"
             slot.mkdir(parents=True)
             (slot / "meta.json").write_text(
                 json.dumps({"fold": fold, "verdict_metric_value": value})
             )
 
     row = gate_summary({"frequency_french": run_dir})["frequency_french"]
-    fold_means = [float(np.mean(values)) for values in per_fold.values()]
+    improvements = [(raw[fold] - fine[fold]) / raw[fold] for fold in raw]
 
-    assert row["folds"] == 5, "two seeds per fold is still five folds"
-    assert row["mean"] == pytest.approx(float(np.mean(fold_means)))
-    assert row["sd"] == pytest.approx(float(np.std(fold_means, ddof=1)))
-    assert row["mde"] == pytest.approx(2.8016 * float(np.std(fold_means, ddof=1)) / np.sqrt(5))
+    assert row["folds"] == 5
+    assert row["mean_improvement"] == pytest.approx(float(np.mean(improvements)))
+    assert row["sd_r"] == pytest.approx(float(np.std(improvements, ddof=1)))
+    assert row["mde"] == pytest.approx(
+        2.8016 * float(np.std(improvements, ddof=1)) / np.sqrt(5)
+    )
+
+
+def test_a_gate_without_the_treatment_arm_refuses(tmp_path):
+    """A paired MDE needs both Arms; one alone is the gate this replaced."""
+    from fair_test_runner import gate_summary
+
+    run_dir = tmp_path / "20261112T000000Z"
+    for fold in range(5):
+        slot = run_dir / "freMTPL2freq" / "A_raw" / f"seed0_fold{fold}"
+        slot.mkdir(parents=True)
+        (slot / "meta.json").write_text(json.dumps({"fold": fold, "verdict_metric_value": 100.0}))
+
+    with pytest.raises(ValueError, match="fewer than two folds"):
+        gate_summary({"frequency_french": run_dir})
