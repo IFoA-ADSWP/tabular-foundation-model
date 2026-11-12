@@ -130,6 +130,8 @@ MAX_ATTEMPTS="${MAX_ATTEMPTS:-2}"
 # which the box emits only at the end -- was never shipped. A thirty-seed batch took 46 min
 # against a 40 min ceiling and lost $0.21 and 46 minutes of compute (2026-11-04).
 POLL_MINUTES="${POLL_MINUTES:-40}"
+POLL_TIMEOUT="${POLL_TIMEOUT:-45}"
+POLL_TIMEOUTS=0
 # Per-seed wall clock, for the pre-flight refusal below. Deliberately blunt and overridable:
 # the cost of a wrong estimate in one direction is a refusal a human must re-issue, and in
 # the other it is a silently discarded batch.
@@ -387,6 +389,31 @@ CHUNKS_DIR="$LAUNCH_TMP/chunks"
 PRIMARY_MODE=0
 [ "${FAIRTEST:-}" = "primary" ] && PRIMARY_MODE=1
 CAPTURE_DEST="$REPO_DIR/results"
+# Primary-mode defaults, measured 2026-11-12 (#566): a 20,000-line window holds ten 2,000-line
+# chunks, 20 s of pause keeps one visible for ~3 minutes, and each chunk is emitted twice because
+# a `vastai logs` poll can stall for 13 minutes -- the first live run sealed 2 chunks of 9.
+if [ "$PRIMARY_MODE" = 1 ]; then
+    # A suspended laptop is indistinguishable from a stalled poll, and it is the failure that
+    # actually lost a run on 2026-11-12: the machine slept 13:10:51-13:22:41 and the payload
+    # scrolled out of the window while the poller was not running. No timeout can help -- the
+    # process is not running to enforce one -- so say it before the money starts.
+    if command -v pmset >/dev/null 2>&1 && ! pgrep -x caffeinate >/dev/null 2>&1; then
+        echo "WARNING: no caffeinate assertion found. If this machine sleeps mid-run, the poller" >&2
+        echo "         stops while the box keeps emitting, and the chunks emitted meanwhile are" >&2
+        echo "         unrecoverable. Launch under: caffeinate -dimsu bash scripts/gpu_helpers/vast_run.sh ..." >&2
+    fi
+    # Which targets this launch runs. The registered matrix is all four; a narrower list is how a
+    # transport canary costs one target instead of four, and how a single lost target is re-run
+    # without re-running the rest (#566).
+    TFM_FAIRTEST_TARGETS="${TFM_FAIRTEST_TARGETS:-frequency_french frequency_spanish severity_french severity_spanish}"
+    export TFM_FAIRTEST_TARGETS
+    EXPECT_CAPTURES=0
+    for _target in $TFM_FAIRTEST_TARGETS; do EXPECT_CAPTURES=$(( EXPECT_CAPTURES + 1 )); done
+    : "${TFM_CHUNK_LINES:=2000}"
+    : "${TFM_CHUNK_PAUSE:=20}"
+    : "${TFM_CHUNK_REPEAT:=2}"
+    export TFM_CHUNK_LINES TFM_CHUNK_PAUSE TFM_CHUNK_REPEAT
+fi
 cleanup_launch_tmp() { [ -n "${LAUNCH_TMP:-}" ] && rm -rf "$LAUNCH_TMP"; }
 
 # Record what a run actually cost, so the cost model in the runbook can be
@@ -812,7 +839,7 @@ BOOTSTRAP_B64="$(gzip -9c "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh" | b
     # bootstrap, so forwarding it would be a control that cannot move. A dead entry is worse than
     # no entry, because it reads like one.
     for _passthrough in TFM_EXPECT_CHECKPOINT TFM_DATA_REF TFM_DATA_REPO TFM_WEIGHTS_MANIFEST \
-                       TFM_CHUNK_LINES TFM_CHUNK_PAUSE \
+                       TFM_CHUNK_LINES TFM_CHUNK_PAUSE TFM_CHUNK_REPEAT TFM_FAIRTEST_TARGETS \
                        TABPFN_PIN SKLEARN_PIN PANDAS_PIN PYARROW_PIN CATBOOST_PIN; do
         if [ -n "${!_passthrough:-}" ]; then
             printf 'export %s=%q\n' "$_passthrough" "${!_passthrough}"
@@ -968,7 +995,19 @@ else
     : > $RUN_OUT
     BOOTSTRAP_DONE=0
     EMPTY_STREAK=0
+    LAST_ITER=""
+    SUSPEND_GAPS=0
     for i in $(seq 1 $(( POLL_MINUTES * 3 ))); do   # 20s per poll
+        NOW_S="$(date -u +%s)"
+        if [ -n "$LAST_ITER" ]; then
+            GAP_S=$(( NOW_S - LAST_ITER ))
+            if [ "$GAP_S" -gt 180 ]; then
+                SUSPEND_GAPS=$(( SUSPEND_GAPS + 1 ))
+                echo "  WARNING: ${GAP_S}s between polls -- this machine was suspended, and any" >&2
+                echo "           chunk emitted during that gap is gone. Use caffeinate -dimsu." >&2
+            fi
+        fi
+        LAST_ITER="$NOW_S"
         # A huge --tail (200000) silently returns NOTHING; with stderr discarded
         # that looks identical to "not finished yet", so the loop ran its entire
         # 60-minute ceiling while the instance billed -- and the repeat poll cost
@@ -980,7 +1019,24 @@ else
         # box declares its payload's line count and sha256, and the receiver refuses a
         # short read, so a mis-sized window now fails loudly instead of silently.
         # Do not raise this to the 200000 range that caused the original leak.
-        ERR="$(vastai logs "$INSTANCE_ID" --tail 20000 2>&1 > $LOG_NEXT)"
+        # BOUNDED (#566). The CLI retries internally for minutes when its S3 result is not
+        # ready, and one measured poll was in flight for 13 minutes while the window moved past
+        # three chunks. A poll that cannot answer in POLL_TIMEOUT seconds is killed and retried.
+        : > $LOG_NEXT
+        vastai logs "$INSTANCE_ID" --tail 20000 > $LOG_NEXT 2> "$LAUNCH_TMP/log_err.txt" &
+        POLL_PID=$!
+        POLL_WAITED=0
+        while kill -0 "$POLL_PID" 2>/dev/null && [ "$POLL_WAITED" -lt "$POLL_TIMEOUT" ]; do
+            sleep 2
+            POLL_WAITED=$(( POLL_WAITED + 2 ))
+        done
+        if kill -0 "$POLL_PID" 2>/dev/null; then
+            kill "$POLL_PID" 2>/dev/null
+            POLL_TIMEOUTS=$(( POLL_TIMEOUTS + 1 ))
+            echo "  WARNING: log poll exceeded ${POLL_TIMEOUT}s (${POLL_TIMEOUTS} so far); retrying" >&2
+        fi
+        wait "$POLL_PID" 2>/dev/null
+        ERR="$(head -c 200 "$LAUNCH_TMP/log_err.txt" 2>/dev/null)"
         if [ -s $LOG_NEXT ]; then
             cp $LOG_NEXT $RUN_OUT
             EMPTY_STREAK=0
@@ -1085,7 +1141,7 @@ if [ -n "$BENCHMARK" ]; then MODE_ARGS=(--expect-measurement); fi
 if [ "$PRIMARY_MODE" = 1 ]; then
     # One payload block per target, restored into results/<run id> so the citation check can
     # read them (#564).
-    MODE_ARGS=(--expect-captures 4)
+    MODE_ARGS=(--expect-captures "$EXPECT_CAPTURES")
 elif [ -n "$FAIRTEST" ]; then MODE_ARGS=(--expect-gate); fi
 VERIFY_DEST="$RUN_OUTDIR"
 [ "$PRIMARY_MODE" = 1 ] && VERIFY_DEST="$CAPTURE_DEST"

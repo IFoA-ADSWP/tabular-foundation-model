@@ -101,19 +101,41 @@ def merge_window(window: Path, state: Path) -> dict[str, dict[str, int]]:
     current_payload: str | None = None
     buffering: list[str] | None = None
     seq: int | None = None
+    # How many payload lines the box declared for the chunk being read. Completion is checked
+    # against this COUNT, not against `__ART_CHUNK_END__` (#566): the log reflows lines at the
+    # window's edge, so an end marker can arrive glued to a truncated line, and a chunk is
+    # whole exactly when it has as many lines as its marker promised.
+    want: int | None = None
     sealed: dict[str, int] = {}
 
     def seal() -> None:
-        nonlocal buffering, seq, current_payload
+        nonlocal buffering, seq, want, current_payload
         if buffering is None or seq is None or current_payload is None:
-            buffering, seq = None, None
+            buffering, seq, want = None, None, None
+            return
+        if want is not None and len(buffering) < want:
+            # Short: a truncated tail, not a whole chunk. Drop it and let the repeat pass win.
+            buffering, seq, want = None, None, None
             return
         directory = _payload_dir(state, current_payload)
         target = directory / f"{seq:03d}.txt"
         if not target.exists():
-            target.write_text("".join(line + "\n" for line in buffering))
+            kept = buffering if want is None else buffering[:want]
+            target.write_text("".join(line + "\n" for line in kept))
         sealed[current_payload] = max(sealed.get(current_payload, 0), seq)
-        buffering, seq = None, None
+        buffering, seq, want = None, None, None
+
+    def start_chunk(line: str) -> None:
+        nonlocal seq, want, buffering, current_payload
+        match = CHUNK_RE.match(line)
+        if not match:
+            seq, want, buffering = None, None, None
+            return
+        seq = int(match.group(1))
+        if match.group(3):
+            current_payload = match.group(3)
+        want = int(match.group(4)) if match.group(4) else None
+        buffering = []
 
     for line in text:
         if line.startswith(INFO):
@@ -136,14 +158,8 @@ def merge_window(window: Path, state: Path) -> dict[str, dict[str, int]]:
             current_payload = payload
             continue
         if line.startswith(CHUNK):
-            match = CHUNK_RE.match(line)
-            if match:
-                seq = int(match.group(1))
-                if match.group(3):
-                    current_payload = match.group(3)
-            else:
-                seq = None
-            buffering = []
+            seal()
+            start_chunk(line)
             continue
         if line.startswith(CHUNK_END):
             seal()
@@ -151,8 +167,27 @@ def merge_window(window: Path, state: Path) -> dict[str, dict[str, int]]:
         if line.startswith(END):
             seal()
             continue
+        if CHUNK in line:
+            # A marker can arrive glued to the tail of a payload line: the log reflows at the
+            # window's edge. Base64 cannot contain '_', so a marker token inside a line is
+            # never data.
+            prefix, _, rest = line.partition(CHUNK)
+            if buffering is not None and prefix.startswith(LINE_TAG):
+                buffering.append(prefix)
+            else:
+                buffering = None
+            seal()
+            start_chunk(CHUNK + rest)
+            continue
+        if CHUNK_END in line:
+            # End marker glued to a truncated payload line: short of `want`, so refused above.
+            buffering, seq, want = None, None, None
+            continue
         if buffering is not None and line.startswith(LINE_TAG):
             buffering.append(line)
+
+    # A window can end exactly at a chunk boundary, with no following marker to trigger the seal.
+    seal()
 
     report: dict[str, dict[str, int]] = {}
     for payload in sorted(p.name for p in state.iterdir() if p.is_dir()):
