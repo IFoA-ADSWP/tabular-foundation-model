@@ -40,6 +40,10 @@ SEEDS="${SEEDS:-}"
 # through the artifact channel below. The mode owns the frame (10,000 rows x 30 epochs of
 # freMTPL2freq:ClaimNb), so the launcher forwards it alone -- see the refusal in section 3c.
 BENCHMARK="${BENCHMARK:-}"
+# A fair-test MODE instead of arms or a benchmark (#555). `gate` runs the resolution gate: the raw
+# Arm on five folds of the four targets, and returns only the per-target MDE summary. The fair test
+# itself does not run through this mode.
+FAIRTEST="${FAIRTEST:-}"
 
 # A real run must record a commit_sha that describes the code that ran. The tree is a
 # fresh clone here, so any modification is a genuine provenance problem. Untracked files
@@ -87,6 +91,24 @@ if [ -n "$BENCHMARK" ]; then
     if [ -n "$EXPERIMENT" ] || [ -n "$ARMS" ] || [ -n "$DATASET" ] || [ -n "$TRAIN_SIZE" ] \
        || [ -n "$TEST_SIZE" ] || [ -n "$SEEDS" ]; then
         echo "FATAL: BENCHMARK=$BENCHMARK owns the frame; drop EXPERIMENT/ARMS/DATASET/" >&2
+        echo "       TRAIN_SIZE/TEST_SIZE/SEEDS rather than have them silently ignored." >&2
+        exit 2
+    fi
+fi
+
+if [ -n "$FAIRTEST" ]; then
+    case "$FAIRTEST" in
+        gate) ;;
+        *) echo "FATAL: unknown FAIRTEST '$FAIRTEST' (known: gate)." >&2
+           exit 2 ;;
+    esac
+    if [ -n "$BENCHMARK" ]; then
+        echo "FATAL: FAIRTEST and BENCHMARK are different modes; set one." >&2
+        exit 2
+    fi
+    if [ -n "$EXPERIMENT" ] || [ -n "$ARMS" ] || [ -n "$DATASET" ] || [ -n "$TRAIN_SIZE" ] \
+       || [ -n "$TEST_SIZE" ] || [ -n "$SEEDS" ]; then
+        echo "FATAL: FAIRTEST=$FAIRTEST owns the frame; drop EXPERIMENT/ARMS/DATASET/" >&2
         echo "       TRAIN_SIZE/TEST_SIZE/SEEDS rather than have them silently ignored." >&2
         exit 2
     fi
@@ -374,6 +396,31 @@ if [ -n "$BENCHMARK" ]; then
     bash scripts/gpu_helpers/emit_artifacts.sh "$BENCH_OUT"
     finish
     exit "$BENCH_RC"
+fi
+
+# ---- 3d. Fair-test mode: the resolution gate (#555) ----
+# The gate is A_raw on the five folds of the four targets. Only the per-target MDE summary comes
+# back: the captures it writes are the probe's working files, not evidence, and the container log
+# could not carry them anyway (the fair test's own ~240 MB capture needs a separate transport).
+if [ -n "$FAIRTEST" ]; then
+    GATE_STAMP="${TFM_RUN_STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}"
+    FAIR_OUT="outputs/fairtest"
+    mkdir -p "$FAIR_OUT"
+    echo
+    echo "########## FAIRTEST $FAIRTEST ##########"
+    python3 scripts/run_fair_test.py --gate --out-root results --run-id "$GATE_STAMP"
+    FT_RC=$?
+    if [ "$FT_RC" -ne 0 ]; then
+        echo "########## FAIRTEST EXITED rc=$FT_RC (no gate summary) ##########" >&2
+    fi
+    # The CLI writes results/resolution_gate_<run id>.json; emit a directory holding it.
+    cp "results/resolution_gate_${GATE_STAMP}.json" "$FAIR_OUT/" 2>/dev/null || true
+    echo
+    echo "########## ARTIFACTS ##########"
+    ls -l "$FAIR_OUT" 2>/dev/null
+    bash scripts/gpu_helpers/emit_artifacts.sh "$FAIR_OUT"
+    finish
+    exit "$FT_RC"
 fi
 
 # ---- 4. Run each arm in its own process ----

@@ -34,6 +34,7 @@ from metrics import (
     rmse,
     rmsle,
     roc_auc,
+    weighted_rmse,
 )
 from run_capture import CaptureRefused
 
@@ -73,7 +74,8 @@ class Metric:
     name: str
     version: str
     record_key: str
-    compute: Callable[[object, object], float]
+    compute: Callable[..., float]
+    weighted: bool = False
 
 
 RECORDED_FIVE = (
@@ -93,6 +95,9 @@ REGRESSION_SIX = (
     Metric("rmsle", "1", "rmsle", rmsle),
     Metric("poisson_deviance", "1", "poisson_deviance", poisson_deviance),
     Metric("gini", "1", "gini", gini),
+    # The grouped severity verdict metric (#555). It needs the slot's `weights.npy`, so
+    # `rescore` refuses to compute it when the capture carries none.
+    Metric("weighted_rmse", "1", "weighted_rmse", weighted_rmse, weighted=True),
 )
 
 METRICS = {metric.name: metric for metric in (*RECORDED_FIVE, *REGRESSION_SIX)}
@@ -172,7 +177,15 @@ def rescore(
     rows: list[dict] = []
     for slot in run.slots:
         for metric in metric_set.metrics:
-            value = metric.compute(slot.truth, slot.predictions)
+            if metric.weighted:
+                if slot.weights is None:
+                    # A weightless capture cannot produce this metric; skipping it keeps an old
+                    # frequency run rescorable. A v4 severity capture always carries the weights,
+                    # and the reader refuses one that does not.
+                    continue
+                value = metric.compute(slot.truth, slot.predictions, slot.weights)
+            else:
+                value = metric.compute(slot.truth, slot.predictions)
             recorded = _recorded_value(metric, slot.record)
             agrees = (
                 None

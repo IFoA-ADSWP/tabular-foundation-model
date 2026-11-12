@@ -45,6 +45,11 @@ class TargetSpec:
     target_scale: str = "native"  # "log" for severity
     weight_source: str | None = None  # "spain_claim_count" | None
 
+    @property
+    def dataset(self) -> str:
+        """The dataset directory name: the primary file's stem, one per target."""
+        return Path(self.files[0]).stem
+
 
 @dataclass
 class LoadedTarget:

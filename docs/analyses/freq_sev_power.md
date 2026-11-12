@@ -60,23 +60,34 @@ independent rows would understate the variance by the intra-policy correlation.
 
 ## The resolution gate (pre-spend)
 
-Before the fair test, run `A_raw` — in-context, no fine-tuning — on the five folds of all four
-targets. That is twenty in-context fits; on the measured card they are seconds each, and the launch
-overhead dominates. From each target's five fold-level metric values, take `SD_fold(metric)`. Two
-Arms on the same rows have positively correlated errors (same context, and the fine-tune starts from
-the raw model), so this SD bounds the paired difference SD from above. Then
+Before the fair test, run `A_raw` and `B_ft30` on the five folds of all four targets. That is forty
+in-context fits; on the measured card they are seconds each, and the launch overhead dominates. For
+each target, compute the paired improvement per fold,
 
 ```
-MDE_gate = 2.8016 * SD_fold(metric_A_raw) / sqrt(5)
+r_f = (M_A_raw - M_B_ft30) / M_A_raw
 ```
+
+and take `SD_fold(r)`. Then
+
+```
+MDE_gate = 2.8016 * SD_fold(r) / sqrt(5)
+```
+
+> **2026-11-12 — correction after the first gate run.** The first version ran `A_raw` alone and used
+> `SD_fold(M_A_raw)` as an upper bound on the paired difference. It is not one: fold difficulty is a
+> shared component that moves both Arms and cancels in `r`, so the A_raw-only SD overstated the MDE
+> by an order of magnitude on the frequency targets — 10.05% and 7.36% relative against a 2% floor.
+> The gate now runs both Arms. The superseded run took 2.88 min and cost $0.0129; its summary is
+> retained locally as the evidence for the correction.
 
 If `MDE_gate` exceeds the registered floor for a target, the fair test **stops for that target** (or
 the floor is raised in a dated amendment before the fair test launches). This is D13's resolution
 gate applied to the new targets, and it is the only place a spend decision is made before the matrix.
 
-Cost of the gate: four targets × five folds of in-context fits. On the measured RTX PRO 4000
-(41.7 s for a 10,000-row 30-epoch fine-tune), in-context fits are far cheaper; the launch overhead
-dominates at roughly $0.02–$0.05. It is released separately, like the benchmark fit was.
+Cost of the gate: four targets × five folds × two Arms of in-context fits. On the measured RTX PRO
+4000 (41.7 s for a 10,000-row 30-epoch fine-tune), in-context fits are far cheaper; the launch
+overhead dominates at roughly $0.02–$0.05. It is released separately, like the benchmark fit was.
 
 ## What would change the answer
 

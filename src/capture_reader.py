@@ -24,10 +24,13 @@ from run_capture import (
     CAPTURE_SCHEMA_VERSION,
     CAPTURE_SCHEMA_VERSION_ARRAYS,
     CAPTURE_SCHEMA_VERSION_FOLDED,
+    CAPTURE_SCHEMA_VERSION_WEIGHTS,
+    CLUSTER,
     EXPOSURE,
     EXPOSURE_DATASET,
     QUANTILES,
     TEST_INDEX,
+    WEIGHTS,
     CaptureRefused,
     Slot,
     discover_slots,
@@ -38,6 +41,7 @@ READABLE_VERSIONS = (
     CAPTURE_SCHEMA_VERSION,
     CAPTURE_SCHEMA_VERSION_FOLDED,
     CAPTURE_SCHEMA_VERSION_ARRAYS,
+    CAPTURE_SCHEMA_VERSION_WEIGHTS,
 )
 
 
@@ -56,6 +60,8 @@ class VerifiedSlot:
     test_index: np.ndarray | None = None
     exposure: np.ndarray | None = None
     quantiles: np.ndarray | None = None
+    weights: np.ndarray | None = None
+    cluster: np.ndarray | None = None
 
 
 @dataclass(frozen=True)
@@ -166,14 +172,21 @@ def _verify(slot: Slot, entry: dict | None, record: dict) -> tuple[np.ndarray, n
 def _verify_arrays(
     slot: Slot, entry: dict, version: int, dataset: str
 ) -> dict[str, np.ndarray | None]:
-    """The v3 arrays, each proved against the manifest hash that names it.
+    """The v3/v4 arrays, each proved against the manifest hash that names it.
 
     A v3 entry must carry a hash for every array *its dataset* owes, so `dataset` is forwarded
     from `read_run` exactly as the writer forwards it; a missing hash would let an unverified
     array through, and a freMTPL2freq slot without exposure reads as a refusal, not as `None`.
+    A v4 severity slot owes `weights` and `cluster_id` as well (#555).
     """
-    if version != CAPTURE_SCHEMA_VERSION_ARRAYS:
-        return {"test_index": None, "exposure": None, "quantiles": None}
+    if version < CAPTURE_SCHEMA_VERSION_ARRAYS:
+        return {
+            "test_index": None,
+            "exposure": None,
+            "quantiles": None,
+            "weights": None,
+            "cluster": None,
+        }
 
     wanted = {
         TEST_INDEX: "test_index_sha256",
@@ -181,20 +194,31 @@ def _verify_arrays(
     }
     if dataset == EXPOSURE_DATASET:
         wanted[EXPOSURE] = "exposure_sha256"
+    if version == CAPTURE_SCHEMA_VERSION_WEIGHTS:
+        task = json.loads(slot.record.read_text(encoding="utf-8")).get("task")
+        # The manifest is the artifact under verification: if it carries the hashes, the arrays
+        # are owed and checked even when the record's pointer forgot to say `task`.
+        has_hashes = (
+            entry.get("weights_sha256") is not None
+            or entry.get("cluster_sha256") is not None
+        )
+        if task == "severity" or has_hashes:
+            wanted[WEIGHTS] = "weights_sha256"
+            wanted[CLUSTER] = "cluster_sha256"
 
     loaded: dict[str, np.ndarray | None] = {}
     for name, hash_key in wanted.items():
         path = slot.directory / name
         if not path.is_file():
             raise CaptureRefused(
-                f"{path} is missing; the manifest declares schema v3 for {dataset}"
+                f"{path} is missing; the manifest declares schema v{version} for {dataset}"
             )
         array = np.load(path)
         expected = entry.get(hash_key)
         if expected is None:
             raise CaptureRefused(
                 f"{CAPTURE_FILE} entry {slot.arm} seed {slot.seed} fold {slot.fold} carries no "
-                f"{hash_key}; a v3 entry must hash {name}"
+                f"{hash_key}; a v{version} entry must hash {name}"
             )
         computed = sha256_array(array)
         if computed != expected:
@@ -206,6 +230,8 @@ def _verify_arrays(
         "test_index": loaded.get("test_index"),
         "exposure": loaded.get("exposure"),
         "quantiles": loaded.get("quantiles"),
+        "weights": loaded.get("weights"),
+        "cluster": loaded.get("cluster_id"),
     }
 
 

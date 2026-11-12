@@ -1,13 +1,13 @@
-"""The regressor fair-test runner (#539).
+"""The regressor fair-test runner (#539, #555).
 
-The pre-registration fixes what a run is: four targets, seven Arms, five folds, three model seeds
-inside each fold, 10,000 training rows (50,000 for the `S_50k` sensitivity), and 10,000 test rows
-shared by every Arm and seed of a fold. This module produces that run and nothing else — the
-model sits behind `Backend`, so the matrix is testable without `tabpfn` and a paid launch is a
-separate decision.
+The pre-registration fixes what a run is: four targets (frequency and severity across a French and
+a Spanish portfolio), four Arms, five folds built on policies, three model seeds inside each fold,
+and 10,000-row training and test caps for the policy-level targets. This module produces that run
+and nothing else — the model sits behind `Backend`, so the matrix is testable without `tabpfn` and
+a paid launch is a separate decision.
 
-Writes the v3 capture (#538): `test_index`, `quantiles`, and exposure for freMTPL2freq, each
-hashed in the manifest, plus the four record keys the citation gate requires.
+Writes capture v4 (#555): `test_index`, `quantiles`, exposure for freMTPL2freq, and the claim
+weight and cluster id for severity, each hashed in the manifest. Frequency runs stay v3.
 """
 
 from __future__ import annotations
@@ -22,14 +22,18 @@ from typing import Protocol
 import numpy as np
 
 import metrics
+from freq_sev_data import TARGETS as FREQ_SEV_TARGETS
+from freq_sev_data import TargetSpec, load_target
 from provenance import sha256_array, sha256_file, split_section
-from regression_data import fold_splits, load_column, load_frame, sample
+from regression_data import RAW_DIR, group_fold_splits, load_column, sample
 from run_capture import (
+    CLUSTER,
     EXPOSURE,
     PREDICTIONS,
     QUANTILES,
     TEST_INDEX,
     TRUTH,
+    WEIGHTS,
     build_capture,
     render_capture,
 )
@@ -47,7 +51,6 @@ class Arm:
     name: str
     epochs: int
     train_rows: int = 10_000
-    transform: str = "none"  # "log1p" for X_log1p
 
 
 ARMS: dict[str, Arm] = {
@@ -55,63 +58,15 @@ ARMS: dict[str, Arm] = {
     "B_ft30": Arm("B_ft30", epochs=30),
     "B_ft10": Arm("B_ft10", epochs=10),
     "B_ft3": Arm("B_ft3", epochs=3),
-    "X_log1p": Arm("X_log1p", epochs=30, transform="log1p"),
-    "S_50k": Arm("S_50k", epochs=30, train_rows=50_000),
-    "D_exposure": Arm("D_exposure", epochs=0),
 }
 
+# The pre-registration gives every target the same four Arms (#552). The old design's
+# `X_log1p`, `S_50k` and `D_exposure` are gone with their targets: a ClaimNb-only transform,
+# a row cap no severity sample can reach, and a diagnostic the method-level design owned.
+TARGET_ARMS: tuple[str, ...] = ("A_raw", "B_ft30", "B_ft10", "B_ft3")
 
-@dataclass(frozen=True)
-class Target:
-    """One target, its dataset, and the Arms that apply to it."""
-
-    name: str
-    dataset: str
-    column: str
-    drop: tuple[str, ...]
-    metric: str
-    arms: tuple[str, ...]
-    log_features: tuple[str, ...] = ()
-    exposure_column: str | None = None
-
-
-TARGETS: tuple[Target, ...] = (
-    Target(
-        "claimnb",
-        "freMTPL2freq",
-        "ClaimNb",
-        ("IDpol",),
-        "poisson_deviance",
-        ("A_raw", "B_ft30", "B_ft10", "B_ft3", "X_log1p", "S_50k"),
-        log_features=("Exposure",),
-        exposure_column="Exposure",
-    ),
-    Target(
-        "severity",
-        "spanish_motor_severity",
-        "Cost_claims_year",
-        (),
-        "rmse",
-        ("A_raw", "B_ft30", "B_ft10", "B_ft3", "S_50k"),
-    ),
-    Target(
-        "vehvalue",
-        "ausprivauto0405",
-        "VehValue",
-        ("ClaimOcc", "Exposure"),
-        "rmse",
-        ("A_raw", "B_ft30", "B_ft10", "B_ft3", "S_50k"),
-    ),
-    Target(
-        "exposure",
-        "freMTPL2freq",
-        "Exposure",
-        ("IDpol",),
-        "rmse",
-        ("D_exposure",),
-        exposure_column="Exposure",
-    ),
-)
+# The pre-registered target set, re-exported so the CLI and the tests name one thing (#552).
+TARGETS = FREQ_SEV_TARGETS
 
 
 @dataclass(frozen=True)
@@ -120,12 +75,14 @@ class RunConfig:
     seeds: tuple[int, ...] = (0, 1, 2)
     test_rows: int = 10_000
     fold_seed: int = 42
-    targets: tuple[Target, ...] = TARGETS
+    targets: tuple[TargetSpec, ...] = FREQ_SEV_TARGETS
+    # The gate runs `A_raw` alone; the fair test runs every Arm (#552).
+    arms: tuple[str, ...] = TARGET_ARMS
 
 
 @dataclass(frozen=True)
 class SlotSpec:
-    target: Target
+    target: TargetSpec
     arm: Arm
     fold: int
     seed: int
@@ -135,7 +92,7 @@ def slot_matrix(config: RunConfig) -> list[SlotSpec]:
     """Every Arm × fold × model seed, in a fixed order."""
     slots = []
     for target in config.targets:
-        for arm_name in target.arms:
+        for arm_name in config.arms:
             for fold in range(config.folds):
                 for seed in config.seeds:
                     slots.append(SlotSpec(target, ARMS[arm_name], fold, seed))
@@ -166,8 +123,12 @@ class Backend(Protocol):
 # ---------------------------------------------------------------------------
 # Writing one slot
 # ---------------------------------------------------------------------------
-def _transform(values: np.ndarray, arm: Arm) -> np.ndarray:
-    return np.log1p(values) if arm.transform == "log1p" else values
+def _metric_value(spec: TargetSpec, truth: np.ndarray, predictions: np.ndarray,
+                  weights: np.ndarray) -> float:
+    """The target's verdict metric: weighted when the design weights a grouped target."""
+    if spec.weight_source is not None:
+        return metrics.weighted_rmse(truth, predictions, weights)
+    return getattr(metrics, spec.metric)(truth, predictions)
 
 
 def _write_slot(
@@ -179,6 +140,8 @@ def _write_slot(
     quantiles: np.ndarray,
     test_index: np.ndarray,
     exposure: np.ndarray | None,
+    weights: np.ndarray | None,
+    clusters: np.ndarray | None,
     provenance: dict,
     meta_extra: dict,
     reported_scale: str,
@@ -191,22 +154,41 @@ def _write_slot(
     np.save(slot_dir / QUANTILES, np.asarray(quantiles, dtype=float))
     if exposure is not None:
         np.save(slot_dir / EXPOSURE, np.asarray(exposure, dtype=float))
+    severity = spec.target.task == "severity"
+    if severity:
+        np.save(slot_dir / WEIGHTS, np.asarray(weights, dtype=float))
+        np.save(slot_dir / CLUSTER, np.asarray(clusters, dtype=np.int64))
 
-    verdict = getattr(metrics, spec.target.metric)(truth, predictions)
+    verdict = _metric_value(
+        spec.target, truth, predictions, weights if weights is not None else np.ones(len(truth))
+    )
+    # A weighted estimate is not `rmse`; recording it under that name made rescore disagree with
+    # the record on every Spanish severity slot (review, 2026-11-12).
+    metric_name = "weighted_rmse" if spec.target.weight_source is not None else spec.target.metric
+    unit = (
+        "claim"
+        if spec.target.name == "severity_french"
+        else "claiming_policy"
+        if severity
+        else "policy"
+    )
     meta = {
         "arm": spec.arm.name,
         "seed": spec.seed,
         "fold": spec.fold,
         "dataset": spec.target.dataset,
-        "target": spec.target.column,
-        "transform": spec.arm.transform,
+        "target": spec.target.target_column,
+        "task": spec.target.task,
+        "unit": unit,
+        "weighted": spec.target.weight_source is not None,
+        "transform": spec.target.target_scale,
         "reported_scale": reported_scale,
         "quantile_scale": quantile_scale,
         "log_features": list(spec.target.log_features),
         "drop": list(spec.target.drop),
         "test_rows": int(len(truth)),
         "quantile_levels": list(QUANTILE_LEVELS),
-        "verdict_metric": spec.target.metric,
+        "verdict_metric": metric_name,
         "verdict_metric_value": float(verdict),
         "rmse": float(metrics.rmse(truth, predictions)),
         "predictions_sha256": sha256_array(np.asarray(predictions, dtype=float)),
@@ -225,18 +207,25 @@ def _split_rule(config: RunConfig) -> str:
 _DATASET_BLOCKS: dict[str, dict] = {}
 
 
-def _dataset_block(dataset: str) -> dict:
-    """The frame's identity: a row position means nothing without the file it addresses."""
-    if dataset not in _DATASET_BLOCKS:
-        from regression_data import RAW_DIR  # noqa: PLC0415
+def _dataset_block(spec: TargetSpec) -> dict:
+    """The frame's identity: a row position means nothing without the file it addresses.
 
-        path = RAW_DIR / f"{dataset}.csv"
-        _DATASET_BLOCKS[dataset] = {
-            "name": dataset,
-            "path": str(path),
-            "sha256": sha256_file(path),
+    French severity is a join, so the block names both files and the join key; a row index in the
+    claim table cannot be resolved without the policy file (#552).
+    """
+    if spec.name not in _DATASET_BLOCKS:
+        files = []
+        for name in spec.files:
+            path = RAW_DIR / name
+            files.append({"name": name, "path": str(path), "sha256": sha256_file(path)})
+        _DATASET_BLOCKS[spec.name] = {
+            "name": spec.dataset,
+            "path": files[0]["path"],
+            "sha256": files[0]["sha256"],
+            "files": files,
+            **({"join_key": "IDpol"} if len(files) > 1 else {}),
         }
-    return _DATASET_BLOCKS[dataset]
+    return _DATASET_BLOCKS[spec.name]
 
 
 def _run_ids(base: str, count: int) -> list[str]:
@@ -266,10 +255,9 @@ def run(
 ) -> dict[str, Path]:
     """Produce one run per target and its capture; returns {target: run directory}.
 
-    One capture carries one dataset (#362), so the fair test — three datasets plus a diagnostic on
-    the first — is three runs of one Launch. The pre-registration proposes three pilot experiments in
-    its registry section; they are not declared in `experiments.toml`, so this split is the
-    runner's choice and is recorded here.
+    One capture carries one dataset (#362), so the four targets are four runs of one Launch. The
+    target's rows, groups, weight and cluster come from `freq_sev_data`; the folds are built on
+    policies, so a policy's claims never straddle one.
     """
     base = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_ids = _run_ids(base, len(config.targets))
@@ -280,24 +268,28 @@ def run(
         run_dir = Path(out_root) / target_run_id
         if run_dir.exists():
             raise FileExistsError(f"{run_dir} exists; a record is refused rather than replaced")
-        X, y = load_frame(
-            target.dataset,
-            target.column,
-            target.drop,
-            log_features=target.log_features,
+        loaded = load_target(target)
+        splits = group_fold_splits(
+            loaded.groups, n_folds=config.folds, seed=config.fold_seed
         )
         exposure_all = (
-            load_column(target.dataset, target.exposure_column)
-            if target.exposure_column is not None
+            load_column("freMTPL2freq", "Exposure")
+            if target.name == "frequency_french"
             else None
         )
-        splits = fold_splits(len(y), n_folds=config.folds, seed=config.fold_seed)
+        severity = target.task == "severity"
 
         for fold, split in enumerate(splits):
-            test_index = sample(split.test, config.test_rows, seed=config.fold_seed)
+            test_index = (
+                sample(split.test, config.test_rows, seed=config.fold_seed)
+                if target.task == "frequency"
+                else np.asarray(split.test)
+            )
             exposure_test = None if exposure_all is None else exposure_all[test_index]
+            weights_test = loaded.weights[test_index]
+            clusters_test = loaded.clusters[test_index]
 
-            for arm_name in target.arms:
+            for arm_name in config.arms:
                 arm = ARMS[arm_name]
                 rows = arm.train_rows if train_rows_cap is None else min(
                     arm.train_rows, train_rows_cap
@@ -308,24 +300,13 @@ def run(
                 for seed in config.seeds:
                     train_index = sample(split.train_pool, rows, seed=1_000 * seed + fold)
                     predictions, quantiles = backend.fit_predict(
-                        X[train_index],
-                        _transform(y[train_index], arm),
-                        X[test_index],
+                        loaded.X[train_index],
+                        loaded.y[train_index],
+                        loaded.X[test_index],
                         seed=seed,
                         epochs=epochs,
                     )
-                    truth = y[test_index]
-                    if arm.transform == "log1p":
-                        # Predictions and truth are stored on the count scale, or the count
-                        # deviance would be computed on log values and X_log1p could not be
-                        # compared with A_raw. Quantiles stay on the scale the Arm trained on and
-                        # unclipped, as the amendment fixes them.
-                        predictions = np.clip(np.expm1(predictions), 0.0, None)
-                        reported_scale = "count"
-                        quantile_scale = "log1p"
-                    else:
-                        reported_scale = "native"
-                        quantile_scale = "native"
+                    truth = loaded.y[test_index]
                     if provenance is None:
                         # After a fit, the checkpoint is on disk; before one, a cold cache would
                         # record a null hash and pass a path-only gate.
@@ -342,7 +323,7 @@ def run(
                     slot_provenance = {
                         **provenance,
                         "provenance": {
-                            "dataset": _dataset_block(target.dataset),
+                            "dataset": _dataset_block(target),
                             "split": split_section(
                                 n_folds=config.folds,
                                 seed=config.fold_seed,
@@ -358,20 +339,71 @@ def run(
                         quantiles=quantiles,
                         test_index=test_index,
                         exposure=exposure_test,
+                        weights=weights_test,
+                        clusters=clusters_test,
                         provenance=slot_provenance,
                         meta_extra={
                             "train_rows": int(len(train_index)),
                             "epochs": epochs,
                             "fold_seed": config.fold_seed,
                             "n_folds": config.folds,
+                            "features": list(loaded.features),
                         },
-                        reported_scale=reported_scale,
-                        quantile_scale=quantile_scale,
+                        reported_scale="log" if severity else "native",
+                        quantile_scale="log" if severity else "native",
                     )
 
         (run_dir / "capture.json").write_text(render_capture(build_capture(run_dir)))
         produced[target.name] = run_dir
     return produced
+
+
+GATE_MDE_CONSTANT = 2.8016
+
+
+def gate_summary(
+    runs: dict[str, Path], *, control: str = "A_raw", treatment: str = "B_ft30"
+) -> dict[str, dict]:
+    """Per-target fold-level SD of the paired improvement, and the 80%-power MDE (#552).
+
+    The first version used `SD_fold(metric_A_raw)`. That includes fold difficulty — the shared
+    component that makes one fold harder than another — which cancels in the paired difference and
+    inflated the MDE by an order of magnitude on the frequency targets. The gate now measures the
+    quantity the decision uses: `r_f = (M_control - M_treatment) / M_control` per fold, then
+    `MDE = 2.8016 * SD_fold(r) / sqrt(folds)`.
+    """
+    summary: dict[str, dict] = {}
+    for target, run_dir in runs.items():
+
+        def fold_means(arm: str) -> dict[int, float]:
+            metas = sorted(Path(run_dir).glob(f"*/{arm}/seed*_fold*/meta.json"))
+            by_fold: dict[int, list[float]] = {}
+            for path in metas:
+                record = json.loads(path.read_text())
+                by_fold.setdefault(int(record["fold"]), []).append(
+                    float(record["verdict_metric_value"])
+                )
+            return {fold: float(np.mean(values)) for fold, values in by_fold.items()}
+
+        raw = fold_means(control)
+        fine = fold_means(treatment)
+        folds = sorted(set(raw) & set(fine))
+        if len(folds) < 2:
+            raise ValueError(
+                f"{run_dir} has fewer than two folds with both {control} and {treatment}"
+            )
+        improvements = [(raw[fold] - fine[fold]) / raw[fold] for fold in folds]
+        sd = float(np.std(improvements, ddof=1))
+        summary[target] = {
+            "folds": len(folds),
+            "mean_control": float(np.mean([raw[fold] for fold in folds])),
+            "mean_treatment": float(np.mean([fine[fold] for fold in folds])),
+            "mean_improvement": float(np.mean(improvements)),
+            "sd_r": sd,
+            "mde": GATE_MDE_CONSTANT * sd / np.sqrt(len(folds)),
+            "mde_units": "relative",
+        }
+    return summary
 
 
 # ---------------------------------------------------------------------------
