@@ -135,6 +135,11 @@ def test_a_capture_survives_polled_chunked_transfer(tmp_path, capture_run):
     log = _emit(capture_run, chunk_lines=2)
     assert "__ART_CHUNK__" in log, "the payload did not chunk at all"
     declared = log.count("__ART_CHUNK__")
+    # Every chunk must end on a line of its own. A missing trailing newline in the folded payload
+    # glues the end marker onto the last payload line, and that chunk can never seal -- which is
+    # what CI measured on GNU userland while macOS passed (#566).
+    ends = [line for line in log.splitlines() if line == "__ART_CHUNK_END__"]
+    assert len(ends) == declared, f"{len(ends)} end markers of their own for {declared} chunks"
 
     state = tmp_path / "chunks"
     _merge(_polls(log, 9), state, tmp_path)

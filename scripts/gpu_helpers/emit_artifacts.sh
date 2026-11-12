@@ -130,6 +130,11 @@ fi
 # the folded file and counting its records removes the disagreement: the same bytes are
 # counted and sent.
 fold -w "$LINE_WIDTH" "$B64FILE" > "$FOLDED"
+# A missing trailing newline survives `fold`, `split` and `sed` on GNU userland, so the last
+# payload line ends up with `__ART_CHUNK_END__` glued onto it and that chunk can never seal
+# (#566, measured on CI: the second of two chunks arrived with no end marker of its own while
+# macOS passed). One newline removes the whole class.
+if [ -n "$(tail -c 1 "$FOLDED" 2>/dev/null)" ]; then printf '\n' >> "$FOLDED"; fi
 ART_LINES="$(awk 'END { print NR }' "$FOLDED")"
 
 SPLIT_DIR="$(mktemp -d)"
