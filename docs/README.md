@@ -13,6 +13,7 @@ is in [EVIDENCE_MAP.md](EVIDENCE_MAP.md).
 | --- | --- |
 | **The outcome** — did fine-tuning help, and by how much? | [FINETUNING_PHASE2_OUTCOME.md](current/FINETUNING_PHASE2_OUTCOME.md) — the canonical statement of what Phase 2 found |
 | **To check a number** — where does this figure come from? | [EVIDENCE_MAP.md](EVIDENCE_MAP.md) — which tree holds what, and what a citation must have |
+| **To run the code** — which environment, which command? | [RUNNING.md](RUNNING.md) — the four routes, what each writes, and the two environments |
 | **The method and the decisions** | [FINETUNING_PILOT_DESIGN.md](current/FINETUNING_PILOT_DESIGN.md) (what was proposed and why) and [FINETUNING_DECISION_LOG.md](current/FINETUNING_DECISION_LOG.md) (what was decided, with its caveats) |
 | **Two documents disagree** — which one wins? | [DOCUMENT_AUTHORITY.md](DOCUMENT_AUTHORITY.md) — the order, the owner of each subject, and the fourteen settled disagreements |
 | **Something specific** | the role table below, or the tier list that follows it |
