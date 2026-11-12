@@ -145,7 +145,11 @@ def test_a_capture_survives_polled_chunked_transfer(tmp_path, capture_run):
         capture_output=True,
         text=True,
     )
-    assert assembled.returncode == 0, assembled.stdout + assembled.stderr
+    assert assembled.returncode == 0, (
+        assembled.stdout
+        + f"\nchunks={declared} lines={len(log.splitlines())}\n"
+        + "\n".join(line[:60] for line in log.splitlines() if not line.startswith("__ART__"))
+    )
     assert f"chunks={declared}" in assembled.stdout
 
     results = tmp_path / "results"
@@ -197,7 +201,10 @@ def test_repeated_polls_do_not_duplicate_chunks(tmp_path, capture_run):
         capture_output=True,
         text=True,
     )
-    assert assembled.returncode == 0, assembled.stdout
+    assert assembled.returncode == 0, (
+        assembled.stdout
+        + "\n".join(line[:60] for line in log.splitlines() if not line.startswith("__ART__"))
+    )
     assert raw.read_text().count("\n__ART__") == log.count("\n__ART__")
 
 
@@ -257,7 +264,10 @@ def test_four_targets_restore_as_four_captures(tmp_path, capture_run):
         capture_output=True,
         text=True,
     )
-    assert assembled.returncode == 0, assembled.stdout
+    assert assembled.returncode == 0, (
+        assembled.stdout
+        + "\n".join(line[:60] for line in logs[0].splitlines() if not line.startswith("__ART__"))
+    )
     assert "payloads=4" in assembled.stdout
 
     results = tmp_path / "results"

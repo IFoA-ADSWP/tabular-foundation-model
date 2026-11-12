@@ -393,6 +393,15 @@ CAPTURE_DEST="$REPO_DIR/results"
 # chunks, 20 s of pause keeps one visible for ~3 minutes, and each chunk is emitted twice because
 # a `vastai logs` poll can stall for 13 minutes -- the first live run sealed 2 chunks of 9.
 if [ "$PRIMARY_MODE" = 1 ]; then
+    # A suspended laptop is indistinguishable from a stalled poll, and it is the failure that
+    # actually lost a run on 2026-11-12: the machine slept 13:10:51-13:22:41 and the payload
+    # scrolled out of the window while the poller was not running. No timeout can help -- the
+    # process is not running to enforce one -- so say it before the money starts.
+    if command -v pmset >/dev/null 2>&1 && ! pgrep -x caffeinate >/dev/null 2>&1; then
+        echo "WARNING: no caffeinate assertion found. If this machine sleeps mid-run, the poller" >&2
+        echo "         stops while the box keeps emitting, and the chunks emitted meanwhile are" >&2
+        echo "         unrecoverable. Launch under: caffeinate -dimsu bash scripts/gpu_helpers/vast_run.sh ..." >&2
+    fi
     # Which targets this launch runs. The registered matrix is all four; a narrower list is how a
     # transport canary costs one target instead of four, and how a single lost target is re-run
     # without re-running the rest (#566).
@@ -986,7 +995,19 @@ else
     : > $RUN_OUT
     BOOTSTRAP_DONE=0
     EMPTY_STREAK=0
+    LAST_ITER=""
+    SUSPEND_GAPS=0
     for i in $(seq 1 $(( POLL_MINUTES * 3 ))); do   # 20s per poll
+        NOW_S="$(date -u +%s)"
+        if [ -n "$LAST_ITER" ]; then
+            GAP_S=$(( NOW_S - LAST_ITER ))
+            if [ "$GAP_S" -gt 180 ]; then
+                SUSPEND_GAPS=$(( SUSPEND_GAPS + 1 ))
+                echo "  WARNING: ${GAP_S}s between polls -- this machine was suspended, and any" >&2
+                echo "           chunk emitted during that gap is gone. Use caffeinate -dimsu." >&2
+            fi
+        fi
+        LAST_ITER="$NOW_S"
         # A huge --tail (200000) silently returns NOTHING; with stderr discarded
         # that looks identical to "not finished yet", so the loop ran its entire
         # 60-minute ceiling while the instance billed -- and the repeat poll cost
