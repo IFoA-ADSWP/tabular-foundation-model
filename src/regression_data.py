@@ -85,6 +85,46 @@ def fold_splits(n_rows: int, *, n_folds: int = 5, seed: int = 42) -> list[FoldSp
     ]
 
 
+def group_fold_splits(groups: np.ndarray, *, n_folds: int = 5, seed: int = 42) -> list[FoldSplit]:
+    """KFold over unique groups, expanded to row positions, in fold order.
+
+    The fair test's severity targets have more than one row per policy (a claim table, a grouped
+    Spanish view). A row-level fold would put a policy's claims on both sides and leak. Groups are
+    split by the same canonical KFold, so the fold seed and shuffle are the pre-registered ones; the
+    rows then follow their group.
+
+    Identical to `fold_splits` when every group is unique, which is the case for the policy-level
+    frequency targets.
+    """
+    groups = np.asarray(groups)
+    unique_groups, codes = np.unique(groups, return_inverse=True)
+    n_groups = len(unique_groups)
+    if n_folds > 1 and n_folds > n_groups:
+        raise ValueError(f"cannot split {n_groups} groups into {n_folds} folds")
+
+    order = np.argsort(codes, kind="stable")
+    counts = np.bincount(codes, minlength=n_groups)
+    starts = np.concatenate([[0], np.cumsum(counts)])
+    rows_by_group = [order[starts[index]:starts[index + 1]] for index in range(n_groups)]
+
+    if n_folds == 1:
+        permutation = np.random.default_rng(seed).permutation(n_groups)
+        cut = int(n_groups * 0.8)
+        folds = [(permutation[:cut], permutation[cut:])]
+    else:
+        from sklearn.model_selection import KFold  # noqa: PLC0415
+
+        splitter = KFold(n_splits=n_folds, shuffle=True, random_state=seed)
+        folds = list(splitter.split(np.arange(n_groups)))
+
+    splits: list[FoldSplit] = []
+    for train_groups, test_groups in folds:
+        train_rows = np.sort(np.concatenate([rows_by_group[index] for index in train_groups]))
+        test_rows = np.sort(np.concatenate([rows_by_group[index] for index in test_groups]))
+        splits.append(FoldSplit(train_pool=train_rows, test=test_rows))
+    return splits
+
+
 def sample(positions: np.ndarray, size: int, *, seed: int) -> np.ndarray:
     """Up to `size` positions, sampled deterministically and returned sorted.
 

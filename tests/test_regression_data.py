@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from regression_data import fold_splits, load_frame, sample
+from regression_data import fold_splits, group_fold_splits, load_frame, sample
 
 
 def test_the_canonical_split_is_five_folds_seeded_42():
@@ -83,3 +83,33 @@ def test_the_loader_log_transforms_only_the_named_column():
     assert X_log[:, column] == pytest.approx(
         np.log(np.clip(X_raw[:, column], 1e-12, None))
     )
+
+
+# ---------------------------------------------------------------------------
+# Grouped folds (#555)
+# ---------------------------------------------------------------------------
+def test_grouped_folds_keep_a_group_on_one_side():
+    """A policy's claims must never straddle a fold, or the test sees its own training rows."""
+    groups = np.repeat(np.arange(10), 3)
+
+    splits = group_fold_splits(groups, n_folds=5, seed=42)
+
+    assert len(splits) == 5
+    seen_test = 0
+    for split in splits:
+        train_groups = set(groups[split.train_pool].tolist())
+        test_groups = set(groups[split.test].tolist())
+        assert not (train_groups & test_groups), "a group is on both sides of a fold"
+        assert train_groups | test_groups == set(range(10))
+        seen_test += len(split.test)
+    assert seen_test == len(groups), "every row is tested exactly once"
+
+
+def test_grouped_folds_are_ordinary_folds_when_every_group_is_unique():
+    """The frequency targets have one row per policy, so the grouped split must not differ."""
+    ordinary = fold_splits(100, n_folds=5, seed=42)
+    grouped = group_fold_splits(np.arange(100), n_folds=5, seed=42)
+
+    for left, right in zip(ordinary, grouped):
+        assert np.array_equal(left.train_pool, right.train_pool)
+        assert np.array_equal(left.test, right.test)
