@@ -361,35 +361,47 @@ def run(
 GATE_MDE_CONSTANT = 2.8016
 
 
-def gate_summary(runs: dict[str, Path]) -> dict[str, dict]:
-    """Per-target fold-level SD and the 80%-power MDE from an `A_raw` gate run (#552).
+def gate_summary(
+    runs: dict[str, Path], *, control: str = "A_raw", treatment: str = "B_ft30"
+) -> dict[str, dict]:
+    """Per-target fold-level SD of the paired improvement, and the 80%-power MDE (#552).
 
-    The gate runs one Arm on the five folds. Its fold-level metric SD bounds the paired difference
-    SD from above (the Arms share rows and context), so `MDE = 2.8016 * SD / sqrt(folds)` is
-    conservative. The pre-spend decision uses this number, not the target-SD bound.
+    The first version used `SD_fold(metric_A_raw)`. That includes fold difficulty — the shared
+    component that makes one fold harder than another — which cancels in the paired difference and
+    inflated the MDE by an order of magnitude on the frequency targets. The gate now measures the
+    quantity the decision uses: `r_f = (M_control - M_treatment) / M_control` per fold, then
+    `MDE = 2.8016 * SD_fold(r) / sqrt(folds)`.
     """
     summary: dict[str, dict] = {}
     for target, run_dir in runs.items():
-        metas = sorted(Path(run_dir).glob("*/A_raw/seed*_fold*/meta.json"))
-        records = [json.loads(path.read_text()) for path in metas]
-        if not records:
-            raise ValueError(f"{run_dir} holds no A_raw slots; the gate needs one per fold")
-        # Average the seeds inside a fold, then take the fold-level SD. Counting every
-        # seed-slot as a fold mixed the within-fold seed spread into the MDE and understated it
-        # (review, 2026-11-12).
-        by_fold: dict[int, list[float]] = {}
-        for record in records:
-            by_fold.setdefault(int(record["fold"]), []).append(
-                float(record["verdict_metric_value"])
+
+        def fold_means(arm: str) -> dict[int, float]:
+            metas = sorted(Path(run_dir).glob(f"*/{arm}/seed*_fold*/meta.json"))
+            by_fold: dict[int, list[float]] = {}
+            for path in metas:
+                record = json.loads(path.read_text())
+                by_fold.setdefault(int(record["fold"]), []).append(
+                    float(record["verdict_metric_value"])
+                )
+            return {fold: float(np.mean(values)) for fold, values in by_fold.items()}
+
+        raw = fold_means(control)
+        fine = fold_means(treatment)
+        folds = sorted(set(raw) & set(fine))
+        if len(folds) < 2:
+            raise ValueError(
+                f"{run_dir} has fewer than two folds with both {control} and {treatment}"
             )
-        values = [float(np.mean(fold_values)) for fold_values in by_fold.values()]
-        folds = len(values)
-        sd = float(np.std(values, ddof=1)) if folds > 1 else 0.0
+        improvements = [(raw[fold] - fine[fold]) / raw[fold] for fold in folds]
+        sd = float(np.std(improvements, ddof=1))
         summary[target] = {
-            "folds": folds,
-            "mean": float(np.mean(values)),
-            "sd": sd,
-            "mde": GATE_MDE_CONSTANT * sd / np.sqrt(folds),
+            "folds": len(folds),
+            "mean_control": float(np.mean([raw[fold] for fold in folds])),
+            "mean_treatment": float(np.mean([fine[fold] for fold in folds])),
+            "mean_improvement": float(np.mean(improvements)),
+            "sd_r": sd,
+            "mde": GATE_MDE_CONSTANT * sd / np.sqrt(len(folds)),
+            "mde_units": "relative",
         }
     return summary
 
