@@ -60,15 +60,10 @@ independent rows would understate the variance by the intra-policy correlation.
 
 ## The resolution gate (pre-spend)
 
-Before the fair test, run `A_raw` and `B_ft30` on the five folds of all four targets. That is forty
-in-context fits; on the measured card they are seconds each, and the launch overhead dominates. For
-each target, compute the paired improvement per fold,
-
-```
-r_f = (M_A_raw - M_B_ft30) / M_A_raw
-```
-
-and take `SD_fold(r)`. Then
+Before the fair test, run `A_raw` and `B_ft30` on the five folds of all four targets, with the
+Run's three model seeds per fold. That is 120 fits; on the measured card the launch overhead still
+dominates. For each target and fold, average
+`r_{f,s} = (M_A_raw - M_B_ft30) / M_A_raw` over the three seeds, then take `SD_fold(r)`. Then
 
 ```
 MDE_gate = 2.8016 * SD_fold(r) / sqrt(5)

@@ -126,7 +126,8 @@ The full derivation is in `docs/analyses/freq_sev_power.md`. Measured or bounded
 | Spanish severity | 1.83% | conservative bound from weighted SD 0.69 at 11,167 claim-equivalents |
 
 The gate, run before any fair-test spend: `A_raw` **and** `B_ft30` on the five folds of all four
-targets (forty in-context fits), the fold-level paired improvement per target, and
+targets with the Run's three model seeds per fold (120 fits), the fold-level paired improvement per
+target, and
 
 ```
 MDE_gate = 2.8016 * SD_fold(r) / sqrt(5)
@@ -194,3 +195,4 @@ a target, an Arm, a fold or a floor after that is an amendment with a date, not 
 |---|---|---|
 | 2026-11-11 | Filed: replaces the 2026-11-08 target set with frequency and per-claim severity across two portfolios. | agent, for owner review |
 | 2026-11-12 | The resolution gate runs `A_raw` and `B_ft30` and fixes the floors from `SD_fold(r)`; the A_raw-only gate measured fold difficulty and overstated the MDE (10.05% / 7.36% on frequency). Owner released the correction before any fair-test data. | agent, owner approved |
+| 2026-11-12 | The gate runs the Run's three model seeds per fold (120 fits), so `SD_fold(r)` predicts the Run's variance; a one-seed gate includes seed noise the Run averages away. | agent, owner approved |
