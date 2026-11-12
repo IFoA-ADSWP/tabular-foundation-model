@@ -80,9 +80,20 @@ If `MDE_gate` exceeds the registered floor for a target, the fair test **stops f
 the floor is raised in a dated amendment before the fair test launches). This is D13's resolution
 gate applied to the new targets, and it is the only place a spend decision is made before the matrix.
 
-Cost of the gate: four targets × five folds × two Arms of in-context fits. On the measured RTX PRO
-4000 (41.7 s for a 10,000-row 30-epoch fine-tune), in-context fits are far cheaper; the launch
-overhead dominates at roughly $0.02–$0.05. It is released separately, like the benchmark fit was.
+**Measured gate (2026-11-12).** The paired 3-seed gate took **58.9 min and cost $0.2629** on the
+RTX PRO 4000 Blackwell. Its result:
+
+| Target | mean r | SD_fold(r) | MDE | floor |
+|---|---:|---:|---:|---:|
+| frequency_french | +9.42% | 1.32% | 1.65% | 2% |
+| frequency_spanish | +4.49% | 3.07% | 3.85% | 4% (per target) |
+| severity_french | −0.92% | 0.40% | 0.50% | 2% |
+| severity_spanish | +1.63% | 1.08% | 1.35% | 2% |
+
+The frequency task is decided on the pooled interval (pooled SE about 0.75%, pooled MDE about
+2.1%); Spanish frequency alone cannot separate 2% from zero, so its per-target floor is 4% and it
+does not decide the task. The severity task floor is 2%. These are the registered floors; the point
+estimates above are a preview, not a verdict.
 
 ## What would change the answer
 

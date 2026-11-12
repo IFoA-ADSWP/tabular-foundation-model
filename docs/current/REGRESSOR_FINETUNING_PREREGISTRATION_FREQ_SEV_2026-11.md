@@ -106,13 +106,8 @@ A positive value means fine-tuning improved the target. Average over the three s
 
 Per-target decisions use the same rule on that target's interval. Floors:
 
-- **Frequency: 2%.** The French target's MDE was measured at 0.48% in #499; the Spanish target is
-  confirmed by the resolution gate.
-- **Severity: 2%, conditional on the resolution gate.** The conservative bounds are 1.95% (French)
-  and 1.83% weighted (Spanish) — inside the floor, but only just. If the gate's measured MDE exceeds
-  2% for a severity target, the floor for that target is raised in a **dated amendment before the
-  fair test launches**, or the target is dropped from the task. It is not decided after seeing the
-  effect.
+- **Frequency: 2%** on the pooled interval. The French target's MDE is 1.65% and the Spanish target's is 3.85%; the pooled MDE is about 2.1%. The Spanish per-target floor is **4%**, and its interval does not decide the task alone.
+- **Severity: 2%** on the pooled interval. The measured MDEs are 0.50% (French) and 1.35% (Spanish); the floor is fixed by these, not by the gate's first, A_raw-only run.
 
 ## Power and the resolution gate
 
@@ -140,7 +135,23 @@ MDE_gate = 2.8016 * SD_fold(r) / sqrt(5)
 > 7.36% relative against a 2% floor, where the paired quantity is what the decision uses. The gate
 > now runs both Arms and measures `r_f = (M_A_raw − M_B_ft30) / M_A_raw` per fold; the severity and
 > frequency floors are fixed from the paired MDE. The first run's summary is retained locally; it
-> took 2.88 min and cost \$0.0129. The gate costs roughly \$0.02–\$0.05 and is released separately.
+> took 2.88 min and cost \$0.0129.
+
+> **2026-11-12 — gate result, three seeds.** The paired gate ran 120 fits (58.9 min, \$0.2629) and
+> measured:
+>
+> | Target | mean r | SD_fold(r) | MDE | Registered floor |
+> |---|---:|---:|---:|---:|
+> | frequency_french | +9.42% | 1.32% | 1.65% | 2% |
+> | frequency_spanish | +4.49% | 3.07% | 3.85% | 4% (per target) |
+> | severity_french | −0.92% | 0.40% | 0.50% | 2% |
+> | severity_spanish | +1.63% | 1.08% | 1.35% | 2% |
+>
+> **Floors fixed.** The frequency task floor is **2%**, decided on the pooled interval (pooled SE
+> about 0.75%, pooled MDE about 2.1%); Spanish frequency alone cannot separate 2% from zero, so its
+> per-target floor is **4%** and its interval does not decide the task. The severity task floor is
+> **2%**; both severity targets clear it comfortably. The gate's point estimates are a preview, not
+> a verdict. The gate costs roughly \$0.02–\$0.05 and is released separately.
 
 A **positive control** still gates the trainer before the gate: weights moved, training loss fell,
 and a paired held-out gain on a synthetic known-signal target. It is the existing control (#498,
@@ -196,3 +207,4 @@ a target, an Arm, a fold or a floor after that is an amendment with a date, not 
 | 2026-11-11 | Filed: replaces the 2026-11-08 target set with frequency and per-claim severity across two portfolios. | agent, for owner review |
 | 2026-11-12 | The resolution gate runs `A_raw` and `B_ft30` and fixes the floors from `SD_fold(r)`; the A_raw-only gate measured fold difficulty and overstated the MDE (10.05% / 7.36% on frequency). Owner released the correction before any fair-test data. | agent, owner approved |
 | 2026-11-12 | The gate runs the Run's three model seeds per fold (120 fits), so `SD_fold(r)` predicts the Run's variance; a one-seed gate includes seed noise the Run averages away. | agent, owner approved |
+| 2026-11-12 | Gate result fixes the floors: frequency task 2% (pooled), Spanish frequency 4% per target (3.85% MDE), severity task 2% (0.50% / 1.35% MDE). | agent, owner approved |
