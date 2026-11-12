@@ -721,6 +721,9 @@ _BOX_COMPUTED = {
     "BENCH_OUT", "BENCH_RECORD", "BENCH_STAMP", "BENCH_RC",
     # The fair-test gate branch's locals (#555).
     "FAIR_OUT", "FT_RC", "GATE_STAMP",
+    # The primary-run branch's locals (#564): the targets that failed, and the run id it derives
+    # from the stamp the launcher forwarded.
+    "FAILED_TARGETS",
 }
 # Read by the box and deliberately overridden there: forwarding them would be a control that
 # cannot move, which reads like a control. Each is listed with why, so removing the entry is a

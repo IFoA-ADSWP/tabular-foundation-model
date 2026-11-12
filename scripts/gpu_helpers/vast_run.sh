@@ -24,7 +24,8 @@
 #   --seeds LIST     seeds to run, comma-separated  (default: the runner's DEFAULT_SEED)
 #   --benchmark MODE run a benchmark instead of arms; `regressor-fit` times one fine-tune
 #                    (10,000 rows x 30 epochs) and returns its record (#528)
-#   --fairtest MODE  run a fair-test step instead of arms; `gate` runs the resolution gate
+#   --fairtest MODE  run a fair-test step instead of arms; `gate` runs the resolution gate,
+#                    `primary` runs the registered pair WITH its captures (chunked transfer, #564)
 #                    and returns the per-target MDE summary (#555)
 #   --image NAME     override the docker image
 #   --transport T    execute | ssh                   (default: execute)
@@ -206,11 +207,14 @@ if [ -n "$BENCHMARK" ]; then
     fi
 fi
 
-# The fair-test gate is its own mode and owns the frame for the same reason.
+# The fair-test step is its own mode and owns the frame for the same reason.
+#   gate    the resolution gate: both Arms, five folds, three seeds, summary only (#555)
+#   primary the registered fair test: the same pair run again WITH its captures, one payload
+#           block per target, chunked through the log (#564)
 if [ -n "$FAIRTEST" ]; then
     case "$FAIRTEST" in
-        gate) ;;
-        *) echo "FATAL: unknown --fairtest '$FAIRTEST' (known: gate)." >&2; exit 2 ;;
+        gate|primary) ;;
+        *) echo "FATAL: unknown --fairtest '$FAIRTEST' (known: gate, primary)." >&2; exit 2 ;;
     esac
     if [ -n "$BENCHMARK" ]; then
         echo "FATAL: --fairtest and --benchmark are different modes; set one." >&2; exit 2
@@ -219,6 +223,22 @@ if [ -n "$FAIRTEST" ]; then
        || [ -n "$TEST_SIZE" ] || [ -n "$SEEDS" ]; then
         echo "FATAL: --fairtest $FAIRTEST owns the frame; drop --experiment/--arms/--dataset/" >&2
         echo "       --train-size/--test-size/--seeds rather than have them ignored." >&2
+        exit 2
+    fi
+    if [ "$FAIRTEST" = "primary" ] && [ "$TRANSPORT" = "ssh" ]; then
+        # Not wired rather than broken: the ssh path copies $PULL_SUBDIR into the run tree, and a
+        # capture has to land in results/ for the citation check to read it. Say so instead of
+        # shipping four captures into a directory nothing checks.
+        echo "FATAL: --fairtest primary is wired for the log transport only." >&2
+        echo "       Wire the ssh pull to results/ before using it, or drop --transport ssh." >&2
+        exit 2
+    fi
+    if [ "$FAIRTEST" = "primary" ] && [ "$POLL_MINUTES" -lt 120 ]; then
+        # The ceiling must cover ~1 h of fits plus ~40 min of paced transfer, or the launch
+        # destroys the box mid-emit and pays for compute whose evidence never lands.
+        echo "FATAL: --poll-minutes $POLL_MINUTES is below the ~160 min a primary run needs" >&2
+        echo "       (60 min fits + ~40 min paced transfer + cold start)." >&2
+        echo "       Pass --poll-minutes 180; a short ceiling pays for the fits and discards them." >&2
         exit 2
     fi
 fi
@@ -357,6 +377,12 @@ LAUNCH_TMP="$(mktemp -d "${TMPDIR:-/tmp}/tfm-launch.XXXXXX")"
 RUN_OUT="$LAUNCH_TMP/run_out.txt"
 LOG_NEXT="$LAUNCH_TMP/log_next.txt"
 ARTIFACTS_RAW="$LAUNCH_TMP/artifacts.raw"
+# The registered fair test ships a capture per target, far larger than one poll of the log can
+# read, so it arrives as sequence-numbered chunks merged across polls (#564).
+CHUNKS_DIR="$LAUNCH_TMP/chunks"
+PRIMARY_MODE=0
+[ "${FAIRTEST:-}" = "primary" ] && PRIMARY_MODE=1
+CAPTURE_DEST="$REPO_DIR/results"
 cleanup_launch_tmp() { [ -n "${LAUNCH_TMP:-}" ] && rm -rf "$LAUNCH_TMP"; }
 
 # Record what a run actually cost, so the cost model in the runbook can be
@@ -782,6 +808,7 @@ BOOTSTRAP_B64="$(gzip -9c "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh" | b
     # bootstrap, so forwarding it would be a control that cannot move. A dead entry is worse than
     # no entry, because it reads like one.
     for _passthrough in TFM_EXPECT_CHECKPOINT TFM_DATA_REF TFM_DATA_REPO TFM_WEIGHTS_MANIFEST \
+                       TFM_CHUNK_LINES TFM_CHUNK_PAUSE \
                        TABPFN_PIN SKLEARN_PIN PANDAS_PIN PYARROW_PIN CATBOOST_PIN; do
         if [ -n "${!_passthrough:-}" ]; then
             printf 'export %s=%q\n' "$_passthrough" "${!_passthrough}"
@@ -953,6 +980,12 @@ else
         if [ -s $LOG_NEXT ]; then
             cp $LOG_NEXT $RUN_OUT
             EMPTY_STREAK=0
+            # A capture payload scrolls out of a single window, so each poll is merged by chunk
+            # sequence into an accumulator instead of replacing the previous one.
+            if [ "$PRIMARY_MODE" = 1 ]; then
+                python3 "$REPO_DIR/scripts/gpu_helpers/collect_chunks.py" merge \
+                    --window $LOG_NEXT --state "$CHUNKS_DIR" 2>&1 | tail -1
+            fi
         else
             EMPTY_STREAK=$(( EMPTY_STREAK + 1 ))
             if [ "$EMPTY_STREAK" -eq 3 ]; then
@@ -974,6 +1007,22 @@ else
         echo "         completion, so this batch's compute is being discarded. Re-run with fewer" >&2
         echo "         seeds, or --poll-minutes N above the measured runtime." >&2
         RUN_RC=1
+    fi
+    if [ "$PRIMARY_MODE" = 1 ]; then
+        # A capture arrives in chunks because no single window can hold it. Assemble here, and
+        # keep the instance if a chunk never made it: the fits behind it are an hour of paid
+        # compute, and destroying the box would discard the evidence with the transfer fault.
+        if python3 "$REPO_DIR/scripts/gpu_helpers/collect_chunks.py" assemble \
+            --state "$CHUNKS_DIR" --out "$ARTIFACTS_RAW"; then
+            mkdir -p "$OUTDIR/runs/$RUN_STAMP" 2>/dev/null
+            cp "$ARTIFACTS_RAW" "$OUTDIR/runs/$RUN_STAMP/artifacts.raw" 2>/dev/null || true
+        else
+            echo "REFUSING: the capture payload is incomplete -- not every emitted chunk arrived." >&2
+            echo "          Keeping the instance ($INSTANCE_ID): the transfer can be retried," >&2
+            echo "          and destroying it would discard the fits the chunks belong to." >&2
+            RUN_RC=1
+            KEEP=1
+        fi
     fi
     echo "--- log tail ---"
     tail -40 $RUN_OUT
@@ -1022,10 +1071,16 @@ if [ -n "$SEEDS" ]; then SEED_ARGS=(--expect-seeds "$SEEDS"); fi
 # itself (its shape and its wall time) rather than reporting zero verified predictions (#528).
 MODE_ARGS=()
 if [ -n "$BENCHMARK" ]; then MODE_ARGS=(--expect-measurement); fi
-if [ -n "$FAIRTEST" ]; then MODE_ARGS=(--expect-gate); fi
+if [ "$PRIMARY_MODE" = 1 ]; then
+    # One payload block per target, restored into results/<run id> so the citation check can
+    # read them (#564).
+    MODE_ARGS=(--expect-captures 4)
+elif [ -n "$FAIRTEST" ]; then MODE_ARGS=(--expect-gate); fi
+VERIFY_DEST="$RUN_OUTDIR"
+[ "$PRIMARY_MODE" = 1 ] && VERIFY_DEST="$CAPTURE_DEST"
 python3 "$REPO_DIR/scripts/gpu_helpers/verify_artifacts.py" \
     "${VERIFY_SOURCE[@]}" \
-    --dest "$RUN_OUTDIR" \
+    --dest "$VERIFY_DEST" \
     "${SEED_ARGS[@]+"${SEED_ARGS[@]}"}" \
     "${MODE_ARGS[@]+"${MODE_ARGS[@]}"}"
 ART_RC=$?
@@ -1048,8 +1103,20 @@ case "$ART_RC" in
        echo "          of the launch; a run without it measured nothing and does not ship." >&2
        echo "          Log kept at $RUN_OUT; use --keep to inspect." >&2
        RUN_RC=1 ;;
+    8) echo "REFUSING: the capture payload arrived but is not capturable." >&2
+       echo "          A capture the citation check refuses is not evidence: the run's" >&2
+       echo "          record would cite an id whose results/ tree cannot be re-derived." >&2
+       echo "          Blocks and reasons are above." >&2
+       RUN_RC=1 ;;
     *) echo "WARNING: artifact verification exited $ART_RC" >&2 ;;
 esac
+# A fair-test capture is an hour of paid fits, so a refused transfer keeps the instance rather
+# than destroying the evidence with the fault (#564).
+if [ "$PRIMARY_MODE" = 1 ] && [ "$ART_RC" -ne 0 ]; then
+    KEEP=1
+    echo "KEEPING the instance ($INSTANCE_ID): the fits are still on the box, and the transfer" >&2
+    echo "can be retried with --keep and a bigger --poll-minutes. It BILLS until destroyed." >&2
+fi
 # A benchmark or fair-test launch exists to return its payload, so EVERY non-zero verification
 # outcome means the run produced nothing usable -- including an incomplete payload (4) and a
 # verifier crash (1), which the pilot path can afford to warn about because its artifacts are

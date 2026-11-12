@@ -49,6 +49,7 @@ Exit codes:
     5  payload restored but prediction verification FAILED
     6  the restored tree's seeds are not the seeds the launch requested
     7  the payload is not one complete benchmark measurement
+    8  the restored payload is not a capturable run (fair-test capture mode)
     2  usage error
 """
 from __future__ import annotations
@@ -62,9 +63,18 @@ import os
 import re
 import sys
 import tarfile
+from pathlib import Path
+
+# The capture mode applies the citation check's rules rather than a second copy of them. The
+# import is deferred to that mode: the sandbox a mock launch builds carries `scripts/gpu_helpers`
+# alone, and requiring `scripts/check_citations.py` there would fail an unrelated payload check.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 INFO_RE = re.compile(r"__ARTIFACTS_INFO__ (.+)")
 PAYLOAD_RE = re.compile(r"__ARTIFACTS_BEGIN__(.*?)__ARTIFACTS_END__", re.S)
+BLOCK_RE = re.compile(
+    r"(__ARTIFACTS_INFO__ .+?)\s*__ARTIFACTS_BEGIN__(.*?)__ARTIFACTS_END__", re.S
+)
 LINE_TAG = "__ART__"
 
 EXIT_OK = 0
@@ -73,6 +83,7 @@ EXIT_INCOMPLETE = 4
 EXIT_UNVERIFIED = 5
 EXIT_SEED_MISMATCH = 6
 EXIT_MEASUREMENT = 7
+EXIT_CAPTURES = 8
 
 MEASUREMENT_KIND = "benchmark_fit"
 # The fields the probe's acceptance criterion names (#528). A record missing one of these is a
@@ -129,14 +140,28 @@ def npy_data_sha256(path: str) -> str | None:
         return hashlib.sha256(f.read()).hexdigest()
 
 
-def restore(raw: str, dest: str) -> tuple[int, str]:
-    """Check, decode, verify and unpack the payload. Returns (exit_code, report)."""
-    info = parse_info(raw)
-    lines = payload_lines(raw)
+def payload_blocks(raw: str) -> list[tuple[dict, list[str]]]:
+    """Every (info, payload lines) block in the log, in the order the box emitted them.
 
-    if lines is None:
-        return EXIT_NO_PAYLOAD, "no artifact markers found in the container log"
+    A launch that ships one payload per target writes several blocks into one log, and each
+    declares its own size and checksum (#564). `restore` handles the single-block case; this
+    is what lets the capture mode check four of them without the first one's INFO standing in
+    for the rest.
+    """
+    blocks: list[tuple[dict, list[str]]] = []
+    for match in BLOCK_RE.finditer(raw):
+        info = parse_info(match.group(1))
+        lines = [
+            line[len(LINE_TAG):].strip()
+            for line in match.group(2).splitlines()
+            if line.startswith(LINE_TAG)
+        ]
+        blocks.append((info, lines))
+    return blocks
 
+
+def restore_block(info: dict, lines: list[str], dest: str) -> tuple[int, str]:
+    """Check, decode, verify and unpack ONE payload block. Returns (exit_code, report)."""
     declared = int(info.get("lines", -1))
     if declared == 0:
         return EXIT_NO_PAYLOAD, "payload declared empty (0 bytes) -- the box produced no outputs"
@@ -180,6 +205,64 @@ def restore(raw: str, dest: str) -> tuple[int, str]:
         f"restored to {dest} ({len(lines)} lines, {info.get('files', '?')} files, "
         f"{info.get('bytes', '?')} bytes)"
     )
+
+
+def restore(raw: str, dest: str) -> tuple[int, str]:
+    """Check, decode, verify and unpack the payload. Returns (exit_code, report)."""
+    blocks = payload_blocks(raw)
+    if not blocks:
+        return EXIT_NO_PAYLOAD, "no artifact markers found in the container log"
+    info, lines = blocks[0]
+    return restore_block(info, lines, dest)
+
+
+def verify_captures(raw: str, dest: str, expected: int) -> tuple[int, str]:
+    """Restore one payload per target into `dest/<run id>` and require each to be capturable.
+
+    The transport's job ends at "the bytes arrived intact"; whether those bytes are a capture is
+    the citation check's rule, so this calls it rather than growing a second definition (#564).
+    """
+    try:
+        from check_citations import check_run_dir
+    except ImportError:
+        return (
+            EXIT_CAPTURES,
+            "scripts/check_citations.py is not beside the verifier, so the restored capture "
+            "cannot be checked; a capture nobody can cite is not evidence",
+        )
+
+    blocks = payload_blocks(raw)
+    if not blocks:
+        return EXIT_CAPTURES, "no artifact markers found in the container log"
+
+    problems: list[str] = []
+    restored: list[str] = []
+    for info, lines in blocks:
+        run_id = info.get("payload")
+        if not run_id:
+            problems.append(
+                "a payload carries no payload=<run id>, so its capture has no place in results/"
+            )
+            continue
+        rc, report = restore_block(info, lines, os.path.join(dest, run_id))
+        print(f"{'OK' if rc == EXIT_OK else 'FAIL'} {run_id}: {report}")
+        if rc != EXIT_OK:
+            return rc, f"payload for {run_id} did not arrive intact"
+        restored.append(run_id)
+
+    if len(restored) != expected:
+        problems.append(
+            f"expected {expected} target captures, restored {len(restored)} "
+            f"({', '.join(restored) or 'none'})"
+        )
+    for run_id in restored:
+        problems.extend(check_run_dir(Path(dest) / run_id, run_id))
+
+    if problems:
+        for line in problems:
+            print(f"  {line}")
+        return EXIT_CAPTURES, f"{len(problems)} problem(s) in {len(restored)} restored capture(s)"
+    return EXIT_OK, f"{len(restored)} capture(s) restored and capturable"
 
 
 def verify_predictions(dest: str) -> tuple[int, int, int, list[str]]:
@@ -419,6 +502,16 @@ def main() -> int:
             "target -> folds/mean/sd/mde, checked and reported"
         ),
     )
+    ap.add_argument(
+        "--expect-captures",
+        type=int,
+        metavar="N",
+        help=(
+            "the payload is N fair-test captures, one payload block per target, each carrying "
+            "payload=<run id>; restore each into DEST/<run id> and require it to pass the "
+            "citation check (#564)"
+        ),
+    )
     args = ap.parse_args()
 
     modes = sum(
@@ -426,11 +519,24 @@ def main() -> int:
             bool(args.expect_measurement),
             bool(args.expect_gate),
             args.expect_seeds is not None,
+            args.expect_captures is not None,
         )
     )
     if modes > 1:
-        print("FAIL --expect-measurement, --expect-gate and --expect-seeds describe different payloads")
+        print(
+            "FAIL --expect-measurement, --expect-gate, --expect-captures and --expect-seeds "
+            "describe different payloads"
+        )
         return 2
+    if args.expect_captures is not None:
+        if args.expect_captures < 1:
+            print("FAIL --expect-captures needs a positive count")
+            return 2
+        if args.verify_only:
+            # The check is of bytes that arrived THROUGH the payload; verifying a directory
+            # already on disk would report on a tree this flag never restored.
+            print("FAIL --expect-captures restores the payload; it cannot be used with --verify-only")
+            return 2
 
     try:
         # An explicitly empty list is a mistake, not a request to skip the check --
@@ -445,19 +551,27 @@ def main() -> int:
     else:
         if not os.path.exists(args.raw):
             print(f"FAIL missing captured log: {args.raw}")
-            if args.expect_measurement or args.expect_gate:
-                return EXIT_MEASUREMENT
+            if args.expect_measurement or args.expect_gate or args.expect_captures:
+                return EXIT_MEASUREMENT if not args.expect_captures else EXIT_CAPTURES
             return EXIT_NO_PAYLOAD
         with open(args.raw, errors="replace") as f:
             raw = f.read()
-        rc, report = restore(raw, args.dest)
+        if args.expect_captures is not None:
+            rc, report = verify_captures(raw, args.dest, args.expect_captures)
+        else:
+            rc, report = restore(raw, args.dest)
 
     print(f"{'OK' if rc == EXIT_OK else 'FAIL'} {report}")
     if rc != EXIT_OK:
-        # A benchmark or gate launch exists to return its payload, so "the box produced no
-        # outputs" is not a warning there -- it is the run having produced nothing.
+        # A benchmark, gate or capture launch exists to return its payload, so "the box
+        # produced no outputs" is not a warning there -- it is the run having produced nothing.
         if (args.expect_measurement or args.expect_gate) and rc == EXIT_NO_PAYLOAD:
             return EXIT_MEASUREMENT
+        return EXIT_CAPTURES if args.expect_captures is not None else rc
+
+    if args.expect_captures is not None:
+        # A capture is not a prediction tree: the counts below would report zero verified
+        # predictions and read as a failure of a payload that in fact arrived intact.
         return rc
 
     if args.expect_measurement:

@@ -331,3 +331,55 @@ def test_a_v3_capture_with_exposure_on_a_severity_dataset_fails(tmp_path):
     )
 
     assert run(root) == 1
+
+
+def make_v4_repo(
+    tmp_path: Path,
+    *,
+    task: str = "severity",
+    keys: tuple[str, ...] = ("weights_sha256", "cluster_sha256"),
+) -> Path:
+    """A v4 capture over one folded slot: v3's arrays plus the severity pair (#555, #564).
+
+    The pre-existing check refused `schema_version: 4` outright, so a fair-test run could hold a
+    perfect capture and still be uncitable. What v4 adds is checked against the record's own
+    `task`, which is the rule the writer applies.
+    """
+    dataset = "spanish_motor_severity" if task == "severity" else "freMTPL2freq"
+    hashes = ("test_index_sha256", "quantiles_sha256")
+    if task != "severity":
+        hashes = hashes + ("exposure_sha256",)
+    root = make_v3_repo(tmp_path, dataset=dataset, hashes=hashes)
+
+    manifest_path = root / "results" / RUN / "capture.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["schema_version"] = 4
+    for key in keys:
+        manifest["captures"][0][key] = "e" * 64
+    manifest_path.write_text(json.dumps(manifest))
+
+    meta_path = (
+        root / "results" / RUN / dataset / "B_ft30" / "seed43_fold0" / "meta.json"
+    )
+    meta = json.loads(meta_path.read_text())
+    meta["task"] = task
+    meta_path.write_text(json.dumps(meta))
+    return root
+
+
+def test_a_v4_severity_capture_with_weights_and_cluster_passes(tmp_path):
+    assert run(make_v4_repo(tmp_path)) == 0
+
+
+def test_a_v4_severity_capture_without_a_cluster_hash_fails(tmp_path):
+    """The cluster id is what stops a policy's claims being read as independent rows."""
+    root = make_v4_repo(tmp_path, keys=("weights_sha256",))
+
+    assert run(root) == 1
+
+
+def test_a_v4_frequency_capture_carrying_the_severity_pair_fails(tmp_path):
+    """The writer refuses these on a frequency slot; the gate must agree or they become decoration."""
+    root = make_v4_repo(tmp_path, task="frequency")
+
+    assert run(root) == 1

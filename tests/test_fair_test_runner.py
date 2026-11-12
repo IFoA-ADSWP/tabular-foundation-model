@@ -267,3 +267,74 @@ def test_a_gate_without_the_treatment_arm_refuses(tmp_path):
 
     with pytest.raises(ValueError, match="no fold with both"):
         gate_summary({"frequency_french": run_dir})
+
+
+def _cli(monkeypatch):
+    import importlib.util
+    import sys
+
+    script = Path(__file__).resolve().parents[1] / "scripts" / "run_fair_test.py"
+    spec = importlib.util.spec_from_file_location("run_fair_test_cli_arms", script)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["run_fair_test_cli_arms"] = module
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(module, "TabPFNBackend", lambda **kwargs: StubBackend())
+    return module
+
+
+def test_the_cli_runs_only_the_arms_it_was_given(tmp_path, monkeypatch):
+    """The fair test is authorised for the primary pair (#564); the ladder is not run by default."""
+    module = _cli(monkeypatch)
+
+    code = module.main(
+        [
+            "--smoke",
+            "--targets",
+            "frequency_french",
+            "--arms",
+            "A_raw,B_ft30",
+            "--out-root",
+            str(tmp_path),
+            "--run-id",
+            "20261112T000000Z",
+        ]
+    )
+
+    assert code == 0
+    arms = sorted(
+        path.name for path in (tmp_path / "20261112T000000Z" / "freMTPL2freq").iterdir()
+    )
+    assert arms == ["A_raw", "B_ft30"]
+
+
+def test_the_cli_refuses_an_unknown_arm(tmp_path, monkeypatch):
+    module = _cli(monkeypatch)
+
+    with pytest.raises(SystemExit) as refused:
+        module.main(["--smoke", "--arms", "A_raw,B_ft99", "--out-root", str(tmp_path)])
+
+    assert refused.value.code == 2
+
+
+def test_the_run_id_offset_keeps_the_runners_id_scheme(tmp_path, monkeypatch):
+    """One process per target needs distinct ids; the offset is seconds, as `_run_ids` does."""
+    module = _cli(monkeypatch)
+
+    code = module.main(
+        [
+            "--smoke",
+            "--targets",
+            "frequency_french",
+            "--arms",
+            "A_raw",
+            "--out-root",
+            str(tmp_path),
+            "--run-id",
+            "20261112T000000Z",
+            "--run-id-offset",
+            "3",
+        ]
+    )
+
+    assert code == 0
+    assert [path.name for path in tmp_path.iterdir() if path.is_dir()] == ["20261112T000003Z"]
