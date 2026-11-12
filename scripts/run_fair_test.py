@@ -46,6 +46,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--device", default="cuda")
     parser.add_argument(
+        "--train-rows",
+        type=int,
+        default=None,
+        help=(
+            "rows every arm trains on, overriding the 10,000-row budget in the Arm declaration. "
+            "Applies to the control too: the fair test compares arms at a matched context (#572)"
+        ),
+    )
+    parser.add_argument(
         "--targets",
         default=None,
         help=(
@@ -124,6 +133,8 @@ def main(argv: list[str] | None = None) -> int:
             f"--run-id {args.run_id!r} is not a run id (YYYYMMDDTHHMMSSZ); "
             "the capture's directory name is what the citation check resolves"
         )
+    if args.train_rows is not None:
+        caps["train_rows"] = args.train_rows
     runs = run(config, backend, args.out_root, run_id=base, **caps)
     for target, run_dir in runs.items():
         print(f"{target}: {run_dir}  ({run_dir / 'capture.json'})")

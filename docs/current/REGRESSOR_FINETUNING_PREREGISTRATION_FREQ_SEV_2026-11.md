@@ -207,6 +207,27 @@ as it was for the benchmark fit; a provisional figure is not a release.
 - Re-open the classifier pilot or the breadth cells.
 - Claim anything about vehicle value, annual pure premium, or the exposure diagnostic.
 
+## Amendment — the row budget, tested at scale (#572)
+
+> **2026-11-12 — the 10,000-row budget is raised to 40,000 for a row-scaling arm.** The fair test
+> trained every fold on at most 10,000 rows, which is **1.8%** of the French frequency training pool
+> and **48%** of the French severity claims. The classifier lane already ran this experiment by
+> accident: at 2,000 rows fine-tuning looked useless, at 10,000 it worked, monotone in epochs, and
+> `FINETUNING_EXPERIMENT_REFERENCE.md` records the verdict as *"a small-data artefact — the row cap
+> was ours."*
+>
+> So the severity No-go and the frequency Go are both measured under a cap this project has already
+> seen change an answer. The arm repeats the fair test at **40,000 rows per fold**, on
+> `severity_french` first and `frequency_french` if the first is authorised to continue. The budget
+> applies to **both arms** — `A_raw` included — because a matched inference context is the whole
+> premise of the comparison; raising it for the treatment alone would measure the context, not the
+> fine-tune.
+>
+> Nothing else moves: the floors (2% frequency pooled, 4% Spanish frequency per target, 2% severity),
+> the five folds, the three seeds, the arms, the capture contract and the decision rule are
+> unchanged. The verdict of 2026-11-12 stands as recorded; this arm either confirms it at scale or
+> supersedes it with a dated result.
+
 ## Sign-off
 
 Proposed 2026-11-11. The owner and the team sign the document before step 2 is released; a change to
@@ -218,4 +239,5 @@ a target, an Arm, a fold or a floor after that is an amendment with a date, not 
 | 2026-11-12 | The resolution gate runs `A_raw` and `B_ft30` and fixes the floors from `SD_fold(r)`; the A_raw-only gate measured fold difficulty and overstated the MDE (10.05% / 7.36% on frequency). Owner released the correction before any fair-test data. | agent, owner approved |
 | 2026-11-12 | The gate runs the Run's three model seeds per fold (120 fits), so `SD_fold(r)` predicts the Run's variance; a one-seed gate includes seed noise the Run averages away. | agent, owner approved |
 | 2026-11-12 | Gate result fixes the floors: frequency task 2% (pooled), Spanish frequency 4% per target (3.85% MDE), severity task 2% (0.50% / 1.35% MDE). | agent, owner approved |
+| 2026-11-12 | The per-fold training budget is raised from 10,000 to 40,000 rows for a row-scaling arm on `severity_french` (then `frequency_french`), applied to both arms to keep the context matched. Floors, folds, seeds and the decision rule unchanged. (#572) | agent, owner approved |
 | 2026-11-12 | The fair test is authorised as the primary pair only — `A_raw` vs `B_ft30`, 120 fits, captures retained. The `B_ft10`/`B_ft3` epoch ladder is a follow-up under its own amendment; no floor is registered for it. (#564) | agent, owner approved |

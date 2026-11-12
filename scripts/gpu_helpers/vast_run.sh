@@ -250,6 +250,11 @@ if [ -n "$FAIRTEST" ]; then
         for _target_name in $TFM_FAIRTEST_TARGETS; do TARGET_COUNT=$(( TARGET_COUNT + 1 )); done
     fi
     REQUIRED_POLL_MINUTES=$(( 15 + 30 * TARGET_COUNT ))
+    # A raised row budget multiplies the fit time, so the ceiling scales with it: the measured
+    # 10,000-row target takes ~15 min of fits, and cost is close to linear in rows (#572).
+    if [ -n "${TFM_TRAIN_ROWS:-}" ] && [ "$TFM_TRAIN_ROWS" -gt 10000 ]; then
+        REQUIRED_POLL_MINUTES=$(( REQUIRED_POLL_MINUTES + 20 * TARGET_COUNT * (TFM_TRAIN_ROWS / 10000 - 1) ))
+    fi
     if [ "$FAIRTEST" = "primary" ] && [ "$POLL_MINUTES" -lt "$REQUIRED_POLL_MINUTES" ]; then
         # The ceiling must cover ~60 min of fits plus ~40 min of paced transfer plus cold start.
         # The gate's own 120 fits took 58.9 min; below this the launch destroys the box mid-emit
@@ -856,7 +861,7 @@ BOOTSTRAP_B64="$(gzip -9c "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh" | b
     # bootstrap, so forwarding it would be a control that cannot move. A dead entry is worse than
     # no entry, because it reads like one.
     for _passthrough in TFM_EXPECT_CHECKPOINT TFM_DATA_REF TFM_DATA_REPO TFM_WEIGHTS_MANIFEST \
-                       TFM_CHUNK_LINES TFM_CHUNK_PAUSE TFM_CHUNK_REPEAT TFM_CHUNK_PASSES \
+                       TFM_CHUNK_LINES TFM_CHUNK_PAUSE TFM_CHUNK_REPEAT TFM_CHUNK_PASSES TFM_TRAIN_ROWS \
                        TFM_FAIRTEST_TARGETS \
                        TABPFN_PIN SKLEARN_PIN PANDAS_PIN PYARROW_PIN CATBOOST_PIN; do
         if [ -n "${!_passthrough:-}" ]; then

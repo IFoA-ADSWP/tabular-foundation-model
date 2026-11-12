@@ -251,6 +251,7 @@ def run(
     *,
     run_id: str | None = None,
     train_rows_cap: int | None = None,
+    train_rows: int | None = None,
     epochs_cap: int | None = None,
 ) -> dict[str, Path]:
     """Produce one run per target and its capture; returns {target: run directory}.
@@ -291,9 +292,17 @@ def run(
 
             for arm_name in config.arms:
                 arm = ARMS[arm_name]
-                rows = arm.train_rows if train_rows_cap is None else min(
-                    arm.train_rows, train_rows_cap
-                )
+                # `train_rows` is the row budget for EVERY arm (#572): the fair test's premise is a
+                # matched inference context, so a raised budget must reach the control as well as
+                # the treatment or the comparison stops being like-for-like. `train_rows_cap`
+                # remains the smoke path's ceiling, which lowers but never raises.
+                if train_rows is not None:
+                    rows = train_rows
+                elif train_rows_cap is not None:
+                    rows = min(arm.train_rows, train_rows_cap)
+                else:
+                    rows = arm.train_rows
+                rows = min(rows, len(split.train_pool))
                 epochs = (
                     arm.epochs if epochs_cap is None else min(arm.epochs, epochs_cap)
                 )
