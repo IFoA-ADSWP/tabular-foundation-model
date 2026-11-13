@@ -4,7 +4,7 @@ One file per task: `docs/plans/<task>.md`. Write it **before** non-trivial work,
 change. A plan outranks a fresh ticket — check this directory before speccing or building, because the ticket
 you are about to write may already be covered.
 
-**This index is the only map.** Of the 72 plans, 71 are linked from no other document and only
+**This index is the only map.** Of the 73 plans, 72 are linked from no other document and only
 13 are even mentioned anywhere else.
 
 Each row carries the plan's own first heading, so the index cannot drift from the file it points at. The
@@ -17,7 +17,7 @@ since merged, and the pull request that merged it is the record of what happened
 the fact: a plan that says proposed stays that way unless its author amends it, because rewriting the status
 of a plan after the data would make the trail say something it did not.
 
-## Current, agreed or implemented — 65 plans
+## Current, agreed or implemented — 66 plans
 
 Newest first, by ticket number where the filename carries one.
 
@@ -62,6 +62,7 @@ Newest first, by ticket number where the filename carries one.
 | [`truth-hash-verification.md`](truth-hash-verification.md) | the rescore verifies both hashes it was given |
 | [`vast-log-dir.md`](vast-log-dir.md) | a mock launch's log goes beside its records (#280) |
 | [`verification-gate.md`](verification-gate.md) | verification gate, slice 1: the local command |
+| [`610-diagnostics-figures.md`](610-diagnostics-figures.md) | the D2 feature-ranking readings as one panel (#610) |
 | [`609-adoption-figures.md`](609-adoption-figures.md) | the adoption picture in two figures, and a stale claim it corrects (#609) |
 | [`607-verdict-figures.md`](607-verdict-figures.md) | the two closing verdicts get forest plots drawn from committed evidence (#607) |
 | [`597-actuarial-baseline.md`](597-actuarial-baseline.md) | the actuarial baseline: TabPFN vs GLM and CatBoost (#597) |
