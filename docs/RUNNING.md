@@ -33,7 +33,7 @@ agree before any experiment can fail for a less obvious reason.
 | --- | --- | --- | --- | --- |
 | Run the tests | `.venv` | `.venv/bin/pytest tests/ -q` | nothing | — |
 | Reproduce a published number | any interpreter with `pandas` (`.venv` is fine); the TabArena venv only for the preflight | `jupyter lab notebooks/reproducibility/01_frontier_classification_repro.ipynb`, then run the read-only cells | nothing — they read committed files | §A.7–§A.9 |
-| Run a benchmark yourself | TabArena venv | `python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --seed 7 coil2000` — `coil2000` is a dataset name | `results/<run id>/` with `--save-predictions`, else the CSV it names | §A.3, §A.7 |
+| Run a benchmark yourself | TabArena venv | `python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --seed 7 coil2000` — `coil2000` is a dataset name | `results/<YYYYmmdd-HHMMSS>/` by default; `--save-predictions` adds `predictions/` inside it, and `--out-dir legacy` writes beside the script | §A.3, §A.7 |
 | Run the fine-tuning pilot | `.venv` locally, the launcher's own pins when rented | `python scripts/run_pilot.py --dataset coil2000`, or `bash scripts/gpu_helpers/vast_run.sh` | `outputs/gpu-pilot/` | §C.2 |
 
 **Start with the notebooks, not the scripts.** Their evidence cells are already executed and read committed
@@ -51,11 +51,20 @@ Three ways to avoid that, in increasing order of isolation:
 
 ## The current result
 
-The Phase 2 anchor — the run behind the programme's headline result — is `results/20261104T123839Z/`, cited by
-[`current/FINETUNING_PHASE2_OUTCOME.md`](current/FINETUNING_PHASE2_OUTCOME.md). A run directory holds
-`capture.json`, the launch manifests and the prediction tables, and [`EVIDENCE_MAP.md`](EVIDENCE_MAP.md) says
-what each file claims — `capture.json` is the integrity anchor, because it hashes what was measured. Which run a
-report cites is in [`REPORT_REGISTRY.md`](REPORT_REGISTRY.md); a run directory no document cites is not current.
+The Phase 2 anchor — the run behind the programme's headline result — is `results/20261104T123839Z/`. A run
+directory holds `capture.json`, the launch manifests and the prediction tables; [`EVIDENCE_MAP.md`](EVIDENCE_MAP.md)
+says what each file claims, and `capture.json` is the integrity anchor because it hashes what was measured.
+
+The run ids a current-tier document cites, and that resolve to a capture:
+
+| Run id | What it is | Cited by |
+| --- | --- | --- |
+| `20261104T123839Z` | Phase 2 anchor — the replication the outcome rests on | `current/FINETUNING_PHASE2_OUTCOME.md` |
+| `20261031T021845Z` | Anchor power diagnosis (D11) | `analyses/anchor_power_diagnosis.md` |
+
+A bare `YYYYMMDDTHHMMSSZ` id is a citation and must resolve to `results/<id>/capture.json`; an id with a `-`
+suffix is a record name and is not scanned. Which run a report cites, and which runs are superseded, is in
+[`REPORT_REGISTRY.md`](REPORT_REGISTRY.md) — a run directory no document cites is not current.
 
 ## Before you commit
 
@@ -70,7 +79,9 @@ request is labelled `evidence-change`.
 
 ## Where the detail is
 
-[`REPRODUCIBILITY_RUNBOOK.md`](REPRODUCIBILITY_RUNBOOK.md) is 946 lines and opens with a task index. §0 is
-setup for all three eras (periods, not environments); §A is the frontier line, §B the 2026-04 legacy line and
-§C the rented GPU. The eras are how the programme happened, not something you are expected to know before you
-start.
+[`REPRODUCIBILITY_RUNBOOK.md`](REPRODUCIBILITY_RUNBOOK.md) is long and opens with a task index. §0 is setup for
+all three eras (periods, not environments); §A is the frontier line, §B the 2026-04 legacy line and §C the rented
+GPU. The eras are how the programme happened, not something you are expected to know before you start.
+
+[`DEVELOPMENT_ENVIRONMENT.md`](DEVELOPMENT_ENVIRONMENT.md) is the other half of this page: which checkout you are
+in, how the environment is built on this machine, and the failures that look like bugs but are not.

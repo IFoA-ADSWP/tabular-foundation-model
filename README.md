@@ -23,6 +23,9 @@ the command, the output tree and the runbook section for each route. Note that t
 (`scripts/eval/`, `scripts/benchmarks/`) runs against a *different* environment — the TabArena venv with
 `tabpfn-client 0.3.3` — because the published verdicts were measured against the hosted client.
 
+`notebooks/adswp_project/` holds the paper-replication notebooks, which are v2-era; `notebooks/reproducibility/`
+holds the three that reproduce the current numbers without spending credits.
+
 ### API key setup
 
 Scripts using the hosted TabPFN client need an API key. Set the `TABPFN_API_KEY` environment variable, or place a `.env` file containing `TABPFN_API_KEY=...` in the repo root, or point `TABPFN_ENV_FILE` at a `.env` file elsewhere. Scripts fail with a clear error if none is found.

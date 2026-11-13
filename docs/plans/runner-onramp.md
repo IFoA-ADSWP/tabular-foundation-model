@@ -1,6 +1,6 @@
 # Plan — the runner's on-ramp is one page, and the indexes tell the truth
 
-**Status:** Proposed — awaiting sign-off.
+**Status:** Current — delivered 2026-11-13 in #576.
 **Origin:** #575. Follows the #484 map, whose #488 front door and #492 cold read fixed the
 *actuary's* path and left the *runner's* path untouched.
 **Design:** a colleague who will run the code asks a task question, not an era question and not a role
@@ -13,7 +13,7 @@ currently mislead are corrected rather than reorganised.
   requirements.txt` and then "reproducible exact-match env (recommended): `uv pip sync
   requirements.lock`". A runner cannot tell which one is the instruction and which is the aside, and a
   third file, `requirements-legacy.txt`, is never introduced anywhere in the README.
-- `scripts/README.md` is **47 lines and covers 3 of the 10 subdirectories**. It does not mention
+- `scripts/README.md` is **47 lines and covers 3 of the 9 subdirectories**. It does not mention
   `run_pilot.py` or `run_fair_test.py` — the two current entry points — nor `eval/` (106 tracked files),
   `gpu_helpers/` (the paid path), `colab_helpers/`, `analyses/`, `diagnostics/`, `bootstrap_dev.sh` or
   `check.sh`.
@@ -23,17 +23,17 @@ currently mislead are corrected rather than reorganised.
 - `results/` holds **32 run directories and 2,436 tracked files (79% of the repository)**; `outputs/gpu-pilot/`
   holds the paid record. Nothing at either tree's root says which run ids are current, which are cited and
   which are superseded, so "where is the result I just reproduced?" has no cheap answer.
-- No page states the clone cost a runner pays first: **521 MB**, of which `data/` is 92 MB and `results/`
+- No page states the clone cost a runner pays first: **562 MB** (`du -sh .git`; 463 MiB packed), of which `data/` is 92 MB and `results/`
   is 96 MB.
 
 ## The five changes
 
-1. **`docs/RUNNING.md`** — new, ≤90 lines, the runner's only page. A three-row route — verify the published
+1. **`docs/RUNNING.md`** — new, ≤90 lines, the runner's only page. A four-row route — tests, verify the published
    numbers, run a benchmark, run a paid pilot — and for each: the environment, the command, the output tree
    and the runbook section. Then a short table of which `results/` ids are current and cited, and a pointer
    to `EVIDENCE_MAP.md` for what a run directory contains. The environment column is **per route,
    not one command** — see *The environment, resolved* below.
-2. **`scripts/README.md`** — rewritten to cover all ten subdirectories and both current root entry points,
+2. **`scripts/README.md`** — rewritten to cover all nine subdirectories and both current root entry points,
    with one "start here" line per directory and the gate named. The existing benchmark and legacy tables
    survive; they are correct.
 3. **`docs/REPRODUCIBILITY_RUNBOOK.md`** — a **task index at the top**, above the existing registry map:
@@ -84,7 +84,7 @@ find out is before it is written.
 
 ## The environment, resolved
 
-Three routes, three environments, and only one of them is built on the laptop:
+Three environments, and only one of them is built on the laptop:
 
 | Route | Environment | Built by |
 | --- | --- | --- |
