@@ -4,7 +4,7 @@ One file per task: `docs/plans/<task>.md`. Write it **before** non-trivial work,
 change. A plan outranks a fresh ticket — check this directory before speccing or building, because the ticket
 you are about to write may already be covered.
 
-**This index is the only map.** Of the 69 plans, 68 are linked from no other document and only
+**This index is the only map.** Of the 70 plans, 69 are linked from no other document and only
 13 are even mentioned anywhere else.
 
 Each row carries the plan's own first heading, so the index cannot drift from the file it points at. The
@@ -17,7 +17,7 @@ since merged, and the pull request that merged it is the record of what happened
 the fact: a plan that says proposed stays that way unless its author amends it, because rewriting the status
 of a plan after the data would make the trail say something it did not.
 
-## Current, agreed or implemented — 59 plans
+## Current, agreed or implemented — 60 plans
 
 Newest first, by ticket number where the filename carries one.
 
@@ -82,6 +82,7 @@ Newest first, by ticket number where the filename carries one.
 | [`377-lapse-students.md`](377-lapse-students.md) | measure the lapse GBDTs instead of estimating them |
 | [`341-pilot-disposition.md`](341-pilot-disposition.md) | the pilot's disposition, and the pre-run documents |
 | [`296-significance-marker.md`](296-significance-marker.md) | the significance marker agrees with its own bounds (#296) |
+| [`runner-onramp.md`](runner-onramp.md) | the runner's on-ramp is one page, and the indexes tell the truth (#575) |
 
 ## Proposed — 8 plans
 

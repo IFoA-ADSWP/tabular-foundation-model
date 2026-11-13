@@ -74,6 +74,31 @@ def registry_problems(path: pathlib.Path) -> list[str]:
     return problems
 
 
+# Directories whose README claims to be the index of that directory. A hand-written index
+# beside a growing tree drifts on the next merge -- plans/README.md was one document short
+# within a day of landing (#580 then #576). The check lives here, beside the claim-registry
+# assertion, rather than as a ninth job: #489 set that precedent for the same reason.
+INDEXES = (("docs/plans", "README.md"), ("docs/analyses", "README.md"))
+
+
+def index_problems(root: pathlib.Path = pathlib.Path(".")) -> list[str]:
+    """Return one line per document that exists in a directory its index does not list."""
+    problems: list[str] = []
+    for directory, index_name in INDEXES:
+        d = root / directory
+        index = d / index_name
+        if not index.exists():
+            continue
+        listed = {
+            ref.split("/")[-1]
+            for ref in re.findall(r"\]\(([^)\s]+\.md)\)", index.read_text(errors="replace"))
+        }
+        present = {p.name for p in d.glob("*.md")} - {index_name}
+        for name in sorted(present - listed):
+            problems.append(f"{index}: {name} exists but is not listed in the index")
+    return problems
+
+
 def unlabelled(root: pathlib.Path) -> tuple[list[str], int]:
     """Return (names of reports with no status marker, total reports)."""
     missing, total = [], 0
@@ -115,7 +140,14 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  {total - len(missing)}/{total} reports state their status (first {WINDOW} lines)")
 
     registry: list[str] = []
+    indexes: list[str] = []
     if args.dir is None:
+        indexes = index_problems()
+        if indexes:
+            for problem in indexes:
+                print(f"  {problem}")
+        else:
+            print("  indexes: every plan and analysis is listed in its directory's index")
         registry = registry_problems(CLAIM_REGISTRY)
         if registry:
             for problem in registry:
@@ -123,11 +155,13 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print("  claim registry: every claim names its owner and carries no number")
 
-    if (missing or registry) and not args.warn:
+    if (missing or registry or indexes) and not args.warn:
         if missing:
             print("  FAIL: a report that does not say what it is cannot be trusted to be current")
         if registry:
             print("  FAIL: a registry row that restates a number goes stale without anyone noticing")
+        if indexes:
+            print("  FAIL: an index that does not list its directory is a map with a hole in it")
         return 1
     return 0
 
