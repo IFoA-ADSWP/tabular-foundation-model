@@ -7,7 +7,7 @@ Usage:
         --target CARAVAN --name coil2000
     python scripts/diagnostics/d1_profiling.py ... --run-id 20261029T120000Z
 
-D1's *content* belongs to `docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md` (#208): class balance,
+D1's *content* belongs to `docs/experiments/diagnostics/FINETUNING_DIAGNOSTICS_DESIGN.md` (#208): class balance,
 feature type mix, missingness, target shape, correlation and the feature:row ratio. What this
 script is for in #211 is narrower -- it is the first consumer of the shared writer, so D2-D5
 inherit one record shape instead of inventing five.

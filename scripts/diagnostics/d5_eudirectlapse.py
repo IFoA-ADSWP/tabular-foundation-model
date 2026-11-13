@@ -75,7 +75,7 @@ TARGET = "lapse"
 DATA_FILE = _REPO / "data" / "raw" / "eudirectlapse.csv"
 LAPSE_EVIDENCE = _REPO / "scripts" / "eval" / "lapse_benchmark_v1" / "results_per_split.csv"
 
-# §14.10, as committed in `docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md`. The reproduction
+# §14.10, as committed in `docs/experiments/frontier-benchmark/tabpfn_vs_gbdt_baselines_finetuning.md`. The reproduction
 # step asserts these come back from the per-fold rows; a drift of more than half the thinnest
 # recorded standard error (0.0037 for Linear) is a different baseline, not rounding.
 EXPECTED_BASELINES = {

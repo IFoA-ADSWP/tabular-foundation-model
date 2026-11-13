@@ -6,7 +6,7 @@ description: 'Citation hygiene for literature docs — no identifier, no citatio
 # Literature
 
 One rule, three statuses. The statuses are defined once, in
-`docs/current/FINETUNING_LITERATURE.md` — `verified` (read in the primary source),
+`../../../docs/experiments/pilot2-phase2/FINETUNING_LITERATURE.md` — `verified` (read in the primary source),
 `unverified` (second-hand, not yet seen at source), `corrected` (the source says
 something else). Use those meanings; do not invent parallel ones.
 

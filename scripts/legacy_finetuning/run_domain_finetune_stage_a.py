@@ -1,7 +1,7 @@
 """Stage A pilot runner for insurance domain fine-tuning comparisons.
 
 This executes a controlled first-pass experiment from
-`docs/archive/INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md`:
+`docs/archive/pilot2-phase2/INSURANCE_DOMAIN_FINETUNING_METHOD_PROTOCOL.md`:
 - held-out target insurance dataset
 - domain fine-tune pool from other insurance datasets
 - model arms: raw TabPFN, domain-fine-tuned TabPFN, GLM, RandomForest,

@@ -10,7 +10,7 @@ Usage:
     python scripts/run_pilot.py --seeds 42,43,44 --folds 5
     python scripts/run_pilot.py --rung P1c               # scale rung (see RUNG presets)
 
-Pilot 2 additions (see docs/current/FINETUNING_PREREQUISITES.md):
+Pilot 2 additions (see docs/experiments/pilot2-phase2/FINETUNING_PREREQUISITES.md):
   PR-1  run manifest written per invocation and per arm
   PR-3  fine-tuned weights saved + sha256 (--save-models)
   PR-4  matched-inference-context assertion between the two TabPFN arms
@@ -313,7 +313,7 @@ def _assert_expected_checkpoint():
         raise SystemExit(
             f"\nREFUSING: this launch claims to run {expected!r} and cannot confirm it. {reason}.\n"
             "  The breadth specification says a cell that ran a different model line is not "
-            "comparable with the anchor (docs/current/FINETUNING_BREADTH_SPEC.md)."
+            "comparable with the anchor (docs/experiments/pilot2-phase2/FINETUNING_BREADTH_SPEC.md)."
         )
     return expected
 
@@ -1765,7 +1765,7 @@ def main():
         "env": _runtime_versions(),
         "checkpoints": _checkpoints(),
         # The line this launch ASSERTED it runs, checked before any arm started. null means nobody
-        # asked, which must not read like a pass (D15, docs/current/FINETUNING_BREADTH_SPEC.md).
+        # asked, which must not read like a pass (D15, docs/experiments/pilot2-phase2/FINETUNING_BREADTH_SPEC.md).
         "expected_checkpoint": expected_checkpoint() or None,
         # Reproducibility inputs that were previously implicit or absent:
         "weights": _weights_provenance(),

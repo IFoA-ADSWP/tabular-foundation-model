@@ -14,7 +14,7 @@ A report satisfies the check if one of its first WINDOW lines is a bolded status
     > **Historical document.** Superseded by ...
 Prose that merely contains the word "current" does not pass: the marker has to lead a line.
 
-The same script enforces the claim registry's shape. `docs/current/FINETUNING_FINDINGS.md` is a pointer,
+The same script enforces the claim registry's shape. `docs/experiments/pilot2-phase2/FINETUNING_FINDINGS.md` is a pointer,
 not a store: a row that restates a number its owning document owns goes stale silently, which is how two
 rows kept asserting what their owners had contradicted. Each row must be Claim | Status | Owner, and no
 claim cell may contain a digit. Row references (F1, L3) and ISO dates are identifiers, not measurements, so

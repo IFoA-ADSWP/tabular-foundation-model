@@ -112,7 +112,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup and contribution gui
 
 ## Key Findings
 
-**Current verdict (2026-08-06):** TabPFN is the best risk-ranking model in the suite — AUC #1 over GLMs, LightGBM, CatBoost, XGBoost and RF on all six canonical classification datasets (deltas +0.006 to +0.033 over the best GLM, five ≥2.5 SE (four >2.5); calibration never significantly worse, log loss better or tied vs the best GLM), holding #1 at production scale up to 184K rows (master report §14.11; [`docs/archive/TABPFN_BENCHMARK_SUMMARY.md`](docs/archive/TABPFN_BENCHMARK_SUMMARY.md)). It wins the business case where the question is which policies are risky — underwriting triage, lapse/surrender propensity, claim/no-claim targeting — and stays on the bench for pricing/regression targets where GBDTs win. The eudirectlapse loss below is the known exception.
+**Current verdict (2026-08-06):** TabPFN is the best risk-ranking model in the suite — AUC #1 over GLMs, LightGBM, CatBoost, XGBoost and RF on all six canonical classification datasets (deltas +0.006 to +0.033 over the best GLM, five ≥2.5 SE (four >2.5); calibration never significantly worse, log loss better or tied vs the best GLM), holding #1 at production scale up to 184K rows (master report §14.11; [`docs/archive/frontier-benchmark/TABPFN_BENCHMARK_SUMMARY.md`](docs/archive/frontier-benchmark/TABPFN_BENCHMARK_SUMMARY.md)). It wins the business case where the question is which policies are risky — underwriting triage, lapse/surrender propensity, claim/no-claim targeting — and stays on the bench for pricing/regression targets where GBDTs win. The eudirectlapse loss below is the known exception.
 
 On the eudirectlapse lapse-prediction task (13% lapse rate):
 
@@ -122,7 +122,7 @@ On the eudirectlapse lapse-prediction task (13% lapse rate):
 | **Calibration (Brier)** | TabPFN after isotonic calibration **0.1080** vs GLM 0.1098 |
 | **Bottom line** | TabPFN matches a tuned GLM out-of-the-box with no traditional training. Post-hoc calibration gives it a small edge on probability accuracy — relevant for pricing and reserving. |
 
-See [`docs/archive/TECHNICAL_COMPANION.md`](docs/archive/TECHNICAL_COMPANION.md) for a walkthrough of every metric.
+See [`docs/archive/frontier-benchmark/TECHNICAL_COMPANION.md`](docs/archive/frontier-benchmark/TECHNICAL_COMPANION.md) for a walkthrough of every metric.
 
 ## Documentation Index
 
@@ -144,7 +144,7 @@ torch, TabPFN, matplotlib, seaborn. Optional: XGBoost, LightGBM, CatBoost.
 ## References
 
 - [TabPFN upstream](https://github.com/PriorLabs/TabPFN) — the foundation model
-- [Molnar, *Tabular Foundation Models*](https://tabularfoundationmodels.com/) — external research context; see [`docs/reference/TABULAR_FOUNDATION_MODELS_MOLNAR.md`](docs/reference/TABULAR_FOUNDATION_MODELS_MOLNAR.md)
+- [Molnar, *Tabular Foundation Models*](https://tabularfoundationmodels.com/) — external research context; see [`docs/shared/TABULAR_FOUNDATION_MODELS_MOLNAR.md`](docs/shared/TABULAR_FOUNDATION_MODELS_MOLNAR.md)
 - [CASdatasets](https://CRAN.R-project.org/package=CASdatasets) — R package supplying the datasets
 - `legacy/adswp_project_scripts/` — original R analysis scripts
 

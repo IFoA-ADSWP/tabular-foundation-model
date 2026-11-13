@@ -4,7 +4,7 @@ Reads captured per-fold predictions written by run_frontier_benchmark.py's
 --save-predictions (#122): predictions/<dataset>__seed<seed>.npz + .manifest.json.
 For each of the 6 regression datasets, computes MAE / Gamma deviance / Tweedie
 deviance (p=1.5) on the EURO (or count) scale, inverse-transforming stored
-log/log1p predictions per docs/analyses/altmetrics_rescore_spec.md §3. No refits,
+log/log1p predictions per docs/experiments/frontier-benchmark/altmetrics_rescore_spec.md §3. No refits,
 no hosted-API calls — CPU-only, seconds to run, zero new dependencies (sklearn only).
 
 RMSE/Poisson-deviance (the existing primary metrics) are NOT recomputed here — they
@@ -71,7 +71,7 @@ METHODS = [m.name for m in mode_methods(_REGISTRY, REGRESSION)]
 GLM_FAMILY = ["ols", "poissonglm", "tweedieglm"]   # regression-mode analog of analyze_pr_auc.GLM_FAMILY; rf excluded, same as that precedent
 GBDT_FAMILY = ["cat", "lgbm", "xgb"]
 
-# Per-dataset applicability + inverse-transform config (spec §3, docs/analyses/altmetrics_rescore_spec.md).
+# Per-dataset applicability + inverse-transform config (spec §3, docs/experiments/frontier-benchmark/altmetrics_rescore_spec.md).
 REG_ALT_CONFIG: dict[str, dict] = {
     "ausautoBI8999":            dict(scale="log",   inverse="exp",      metrics=["mae", "gamma_deviance", "tweedie_deviance_p1.5"]),
     "bemtl97_amount":           dict(scale="log1p",  inverse="expm1",    metrics=["mae", "gamma_deviance", "tweedie_deviance_p1.5"]),
