@@ -6,14 +6,18 @@
 
 ## Which environment?
 
-There are **two** Python environments here, and using the wrong one is the most common way to lose an
-afternoon. They hold different TabPFN versions on purpose: the benchmark verdicts were measured against the
-hosted client, and the fine-tuning line runs the local package.
+There is **one** environment, and it is the lock: `./scripts/bootstrap_dev.sh` builds `.venv` from
+`requirements.lock`, and that single environment covers both lines. It holds `tabpfn 8.5.0` for the fine-tuning
+line **and** `tabpfn-client 0.3.3` for the benchmark line, because the lock pins both — the verdicts were
+measured against the hosted client and the fine-tuning runs the local package, from one interpreter.
 
 | Environment | Holds | Built by | Used for |
 | --- | --- | --- | --- |
-| `.venv` | Python 3.12, `tabpfn 8.5.0` from `requirements.lock` | `./scripts/bootstrap_dev.sh` | the tests, the diagnostics, `scripts/run_pilot.py`, `scripts/run_fair_test.py` |
-| the TabArena venv | `tabpfn-client 0.3.3` (hosted API) | [`notebooks/reproducibility/README.md`](../notebooks/reproducibility/README.md) §Setup | `scripts/eval/`, `scripts/benchmarks/`, the repro notebooks |
+| `.venv` | Python 3.12, `tabpfn 8.5.0` **and** `tabpfn-client 0.3.3`, plus the GBDT baselines | `./scripts/bootstrap_dev.sh` | everything in this repository: the tests, the diagnostics, `scripts/eval/`, the repro notebooks, `scripts/run_pilot.py`, `scripts/run_fair_test.py` |
+
+The one exception is external: the four `scripts/benchmarks/run_tabarena_*.py` runners import the third-party
+`tabarena` package from a checkout at `/tmp/tabarena` with its own venv. That is optional tooling for the
+harness, not a second environment for this repo — nothing here needs it to reproduce a published number.
 
 `requirements.txt` holds loose ranges and is the file the lock is generated from — install the lock, never the
 ranges. `requirements-legacy.txt` is the v2-era path for `scripts/legacy_finetuning/` only, and is never used
@@ -32,14 +36,14 @@ agree before any experiment can fail for a less obvious reason.
 | You want to… | Environment | Command | Output | Runbook |
 | --- | --- | --- | --- | --- |
 | Run the tests | `.venv` | `.venv/bin/pytest tests/ -q` | nothing | — |
-| Reproduce a published number | any interpreter with `pandas` (`.venv` is fine); the TabArena venv only for the preflight | `jupyter lab notebooks/reproducibility/01_frontier_classification_repro.ipynb`, then run the read-only cells | nothing — they read committed files | §A.7–§A.9 |
-| Run a benchmark yourself | TabArena venv | `python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --seed 7 coil2000` — `coil2000` is a dataset name | `results/<YYYYmmdd-HHMMSS>/` by default; `--save-predictions` adds `predictions/` inside it, and `--out-dir legacy` writes beside the script | §A.3, §A.7 |
+| Reproduce a published number | `.venv` | `jupyter lab notebooks/reproducibility/01_frontier_classification_repro.ipynb`, then run the read-only cells | nothing — they read committed files | §A.7–§A.9 |
+| Run a benchmark yourself | `.venv` | `python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --seed 7 coil2000` — `coil2000` is a dataset name | `results/<YYYYmmdd-HHMMSS>/` by default; `--save-predictions` adds `predictions/` inside it, and `--out-dir legacy` writes beside the script | §A.3, §A.7 |
 | Run the fine-tuning pilot | `.venv` locally, the launcher's own pins when rented | `python scripts/run_pilot.py --dataset coil2000`, or `bash scripts/gpu_helpers/vast_run.sh` | `outputs/finetune/pilot/` run locally; `outputs/gpu-pilot/` when the launcher runs it | §C.2 |
 
 **Start with the notebooks, not the scripts.** Their evidence cells are already executed and read committed
 files, so they cost nothing and overwrite nothing. The one exception is the notebook's *preflight* cell, which
-imports `tabpfn_client`, `xgboost`, `lightgbm` and `catboost` to prove you are in the benchmark environment —
-skip it if all you want is a table. Only the cells tagged `optional` re-run an experiment, and those spend
+imports `tabpfn_client`, `xgboost`, `lightgbm` and `catboost` to prove the stack is installed — all four are in
+the lock, so `.venv` satisfies it, and you can skip it if all you want is a table. Only the cells tagged `optional` re-run an experiment, and those spend
 credits and overwrite the committed results.
 
 **The frontier runner is destructive by default.** With no arguments it overwrites its own committed CSVs.

@@ -103,8 +103,14 @@ hosted-API spend and CPU-bound baselines. Per-section estimates:
 
 ### Frontier era (A)
 
+**Most of this era does not need the harness.** `requirements.lock` already pins
+`tabpfn-client==0.3.3` alongside `tabpfn 8.5.0`, so every `scripts/eval/` runner and every repro notebook
+runs in the repository's own `.venv` (`./scripts/bootstrap_dev.sh`). The external checkout below is needed
+only by the four `scripts/benchmarks/run_tabarena_*.py` runners, which import the third-party `tabarena`
+package.
+
 ```bash
-# TabArena harness + benchmark venv (one-time, ~10 min):
+# TabArena harness only (one-time, ~10 min) — the run_tabarena_* runners:
 git clone https://github.com/autogluon/tabarena.git /tmp/tabarena
 uv venv --seed --python 3.12 /tmp/tabarena/.venv-ta
 source /tmp/tabarena/.venv-ta/bin/activate
@@ -112,8 +118,9 @@ uv pip install --prerelease=allow -e "/tmp/tabarena/packages/tabarena[benchmark,
 uv pip install "tabpfn-client==0.3.3"   # EVERY verdict is stamped to 0.3.3 — do not drift
 ```
 
-- The repo-local `.venv-ta/` is the venv that produced the committed outputs and is already
-  set up (incl. Jupyter kernel for the repro notebooks, name `tabarena-ta`).
+- `/tmp/tabarena/.venv-ta` is **outside** the repository and does not survive a reboot. An earlier
+  version of this page called it the "repo-local `.venv-ta`" and the repro notebooks sourced it; the
+  lock has since unified the two lines, so neither is needed for the published numbers.
 - **API auth:** `TABPFN_API_KEY` env var, or a `TABPFN_API_KEY=...` line in the repo-root
   `.env` (gitignored), or `TABPFN_ENV_FILE` pointing at a file. Every script raises a clear
   error if none exists. The repro notebooks' preflight cell can also do a browser login and

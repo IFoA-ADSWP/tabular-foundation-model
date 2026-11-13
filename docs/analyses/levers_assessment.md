@@ -28,7 +28,7 @@ Keep, sharpened. "Levers narrow but do not close the at-scale gap" is confirmed 
 - Fine-tuned arm, regression (decisive test): `run_finetuned_tabpfn_regression_benchmark.py` + `evaluate_regressor_stability_gate.py` on spanish_motor_severity (53.5K) — the off-frontier severity loss; report `finetune_steps_executed` and non-finite counters.
 - HPO: document-as-closed addendum to §12.3 (hosted API surface); no run.
 - Context/ensembling: document-as-closed addendum to §13/§12.1 (frontier already ran full-size); no run.
-- Pins per §15 policy: tabpfn-client 0.3.3 in /tmp/tabarena/.venv-ta, model_path="v3_default", record installed version and diff `frontier_results_*.csv` (method, mean, se, n_params, on_frontier) against committed baselines before claiming any change.
+- Pins per §15 policy: tabpfn-client 0.3.3 in the repository `.venv` (`requirements.lock`), model_path="v3_default", record installed version and diff `frontier_results_*.csv` (method, mean, se, n_params, on_frontier) against committed baselines before claiming any change.
 - If fine-tuned arms show no beyond-SE improvement on both targets, close #54 with the hypothesis confirmed and no further runs.
 
 ## References
