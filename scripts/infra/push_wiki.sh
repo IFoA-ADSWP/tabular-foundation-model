@@ -2,25 +2,25 @@
 # Push the maintenance backlog content to the GitHub Wiki.
 #
 # PREREQUISITE: The wiki must be initialized. To do this:
-#   1. Go to https://github.com/IFoA-ADSWP/TabPFN/wiki
+#   1. Go to https://github.com/IFoA-ADSWP/tabular-foundation-model/wiki
 #   2. Click "Create the first page"
 #   3. Title: "Home", body: anything (e.g., "init")
 #   4. Save
 # After that, run this script.
 #
-# The wiki repo is at: https://github.com/IFoA-ADSWP/TabPFN.wiki.git
+# The wiki repo is at: https://github.com/IFoA-ADSWP/tabular-foundation-model.wiki.git
 
 set -euo pipefail
 
-REPO="IFoA-ADSWP/TabPFN"
+REPO="IFoA-ADSWP/tabular-foundation-model"
 WIKI_DIR="${1:-/tmp/tabpfn-wiki}"
 CONTENT_DIR="$(cd "$(dirname "$0")/.." && pwd)/.wiki-content"
 
 # Stage release-facing pages for colleagues (browser-viewable, no repo clone needed)
 mkdir -p "$CONTENT_DIR"
-cp docs/reports/TABPFN_BENCHMARK_SUMMARY.md "$CONTENT_DIR/Benchmark-Summary.md"
-cp docs/analyses/regime_characterization.md "$CONTENT_DIR/Adoption-Guidance.md"
-cp docs/analyses/metrics_explained.md "$CONTENT_DIR/Metrics-Explained.md"
+cp docs/archive/frontier-benchmark/TABPFN_BENCHMARK_SUMMARY.md "$CONTENT_DIR/Benchmark-Summary.md"
+cp docs/experiments/frontier-benchmark/regime_characterization.md "$CONTENT_DIR/Adoption-Guidance.md"
+cp docs/shared/metrics_explained.md "$CONTENT_DIR/Metrics-Explained.md"
 
 echo "==> Cloning $REPO.wiki.git into $WIKI_DIR"
 if [[ -d "$WIKI_DIR" ]]; then

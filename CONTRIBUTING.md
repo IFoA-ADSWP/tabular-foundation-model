@@ -39,10 +39,11 @@ cd tabular-foundation-model
 .venv/bin/pytest tests/ -q
 ```
 
-`bootstrap_dev.sh` installs `requirements.lock` and asserts the pins; `README.md` also documents a
-`uv` path. Creating a venv by hand and installing `requirements.txt` works for most scripts but can
-resolve a different scientific stack, which changes test results — see
-`docs/DEVELOPMENT_ENVIRONMENT.md`.
+`bootstrap_dev.sh` installs `requirements.lock` and asserts the pins. Do not create the environment by hand:
+installing `requirements.txt` admits a different scientific stack *within* its ranges, which changes test
+results. `requirements-legacy.txt` exists only for the v2-era scripts under `scripts/legacy_finetuning/`. The
+full story is in `docs/DEVELOPMENT_ENVIRONMENT.md`, and `docs/RUNNING.md` says which environment each route
+needs.
 
 ## Repository Layout
 
@@ -59,13 +60,16 @@ outputs/
   archive/              # Historical experiment outputs (gitignored)
 scripts/                # One-off experiment scripts (not notebooks)
 docs/
-  reports/              # Analysis reports (must register in REPORT_REGISTRY.md)
+  RUNNING.md            # Which environment, which command, where the output lands
+  current/              # Reports describing the design as built
+  reference/            # Historical, still cited for provenance
+  archive/              # Kept for the record, not cited
   analyses/             # Methodology notes (lighter than reports)
   papers/               # Paper content and LaTeX style files
-  status/               # Project status and security record
   plans/                # One plan per task, written before non-trivial work
   adr/                  # Architecture decision records (accepted decisions)
-tests/                  # Smoke tests and test-support helpers
+  roadmap/              # Workstream workbook (the Excel dashboard)
+tests/                  # The test suite
 ```
 
 ## Running Notebooks

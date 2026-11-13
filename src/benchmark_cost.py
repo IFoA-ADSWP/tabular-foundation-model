@@ -52,7 +52,7 @@ class Fit:
         return len(self.targets) * self.folds * self.seeds
 
 
-# Fixed from `docs/current/REGRESSOR_FINETUNING_PREREGISTRATION_2026-11.md` §"Design".
+# Fixed from `docs/experiments/fair-test-freq-sev/REGRESSOR_FINETUNING_PREREGISTRATION_2026-11.md` §"Design".
 # `S_50k`'s target set is not named by the spec; costing all three is the conservative reading and
 # is listed as an assumption in every estimate.
 MATRIX: tuple[Fit, ...] = (

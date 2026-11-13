@@ -8,14 +8,23 @@ This repo contains experiments by the **IFoA Actuarial Data Science Working Part
 
 ## Quick Start
 
+Build the environment from the lock, and prove it before anything else:
+
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-# reproducible exact-match env (recommended for replication):
-uv pip sync requirements.lock
-jupyter notebook notebooks/adswp_project/01_TabPFN_classifier_eudirectlapse.ipynb
+./scripts/bootstrap_dev.sh          # creates .venv from requirements.lock and asserts the pins
+.venv/bin/pytest tests/ -q          # the canonical test command
 ```
+
+`requirements.txt` is the loose floor that `requirements.lock` is compiled from — do not install it directly.
+`requirements-legacy.txt` is the v2-era path for `scripts/legacy_finetuning/` only.
+
+**To run something rather than test it, read [`docs/RUNNING.md`](docs/RUNNING.md).** It names the environment,
+the command, the output tree and the runbook section for each route. Note that the benchmark line
+(`scripts/eval/`, `scripts/benchmarks/`) runs against a *different* environment — the TabArena venv with
+`tabpfn-client 0.3.3` — because the published verdicts were measured against the hosted client.
+
+`notebooks/adswp_project/` holds the paper-replication notebooks, which are v2-era; `notebooks/reproducibility/`
+holds the three that reproduce the current numbers without spending credits.
 
 ### API key setup
 
@@ -64,16 +73,20 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup and contribution gui
 │   ├── archive/                    # Historical experiment outputs (gitignored)
 │   └── replication/                # Paper replication outputs (config, tables, figures)
 │
-├── docs/
-│   ├── reports/                    # Analysis reports (see REGISTRY.md)
-│   ├── analyses/                   # Methodology docs and analysis summaries
-│   ├── papers/                     # Paper content + LaTeX style files
-│   ├── status/                     # Project status and security record
-│   └── REPLICATION_SETUP_GUIDE.md  # Step-by-step replication instructions
+├── docs/                           # Start at docs/README.md
+│   ├── RUNNING.md                  #   the route in, if you are running the code
+│   ├── EVIDENCE_MAP.md             #   which tree holds which number
+│   ├── current/                    #   reports describing the design as built
+│   ├── reference/                  #   historical, still cited for provenance
+│   ├── archive/                    #   kept for the record, not cited
+│   ├── plans/                      #   one plan per task, written before the work
+│   ├── adr/                        #   accepted decisions that constrain the code
+│   └── analyses/                   #   methodology, diagnostics, result notes
 │
-├── scripts/                        # One-off experiment scripts
+├── scripts/                        # Indexed in scripts/README.md
+├── results/                        # Committed run captures (see docs/EVIDENCE_MAP.md)
 ├── legacy/                         # Deprecated R analysis scripts
-├── tests/                          # Smoke tests
+├── tests/                          # The test suite
 ├── requirements.txt
 ├── CONTRIBUTING.md
 └── CHANGELOG.md
@@ -99,7 +112,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup and contribution gui
 
 ## Key Findings
 
-**Current verdict (2026-08-06):** TabPFN is the best risk-ranking model in the suite — AUC #1 over GLMs, LightGBM, CatBoost, XGBoost and RF on all six canonical classification datasets (deltas +0.006 to +0.033 over the best GLM, five ≥2.5 SE (four >2.5); calibration never significantly worse, log loss better or tied vs the best GLM), holding #1 at production scale up to 184K rows (master report §14.11; [`docs/archive/TABPFN_BENCHMARK_SUMMARY.md`](docs/archive/TABPFN_BENCHMARK_SUMMARY.md)). It wins the business case where the question is which policies are risky — underwriting triage, lapse/surrender propensity, claim/no-claim targeting — and stays on the bench for pricing/regression targets where GBDTs win. The eudirectlapse loss below is the known exception.
+**Current verdict (2026-08-06):** TabPFN is the best risk-ranking model in the suite — AUC #1 over GLMs, LightGBM, CatBoost, XGBoost and RF on all six canonical classification datasets (deltas +0.006 to +0.033 over the best GLM, five ≥2.5 SE (four >2.5); calibration never significantly worse, log loss better or tied vs the best GLM), holding #1 at production scale up to 184K rows (master report §14.11; [`docs/archive/frontier-benchmark/TABPFN_BENCHMARK_SUMMARY.md`](docs/archive/frontier-benchmark/TABPFN_BENCHMARK_SUMMARY.md)). It wins the business case where the question is which policies are risky — underwriting triage, lapse/surrender propensity, claim/no-claim targeting — and stays on the bench for pricing/regression targets where GBDTs win. The eudirectlapse loss below is the known exception.
 
 On the eudirectlapse lapse-prediction task (13% lapse rate):
 
@@ -109,31 +122,29 @@ On the eudirectlapse lapse-prediction task (13% lapse rate):
 | **Calibration (Brier)** | TabPFN after isotonic calibration **0.1080** vs GLM 0.1098 |
 | **Bottom line** | TabPFN matches a tuned GLM out-of-the-box with no traditional training. Post-hoc calibration gives it a small edge on probability accuracy — relevant for pricing and reserving. |
 
-See [`docs/archive/TECHNICAL_COMPANION.md`](docs/archive/TECHNICAL_COMPANION.md) for a walkthrough of every metric.
+See [`docs/archive/frontier-benchmark/TECHNICAL_COMPANION.md`](docs/archive/frontier-benchmark/TECHNICAL_COMPANION.md) for a walkthrough of every metric.
 
 ## Documentation Index
 
-The docs are extensive. Start here:
+The full index is **[`docs/README.md`](docs/README.md)** — start there. Two pages answer most questions:
 
-- **`docs/REPORT_REGISTRY.md`** — maps every report to its source notebook and evidence files
-- **`docs/current/FINETUNING_PILOT_DESIGN.md`** — **start here for the current funded fine-tuning proposal**: diagnostics, full in-domain pilot, arms, metrics, and decision rules
-- **`docs/current/FINETUNING_STATUS_BRIEF.md`** — one-page stakeholder summary of the two completed probes and the funded work
-- **`docs/current/FINETUNING_FINDINGS.md`** — current evidence registry; use it to check whether a claim is current or superseded
-- **`docs/current/FINETUNING_DIAGNOSTICS_DESIGN.md`** — detailed diagnostic methods for Phase 1
-- **`docs/archive/TECHNICAL_COMPANION.md`** — explains all metrics in actuarial context (best first read)
-- **`docs/REPLICATION_SETUP_GUIDE.md`** — step-by-step to reproduce the paper results
-- **`docs/archive/status/STATUS_REPORT_FINAL.md`** — summary of validated findings and recommendations
+- **[`docs/RUNNING.md`](docs/RUNNING.md)** — which environment, which command, where the output lands.
+- **[`docs/EVIDENCE_MAP.md`](docs/EVIDENCE_MAP.md)** — which tree holds the evidence behind a number, and what
+  a citation must have.
 
-The other `docs/current/PILOT_2_*` files are supporting execution, cost, statistical, and decision appendices. If a document conflicts with the canonical full pilot design, use the canonical design and treat the older text as historical or supporting material.
+The report-level registry is [`docs/REPORT_REGISTRY.md`](docs/REPORT_REGISTRY.md), and
+[`docs/DOCUMENT_AUTHORITY.md`](docs/DOCUMENT_AUTHORITY.md) says which document wins when two disagree.
 
 ## Dependencies
 
-Python 3.10+. Core stack: numpy, pandas, scikit-learn, torch, TabPFN, matplotlib, seaborn. Optional: XGBoost, LightGBM, CatBoost.
+Python 3.12. `scripts/bootstrap_dev.sh` builds `.venv` from `requirements.lock` and refuses an interpreter that
+is not 3.12, because the lock's `numpy<2` pin has no wheel for 3.13. Core stack: numpy, pandas, scikit-learn,
+torch, TabPFN, matplotlib, seaborn. Optional: XGBoost, LightGBM, CatBoost.
 
 ## References
 
 - [TabPFN upstream](https://github.com/PriorLabs/TabPFN) — the foundation model
-- [Molnar, *Tabular Foundation Models*](https://tabularfoundationmodels.com/) — external research context; see [`docs/reference/TABULAR_FOUNDATION_MODELS_MOLNAR.md`](docs/reference/TABULAR_FOUNDATION_MODELS_MOLNAR.md)
+- [Molnar, *Tabular Foundation Models*](https://tabularfoundationmodels.com/) — external research context; see [`docs/shared/TABULAR_FOUNDATION_MODELS_MOLNAR.md`](docs/shared/TABULAR_FOUNDATION_MODELS_MOLNAR.md)
 - [CASdatasets](https://CRAN.R-project.org/package=CASdatasets) — R package supplying the datasets
 - `legacy/adswp_project_scripts/` — original R analysis scripts
 

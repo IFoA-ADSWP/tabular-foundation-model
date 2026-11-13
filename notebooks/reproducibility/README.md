@@ -20,21 +20,24 @@ overwrite or append to the committed files (see the per-notebook warnings below)
 
 ## Setup (once)
 
-1. **Kernel:** these scripts run in the benchmark venv (Python 3.12, tabpfn-client 0.3.3 — the
-   version every verdict is stamped to). Make it available to Jupyter:
+1. **Environment:** these notebooks run in the repository's **own** `.venv`. `./scripts/bootstrap_dev.sh`
+   builds it from `requirements.lock`, which already pins `tabpfn-client 0.3.3` — the version every verdict
+   is stamped to — alongside `pandas`, `scikit-learn`, the GBDT baselines and the full Jupyter stack
+   (`jupyterlab`, `nbclient`, `ipykernel`). Nothing extra to install:
 
    ```bash
-   source /tmp/tabarena/.venv-ta/bin/activate
-   pip install ipykernel
-   python -m ipykernel install --user --name tabarena-ta
+   ./scripts/bootstrap_dev.sh
+   .venv/bin/python -m ipykernel install --user --name tabular-foundation-model
    ```
 
-   For running the notebooks locally, the venv needs Jupyter's execution stack:
-   `pip install jupyter ipykernel` (brings nbclient/nbconvert/nbformat). The repo-local
-   `.venv-ta` is the venv that produced the committed outputs and is already set up this way.
+   Select the `tabular-foundation-model` kernel and run the cells. If you built a fresh environment by
+   hand, re-read master-report §15 before trusting a comparison — the verdicts are version-sensitive.
 
-   (If you built a fresh environment, pin `tabpfn-client` to 0.3.3 and re-read master-report §15
-   before trusting comparisons — verdicts are version-sensitive.)
+   **Historic note.** An earlier setup used a separate benchmark venv at `/tmp/tabarena/.venv-ta` and
+   called it "the repo-local `.venv-ta`". That venv was never part of the repository and does not exist.
+   The lock has since unified the two lines — `tabpfn 8.5.0` and `tabpfn-client 0.3.3` install together —
+   so the second venv is not needed. Only the four `scripts/benchmarks/run_tabarena_*.py` runners need the
+   external `tabarena` package, from its own checkout.
 
 2. **Auth — browser login (easiest):** run the preflight cell of any repro notebook. It
    detects that no `TABPFN_API_KEY` is configured, opens the Prior Labs login page in your
@@ -61,5 +64,5 @@ overwrite or append to the committed files (see the per-notebook warnings below)
 - `scripts/eval/insurance_benchmark_v1/reframe_frequency_results.csv` / `_summary.csv` — §14.14
 - `scripts/eval/insurance_benchmark_v1/frontier_tuned_baseline_results.csv` — §14.13
 
-Context: master report `docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md`, digest
+Context: master report `../../docs/experiments/frontier-benchmark/tabpfn_vs_gbdt_baselines_finetuning.md`, digest
 `docs/MASTER-REPORT-DIGEST.md`, knowledge path `docs/KNOWLEDGE-PATH.md` (Stage 4.5).

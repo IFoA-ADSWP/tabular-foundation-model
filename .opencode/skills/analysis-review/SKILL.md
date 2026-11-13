@@ -12,7 +12,7 @@ block "done".
 
 ## What you review
 
-A drafted report or analysis note about to ship — `docs/reports/` or `docs/analyses/` —
+A drafted report or analysis note about to ship — `docs/current/`, `docs/reference/` or `docs/analyses/` —
 not work in progress. Name the file and its registry row first.
 
 ## Hard findings (block "done")
@@ -24,7 +24,7 @@ not work in progress. Name the file and its registry row first.
    under (`docs/MODEL_VERSIONS.md`). An unpinned number, or a claim mixing version eras, is
    meaningless and hard.
 3. **Comparison outside the SAP.** The pre-registered design
-   (`docs/current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md`) permits paired comparisons only:
+   (`../../../docs/experiments/pilot2-phase2/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md`) permits paired comparisons only:
    primaries are paired log loss and ROC AUC; transfer is against `T_RAW` and
    `T_RANDOM_LABELS`; interactions are off-ramp only. A test outside that set — or a test
    chosen after seeing the data — is hard.

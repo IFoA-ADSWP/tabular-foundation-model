@@ -1,8 +1,8 @@
 # Plan — the actuarial baseline (#597)
 
 **Status:** current — scoped 2026-11-13; build not started.
-**Origin:** ticket #597. **Specification:** `docs/analyses/baseline_method_specification.md`.
-**Pre-registration:** `docs/current/ACTUARIAL_BASELINE_PREREGISTRATION_2026-11.md`.
+**Origin:** ticket #597. **Specification:** `docs/experiments/fair-test-freq-sev/baseline_method_specification.md`.
+**Pre-registration:** `docs/experiments/fair-test-freq-sev/ACTUARIAL_BASELINE_PREREGISTRATION_2026-11.md`.
 
 ## Why this, and why now
 

@@ -23,6 +23,29 @@ Three eras, documented separately:
   is the only way arm B (actual fine-tuning) can run. ⚠ Partially verified: no run has yet
   completed end-to-end. See §C before invoking it.
 
+## Task index — start here if you know what you want to run
+
+The sections below are grouped by era, because that is how the programme happened. If you know the task and
+not the era, this table is the way in.
+
+| I want to… | Section |
+| --- | --- |
+| Build the environment once | §0 (`./scripts/bootstrap_dev.sh` for the current code; the TabArena venv for the frontier line) |
+| Verify a published number without spending anything | `notebooks/reproducibility/01`–`03`, referenced by §A.7–§A.9 |
+| Run a pipeline sanity check first | §A.2 (smoke, ~2 min) |
+| Run the TabArena 7-dataset insurance benchmark | §A.3 |
+| Run the lapse benchmark | §A.4 |
+| Run the home-turf size sweep | §A.5 |
+| Run the imbalance pilot and its rescore | §A.6 |
+| Run the frontier benchmark (the master report's core) | §A.7 |
+| Run the tuned-baseline finality test | §A.8 |
+| Run the count-reframe experiment | §A.9 |
+| Redraw the money chart | §A.10 |
+| Reproduce a 2026-04 legacy experiment | §B.1–§B.9 (provenance, not canonical) |
+| Rent a GPU and run the fine-tuning pilot | §C.1–§C.2 |
+| Understand what a run costs, and what has already gone wrong | §C.5–§C.6 |
+| Fix something that failed | §5 |
+
 ## Registry → runbook section map
 
 | Report registry topic key | Runbook section |
@@ -80,8 +103,14 @@ hosted-API spend and CPU-bound baselines. Per-section estimates:
 
 ### Frontier era (A)
 
+**Most of this era does not need the harness.** `requirements.lock` already pins
+`tabpfn-client==0.3.3` alongside `tabpfn 8.5.0`, so every `scripts/eval/` runner and every repro notebook
+runs in the repository's own `.venv` (`./scripts/bootstrap_dev.sh`). The external checkout below is needed
+only by the four `scripts/benchmarks/run_tabarena_*.py` runners, which import the third-party `tabarena`
+package.
+
 ```bash
-# TabArena harness + benchmark venv (one-time, ~10 min):
+# TabArena harness only (one-time, ~10 min) — the run_tabarena_* runners:
 git clone https://github.com/autogluon/tabarena.git /tmp/tabarena
 uv venv --seed --python 3.12 /tmp/tabarena/.venv-ta
 source /tmp/tabarena/.venv-ta/bin/activate
@@ -89,8 +118,9 @@ uv pip install --prerelease=allow -e "/tmp/tabarena/packages/tabarena[benchmark,
 uv pip install "tabpfn-client==0.3.3"   # EVERY verdict is stamped to 0.3.3 — do not drift
 ```
 
-- The repo-local `.venv-ta/` is the venv that produced the committed outputs and is already
-  set up (incl. Jupyter kernel for the repro notebooks, name `tabarena-ta`).
+- `/tmp/tabarena/.venv-ta` is **outside** the repository and does not survive a reboot. An earlier
+  version of this page called it the "repo-local `.venv-ta`" and the repro notebooks sourced it; the
+  lock has since unified the two lines, so neither is needed for the published numbers.
 - **API auth:** `TABPFN_API_KEY` env var, or a `TABPFN_API_KEY=...` line in the repo-root
   `.env` (gitignored), or `TABPFN_ENV_FILE` pointing at a file. Every script raises a clear
   error if none exists. The repro notebooks' preflight cell can also do a browser login and
@@ -517,7 +547,7 @@ bash scripts/legacy_finetuning/run_finetune_stress_batch_2000.sh    # S1-S4 @200
   reload check on CPU. Inputs: `data/raw/coil2000.csv` (trial defaults), local TabPFN v6.
 - Outputs: append to `outputs/current/tables/tabpfn_finetune_trial_results.csv` +
   `tabpfn_finetune_reload_checks.csv`; artifacts in `outputs/current/models/`.
-- Evidence for `docs/archive/TABPFN_FINE_TUNING_LIMIT_STUDY.md` (registry: `finetuning-limit-study`).
+- Evidence for `archive/pilot2-phase2/TABPFN_FINE_TUNING_LIMIT_STUDY.md` (registry: `finetuning-limit-study`).
 
 ## C. GPU execution era (2026-09 →) — fine-tuning pilot on a rented GPU
 

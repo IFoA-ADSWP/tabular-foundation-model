@@ -14,7 +14,7 @@ A report satisfies the check if one of its first WINDOW lines is a bolded status
     > **Historical document.** Superseded by ...
 Prose that merely contains the word "current" does not pass: the marker has to lead a line.
 
-The same script enforces the claim registry's shape. `docs/current/FINETUNING_FINDINGS.md` is a pointer,
+The same script enforces the claim registry's shape. `docs/experiments/pilot2-phase2/FINETUNING_FINDINGS.md` is a pointer,
 not a store: a row that restates a number its owning document owns goes stale silently, which is how two
 rows kept asserting what their owners had contradicted. Each row must be Claim | Status | Owner, and no
 claim cell may contain a digit. Row references (F1, L3) and ISO dates are identifiers, not measurements, so
@@ -36,7 +36,7 @@ WINDOW = 15
 # The three report tiers. docs/reports/ was dissolved into these in #200-#202, and this script
 # kept pointing at the dead path -- so the rule silently stopped being enforced for six weeks
 # (it exited 2, and nobody reads an exit code that says "no such directory").
-DEFAULT_DIRS = ("docs/current", "docs/reference", "docs/archive")
+DEFAULT_DIRS = ("docs/experiments", "docs/shared", "docs/archive")
 MARKER = re.compile(
     r"^\s*(?:>\s*)?[*_]{0,2}(status|current|superseded|historical|proposed|draft|archived)\b",
     re.IGNORECASE,
@@ -45,7 +45,7 @@ MARKER = re.compile(
 # The registry is checked only when the whole collection is being checked; --dir stays a
 # per-directory status check. A missing registry is a failure, never a skip: a check that passes
 # because its subject moved is worse than no check at all.
-CLAIM_REGISTRY = pathlib.Path("docs/current/FINETUNING_FINDINGS.md")
+CLAIM_REGISTRY = pathlib.Path("docs/experiments/pilot2-phase2/FINETUNING_FINDINGS.md")
 ROW_REF = re.compile(r"\b[FL]\d+\b")
 ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 ANY_DIGIT = re.compile(r"\d")
@@ -74,14 +74,57 @@ def registry_problems(path: pathlib.Path) -> list[str]:
     return problems
 
 
+# Directories whose README claims to be the index of that directory. A hand-written index
+# beside a growing tree drifts on the next merge -- plans/README.md was one document short
+# within a day of landing (#580 then #576). The check lives here, beside the claim-registry
+# assertion, rather than as a ninth job: #489 set that precedent for the same reason.
+INDEXES = (("docs/plans", "README.md"),)
+
+
+def index_problems(root: pathlib.Path = pathlib.Path(".")) -> list[str]:
+    """Return one line per document that exists in a directory its index does not list."""
+    problems: list[str] = []
+    pairs = [(root / directory, index_name) for directory, index_name in INDEXES]
+    experiments = root / "docs" / "experiments"
+    if experiments.is_dir():
+        pairs += [(d, "README.md") for d in sorted(experiments.iterdir()) if d.is_dir()]
+    for d, index_name in pairs:
+        index = d / index_name
+        if not index.exists():
+            continue
+        listed = {
+            ref.split("/")[-1]
+            for ref in re.findall(r"\]\(([^)\s]+\.md)\)", index.read_text(errors="replace"))
+        }
+        present = {p.name for p in d.glob("*.md")} - {index_name}
+        for name in sorted(present - listed):
+            problems.append(f"{index}: {name} exists but is not listed in the index")
+    return problems
+
+
+# The archive keeps three subdirectories that predate the status rule and are consulted only as
+# history: scanned by nothing, cited by links that may not resolve.
+LEGACY_ARCHIVE = {"papers", "sessions", "status"}
+
+
+def _reports(root: pathlib.Path) -> list[pathlib.Path]:
+    """Every report under `root`, recursing except into the legacy archive subdirectories."""
+    if root.name == "archive":
+        return [
+            path for path in sorted(root.rglob("*.md"))
+            if not (set(path.relative_to(root).parts) & LEGACY_ARCHIVE)
+        ]
+    return sorted(root.rglob("*.md"))
+
+
 def unlabelled(root: pathlib.Path) -> tuple[list[str], int]:
     """Return (names of reports with no status marker, total reports)."""
     missing, total = [], 0
-    for path in sorted(root.glob("*.md")):
+    for path in _reports(root):
         total += 1
         head = path.read_text(errors="replace").splitlines()[:WINDOW]
         if not any(MARKER.match(line) for line in head):
-            missing.append(path.name)
+            missing.append(path.relative_to(root).as_posix())
     return missing, total
 
 
@@ -115,7 +158,14 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  {total - len(missing)}/{total} reports state their status (first {WINDOW} lines)")
 
     registry: list[str] = []
+    indexes: list[str] = []
     if args.dir is None:
+        indexes = index_problems()
+        if indexes:
+            for problem in indexes:
+                print(f"  {problem}")
+        else:
+            print("  indexes: every plan and every campaign document is listed in its index")
         registry = registry_problems(CLAIM_REGISTRY)
         if registry:
             for problem in registry:
@@ -123,11 +173,13 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print("  claim registry: every claim names its owner and carries no number")
 
-    if (missing or registry) and not args.warn:
+    if (missing or registry or indexes) and not args.warn:
         if missing:
             print("  FAIL: a report that does not say what it is cannot be trusted to be current")
         if registry:
             print("  FAIL: a registry row that restates a number goes stale without anyone noticing")
+        if indexes:
+            print("  FAIL: an index that does not list its directory is a map with a hole in it")
         return 1
     return 0
 

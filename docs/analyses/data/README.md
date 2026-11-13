@@ -51,7 +51,7 @@ predates it and cannot be retrofitted.
 
 - **Exploring?** Use the table. Nothing further is required.
 - **Citing a number in a document?** The number needs a name and a version in
-  `docs/analyses/METRIC_REGISTRY.md`, and a rescore CSV beside this one that carries
+  `../../shared/METRIC_REGISTRY.md`, and a rescore CSV beside this one that carries
   `recorded_value` and `agrees`. The record wins where both can produce a number (#357).
 
 The run id you cite must have a `capture.json`; a cited run without one fails the gate (#364).

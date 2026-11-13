@@ -23,7 +23,7 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 import verdict  # noqa: E402
 from capture_reader import read_run  # noqa: E402
 
-RESULT_DOC = REPO_ROOT / "docs" / "analyses" / "finetuning_breadth_eudirectlapse_result.md"
+RESULT_DOC = REPO_ROOT / "docs" / "experiments" / "pilot2-phase2" / "finetuning_breadth_eudirectlapse_result.md"
 
 _CITED = re.compile(r"results/(\d{8}T\d{6}Z)")
 _MEAN = re.compile(r"Mean ΔAUC over (\d+) seeds \| \*\*([+\u2212-]?\d+\.\d+)\*\*")

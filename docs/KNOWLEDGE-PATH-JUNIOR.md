@@ -53,7 +53,7 @@ flowchart TB
 
 ## Phase 0 — The Foundation Mini-Course (Days 1–2)
 
-Goal: speak the language of the repo before you run anything. Six short lessons, using real numbers from `outputs/current/tables/`. Deeper background lives in main path Part 2 (**S1**, **S4**) and `docs/analyses/metrics_explained.md`.
+Goal: speak the language of the repo before you run anything. Six short lessons, using real numbers from `outputs/current/tables/`. Deeper background lives in main path Part 2 (**S1**, **S4**) and `shared/metrics_explained.md`.
 
 ### Lesson 0.1 — The insurance prediction problem
 
@@ -76,7 +76,7 @@ Two domain terms that matter:
 
 Note the task and target per dataset: `freMTPL2freq` → frequency/`ClaimNb`; `eudirectlapse` → lapse (and severity via `prem_pure`); `ausprivauto0405` → frequency/`ClaimOcc` and severity/`VehValue`.
 
-Where it lives: `data/README.md`, `docs/analyses/regime_characterization.md`.
+Where it lives: `data/README.md`, `experiments/frontier-benchmark/regime_characterization.md`.
 
 ### Lesson 0.2 — Discrimination: can the model *rank* risk?
 
@@ -167,7 +167,7 @@ By now you should be able to:
 - Explain why PR AUC matters when positives are ~10% of the data
 - Explain what ROC AUC does *not* tell you about a model that ranks well
 - Explain what "same folds" means and why every comparison in this repo requires it
-- Deeper reading when ready: `docs/analyses/metrics_explained.md` (v3, actuarial framing) and `docs/archive/TECHNICAL_COMPANION.md` §1 (legacy v2 numbers).
+- Deeper reading when ready: `shared/metrics_explained.md` (v3, actuarial framing) and `archive/frontier-benchmark/TECHNICAL_COMPANION.md` §1 (legacy v2 numbers).
 - Read Table1 like a scientist: the best ranking model is LogisticRegression at 0.599, but the band is ~0.55–0.60 — within noise of each other on one split — so no winner can be called from this table alone; single-table comparisons don't tell you about variance or paired significance.
 
 ## Phase 1 — First Runs Runbook (Days 3–5)
@@ -177,7 +177,7 @@ Goal: TabPFN works end-to-end on this machine, and you've seen real results. Thr
 ### Lesson 1.0 — Environment setup (30 min)
 
 Do, in order:
-1. Activate the notebook-era environment: `source .venv312/bin/activate` (Python 3.12.x, the preferred kernel per `docs/archive/MULTI_DATASET_GLM_VS_TABPFN_SUMMARY.md`). For a fresh checkout instead: `python -m venv .venv && pip install -r requirements.txt` (README).
+1. Activate the notebook-era environment: `source .venv312/bin/activate` (Python 3.12.x, the preferred kernel per `archive/frontier-benchmark/MULTI_DATASET_GLM_VS_TABPFN_SUMMARY.md`). For a fresh checkout instead: `python -m venv .venv && pip install -r requirements.txt` (README).
 2. Verify imports: `python -c "import tabpfn, tabpfn_client, sklearn; print('ok')"` — no import errors.
 3. API key: the hosted client needs `TABPFN_API_KEY` — as an env var, or a `.env` file in the repo root, or `TABPFN_ENV_FILE` pointing elsewhere (README §setup; scripts fail with a clear error if missing). A cached token already exists in the repo's gitignored `.env`, so first runs may just work.
 4. Note the **two ways to run TabPFN** in this repo: (a) the local package (notebook era, what you use this phase), and (b) the hosted API via `tabpfn_client` (`model_path="v3_default"`, what Phase 3's frontier scripts use). Same model, different plumbing.
@@ -284,9 +284,9 @@ flowchart LR
 Do:
 - Read the docstring of `scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py`, then run it on ONE small dataset (e.g. `bemtl97` or `coil2000`)
 - Open `frontier_results_<dataset>.csv`: metric columns (`mean_auc`, `se_auc`, `mean_brier`, `se_brier`), parameter counts, Pareto status
-- **Then** read `docs/analyses/insurance_frontier_benchmark_spec.md` and walk the script's flow (load → 5-fold CV → baselines + hosted TabPFN → metrics → Pareto frontier)
+- **Then** read `experiments/frontier-benchmark/insurance_frontier_benchmark_spec.md` and walk the script's flow (load → 5-fold CV → baselines + hosted TabPFN → metrics → Pareto frontier)
 - Skim `run_tuned_baselines.py` (the "finality" comparison: tuned GLM/GBDT vs zero-tune TabPFN) and `run_reframe_frequency.py` (your current branch's topic)
-- **Then the master report** (main path Stage 4.5): read `docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md` sections **§6** (the label leak), **§11** (imbalance + the 1−AUC blindness story), **§12** (why v1 looked lopsided), **§13** (size sweep), **§14.1–§14.4** (frontier + D3 rule), **§14.11** (AUC rescore), **§14.14** (the reframe you're working on). Skim the rest.
+- **Then the master report** (main path Stage 4.5): read `experiments/frontier-benchmark/tabpfn_vs_gbdt_baselines_finetuning.md` sections **§6** (the label leak), **§11** (imbalance + the 1−AUC blindness story), **§12** (why v1 looked lopsided), **§13** (size sweep), **§14.1–§14.4** (frontier + D3 rule), **§14.11** (AUC rescore), **§14.14** (the reframe you're working on). Skim the rest.
 - Read main path Part 2: **S5** (methodology), **S9** (conclusions), **S10–S12** (metric eras, significance, self-correction case study)
 
 By now you should be able to:
@@ -300,7 +300,7 @@ By now you should be able to:
 Goal: the loop, complete — read it in finished form.
 
 Read:
-- Pick one report in `docs/reports/` (e.g. the reframe-frequency study) and read its objective, method, results, and limitation sections
+- Pick one report in `docs/experiments/pilot2-phase2/` (e.g. `FINETUNING_PHASE2_OUTCOME.md`) and read its objective, method, results, and limitation sections
 - Open the evidence CSVs it points to (`outputs/current/tables/`, or wherever the report cites) and confirm the report's numbers come from them
 - Open the matching reproducibility notebook in `notebooks/reproducibility/` and step through its cells — the evidence cells are pre-executed with committed outputs, so you can follow each step without running anything
 
@@ -313,7 +313,7 @@ By the end: you should be able to state the report's verdict, say whether its nu
 - **TabArena harness** (`/tmp/tabarena`, `.venv-ta`) — tooling, not core; revisit only if asked
 - **`legacy/` R scripts and `legacy_finetuning/`** — historical record; read-only archaeology, if ever
 - **Embeddings** (`04_tabpfn_embedding_workflow.ipynb`) — side track, not in the current benchmark spine
-- **Fine-tuning** — before running anything, read `docs/archive/TABPFN_FINE_TUNING_LIMIT_STUDY.md`. It's a bounded lever with real failure modes (save/load, regressor instability). Baseline first. **Also note the 2026-09-12 pilot:** arm B ran successfully for the first time (GPU, same device/run/seed as raw TabPFN) and a **3-pass** fine-tune bought nothing measurable — deltas ≤0.010 with one negative, against raw TabPFN's +0.007 to +0.068 over the actuarial baselines. See `docs/reference/FINE_TUNING_PILOT_RESULTS.md` §5c and `MASTER-REPORT-DIGEST.md` §14.16 for the scope limits (3 passes, default subsampling, one seed) — this bounds *small* fine-tunes, not every configuration.
+- **Fine-tuning** — before running anything, read `archive/pilot2-phase2/TABPFN_FINE_TUNING_LIMIT_STUDY.md`. It's a bounded lever with real failure modes (save/load, regressor instability). Baseline first. **Also note the 2026-09-12 pilot:** arm B ran successfully for the first time (GPU, same device/run/seed as raw TabPFN) and a **3-pass** fine-tune bought nothing measurable — deltas ≤0.010 with one negative, against raw TabPFN's +0.007 to +0.068 over the actuarial baselines. See `experiments/r1-pilot/FINE_TUNING_PILOT_RESULTS.md` §5c and `MASTER-REPORT-DIGEST.md` §14.16 for the scope limits (3 passes, default subsampling, one seed) — this bounds *small* fine-tunes, not every configuration.
 - **Paper replication** (`REPLICATION_There_Is_Life_in_the_Old_GLM_Yet.ipynb`) — until asked; it's the historical anchor, not the current work
 - **Save/load and device debugging** — note the bug classes exist (issue #851); don't study them yet
 
