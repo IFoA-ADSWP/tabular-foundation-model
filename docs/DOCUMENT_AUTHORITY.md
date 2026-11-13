@@ -38,16 +38,16 @@ number, and it can never settle a rule.
 
 | Subject | The owning document | It does not own |
 | --- | --- | --- |
-| The design — scope, arms, rungs, what is reported | [FINETUNING_PILOT_DESIGN.md](current/FINETUNING_PILOT_DESIGN.md) | the sign conventions; the claim test |
-| Analysis rules — estimand, sign, tolerances | [FINETUNING_STATISTICAL_ANALYSIS_PLAN.md](current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md) | scope; the claim test |
-| The claim test — what counts as a pass | [FINETUNING_DECISION_LOG.md](current/FINETUNING_DECISION_LOG.md) | the estimand; the design |
-| Per-dataset facts — target, source file, provenance | [FINETUNING_EXPERIMENT_REFERENCE.md](current/FINETUNING_EXPERIMENT_REFERENCE.md) | scope; this repository's row counts |
-| Row counts, and which datasets this repository registers | [FINETUNING_COST_AND_CONTROLS.md](current/FINETUNING_COST_AND_CONTROLS.md) | targets or provenance |
-| Measured and modelled cost | [FINETUNING_COST_AND_CONTROLS.md](current/FINETUNING_COST_AND_CONTROLS.md) | the spend decision |
-| A measured result | the owning analysis: [replication](analyses/finetuning_replication_result.md), [eudirectlapse](analyses/finetuning_breadth_eudirectlapse_result.md), [spanish](analyses/finetuning_breadth_spanish_result.md) | the claim test |
+| The design — scope, arms, rungs, what is reported | [FINETUNING_PILOT_DESIGN.md](experiments/pilot2-phase2/FINETUNING_PILOT_DESIGN.md) | the sign conventions; the claim test |
+| Analysis rules — estimand, sign, tolerances | [FINETUNING_STATISTICAL_ANALYSIS_PLAN.md](experiments/pilot2-phase2/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md) | scope; the claim test |
+| The claim test — what counts as a pass | [FINETUNING_DECISION_LOG.md](experiments/pilot2-phase2/FINETUNING_DECISION_LOG.md) | the estimand; the design |
+| Per-dataset facts — target, source file, provenance | [FINETUNING_EXPERIMENT_REFERENCE.md](experiments/pilot2-phase2/FINETUNING_EXPERIMENT_REFERENCE.md) | scope; this repository's row counts |
+| Row counts, and which datasets this repository registers | [FINETUNING_COST_AND_CONTROLS.md](experiments/pilot2-phase2/FINETUNING_COST_AND_CONTROLS.md) | targets or provenance |
+| Measured and modelled cost | [FINETUNING_COST_AND_CONTROLS.md](experiments/pilot2-phase2/FINETUNING_COST_AND_CONTROLS.md) | the spend decision |
+| A measured result | the owning analysis: [replication](experiments/pilot2-phase2/finetuning_replication_result.md), [eudirectlapse](experiments/pilot2-phase2/finetuning_breadth_eudirectlapse_result.md), [spanish](experiments/pilot2-phase2/finetuning_breadth_spanish_result.md) | the claim test |
 | Model eras, and whether a number may be cited at all | [MODEL_VERSIONS.md](MODEL_VERSIONS.md) | per-artifact results |
-| The index of claims | [FINETUNING_FINDINGS.md](current/FINETUNING_FINDINGS.md) | any number it links to |
-| The closing statement of a phase | [FINETUNING_PHASE2_OUTCOME.md](current/FINETUNING_PHASE2_OUTCOME.md) | the numbers it links to |
+| The index of claims | [FINETUNING_FINDINGS.md](experiments/pilot2-phase2/FINETUNING_FINDINGS.md) | any number it links to |
+| The closing statement of a phase | [FINETUNING_PHASE2_OUTCOME.md](experiments/pilot2-phase2/FINETUNING_PHASE2_OUTCOME.md) | the numbers it links to |
 
 ## The fourteen disagreements, and which document won
 

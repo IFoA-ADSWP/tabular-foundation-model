@@ -63,8 +63,8 @@ The run ids a current-tier document cites, and that resolve to a capture:
 
 | Run id | What it is | Cited by |
 | --- | --- | --- |
-| `20261104T123839Z` | Phase 2 anchor — the replication the outcome rests on | `current/FINETUNING_PHASE2_OUTCOME.md` |
-| `20261031T021845Z` | Anchor power diagnosis (D11) | `analyses/anchor_power_diagnosis.md` |
+| `20261104T123839Z` | Phase 2 anchor — the replication the outcome rests on | `experiments/pilot2-phase2/FINETUNING_PHASE2_OUTCOME.md` |
+| `20261031T021845Z` | Anchor power diagnosis (D11) | `experiments/pilot2-phase2/anchor_power_diagnosis.md` |
 
 A bare `YYYYMMDDTHHMMSSZ` id is a citation and must resolve to `results/<id>/capture.json`; an id with a `-`
 suffix is a record name and is not scanned. Which run a report cites, and which runs are superseded, is in

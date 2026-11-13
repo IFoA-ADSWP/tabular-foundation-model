@@ -1,6 +1,6 @@
 # Master Report Digest — the addendum arc (§4 → §14.15)
 
-Companion to `docs/KNOWLEDGE-PATH.md` Stage 4.5. The master report (`docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md`) is an *evolution*, not a static study: nine addenda, each answering one question, several reversing or qualifying prior verdicts. This digest gives one paragraph per addendum — question, result, verdict change, key numbers. Read it alongside the report, or instead of it when you need the story fast.
+Companion to `docs/KNOWLEDGE-PATH.md` Stage 4.5. The master report (`experiments/frontier-benchmark/tabpfn_vs_gbdt_baselines_finetuning.md`) is an *evolution*, not a static study: nine addenda, each answering one question, several reversing or qualifying prior verdicts. This digest gives one paragraph per addendum — question, result, verdict change, key numbers. Read it alongside the report, or instead of it when you need the story fast.
 
 **The one-line story:** v1 looked like a loss → §11 showed the metric was blind → §12 separated artifacts from real limits → §13 killed the size story → §14 built the frontier → §14.11 retracted a verdict and found TabPFN AUC #1 on 6/6 → §14.13 confirmed it against tuned baselines → §14.14 showed the frequency verdict was a framing artifact → §14.15 tested the severity verdict against three insurance-native metrics and it held.
 
@@ -104,7 +104,7 @@ foundation model, not in adapting it.
 Method note worth carrying: arm B had never completed a run anywhere and was believed to be
 memory-bound. That diagnosis was wrong — it failed in 2-5 s with 50.8 GB of VRAM free, on a
 call-sequence defect — and the fix was to use the trainer TabPFN already ships rather than
-driving the model by hand. Details in `docs/reference/FINE_TUNING_PILOT_RESULTS.md` §5b-§5c.
+driving the model by hand. Details in `experiments/r1-pilot/FINE_TUNING_PILOT_RESULTS.md` §5b-§5c.
 
 ## §15 Version-drift re-test policy (08-04, docs-only)
 

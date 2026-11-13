@@ -36,7 +36,7 @@ WINDOW = 15
 # The three report tiers. docs/reports/ was dissolved into these in #200-#202, and this script
 # kept pointing at the dead path -- so the rule silently stopped being enforced for six weeks
 # (it exited 2, and nobody reads an exit code that says "no such directory").
-DEFAULT_DIRS = ("docs/current", "docs/reference", "docs/archive")
+DEFAULT_DIRS = ("docs/experiments", "docs/shared", "docs/archive")
 MARKER = re.compile(
     r"^\s*(?:>\s*)?[*_]{0,2}(status|current|superseded|historical|proposed|draft|archived)\b",
     re.IGNORECASE,
@@ -45,7 +45,7 @@ MARKER = re.compile(
 # The registry is checked only when the whole collection is being checked; --dir stays a
 # per-directory status check. A missing registry is a failure, never a skip: a check that passes
 # because its subject moved is worse than no check at all.
-CLAIM_REGISTRY = pathlib.Path("docs/current/FINETUNING_FINDINGS.md")
+CLAIM_REGISTRY = pathlib.Path("docs/experiments/pilot2-phase2/FINETUNING_FINDINGS.md")
 ROW_REF = re.compile(r"\b[FL]\d+\b")
 ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 ANY_DIGIT = re.compile(r"\d")
@@ -78,14 +78,17 @@ def registry_problems(path: pathlib.Path) -> list[str]:
 # beside a growing tree drifts on the next merge -- plans/README.md was one document short
 # within a day of landing (#580 then #576). The check lives here, beside the claim-registry
 # assertion, rather than as a ninth job: #489 set that precedent for the same reason.
-INDEXES = (("docs/plans", "README.md"), ("docs/analyses", "README.md"))
+INDEXES = (("docs/plans", "README.md"),)
 
 
 def index_problems(root: pathlib.Path = pathlib.Path(".")) -> list[str]:
     """Return one line per document that exists in a directory its index does not list."""
     problems: list[str] = []
-    for directory, index_name in INDEXES:
-        d = root / directory
+    pairs = [(root / directory, index_name) for directory, index_name in INDEXES]
+    experiments = root / "docs" / "experiments"
+    if experiments.is_dir():
+        pairs += [(d, "README.md") for d in sorted(experiments.iterdir()) if d.is_dir()]
+    for d, index_name in pairs:
         index = d / index_name
         if not index.exists():
             continue
@@ -99,14 +102,29 @@ def index_problems(root: pathlib.Path = pathlib.Path(".")) -> list[str]:
     return problems
 
 
+# The archive keeps three subdirectories that predate the status rule and are consulted only as
+# history: scanned by nothing, cited by links that may not resolve.
+LEGACY_ARCHIVE = {"papers", "sessions", "status"}
+
+
+def _reports(root: pathlib.Path) -> list[pathlib.Path]:
+    """Every report under `root`, recursing except into the legacy archive subdirectories."""
+    if root.name == "archive":
+        return [
+            path for path in sorted(root.rglob("*.md"))
+            if not (set(path.relative_to(root).parts) & LEGACY_ARCHIVE)
+        ]
+    return sorted(root.rglob("*.md"))
+
+
 def unlabelled(root: pathlib.Path) -> tuple[list[str], int]:
     """Return (names of reports with no status marker, total reports)."""
     missing, total = [], 0
-    for path in sorted(root.glob("*.md")):
+    for path in _reports(root):
         total += 1
         head = path.read_text(errors="replace").splitlines()[:WINDOW]
         if not any(MARKER.match(line) for line in head):
-            missing.append(path.name)
+            missing.append(path.relative_to(root).as_posix())
     return missing, total
 
 
@@ -147,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
             for problem in indexes:
                 print(f"  {problem}")
         else:
-            print("  indexes: every plan and analysis is listed in its directory's index")
+            print("  indexes: every plan and every campaign document is listed in its index")
         registry = registry_problems(CLAIM_REGISTRY)
         if registry:
             for problem in registry:

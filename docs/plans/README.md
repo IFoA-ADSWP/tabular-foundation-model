@@ -17,7 +17,7 @@ since merged, and the pull request that merged it is the record of what happened
 the fact: a plan that says proposed stays that way unless its author amends it, because rewriting the status
 of a plan after the data would make the trail say something it did not.
 
-## Current, agreed or implemented — 61 plans
+## Current, agreed or implemented — 62 plans
 
 Newest first, by ticket number where the filename carries one.
 
@@ -84,6 +84,7 @@ Newest first, by ticket number where the filename carries one.
 | [`296-significance-marker.md`](296-significance-marker.md) | the significance marker agrees with its own bounds (#296) |
 | [`runner-onramp.md`](runner-onramp.md) | the runner's on-ramp is one page, and the indexes tell the truth (#575) |
 | [`416-ledger-migration.md`](416-ledger-migration.md) | the cost ledger migrates instead of quarantining (#416) |
+| [`docs-experiment-first.md`](docs-experiment-first.md) | group the documentation by experiment (#595) |
 
 ## Proposed — 8 plans
 
