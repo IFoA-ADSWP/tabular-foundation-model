@@ -12,7 +12,7 @@ block "done".
 
 ## What you review
 
-A drafted report or analysis note about to ship — `docs/experiments/<campaign>/`, `docs/reference/` or
+A drafted report or analysis note about to ship — `docs/experiments/<campaign>/` or
 `docs/archive/` —
 not work in progress. Name the file and its registry row first.
 

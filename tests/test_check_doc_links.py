@@ -45,3 +45,35 @@ def test_checks_workbooks_like_any_other_path(tmp_path: pathlib.Path) -> None:
     (tmp_path / "docs" / "roadmap" / "present.xlsx").write_text("x\n")
     (tmp_path / "docs" / "a.md").write_text("See `docs/roadmap/present.xlsx`.\n")
     assert check(sorted((tmp_path / "docs").rglob("*.md")), tmp_path) == []
+
+
+def test_a_documentation_tier_that_no_longer_exists_is_broken(tmp_path: pathlib.Path) -> None:
+    """The tier lists named `docs/current/` for a whole reorganisation after it was gone (#602).
+
+    Only a token ending in a file extension was ever looked at, so a directory reference was
+    invisible to the checker that exists to catch exactly this.
+    """
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "path.md").write_text("Writeups live in `docs/current/` or `docs/archive/`.\n")
+    (tmp_path / "docs" / "archive").mkdir()
+    broken = check(sorted((tmp_path / "docs").rglob("*.md")), tmp_path)
+    assert [r for _, _, r in broken] == ["docs/current/"]
+
+
+def test_a_documentation_tier_that_exists_resolves(tmp_path: pathlib.Path) -> None:
+    (tmp_path / "docs" / "experiments" / "campaign").mkdir(parents=True)
+    (tmp_path / "docs" / "a.md").write_text("Notes live in `docs/experiments/campaign/`.\n")
+    assert check(sorted((tmp_path / "docs").rglob("*.md")), tmp_path) == []
+
+
+def test_a_directory_outside_the_documentation_tiers_is_not_a_reference(tmp_path: pathlib.Path) -> None:
+    """A runbook names caches and historical trees that are not committed, on purpose.
+
+    The tiers are what moves; checking every directory in prose would demand that documentation
+    stop documenting where its own evidence came from.
+    """
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "runbook.md").write_text(
+        "Caches land in `scripts/experiments/lapse/` and `predications/`, beside the run.\n"
+    )
+    assert check(sorted((tmp_path / "docs").rglob("*.md")), tmp_path) == []

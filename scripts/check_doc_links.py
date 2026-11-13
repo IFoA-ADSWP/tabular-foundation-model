@@ -48,9 +48,14 @@ def candidates(text: str) -> list[str]:
         out.append(ref)
     for m in BACKTICK.finditer(text):
         tok = m.group(1)
+        # A documentation tier is a reference too. The tier lists named `docs/current/` for a whole
+        # reorganisation after it stopped existing, because only a token ending in a file extension
+        # was ever looked at (#602). Scoped to `docs/`: the tiers are what moves, and a runbook
+        # legitimately names caches and historical trees that are not committed.
+        is_directory = tok.startswith("docs/") and tok.endswith("/")
         # A bare filename in prose ("meta.json", "the .npy file") is not a reference, and a glob or a
         # domain name only looks like a path. Require a separator, and rule out both.
-        if not tok.endswith(EXTS) or "/" not in tok or "*" in tok:
+        if not (is_directory or tok.endswith(EXTS)) or "/" not in tok or "*" in tok:
             continue
         # `frontier_plot_{a,b}.png` is a shell illustration, not a path.
         if "{" in tok or "}" in tok:
@@ -66,8 +71,10 @@ def resolves(doc: pathlib.Path, root: pathlib.Path, ref: str) -> bool:
         return True
     if ref.split("/", 1)[0] in UNCOMMITTED_TREES:
         return True  # a described shape, not a committed file
+    wants_directory = ref.startswith("docs/") and ref.endswith("/")
     for base in (doc.parent, root / "docs", root):
-        if (base / ref).exists():
+        target = base / ref
+        if (target.is_dir() if wants_directory else target.exists()):
             return True
     return False
 
@@ -84,7 +91,8 @@ def check(docs: list[pathlib.Path], root: pathlib.Path) -> list[tuple[str, int, 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--dir", default="docs")
+    ap.add_argument("--dir", action="append", default=None, metavar="DIR",
+                    help="directory to scan; repeat for several (default: docs)")
     ap.add_argument("--root", default=".")
     ap.add_argument("--warn", action="store_true")
     ap.add_argument("--include-citations", action="store_true",
@@ -92,16 +100,17 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     root = pathlib.Path(args.root).resolve()
-    d = root / args.dir
-    if not d.is_dir():
-        print(f"  no such directory: {d}")
-        return 2
-
-    if args.include_citations:
-        docs = sorted(d.rglob("*.md"))
-    else:
-        docs = sorted(p for p in d.rglob("*.md")
-                      if not (p.relative_to(d).parts and p.relative_to(d).parts[0] in CITATION_TIERS))
+    docs: list[pathlib.Path] = []
+    for name in args.dir or ["docs"]:
+        d = root / name
+        if not d.is_dir():
+            print(f"  no such directory: {d}")
+            return 2
+        found = sorted(d.rglob("*.md"))
+        if not args.include_citations:
+            found = [p for p in found
+                     if not (p.relative_to(d).parts and p.relative_to(d).parts[0] in CITATION_TIERS)]
+        docs.extend(found)
     broken = check(docs, root)
     for path, line, ref in broken:
         rel = pathlib.Path(path).resolve().relative_to(root)

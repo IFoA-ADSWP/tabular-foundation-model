@@ -105,7 +105,7 @@ run_evidence() {
 run_doclinks() {
   need python3 "install Python 3, or use the interpreter that runs pytest"
   echo "== doclinks (references in docs/, citations skipped)"
-  python3 scripts/check_doc_links.py
+  python3 scripts/check_doc_links.py --dir docs --dir .opencode
 }
 
 # Every report in the three tiers must say what it is: current, historical, proposed.
