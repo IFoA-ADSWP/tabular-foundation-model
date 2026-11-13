@@ -1,9 +1,14 @@
 # Plan — the row-scaling arm on `frequency_french` (#572)
 
-**Status:** proposed 2026-11-13 — launch pending.
+**Status:** implemented 2026-11-13 — the arm ran and the verdict document carries it.
 **Origin:** ticket #572. **Pre-registration:** the dated amendment in
 `docs/current/REGRESSOR_FINETUNING_PREREGISTRATION_FREQ_SEV_2026-11.md`.
 **Sibling plan (already done):** `docs/plans/572-row-scale-outcome.md` — the `severity_french` half.
+**Evidence:** `results/20261113T095502Z/` (30 entries, schema v3, 13.1 MB). Paid run:
+`est_cost_usd` 0.5705 and `wall_minutes` 115.82 in `outputs/gpu-pilot/run_20261113T095502Z.json`.
+**Outcome:** r = **+11.84%**, CI [+8.93%, +14.76%], MDE 2.94%, **Go** — against **+9.69%** at
+10,000 rows, on identical test rows. The gain did not shrink, so the frequency Go was not a
+small-data artefact; the intervals overlap, so no increase is claimed.
 
 ## What this runs, and why
 
@@ -60,6 +65,10 @@ Measured basis, not a guess: the severity arm ran 30 fits at 21,177 rows in **50
 same 30-fit shape, so **~2–3 h and roughly $0.6–1.0** expected, dominated by paced transfer of a
 larger capture. The ticket's own `$1.50–2.50` estimate was written before any measurement in this
 arm and overshot the severity launch ~7×; it is kept here only as the upper bound it now is.
+
+**Measured:** 115.82 min at $0.2956/hr = **$0.5705**, inside the estimate and a third of the
+ceiling. Transfer was the slow half, as predicted: the fits finished well before the poll window
+filled.
 
 ## Risks measured on the last two launches
 
