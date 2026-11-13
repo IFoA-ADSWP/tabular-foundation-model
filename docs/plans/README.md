@@ -4,27 +4,20 @@ One file per task: `docs/plans/<task>.md`. Write it **before** non-trivial work,
 change. A plan outranks a fresh ticket — check this directory before speccing or building, because the ticket
 you are about to write may already be covered.
 
-Status markers: **Proposed** / **Current** / **Historical**.
+**This index is the only map.** Of the 69 plans, 68 are linked from no other document and only
+13 are even mentioned anywhere else.
 
-This index is built from each plan's own first ten lines, not maintained separately. The status is the plan's
-claim at the time it was written, not a live view: several files still read **Proposed** although the change has
-since merged, and the pull request that merged it is the authority on that. Plans are never deleted — the trail
-is the point — so a superseded plan stays, and its successor says so.
+Each row carries the plan's own first heading, so the index cannot drift from the file it points at. The
+group is the **first word of that plan's own `Status:` line** — the plans use *current*, *agreed*,
+*implemented*, *proposed*, *plan* and *historical*, and the three headings below collapse those rather than
+inventing a fifth vocabulary.
 
-## Proposed — 8 plans
+A plan records what was intended when it was written. Several still read **proposed** although the work has
+since merged, and the pull request that merged it is the record of what happened. Nothing is corrected after
+the fact: a plan that says proposed stays that way unless its author amends it, because rewriting the status
+of a plan after the data would make the trail say something it did not.
 
-| Plan | What it settles |
-| --- | --- |
-| [`chunk-transport-under-stalls.md`](chunk-transport-under-stalls.md) | the chunked transport under a stalling poll (#566) |
-| [`fairtest-capture-transport.md`](fairtest-capture-transport.md) | the fair test ships its captures (#564) |
-| [`freq-sev-implementation.md`](freq-sev-implementation.md) | implementing the frequency/severity fair test |
-| [`regressor-benchmark-fit.md`](regressor-benchmark-fit.md) | the benchmark fit that sizes the fair test's spend |
-| [`regressor-benchmark-probe-path.md`](regressor-benchmark-probe-path.md) | let the paid path carry the benchmark measurement |
-| [`regressor-fair-test-runner.md`](regressor-fair-test-runner.md) | the regressor fair-test runner |
-| [`rescore-capture-discovery.md`](rescore-capture-discovery.md) | restore capture discovery in the alt-metrics rescore |
-| [`528-pinned-offer-cuda.md`](528-pinned-offer-cuda.md) | a pinned offer declares its CUDA, and the box kernel-tests torch |
-
-## Delivered — 57 plans
+## Current, agreed or implemented — 59 plans
 
 Newest first, by ticket number where the filename carries one.
 
@@ -69,6 +62,8 @@ Newest first, by ticket number where the filename carries one.
 | [`truth-hash-verification.md`](truth-hash-verification.md) | the rescore verifies both hashes it was given |
 | [`vast-log-dir.md`](vast-log-dir.md) | a mock launch's log goes beside its records (#280) |
 | [`verification-gate.md`](verification-gate.md) | verification gate, slice 1: the local command |
+| [`572-row-scale-frequency.md`](572-row-scale-frequency.md) | the row-scaling arm on `frequency_french` (#572) |
+| [`572-row-scale-outcome.md`](572-row-scale-outcome.md) | the row-scaling arm's outcome (#572) |
 | [`492-cold-read.md`](492-cold-read.md) | the cold read, and what it found |
 | [`490-evidence-map.md`](490-evidence-map.md) | an evidence map for the run trees |
 | [`489-claim-registry.md`](489-claim-registry.md) | the findings registry becomes a pointer, and stops being able to drift |
@@ -88,9 +83,23 @@ Newest first, by ticket number where the filename carries one.
 | [`341-pilot-disposition.md`](341-pilot-disposition.md) | the pilot's disposition, and the pre-run documents |
 | [`296-significance-marker.md`](296-significance-marker.md) | the significance marker agrees with its own bounds (#296) |
 
-## Other — 2 plans
+## Proposed — 8 plans
+
+| Plan | What it settles |
+| --- | --- |
+| [`chunk-transport-under-stalls.md`](chunk-transport-under-stalls.md) | the chunked transport under a stalling poll (#566) |
+| [`fairtest-capture-transport.md`](fairtest-capture-transport.md) | the fair test ships its captures (#564) |
+| [`freq-sev-implementation.md`](freq-sev-implementation.md) | implementing the frequency/severity fair test |
+| [`regressor-benchmark-fit.md`](regressor-benchmark-fit.md) | the benchmark fit that sizes the fair test's spend |
+| [`regressor-benchmark-probe-path.md`](regressor-benchmark-probe-path.md) | let the paid path carry the benchmark measurement |
+| [`regressor-fair-test-runner.md`](regressor-fair-test-runner.md) | the regressor fair-test runner |
+| [`rescore-capture-discovery.md`](rescore-capture-discovery.md) | restore capture discovery in the alt-metrics rescore |
+| [`528-pinned-offer-cuda.md`](528-pinned-offer-cuda.md) | a pinned offer declares its CUDA, and the box kernel-tests torch |
+
+## Historical or unclassified — 2 plans
 
 | Plan | What it settles |
 | --- | --- |
 | [`document-authority-amendments.md`](document-authority-amendments.md) | the document-authority amendments |
 | [`experiment-spec-handoff.md`](experiment-spec-handoff.md) | Handoff — experiment spec (architecture candidate 1) |
+
