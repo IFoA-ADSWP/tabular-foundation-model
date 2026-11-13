@@ -43,15 +43,17 @@ Anything quoting GPU cost from this repo should cite the account, not this colum
 ## Rebuilding the ledger
 
 Read every `run_*.json` at the top level (never `dry-runs/`), and write the CSV with a header that
-matches the fields exactly:
+matches the fields exactly — the record's key order is the ledger's column order:
 
 ```
 run_id, instance_id, gpu_name, dph_total, gpu_ram_gb, cpu_ram_gb, reliability, cuda_max_good,
-image, transport, arms, machine_id, host_id, attempt, disk_requested_gb, t_create, t_running,
-t_end, wall_seconds, wall_minutes, est_cost_usd, bootstrap_rc
+image, transport, arms, machine_id, host_id, attempt, credit_before_usd, disk_requested_gb,
+t_create, t_running, t_end, wall_seconds, wall_minutes, est_cost_usd, bootstrap_rc
 ```
 
-Sort by `run_id`; skip any record whose `instance_id` is `12345678` or `machine_id` is `424242`.
+`credit_before_usd` was added on 2026-11-12; a header written from this page without it will not match
+the record and the writer will migrate the file (#416). Sorting by `run_id` and skipping any record whose
+`instance_id` is `12345678` or `machine_id` is `424242` still applies.
 
 ## What is *not* here
 
@@ -62,7 +64,7 @@ committed records — which is why `run_pilot.py` now refuses to overwrite an ex
 
 ## Unrecorded artifacts, and why they are not evidence
 
-`git status` on `main` listed ten untracked files in this directory. For a directory whose whole job is to
+`git status` on `main` listed untracked files in this directory — ten when this section was written, and more since as runs landed. For a directory whose whole job is to
 make runs checkable, an untracked file is a statement nobody wrote down: it says something happened without
 saying what. They are committed and named here instead.
 
