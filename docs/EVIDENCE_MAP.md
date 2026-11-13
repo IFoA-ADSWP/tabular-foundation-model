@@ -9,7 +9,7 @@ to walk without opening a directory listing first.
 
 | Tree | What it holds | Who cites it |
 | --- | --- | --- |
-| `results/<run id>/` | One launch's committed capture: the hashes of every prediction and truth file, the launch manifests, the metrics and prediction tables | The analyses behind every measured result |
+| `results/<run id>/` | One launch's committed capture: the hashes of every prediction and truth file, the launch manifests, the metrics and prediction tables. [`results/INDEX.md`](../results/INDEX.md) maps each id to the campaign it served | The analyses behind every measured result |
 | `outputs/gpu-pilot/` | The paid-run record itself: launch manifests, run ledgers, per-arm and per-seed prediction files, and the logs from the rented machines | The fine-tuning and breadth analyses, sometimes by description rather than by run id |
 | `docs/analyses/data/` | Exported diagnostic tables — profiling, importance, an earlier predictions table — with a README stating every column and the hash check behind each row | The diagnostics work, and the tables are meant to be opened |
 | `docs/figures/` | Figures from the lapse benchmark, embedded by the benchmark reports | The benchmark narratives |

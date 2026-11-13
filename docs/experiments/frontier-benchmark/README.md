@@ -17,3 +17,15 @@ marked reference or historical is kept for provenance rather than as the current
 | [`prediction_capture_rescore_spec.md`](prediction_capture_rescore_spec.md) |  | Prediction Capture for Retrospective Re-scoring — Design Spec |
 | [`regime_characterization.md`](regime_characterization.md) | current as of 2026-11-13 — the adoptio | Regime Characterization — When Default TabPFN Wins (Issue #53) |
 | [`tabpfn_vs_gbdt_baselines_finetuning.md`](tabpfn_vs_gbdt_baselines_finetuning.md) | current as of 2026-11-13 — the master  | TabPFN vs GBDT Baselines on Insurance Datasets, and Domain Fine-Tuning Effectiveness |
+
+## Runs
+
+The v3.5 re-test (§16 of the master report) captured four runs. The benchmark's own results are the CSVs beside
+its runner in `scripts/eval/insurance_benchmark_v1/`; these are the re-test captures.
+
+```
+20260916-102642
+20260916-103015
+20260916-103346
+20260916-120029
+```
