@@ -12,6 +12,7 @@ each document declares in its first lines says what it is worth now.
 | [`diagnostics`](experiments/diagnostics/README.md) | 2 live, 0 archived | 0 | D1–D5: the diagnostics design and D5's explanation. |
 | [`fair-test-freq-sev`](experiments/fair-test-freq-sev/README.md) | 7 live, 0 archived | 7 | The 2026-11 frequency/severity fair test — four pre-registered targets, policy-grouped folds. |
 | [`frontier-benchmark`](experiments/frontier-benchmark/README.md) | 8 live, 8 archived | 0 | The 2026-07→08 frontier suite: the benchmark that produced master report §14, its re-scores, and the v3.5 re-test. |
+| [`lapse-students`](experiments/lapse-students/README.md) | 0 live, 0 archived | 1 | Measuring the lapse GBDTs on the teacher's own folds instead of estimating them (#377). |
 | [`pilot2-phase2`](experiments/pilot2-phase2/README.md) | 26 live, 9 archived | 23 | The fine-tuning programme: design, pre-registrations, the replication and breadth cells, the decision log and the Phase 2 outcome. |
 | [`probe`](experiments/probe/README.md) | 3 live, 0 archived | 0 | The 2026-09 budget probe: whether the paid path could measure anything at the smaller budget. |
 | [`r1-pilot`](experiments/r1-pilot/README.md) | 1 live, 2 archived | 0 | The first fine-tuning pilot, 2026-09. |
@@ -26,6 +27,6 @@ catalog and the levers assessment. It is scanned for status like the campaigns a
 
 Not every campaign's evidence is under `results/`. The benchmark line writes committed CSVs beside its
 runner in `scripts/eval/`; the paid runs land in `outputs/gpu-pilot/`; the diagnostics export tables to
-`docs/analyses/data/`. Each campaign README names the run ids it owns where it has them. See
+`docs/analyses/data/`. Each campaign README names the run ids it owns where it has them, and [`results/INDEX.md`](../results/INDEX.md) maps every committed run to its campaign. See
 [EVIDENCE_MAP.md](EVIDENCE_MAP.md) for what each tree claims.
 
