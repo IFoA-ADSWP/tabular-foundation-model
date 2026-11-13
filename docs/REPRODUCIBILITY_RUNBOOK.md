@@ -23,6 +23,29 @@ Three eras, documented separately:
   is the only way arm B (actual fine-tuning) can run. ⚠ Partially verified: no run has yet
   completed end-to-end. See §C before invoking it.
 
+## Task index — start here if you know what you want to run
+
+The sections below are grouped by era, because that is how the programme happened. If you know the task and
+not the era, this table is the way in.
+
+| I want to… | Section |
+| --- | --- |
+| Build the environment once | §0 (`./scripts/bootstrap_dev.sh` for the current code; the TabArena venv for the frontier line) |
+| Verify a published number without spending anything | `notebooks/reproducibility/01`–`03`, referenced by §A.7–§A.9 |
+| Run a pipeline sanity check first | §A.2 (smoke, ~2 min) |
+| Run the TabArena 7-dataset insurance benchmark | §A.3 |
+| Run the lapse benchmark | §A.4 |
+| Run the home-turf size sweep | §A.5 |
+| Run the imbalance pilot and its rescore | §A.6 |
+| Run the frontier benchmark (the master report's core) | §A.7 |
+| Run the tuned-baseline finality test | §A.8 |
+| Run the count-reframe experiment | §A.9 |
+| Redraw the money chart | §A.10 |
+| Reproduce a 2026-04 legacy experiment | §B.1–§B.9 (provenance, not canonical) |
+| Rent a GPU and run the fine-tuning pilot | §C.1–§C.2 |
+| Understand what a run costs, and what has already gone wrong | §C.5–§C.6 |
+| Fix something that failed | §5 |
+
 ## Registry → runbook section map
 
 | Report registry topic key | Runbook section |

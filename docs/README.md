@@ -13,6 +13,7 @@ is in [EVIDENCE_MAP.md](EVIDENCE_MAP.md).
 | --- | --- |
 | **The outcome** — did fine-tuning help, and by how much? | [FINETUNING_PHASE2_OUTCOME.md](current/FINETUNING_PHASE2_OUTCOME.md) — the canonical statement of what Phase 2 found |
 | **To check a number** — where does this figure come from? | [EVIDENCE_MAP.md](EVIDENCE_MAP.md) — which tree holds what, and what a citation must have |
+| **To run the code** — which environment, which command? | [RUNNING.md](RUNNING.md) — the four routes, what each writes, and the two environments |
 | **The method and the decisions** | [FINETUNING_PILOT_DESIGN.md](current/FINETUNING_PILOT_DESIGN.md) (what was proposed and why) and [FINETUNING_DECISION_LOG.md](current/FINETUNING_DECISION_LOG.md) (what was decided, with its caveats) |
 | **Two documents disagree** — which one wins? | [DOCUMENT_AUTHORITY.md](DOCUMENT_AUTHORITY.md) — the order, the owner of each subject, and the fourteen settled disagreements |
 | **Something specific** | the role table below, or the tier list that follows it |
@@ -51,7 +52,7 @@ number live", not "what did we measure":
 
 - `docs/plans/` — one plan per task, written before non-trivial work and committed with it. **A plan outranks a fresh ticket**: check here before speccing or building, because the ticket you are about to write may already be covered.
 - `docs/adr/` — accepted decisions that constrain the code, one per decision, cited by the plans that rely on them.
-- `EVIDENCE_MAP.md`, `MODEL_VERSIONS.md`, `DOCUMENT_AUTHORITY.md`, `DEVELOPMENT_ENVIRONMENT.md` and `REPORT_REGISTRY.md` — lookup pages that sit at this level because a reader consults them beside a claim, not after one. `DOCUMENT_AUTHORITY.md` states which document wins when two disagree; `DEVELOPMENT_ENVIRONMENT.md` says how to build the environment the gate runs in and which checkout you are in.
+- `EVIDENCE_MAP.md`, `MODEL_VERSIONS.md`, `DOCUMENT_AUTHORITY.md`, `DEVELOPMENT_ENVIRONMENT.md`, `RUNNING.md` and `REPORT_REGISTRY.md` — lookup pages that sit at this level because a reader consults them beside a claim, not after one. `DOCUMENT_AUTHORITY.md` states which document wins when two disagree; `DEVELOPMENT_ENVIRONMENT.md` says how to build the environment the gate runs in and which checkout you are in; `RUNNING.md` says which environment each route needs and what it writes.
 
 **Enforcement.** `scripts/check_doc_status.py` asserts that every report in the three tiers declares a status
 in its first fifteen lines, and that the findings registry carries no restated number. Run it with
@@ -65,7 +66,7 @@ The report-level index is `docs/REPORT_REGISTRY.md` and is deliberately not rest
 |---|---|
 | Junior data scientist | `KNOWLEDGE-PATH-JUNIOR.md` → `analyses/metrics_explained.md` → `docs/archive/CODE_WALKTHROUGH.md` → `MASTER-REPORT-DIGEST.md` |
 | Actuary (do I adopt this?) | `docs/archive/TABPFN_BENCHMARK_SUMMARY.md` → `analyses/metrics_explained.md` → `analyses/regime_characterization.md` → `docs/archive/RESERVING_WITH_FOUNDATIONAL_MODELS.md` |
-| Engineer (how does it run?) | `docs/archive/CODE_WALKTHROUGH.md` → `REPRODUCIBILITY_RUNBOOK.md` → `MODEL_VERSIONS.md` → `docs/REPORT_REGISTRY.md` |
+| Engineer (how does it run?) | `RUNNING.md` → `docs/archive/CODE_WALKTHROUGH.md` → `REPRODUCIBILITY_RUNBOOK.md` → `MODEL_VERSIONS.md` → `docs/REPORT_REGISTRY.md` |
 | Contributor (how do I add work?) | `KNOWLEDGE-PATH.md` → `REPRODUCIBILITY_RUNBOOK.md` → `docs/REPORT_REGISTRY.md` → `MODEL_VERSIONS.md` (re-test policy §15) |
 | Replicator (paper numbers) | `REPLICATION_SETUP_GUIDE.md` → `archive/papers/APPENDIX_REPRODUCIBILITY.md` → `archive/papers/Theres-Life-in-the-Old-GLM-Yet.md` |
 
