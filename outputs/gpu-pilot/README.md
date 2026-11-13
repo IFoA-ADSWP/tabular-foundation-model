@@ -55,6 +55,16 @@ t_create, t_running, t_end, wall_seconds, wall_minutes, est_cost_usd, bootstrap_
 the record and the writer will migrate the file (#416). Sorting by `run_id` and skipping any record whose
 `instance_id` is `12345678` or `machine_id` is `424242` still applies.
 
+**Rebuilt 2026-11-13** from every top-level `run_*.json`, after the writer learned to migrate a
+schema change instead of quarantining the file (#416). Three rows were repaired rather than carried
+forward: `20261104T121054Z`, `20261104T123839Z` and `20261104T122235Z` had been written with the
+current field set under the *previous* header, so every value from `disk_requested_gb` onward sat one
+column to the left and the last value spilled past the end of the header. The anchor's row read 2522
+minutes and $42.03; it now reads 42.03 minutes and $0.1876, which is what its own record says.
+
+Every row now agrees with its record on every field the record carries — 37 records, no mismatches.
+`20261104T122235Z` has no record and cannot be checked that way; it was repaired by the same re-keying.
+
 ## What is *not* here
 
 The per-arm results (`meta.json`, `predictions.npy`) live under `outputs/finetune/pilot/`. Note
