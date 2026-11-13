@@ -25,11 +25,11 @@ Floors: frequency task 2% (pooled); Spanish frequency 4% per target and it does 
 task; severity task 2%. If the two portfolios of a task disagree in sign the task is heterogenous
 and no task-level gain is claimed.
 
-`--row-scale-french <run id>` adds the #572 row-scaling arm on `severity_french`. It is reported
-beside the registered targets and **not** folded into the severity task: the registered verdict is
-the 10,000-row pair, and the arm asks whether a larger budget changes it rather than replacing it.
-Its summary entry carries the per-fold ratios and the training budgets the folds recorded, because
-the verdict document quotes both.
+`--row-scale-french <run id>` and `--row-scale-frequency <run id>` add the #572 row-scaling arms on
+`severity_french` and `frequency_french`. Each is reported beside the registered targets and **not**
+folded into its task: the registered verdict is the 10,000-row pair, and the arm asks whether a
+larger budget changes it rather than replacing it. Each summary entry carries the per-fold ratios and
+the training budgets the folds recorded, because the verdict document quotes both.
 
 Only `meta.json` is read: the verdict metric's value is recorded per slot at capture time, so the
 verdict recomputes from the manifest's own numbers without loading the arrays.
@@ -169,6 +169,12 @@ def main(argv: list[str] | None = None) -> int:
         metavar="RUN_ID",
         help="the #572 row-scaling arm on severity_french; reported separately, not in the task",
     )
+    parser.add_argument(
+        "--row-scale-frequency",
+        default=None,
+        metavar="RUN_ID",
+        help="the #572 row-scaling arm on frequency_french; reported separately, not in the task",
+    )
     args = parser.parse_args(argv)
 
     ids = {
@@ -206,12 +212,19 @@ def main(argv: list[str] | None = None) -> int:
             "decision": "Heterogeneous" if heterogeneous else decide(mean, low, high, floor),
         }
 
-    if args.row_scale_french:
-        run_dir = RESULTS / args.row_scale_french
+    # Each row-scaling arm is reported beside the registered targets and never folded into a task
+    # mean: the registered verdict is the 10,000-row pair (#572).
+    for run_id, key, target, floor in (
+        (args.row_scale_french, "row_scale", "severity_french", FLOOR_SEVERITY),
+        (args.row_scale_frequency, "row_scale_frequency", "frequency_french", FLOOR_FREQUENCY),
+    ):
+        if not run_id:
+            continue
+        run_dir = RESULTS / run_id
         values = fold_ratios(run_dir)
-        summary["row_scale"] = {
-            **target_summary(values, args.row_scale_french, FLOOR_SEVERITY),
-            "target": "severity_french",
+        summary[key] = {
+            **target_summary(values, run_id, floor),
+            "target": target,
             "folds": {str(fold): value for fold, value in values.items()},
             "train_rows": fold_train_rows(run_dir),
         }
@@ -230,8 +243,10 @@ def main(argv: list[str] | None = None) -> int:
             f"task {task:<13}{row['mean']:>+8.2%}   [{low:>+6.2%}, {high:>+6.2%}]"
             f"{'':>7}{row['floor']:>7.0%}  {row['decision']}"
         )
-    if "row_scale" in summary:
-        row = summary["row_scale"]
+    for key in ("row_scale", "row_scale_frequency"):
+        if key not in summary:
+            continue
+        row = summary[key]
         rows = row["train_rows"]
         budget = f"{rows[0]}–{rows[-1]} rows" if rows else "train rows unrecorded"
         print()
