@@ -1,6 +1,7 @@
 # Task List
 
-Tracked from GitHub issues. Reconciled against the tracker on **2026-10-31**; update a row when its issue changes state.
+A **curated subset** of GitHub issues — the rows someone is tracking here, not the full backlog (the tracker holds 350+).
+Reconciled against the tracker on **2026-11-13**; update a row when its issue changes state.
 
 | Status | # | Title | Assignee |
 |--------|---|-------|----------|
@@ -9,7 +10,7 @@ Tracked from GitHub issues. Reconciled against the tracker on **2026-10-31**; up
 | ✅ | #239 | A run records its declared and resolved model version, and flags a mismatch — PR #295 | — |
 | ✅ | #230 | Declare the frontier suite's experiments in one committed registry — PR #254 | — |
 | 🔲 | #186 | Version-drift re-test: TabPFN 3.5 on the v3_default underperformance cases — regression/count tier **done** (4/4 improved; `spanish_motor_freq` onto the frontier, falsifies §14.9's tree-only reading; off-frontier count 5/12 → 4/12; master report §16). Open: classification calibration tier (`ausprivauto0405`, `bemtl97`, `norauto`), `bemtl16` lift, `eudirectlapse`, and the §15.2 sweep refresh required before any `bemtl97` frontier claim | Mako-120 |
-| 🔲 | #82 | B8 Exercise version-drift re-test policy (dry run) — **superseded by #186**, which executed §15 live after a real trigger fired; close once #186 lands | — |
+| ✅ | #82 | B8 Exercise version-drift re-test policy (dry run) — **superseded by #186**, which executed §15 live after a real trigger fired; closed | — |
 | 🔲 | #125 | Fine-tuning negative-result audit — null-control Stage A harness (W1 confound) + power/dose/scale remediation; gates #85/#81 | — |
 | ✅ | #— | Repository migrated to IFoA-ADSWP/tabular-foundation-model — full history, 123 issues+PRs (numbering preserved), wiki, collaborator access; open PR recreated as #124; old fork retained as read-only archive | scotthawes |
 | ✅ | #123 | Add insurance-native alternative metrics (Gamma/Tweedie deviance, MAE) with fold-level SEs to regression benchmarks | — |
