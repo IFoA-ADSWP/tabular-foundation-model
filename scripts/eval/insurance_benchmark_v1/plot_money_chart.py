@@ -16,6 +16,13 @@ Sweep series = home_turf_sweep_results.csv 9 cells (bemtl97/coil2000/
     sweep's 4-method panel (cat/lgbm/xgb/tabpfn) — shows the small-data wins:
     TabPFN is the best method in 8/9 sweep cells.
 
+Correction 2026-11-13 (#609): this docstring used to add "every off-frontier
+    point sits at >= 53.5K rows with ratio >= 1.03". The size half holds; the
+    ratio half does not — ausprivauto0405 is off-frontier at 67,856 rows with
+    ratio 1.003, a tie at seven parameters. Off-frontier ratios run 1.003-1.502.
+    See the corrected note in docs/experiments/frontier-benchmark/
+    regime_characterization.md and the redrawn figures under docs/figures/.
+
 Usage:
     /tmp/tabarena/.venv-ta/bin/python scripts/eval/insurance_benchmark_v1/plot_money_chart.py
 """
@@ -35,9 +42,10 @@ import pandas as pd
 HERE = Path(__file__).resolve().parent
 RAW = HERE.parent.parent.parent / "data" / "raw"
 sys.path.insert(0, str(HERE.parent.parent.parent))  # repo root
-from src.experiment_spec import load_registry  # noqa: E402
-
-_DATASETS = load_registry(HERE / "experiments.toml").datasets
+from scripts.infra.adoption_figures import (  # noqa: E402
+    frontier_points,
+    sweep_cells,
+)
 
 # label offsets in POINTS (textcoords="offset points") per dataset — hand-tuned
 # to separate the same-file pairs (67,856; 163,212; 53,502) and the 1.0-line cluster
@@ -51,34 +59,32 @@ OFFSETS = {
 }
 
 # Plot only the datasets with a committed frontier result and a label offset; a new
-# registry Dataset must not make a committed chart crash (file, then KeyError).
-DATASETS = {name: _DATASETS[name].file for name in OFFSETS}
+# registry Dataset must not make a committed chart crash (the lookup below defaults).
+LABEL_FALLBACK = (6, 7)
 
 
 def load_points() -> pd.DataFrame:
-    rows = []
-    for ds, src in DATASETS.items():
-        df = pd.read_csv(HERE / f"frontier_results_{ds}.csv")
-        t = df[df.method == "tabpfn"].iloc[0]
-        best = df.loc[df["mean"].idxmin()]
-        n_rows = sum(1 for _ in open(RAW / src)) - 1
-        rows.append({
-            "dataset": ds, "n_rows": n_rows,
-            "tabpfn": t["mean"], "best": best["mean"], "best_method": best["method"],
-            "ratio": t["mean"] / best["mean"], "on_frontier": t["on_frontier"],
-        })
-    return pd.DataFrame(rows)
+    """One row per frontier dataset — the ratio's one definition, in `scripts/infra/adoption_figures.py`.
+
+    This script used to compute the ratio itself, with a different dataset list and no fold
+    de-duplication in the sweep. Two definitions of the same number is one too many (#609).
+    """
+    return pd.DataFrame(
+        [
+            {
+                "dataset": point.dataset,
+                "n_rows": point.n_rows,
+                "ratio": point.ratio,
+                "on_frontier": "yes" if point.on_frontier else "no",
+            }
+            for point in frontier_points()
+        ]
+    )
 
 
 def load_sweep() -> pd.DataFrame:
-    sw = pd.read_csv(HERE / "home_turf_sweep_results.csv")
-    cells = []
-    for key, g in sw.groupby(["dataset", "n_rows"]):
-        ds = g["dataset"].iloc[0]
-        n = int(g["n_rows"].iloc[0])
-        m = g.groupby("method")["log_loss"].mean()
-        cells.append({"dataset": ds, "n_rows": n, "ratio": m["tabpfn"] / m.min()})
-    return pd.DataFrame(cells)
+    """The nine sweep cells, from the same definition."""
+    return sweep_cells()
 
 
 def main() -> None:
@@ -99,7 +105,7 @@ def main() -> None:
         color = ON if r["on_frontier"] == "yes" else OFF
         ax.scatter([n], [ratio], s=110, color=color, zorder=3,
                    edgecolors="white", linewidths=0.8)
-        dx, dy = OFFSETS[ds]
+        dx, dy = OFFSETS.get(ds, LABEL_FALLBACK)
         ax.annotate(ds, (n, ratio), textcoords="offset points",
                     xytext=(dx, dy), fontsize=9, color=color, zorder=4)
 
