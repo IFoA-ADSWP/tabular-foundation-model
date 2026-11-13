@@ -34,7 +34,7 @@ agree before any experiment can fail for a less obvious reason.
 | Run the tests | `.venv` | `.venv/bin/pytest tests/ -q` | nothing | — |
 | Reproduce a published number | any interpreter with `pandas` (`.venv` is fine); the TabArena venv only for the preflight | `jupyter lab notebooks/reproducibility/01_frontier_classification_repro.ipynb`, then run the read-only cells | nothing — they read committed files | §A.7–§A.9 |
 | Run a benchmark yourself | TabArena venv | `python scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py --seed 7 coil2000` — `coil2000` is a dataset name | `results/<YYYYmmdd-HHMMSS>/` by default; `--save-predictions` adds `predictions/` inside it, and `--out-dir legacy` writes beside the script | §A.3, §A.7 |
-| Run the fine-tuning pilot | `.venv` locally, the launcher's own pins when rented | `python scripts/run_pilot.py --dataset coil2000`, or `bash scripts/gpu_helpers/vast_run.sh` | `outputs/gpu-pilot/` | §C.2 |
+| Run the fine-tuning pilot | `.venv` locally, the launcher's own pins when rented | `python scripts/run_pilot.py --dataset coil2000`, or `bash scripts/gpu_helpers/vast_run.sh` | `outputs/finetune/pilot/` run locally; `outputs/gpu-pilot/` when the launcher runs it | §C.2 |
 
 **Start with the notebooks, not the scripts.** Their evidence cells are already executed and read committed
 files, so they cost nothing and overwrite nothing. The one exception is the notebook's *preflight* cell, which

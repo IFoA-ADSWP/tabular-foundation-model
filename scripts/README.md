@@ -71,9 +71,8 @@ route. This page is the index of the tree itself.
 
 ## Legacy — fine-tuning era (legacy_finetuning/)
 
-These are **provenance, not canonical**. Sixteen of the seventeen files carry the tag "(Legacy — fine-tuning
-era, provenance)" in their own docstrings; none of them runs on `tabpfn 8.5.0`, whose `finetune_utils` and
-`get_preprocessed_datasets` were removed.
+These are **provenance, not canonical**: none of them runs on `tabpfn 8.5.0`, whose `finetune_utils` and
+`get_preprocessed_datasets` were removed. Most say so in their own docstrings.
 
 | Script | Purpose |
 | --- | --- |

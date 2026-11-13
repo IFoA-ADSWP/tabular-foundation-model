@@ -23,7 +23,7 @@ currently mislead are corrected rather than reorganised.
 - `results/` holds **32 run directories and 2,436 tracked files (79% of the repository)**; `outputs/gpu-pilot/`
   holds the paid record. Nothing at either tree's root says which run ids are current, which are cited and
   which are superseded, so "where is the result I just reproduced?" has no cheap answer.
-- No page states the clone cost a runner pays first: **562 MB** (`du -sh .git`; 463 MiB packed), of which `data/` is 92 MB and `results/`
+- No page states the clone cost a runner pays first: **594 MB** (`du -sh .git`; 475 MiB packed, measured 2026-11-13), of which `data/` is 92 MB and `results/`
   is 96 MB.
 
 ## The five changes
@@ -89,7 +89,7 @@ Three environments, and only one of them is built on the laptop:
 | Route | Environment | Built by |
 | --- | --- | --- |
 | Current code — tests, diagnostics, `run_pilot.py`, `run_fair_test.py` | `.venv`, Python 3.12, `tabpfn 8.5.0` from `requirements.lock` | `./scripts/bootstrap_dev.sh`, which asserts the pins (#530) |
-| Frontier line — `scripts/eval/`, `scripts/benchmarks/`, repro notebooks 01–03 | the TabArena venv, `tabpfn-client 0.3.3` | [`notebooks/reproducibility/README.md`](../notebooks/reproducibility/README.md) §Setup — **not** `bootstrap_dev.sh` |
+| Frontier line — `scripts/eval/`, `scripts/benchmarks/`, repro notebooks 01–03 | the TabArena venv, `tabpfn-client 0.3.3` | [`notebooks/reproducibility/README.md`](../../notebooks/reproducibility/README.md) §Setup — **not** `bootstrap_dev.sh` |
 | Paid launch — the GPU pilot | the box's own pins | `scripts/gpu_helpers/bootstrap_pilot.sh`, on the rented machine |
 
 `requirements.txt` is the loose floor that `requirements.lock` is compiled from; `requirements-legacy.txt` is
