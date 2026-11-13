@@ -24,8 +24,8 @@ reason is a finding in itself (see §3).
 
 Reproduce with `scripts/analyses/freq_sev_quantiles.py` on the four run ids of the verdict:
 `20261112T164543Z`, `20261112T184155Z`, `20261112T210029Z`, `20261112T220641Z`. The #572
-row-scaling capture (`20261113T003320Z`) is not analysed here; this document covers the four
-captures the verdict is registered on.
+row-scaling captures (`20261113T003320Z`, `20261113T095502Z`) are not analysed here; this document
+covers the four captures the verdict is registered on.
 
 ## 1. Pinball loss — the comparison that holds
 
