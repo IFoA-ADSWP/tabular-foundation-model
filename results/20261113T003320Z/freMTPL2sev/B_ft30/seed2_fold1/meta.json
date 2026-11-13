@@ -1,0 +1,84 @@
+{
+  "arm": "B_ft30",
+  "dataset": "freMTPL2sev",
+  "drop": [
+    "IDpol",
+    "ClaimNb",
+    "Exposure"
+  ],
+  "epochs": 30,
+  "features": [
+    "Area",
+    "VehPower",
+    "VehAge",
+    "DrivAge",
+    "BonusMalus",
+    "VehBrand",
+    "VehGas",
+    "Density",
+    "Region"
+  ],
+  "fold": 1,
+  "fold_seed": 42,
+  "log_features": [],
+  "n_folds": 5,
+  "predictions_sha256": "37e0dc9e1e1cb3c686314371d53a74c2fe5c73b7c044cf4ee5c2a78573c9bf70",
+  "provenance": {
+    "dataset": {
+      "files": [
+        {
+          "name": "freMTPL2sev.csv",
+          "path": "/workspace/tfm/data/raw/freMTPL2sev.csv",
+          "sha256": "be2adb9f95bdab4f7e73e07904626caae6b02248ea6101cdd04a7b3ca3e1aac7"
+        },
+        {
+          "name": "freMTPL2freq.csv",
+          "path": "/workspace/tfm/data/raw/freMTPL2freq.csv",
+          "sha256": "6577226166e0e83efe52a431141f1ff5262a4d8fe6626c1d53912cc8943a9893"
+        }
+      ],
+      "join_key": "IDpol",
+      "name": "freMTPL2sev",
+      "path": "/workspace/tfm/data/raw/freMTPL2sev.csv",
+      "sha256": "be2adb9f95bdab4f7e73e07904626caae6b02248ea6101cdd04a7b3ca3e1aac7"
+    },
+    "split": {
+      "n_folds": 5,
+      "rule": "KFold(shuffle=True, random_state=42)",
+      "seed": 42,
+      "sha256": null
+    }
+  },
+  "quantile_levels": [
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9
+  ],
+  "quantile_scale": "log",
+  "reported_scale": "log",
+  "rmse": 1.1326919159745599,
+  "seed": 2,
+  "target": "ClaimAmount",
+  "task": "severity",
+  "test_rows": 5276,
+  "train_rows": 21168,
+  "transform": "log",
+  "unit": "claim",
+  "verdict_metric": "rmse",
+  "verdict_metric_value": 1.1326919159745599,
+  "versions": {
+    "python": "3.11.12",
+    "tabpfn": "8.5.0"
+  },
+  "weighted": false,
+  "weights": {
+    "path": "/root/.cache/tabpfn/tabpfn-v3-regressor-v3_default.ckpt",
+    "sha256": "311ce18d97e9533d8585eaadafe040fbdd8070533209ed8696641dadc97a7301"
+  }
+}
