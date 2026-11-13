@@ -61,10 +61,10 @@ outputs/
 scripts/                # One-off experiment scripts (not notebooks)
 docs/
   RUNNING.md            # Which environment, which command, where the output lands
-  current/              # Reports describing the design as built
-  reference/            # Historical, still cited for provenance
-  archive/              # Kept for the record, not cited
-  analyses/             # Methodology notes (lighter than reports)
+  EXPERIMENTS.md        # The map: which documents belong to which experiment
+  experiments/          # One folder per campaign; its README is the way in
+  shared/               # Registries and explainers belonging to no campaign
+  archive/              # Superseded documents, grouped by campaign
   papers/               # Paper content and LaTeX style files
   plans/                # One plan per task, written before non-trivial work
   adr/                  # Architecture decision records (accepted decisions)

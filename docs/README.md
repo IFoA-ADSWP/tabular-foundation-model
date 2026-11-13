@@ -4,7 +4,7 @@ This repository is the evidence base for applying tabular foundation models to i
 benchmark, a fine-tuning programme, and the diagnostics behind both. Phase 2 of the fine-tuning programme has
 closed — a small gain on one of the four anchor datasets, equivalences on two others, and one dataset
 stopped because it could not be measured at the precision the design required. The outcome is in
-[current/FINETUNING_PHASE2_OUTCOME.md](experiments/pilot2-phase2/FINETUNING_PHASE2_OUTCOME.md), and where its numbers come from
+[experiments/pilot2-phase2/FINETUNING_PHASE2_OUTCOME.md](experiments/pilot2-phase2/FINETUNING_PHASE2_OUTCOME.md), and where its numbers come from
 is in [EVIDENCE_MAP.md](EVIDENCE_MAP.md).
 
 ## Start here
@@ -65,8 +65,9 @@ number live", not "what did we measure":
 - `docs/adr/` — accepted decisions that constrain the code, one per decision, cited by the plans that rely on them.
 - `EVIDENCE_MAP.md`, `MODEL_VERSIONS.md`, `DOCUMENT_AUTHORITY.md`, `DEVELOPMENT_ENVIRONMENT.md`, `RUNNING.md` and `REPORT_REGISTRY.md` — lookup pages that sit at this level because a reader consults them beside a claim, not after one. `DOCUMENT_AUTHORITY.md` states which document wins when two disagree; `DEVELOPMENT_ENVIRONMENT.md` says how to build the environment the gate runs in and which checkout you are in; `RUNNING.md` says which environment each route needs and what it writes.
 
-**Enforcement.** `scripts/check_doc_status.py` asserts that every report in the three tiers declares a status
-in its first fifteen lines, and that the findings registry carries no restated number. Run it with
+**Enforcement.** `scripts/check_doc_status.py` asserts that every report under `experiments/`, `shared/` and
+`archive/` declares a status in its first fifteen lines, that every campaign README lists every document in its
+directory, and that the findings registry carries no restated number. Run it with
 `./scripts/check.sh docstatus`.
 
 The report-level index is `docs/REPORT_REGISTRY.md` and is deliberately not restated here, so there is exactly one place to update when a report is added.
