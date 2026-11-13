@@ -424,4 +424,4 @@ All prior fine-tuning results (Stage A/B, limit study) used **TabPFN v2 API (rem
 
 ---
 
-_Consumes prior reports. See `docs/reports/archive/` for original documents._
+_Consumes prior reports; the originals sit in this same archive._

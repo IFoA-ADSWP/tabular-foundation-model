@@ -9,7 +9,7 @@ Purpose: a staged path from "new to the repo" to "understands the research, the 
 The repo contains **two eras that share almost no code**:
 
 1. **Notebook era (older)**: `notebooks/baseline_experiments/01–08` + `src/` (sklearn baselines, GLM-vs-TabPFN studies, calibration). Run on laptop, outputs in `outputs/current/`.
-2. **Scripts era (current)**: `scripts/eval/insurance_benchmark_v1/` (frontier benchmark, tuned baselines, reframe-frequency) + `scripts/benchmarks/` (TabArena). Uses the **hosted TabPFN API** (`tabpfn-client`, needs `TABPFN_API_KEY`). Writeups in `docs/analyses/` + `docs/reports/`.
+2. **Scripts era (current)**: `scripts/eval/insurance_benchmark_v1/` (frontier benchmark, tuned baselines, reframe-frequency) + `scripts/benchmarks/` (TabArena). Uses the **hosted TabPFN API** (`tabpfn-client`, needs `TABPFN_API_KEY`). Writeups in the tiers — `docs/current/`, `docs/reference/`, `docs/archive/` — plus `docs/analyses/`.
 
 Treat them as two systems. **The scripts era is what's live now** — start its spine there, then read the notebook era for the historical arc.
 
@@ -40,7 +40,7 @@ Read:
 - `docs/` tree: `docs/REPORT_REGISTRY.md` (the index of every report + evidence), `analyses/` (specs/studies for current era)
 - `outputs/current/` — skim `tables/` and `logs/` (this is the "source of truth" for results)
 - `CHANGELOG.md` + `TASKS.md` (history + current state)
-- `0_roadmap and project dashboard/` — the workstream roadmap (Excel dashboard: current state, milestones)
+- `docs/roadmap/workstream-dashboard.xlsx` — the workstream roadmap (Excel dashboard: current state, milestones)
 
 By the end of this stage: you can name 5 datasets, the two eras, and where results accumulate.
 
@@ -130,7 +130,7 @@ By the end of this stage: you can explain what changed between §4 and §14.14 a
 Goal: how work actually gets done here — runbooks + the evidence chain.
 
 - Read the 8 skills in `.opencode/skills/`: `tabpfn-explore`, `tabpfn-classify`, `tabpfn-regress`, `tabpfn-finetune`, `tabpfn-benchmark`, `tabpfn-technical-report`, `tabpfn-nontechnical-report`, `insurance-objective`. Note each one's entry criteria and outputs.
-- Learn the evidence flow: experiment → `outputs/current/{tables,logs}` → report in `docs/reports/` → row in `docs/REPORT_REGISTRY.md` (dedup before drafting — the registry is the anti-duplication lock).
+- Learn the evidence flow: experiment → `outputs/current/{tables,logs}` → report in a tier (`docs/current/`, `docs/reference/`, `docs/archive/`) → row in `docs/REPORT_REGISTRY.md` (dedup before drafting — the registry is the anti-duplication lock).
 - `scripts/` housekeeping: `scripts/infra/make_notebook.py` (scaffold new experiment notebooks)
 
 By the end of this stage: given a new research question, you can name which skill(s) you'd invoke and where the evidence would land.

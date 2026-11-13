@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Reassemble and VERIFY the artifact payload returned through the container log.
 
-WHY THIS EXISTS (docs/reports/PILOT_2_PREREQUISITES.md PR-2)
+WHY THIS EXISTS (docs/current/FINETUNING_PREREQUISITES.md PR-2)
 
 R1 returned metrics and metadata but no per-arm predictions, so its headline numbers
 could be read but never recomputed or paired-tested. Predictions are the evidence;

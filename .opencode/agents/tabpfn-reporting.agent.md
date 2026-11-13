@@ -23,7 +23,7 @@ Your job is to transform experiment outputs into clear, audience-appropriate rep
 ## Mandatory Rules
 1. Every new report must include a "Source Workbooks" section with notebook paths.
 2. Every new report must include an "Evidence Files" section with table/log paths.
-3. Before drafting, check docs/reports/REPORT_REGISTRY.md for overlap.
+3. Before drafting, check docs/REPORT_REGISTRY.md for overlap.
 4. If overlap exists, update the existing report unless user asks for a separate version.
 5. After creating/updating a report, append/update registry entry.
 
