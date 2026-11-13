@@ -12,7 +12,7 @@ argument-hint: "Business question, source findings, source notebooks, evidence f
 - Explaining fine-tuning value and risks in plain language
 
 ## Pre-Write Checks
-1. Read docs/reports/REPORT_REGISTRY.md.
+1. Read docs/REPORT_REGISTRY.md.
 2. Avoid duplicating existing topics; update existing report where possible.
 
 ## Required Sections
@@ -35,7 +35,7 @@ argument-hint: "Business question, source findings, source notebooks, evidence f
 - Include tables/logs used to support conclusions.
 
 ## Registry Update Rule
-After writing/updating report, update docs/reports/REPORT_REGISTRY.md with metadata and links.
+After writing/updating report, update docs/REPORT_REGISTRY.md with metadata and links.
 
 ## Pre-Ship Check
 - Run the `analysis-review` skill against the draft before calling the report done.

@@ -217,3 +217,8 @@ outputs/finetune/pilot/*/*/
 !/results/**/*.npy
 # Lease records are runtime artifacts (#325); never commit them.
 outputs/gpu-pilot/leases/
+
+# Local working copies. A harness-created worktree can land inside the repository
+# (`.worktrees/<name>/`); it carries its own .git and must never be committed, nor
+# show up as untracked content in `git status`.
+.worktrees/
