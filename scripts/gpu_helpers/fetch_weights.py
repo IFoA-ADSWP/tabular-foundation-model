@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Ensure the gated TabPFN weights are present in the library's own cache.
 
-WHY THIS EXISTS (docs/reports/PILOT_2_PREREQUISITES.md PR-9)
+WHY THIS EXISTS (docs/current/FINETUNING_PREREQUISITES.md PR-9)
 
 TabPFN's licence check sits inside the weight-download path and fires only on a
 CACHE MISS: `model_loading` returns early when the checkpoint file already exists,

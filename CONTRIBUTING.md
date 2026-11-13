@@ -68,6 +68,7 @@ docs/
   papers/               # Paper content and LaTeX style files
   plans/                # One plan per task, written before non-trivial work
   adr/                  # Architecture decision records (accepted decisions)
+  roadmap/              # Workstream workbook (the Excel dashboard)
 tests/                  # The test suite
 ```
 

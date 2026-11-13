@@ -1,5 +1,7 @@
 # Presentation Plan — TabPFN for Insurance (AIDSET & Statistical Society Conference)
 
+> **Historical.** The conference deadlines passed 2026-09-10 and delivery was never verified; kept for the record, not cited. Moved out of a one-file `docs/planning/` directory 2026-11-13.
+
 Plan for a 20-minute talk on the TabPFN insurance benchmark work. One core deck,
 per-venue trims. Deadlines: both conferences due 2026-09-10 (check CFP dates —
 abstract deadlines usually precede; set them on issues #108/#111).

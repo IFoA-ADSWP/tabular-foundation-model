@@ -27,3 +27,21 @@ def test_skips_placeholders_and_urls(tmp_path: pathlib.Path) -> None:
     (tmp_path / "docs" / "d.md").write_text("`runs/<run_id>/meta.json` and https://example.com/a.md\n")
     assert check(sorted((tmp_path / "docs").rglob("*.md")), tmp_path) == []
     assert candidates("plain text with no paths") == []
+
+
+def test_checks_workbooks_like_any_other_path(tmp_path: pathlib.Path) -> None:
+    """A .xlsx reference is a path too.
+
+    The root README's roadmap workbook moved into docs/ in #582, and the acceptance
+    criterion was "doclinks resolves the reference" — which was vacuous, because
+    .xlsx was not in EXTS and the checker passed a path that did not exist.
+    """
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "a.md").write_text("See `docs/roadmap/missing.xlsx`.\n")
+    broken = check(sorted((tmp_path / "docs").rglob("*.md")), tmp_path)
+    assert [r for _, _, r in broken] == ["docs/roadmap/missing.xlsx"]
+
+    (tmp_path / "docs" / "roadmap").mkdir()
+    (tmp_path / "docs" / "roadmap" / "present.xlsx").write_text("x\n")
+    (tmp_path / "docs" / "a.md").write_text("See `docs/roadmap/present.xlsx`.\n")
+    assert check(sorted((tmp_path / "docs").rglob("*.md")), tmp_path) == []

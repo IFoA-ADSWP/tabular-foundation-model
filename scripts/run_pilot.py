@@ -10,7 +10,7 @@ Usage:
     python scripts/run_pilot.py --seeds 42,43,44 --folds 5
     python scripts/run_pilot.py --rung P1c               # scale rung (see RUNG presets)
 
-Pilot 2 additions (see docs/reports/PILOT_2_PREREQUISITES.md):
+Pilot 2 additions (see docs/current/FINETUNING_PREREQUISITES.md):
   PR-1  run manifest written per invocation and per arm
   PR-3  fine-tuned weights saved + sha256 (--save-models)
   PR-4  matched-inference-context assertion between the two TabPFN arms
