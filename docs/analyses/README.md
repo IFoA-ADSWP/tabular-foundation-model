@@ -2,8 +2,8 @@
 
 Working documents behind the repository's claims: a design spec written before an experiment, the result note that
 follows it, and the explainers that make the metrics legible. **These are not the tiered reports** — those live in
-[`../current/`](../current/), [`../reference/`](../reference/) and [`../archive/`](../archive/) and declare a status
-marker. A document here earns its place by being working material rather than a citable report.
+[`../current/`](../current/), [`../reference/`](../reference/) and [`../archive/`](../archive/), where a status marker
+at the top of each says which tier it belongs to. A document here earns its place by being working material rather than a citable report.
 
 Ordered by what you are looking for, not alphabetically.
 
