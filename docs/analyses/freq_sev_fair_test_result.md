@@ -92,11 +92,21 @@ and every claim the fold had. Thirty entries, same folds, same seeds, same decis
 | 10,000 rows (`20261112T210029Z`) | −0.92% | [−1.16%, −0.68%] | 0.24% | No-go |
 | 40,000 budget, 21,177 rows (`20261113T003320Z`) | −0.79% | [−1.55%, −0.03%] | 0.77% | No-go |
 
-**The null survives at 2.1× the rows.** The point estimate moves 0.13 points toward zero, inside an
-interval about three times wider, and that interval still lies below zero: "no effect" stays
-excluded at the larger budget. Against the floor the answer is firmer still — the upper bound,
-−0.03%, sits two points below the registered 2% — so the cap was not what made French severity a
-No-go.
+**The No-go survives at 2.1× the rows.** The point estimate moves 0.13 points toward zero and the
+interval is about three times wider (−0.68% to −0.03% at the upper bound). It still excludes zero,
+but by only three basis points: the harm is small at this budget, and this run does not pin its
+size. Against the floor the answer is unambiguous — an upper bound of −0.03% is two points below
+the registered 2% — so the cap was not what made French severity a No-go.
+
+**The registered 4× was not reachable.** The amendment raised the budget to 40,000 rows; a fold's
+whole claim pool is 21,131–21,177, so the arm ran at the largest budget this dataset can express.
+#572's hypothesis — that the severity null is row starvation — is therefore answered at 2.1×, not
+at the 4× it named, and the gap is the data's rather than the design's.
+
+**The reading is the target's, not the task's.** The No-go above applies the registered rule to
+`severity_french`'s own interval. The task verdict is not recomputed at the raised budget, because
+Spanish severity was not re-run: severity still reads **Heterogeneous** from the four registered
+captures, and no task-level number moves.
 
 The per-fold pattern says the same without the average: four of five folds are negative (−0.29%,
 −1.19%, −1.17%, −1.33%) and the fifth is +0.02%.
@@ -133,7 +143,7 @@ python scripts/analyses/freq_sev_fair_test.py \
   --row-scale-french 20261113T003320Z
 ```
 
-It prints the tables above and `--json` emits the same as data. `--row-scale-french` prints the
-row-scaling arm beside them and keeps it out of the severity task mean, so the four registered rows
-are byte-for-byte what was published on 2026-11-12. `./scripts/check.sh citation` proves each cited
-id has the capture it claims.
+It prints the tables above — including the row-scaling arm's per-fold ratios — and `--json` emits
+the same as data. `--row-scale-french` keeps the arm out of the severity task mean, so the four
+registered rows are byte-for-byte what was published on 2026-11-12. `./scripts/check.sh citation`
+proves each cited id has the capture it claims.

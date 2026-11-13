@@ -105,6 +105,20 @@ def target_interval(ratios: dict[int, float]) -> tuple[float, float, float]:
     return mean, T975_DF4 * sd / math.sqrt(len(values)), sd
 
 
+def target_summary(values: dict[int, float], run_id: str, floor: float) -> dict:
+    """One target's row: its interval, MDE, floor and the registered decision."""
+    mean, half, sd = target_interval(values)
+    return {
+        "run_id": run_id,
+        "mean": mean,
+        "ci": [mean - half, mean + half],
+        "sd_fold": sd,
+        "mde": 2.8016 * sd / math.sqrt(len(values)),
+        "floor": floor,
+        "decision": decide(mean, mean - half, mean + half, floor),
+    }
+
+
 def task_interval(
     portfolios: list[dict[int, float]], reps: int = 10_000, seed: int = 42
 ) -> tuple[float, float, float]:
@@ -132,6 +146,15 @@ def decide(point: float, low: float, high: float, floor: float) -> str:
     if high < floor:
         return "No-go"
     return "Inconclusive"
+
+
+def _print_target(label: str, row: dict) -> None:
+    """One table row: the label with `r`, its interval, MDE, floor and decision."""
+    low, high = row["ci"]
+    print(
+        f"{label:<18}{row['mean']:>+8.2%}   [{low:>+6.2%}, {high:>+6.2%}]"
+        f"{row['mde']:>7.2%}{row['floor']:>7.0%}  {row['decision']}"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -164,16 +187,7 @@ def main(argv: list[str] | None = None) -> int:
     }
     summary: dict = {"targets": {}, "tasks": {}}
     for target, values in ratios.items():
-        mean, half, sd = target_interval(values)
-        summary["targets"][target] = {
-            "run_id": ids[target],
-            "mean": mean,
-            "ci": [mean - half, mean + half],
-            "sd_fold": sd,
-            "mde": 2.8016 * sd / math.sqrt(5),
-            "floor": floors[target],
-            "decision": decide(mean, mean - half, mean + half, floors[target]),
-        }
+        summary["targets"][target] = target_summary(values, ids[target], floors[target])
 
     for task, members, floor in (
         ("frequency", ["frequency_french", "frequency_spanish"], FLOOR_FREQUENCY),
@@ -195,17 +209,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.row_scale_french:
         run_dir = RESULTS / args.row_scale_french
         values = fold_ratios(run_dir)
-        mean, half, sd = target_interval(values)
         summary["row_scale"] = {
-            "run_id": args.row_scale_french,
+            **target_summary(values, args.row_scale_french, FLOOR_SEVERITY),
             "target": "severity_french",
-            "registered": False,
-            "mean": mean,
-            "ci": [mean - half, mean + half],
-            "sd_fold": sd,
-            "mde": 2.8016 * sd / math.sqrt(5),
-            "floor": FLOOR_SEVERITY,
-            "decision": decide(mean, mean - half, mean + half, FLOOR_SEVERITY),
             "folds": {str(fold): value for fold, value in values.items()},
             "train_rows": fold_train_rows(run_dir),
         }
@@ -216,11 +222,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"{'target':<18}{'r':>9}{'95% CI':>20}{'MDE':>8}{'floor':>7}  decision")
     for target, row in summary["targets"].items():
-        low, high = row["ci"]
-        print(
-            f"{target:<18}{row['mean']:>+8.2%}   [{low:>+6.2%}, {high:>+6.2%}]"
-            f"{row['mde']:>7.2%}{row['floor']:>7.0%}  {row['decision']}"
-        )
+        _print_target(target, row)
     print()
     for task, row in summary["tasks"].items():
         low, high = row["ci"]
@@ -230,7 +232,6 @@ def main(argv: list[str] | None = None) -> int:
         )
     if "row_scale" in summary:
         row = summary["row_scale"]
-        low, high = row["ci"]
         rows = row["train_rows"]
         budget = f"{rows[0]}–{rows[-1]} rows" if rows else "train rows unrecorded"
         print()
@@ -238,9 +239,10 @@ def main(argv: list[str] | None = None) -> int:
             f"row-scaling arm (#572: not part of the registered verdict; {row['run_id']}, "
             f"{budget})"
         )
+        _print_target(row["target"], row)
         print(
-            f"{'severity_french':<18}{row['mean']:>+8.2%}   [{low:>+6.2%}, {high:>+6.2%}]"
-            f"{row['mde']:>7.2%}{row['floor']:>7.0%}  {row['decision']}"
+            "per fold: "
+            + "  ".join(f"{fold}: {value:+.2%}" for fold, value in row["folds"].items())
         )
     return 0
 

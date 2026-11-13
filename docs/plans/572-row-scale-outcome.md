@@ -1,9 +1,10 @@
 # Plan — the row-scaling arm's outcome (#572)
 
-**Status:** Current — implementing 2026-11-13.
+**Status:** Current — implemented 2026-11-13.
 **Origin:** ticket #572. **Pre-registration:** the dated amendment in
 `docs/current/REGRESSOR_FINETUNING_PREREGISTRATION_FREQ_SEV_2026-11.md`.
-**Evidence:** `results/20261113T003320Z/` (paid run, ~$0.21, completed 2026-11-13 00:33 UTC).
+**Evidence:** `results/20261113T003320Z/` (paid run, `est_cost_usd` 0.2149 and `wall_minutes`
+50.68 in `outputs/gpu-pilot/run_20261113T003320Z.json`, completed 2026-11-13 00:33 UTC).
 
 ## What was run, and what it returned
 
@@ -38,7 +39,8 @@ arm's −0.92%, and the interval is about three times wider.
   `docs/analyses/freq_sev_fair_test_result.md` stay exactly as recorded on 2026-11-12.
 - It does not run the **frequency** mirror (`frequency_french`), which is the more starved target at
   1.8% of the available policies. The amendment authorises it after the severity arm; it is a
-  separate launch and a separate spend (~$0.25).
+  separate launch, and its cost is **unmeasured** — the severity arm's own `est_cost_usd` (0.2149)
+  does not transfer to a target four times its row pool.
 - It does not analyse the row-scaling capture's quantiles. `docs/analyses/freq_sev_quantiles.md`
   stays as measured on the four registered captures.
 - It does not close #572: the frequency arm of the amendment is still open.
