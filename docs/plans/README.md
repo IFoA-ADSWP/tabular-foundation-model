@@ -17,7 +17,7 @@ since merged, and the pull request that merged it is the record of what happened
 the fact: a plan that says proposed stays that way unless its author amends it, because rewriting the status
 of a plan after the data would make the trail say something it did not.
 
-## Current, agreed or implemented — 62 plans
+## Current, agreed or implemented — 63 plans
 
 Newest first, by ticket number where the filename carries one.
 
@@ -62,6 +62,7 @@ Newest first, by ticket number where the filename carries one.
 | [`truth-hash-verification.md`](truth-hash-verification.md) | the rescore verifies both hashes it was given |
 | [`vast-log-dir.md`](vast-log-dir.md) | a mock launch's log goes beside its records (#280) |
 | [`verification-gate.md`](verification-gate.md) | verification gate, slice 1: the local command |
+| [`597-actuarial-baseline.md`](597-actuarial-baseline.md) | the actuarial baseline: TabPFN vs GLM and CatBoost (#597) |
 | [`572-row-scale-frequency.md`](572-row-scale-frequency.md) | the row-scaling arm on `frequency_french` (#572) |
 | [`572-row-scale-outcome.md`](572-row-scale-outcome.md) | the row-scaling arm's outcome (#572) |
 | [`492-cold-read.md`](492-cold-read.md) | the cold read, and what it found |
