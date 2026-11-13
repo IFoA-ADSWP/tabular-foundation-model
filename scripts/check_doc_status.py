@@ -117,6 +117,52 @@ def _reports(root: pathlib.Path) -> list[pathlib.Path]:
     return sorted(root.rglob("*.md"))
 
 
+# docs/EXPERIMENTS.md states, per campaign, how many live documents it has, how many archived, and how
+# many committed runs its README names. All three are derived facts maintained by hand, and both drifted
+# within a day of being written -- once when another merge added two documents, once when a table row was
+# edited by hand. A count nobody checks is a count that is wrong.
+EXPERIMENTS_INDEX = pathlib.Path("docs/EXPERIMENTS.md")
+CAMPAIGN_ROW = re.compile(
+    r"^\|\s*\[`([^`]+)`\][^|]*\|\s*(\d+)\s*live,\s*(\d+)\s*archived\s*\|\s*(\d+)\s*\|"
+)
+RUN_ID_LINE = re.compile(r"^20\d{6}[T-]", re.MULTILINE)
+
+
+def experiment_count_problems(root: pathlib.Path = pathlib.Path(".")) -> list[str]:
+    """Return one line per campaign row whose stated counts disagree with the tree."""
+    index = root / EXPERIMENTS_INDEX
+    if not index.exists():
+        return [f"missing experiment index: {EXPERIMENTS_INDEX}"]
+    problems: list[str] = []
+    seen: set[str] = set()
+    for line in index.read_text(errors="replace").splitlines():
+        match = CAMPAIGN_ROW.match(line)
+        if not match:
+            continue
+        campaign, live, archived, runs = match.group(1), int(match.group(2)), int(match.group(3)), int(match.group(4))
+        seen.add(campaign)
+        directory = root / "docs" / "experiments" / campaign
+        readme = directory / "README.md"
+        if not readme.exists():
+            problems.append(f"{EXPERIMENTS_INDEX}: lists {campaign}, which has no README")
+            continue
+        actual_live = len([p for p in directory.glob("*.md") if p.name != "README.md"])
+        archived_dir = root / "docs" / "archive" / campaign
+        actual_archived = len(list(archived_dir.glob("*.md"))) if archived_dir.is_dir() else 0
+        actual_runs = len(RUN_ID_LINE.findall(readme.read_text(errors="replace")))
+        if (actual_live, actual_archived, actual_runs) != (live, archived, runs):
+            problems.append(
+                f"{EXPERIMENTS_INDEX}: {campaign} says {live} live / {archived} archived / {runs} runs, "
+                f"the tree has {actual_live} / {actual_archived} / {actual_runs}"
+            )
+    experiments = root / "docs" / "experiments"
+    if experiments.is_dir():
+        for directory in sorted(p for p in experiments.iterdir() if p.is_dir()):
+            if directory.name not in seen:
+                problems.append(f"{EXPERIMENTS_INDEX}: campaign {directory.name} has no row")
+    return problems
+
+
 def unlabelled(root: pathlib.Path) -> tuple[list[str], int]:
     """Return (names of reports with no status marker, total reports)."""
     missing, total = [], 0
@@ -160,12 +206,12 @@ def main(argv: list[str] | None = None) -> int:
     registry: list[str] = []
     indexes: list[str] = []
     if args.dir is None:
-        indexes = index_problems()
+        indexes = index_problems() + experiment_count_problems()
         if indexes:
             for problem in indexes:
                 print(f"  {problem}")
         else:
-            print("  indexes: every plan and every campaign document is listed in its index")
+            print("  indexes: every plan and campaign document is listed, and the campaign counts agree")
         registry = registry_problems(CLAIM_REGISTRY)
         if registry:
             for problem in registry:

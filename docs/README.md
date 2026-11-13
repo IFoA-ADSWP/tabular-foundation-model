@@ -67,7 +67,8 @@ number live", not "what did we measure":
 
 **Enforcement.** `scripts/check_doc_status.py` asserts that every report under `experiments/`, `shared/` and
 `archive/` declares a status in its first fifteen lines, that every campaign README lists every document in its
-directory, and that the findings registry carries no restated number. Run it with
+directory, that the per-campaign counts in [`EXPERIMENTS.md`](EXPERIMENTS.md) match the tree, and that the findings
+registry carries no restated number. Run it with
 `./scripts/check.sh docstatus`.
 
 The report-level index is `docs/REPORT_REGISTRY.md` and is deliberately not restated here, so there is exactly one place to update when a report is added.

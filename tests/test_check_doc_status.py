@@ -6,6 +6,7 @@ import pathlib
 from scripts.check_doc_status import (
     CLAIM_REGISTRY,
     DEFAULT_DIRS,
+    experiment_count_problems,
     index_problems,
     main,
     registry_problems,
@@ -144,3 +145,52 @@ def test_a_complete_index_is_not_reported(tmp_path: pathlib.Path) -> None:
     (plans / "b.md").write_text("x\n")
 
     assert index_problems(tmp_path) == []
+
+
+def _campaign(tmp_path: pathlib.Path, name: str, docs: int, archived: int, runs: int) -> None:
+    live = tmp_path / "docs" / "experiments" / name
+    live.mkdir(parents=True)
+    (live / "README.md").write_text("# x\n\n```\n" + "\n".join(f"2026010{i}T000000Z" for i in range(runs)) + "\n```\n")
+    for i in range(docs):
+        (live / f"doc{i}.md").write_text("> **Status:** current\n")
+    if archived:
+        old = tmp_path / "docs" / "archive" / name
+        old.mkdir(parents=True)
+        for i in range(archived):
+            (old / f"old{i}.md").write_text("> **Status:** archive\n")
+
+
+def _table(tmp_path: pathlib.Path, rows: str) -> None:
+    (tmp_path / "docs" / "EXPERIMENTS.md").write_text("| Campaign | Documents | Runs |\n| --- | --- | --- |\n" + rows)
+
+
+def test_a_stale_campaign_count_is_reported(tmp_path: pathlib.Path) -> None:
+    """Both halves of this drifted within a day of the table being written.
+
+    #598 added two documents to the fair test after the row was written, and the frontier row kept
+    saying 0 runs after its README started naming four. Both were counts nobody checked.
+    """
+    _campaign(tmp_path, "fair-test", docs=2, archived=0, runs=1)
+    _table(tmp_path, "| [`fair-test`](experiments/fair-test/README.md) | 1 live, 0 archived | 1 |\n")
+
+    problems = experiment_count_problems(tmp_path)
+
+    assert len(problems) == 1
+    assert "1 live / 0 archived / 1 runs" in problems[0]
+    assert "2 / 0 / 1" in problems[0]
+
+
+def test_correct_counts_are_not_reported(tmp_path: pathlib.Path) -> None:
+    _campaign(tmp_path, "fair-test", docs=2, archived=1, runs=3)
+    _table(tmp_path, "| [`fair-test`](experiments/fair-test/README.md) | 2 live, 1 archived | 3 |\n")
+
+    assert experiment_count_problems(tmp_path) == []
+
+
+def test_a_campaign_with_no_row_is_reported(tmp_path: pathlib.Path) -> None:
+    _campaign(tmp_path, "orphan", docs=1, archived=0, runs=0)
+    _table(tmp_path, "")
+
+    problems = experiment_count_problems(tmp_path)
+
+    assert any("orphan" in p and "no row" in p for p in problems)
