@@ -38,9 +38,9 @@ Every capture passes `check_citations.check_run_dir`: 2 arms × 5 folds × 3 see
 present. Severity captures carry `weights_sha256` and `cluster_sha256`; frequency captures carry
 `exposure_sha256` and neither of the severity pair, as the contract requires.
 
-The row-scaling arm (#572) is a fifth capture, `20261113T003320Z` — v4, `freMTPL2sev`, 30 entries,
-same contract — and is not one of the four the verdict is registered on. It is reported separately
-below.
+The row-scaling arms (#572) are two further captures, neither one of the four the verdict is
+registered on — `20261113T003320Z` (v4, `freMTPL2sev`) and `20261113T095502Z` (v3, `freMTPL2freq`),
+30 entries each, same contract. Both are reported separately below.
 
 ## Result
 
@@ -120,8 +120,8 @@ The per-fold pattern says the same without the average: four of five folds are n
 
 ### Frequency: the 4× the budget was written for
 
-French frequency is the starved target — 10,000 of ~542,000 policies, 1.8% — and the only one where
-the registered 40,000 is reachable. The arm ran at **40,000 rows on every fold**, both arms, thirty
+French frequency is the starved target — 10,000 of the ~542,000 policies a fold can train on, 1.8%
+— and the only one where the registered 40,000 is reachable. The arm ran at **40,000 rows on every fold**, both arms, thirty
 entries, and on **exactly the test rows the registered run used**: every fold's `test_index` and
 `ground_truth` hashes are identical to `20261112T164543Z`, so the only thing that moved between the
 two rows below is the training budget.
@@ -131,7 +131,7 @@ two rows below is the training budget.
 | 10,000 rows (`20261112T164543Z`) | +9.69% | [+7.43%, +11.95%] | 2.28% | Go |
 | 40,000 rows (`20261113T095502Z`) | +11.84% | [+8.93%, +14.76%] | 2.94% | Go |
 
-**The Go does not weaken; it is, if anything, larger.** The point estimate rises 2.15 points and the
+**The Go does not weaken.** The point estimate rises 2.15 points and the
 interval's lower bound rises with it, from +7.43% to +8.93% — still nearly seven points clear of the
 2% floor. All five folds clear the floor on their own (+8.03%, +13.52%, +12.53%, +13.84%, +11.30%),
 so the result is not one fold carrying a mean. Every slot in both rows was measured under the same
@@ -141,14 +141,15 @@ capture's `meta.json` records.
 **What this does and does not establish.** The concern the amendment was written to test was that
 the 10,000-row cap *created* the frequency win — the classifier lane's history read the other way
 round, with fine-tuning looking useless at 2,000 rows and working at 10,000. At 4× the budget the
-gain is not smaller, so +9.69% was not an artefact of a starved context: it is a reading at the low
-end rather than a midpoint. It does **not** establish that the gain
+gain is not smaller, so +9.69% was not an artefact of a starved context. It does **not** establish
+that the gain
 grows with rows: the two intervals overlap substantially, and no statistic for the difference
 between budgets is registered. Three of five folds improved and two fell slightly (−1.81% and
 −1.35%), which is the shape a noise-dominated 2-point difference should have.
 
 Precision moves the other way: MDE widens from 2.28% to 2.94%, so the 40,000-row arm is *less*
-precise per fold despite the larger effect. Both intervals would still resolve the floor.
+precise per fold despite the larger effect. Both intervals sit clear of the floor, as their lower
+bounds (+7.43% and +8.93%) show.
 
 **Schema difference between the two halves is expected.** The severity capture is schema v4 and the
 frequency capture v3. v4 adds the per-row `weights.npy` and `cluster_id.npy` arrays, which the

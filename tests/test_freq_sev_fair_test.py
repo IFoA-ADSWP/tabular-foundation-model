@@ -157,3 +157,50 @@ def test_the_frequency_row_scaling_arm_is_reported_and_not_folded_into_the_task(
     assert summary["row_scale_frequency"]["decision"] == "No-go"
     assert summary["row_scale_frequency"]["train_rows"] == [40000]
     assert "row_scale" not in summary
+
+
+def test_both_row_scaling_arms_keep_their_own_entry(tmp_path, monkeypatch, capsys):
+    """The two arms' summary keys are asymmetric (`row_scale` vs `row_scale_frequency`).
+
+    A refactor that derived the key from the target name, or reused `row_scale` for both, would
+    silently overwrite one arm with the other when a caller passes both — which the reproduce
+    command in the verdict document does. So pass both and check each keeps its own run id.
+    """
+    module = _module()
+    monkeypatch.setattr(module, "RESULTS", tmp_path)
+
+    registered = {
+        "frequency_french": ("20261112T000001Z", 0.90),
+        "frequency_spanish": ("20261112T000002Z", 0.96),
+        "severity_french": ("20261112T000003Z", 1.01),
+        "severity_spanish": ("20261112T000004Z", 0.98),
+    }
+    for run_id, treatment in registered.values():
+        for fold in range(2):
+            for arm, value in (("A_raw", 1.0), ("B_ft30", treatment)):
+                _slot(tmp_path / run_id, arm=arm, seed=0, fold=fold, value=value)
+
+    severity_arm, frequency_arm = "20261113T000005Z", "20261113T000006Z"
+    for run_id, treatment, rows in ((severity_arm, 0.98, 21177), (frequency_arm, 1.08, 40000)):
+        for fold in range(2):
+            for arm, value in (("A_raw", 1.0), ("B_ft30", treatment)):
+                _slot(tmp_path / run_id, arm=arm, seed=0, fold=fold, value=value, train_rows=rows)
+
+    argv = [
+        "--reps", "50", "--json",
+        "--row-scale-french", severity_arm,
+        "--row-scale-frequency", frequency_arm,
+    ]
+    for target, (run_id, _treatment) in registered.items():
+        argv += [f"--{target.replace('_', '-')}", run_id]
+
+    module.main(argv)
+    summary = json.loads(capsys.readouterr().out)
+
+    assert summary["row_scale"]["run_id"] == severity_arm
+    assert summary["row_scale"]["target"] == "severity_french"
+    assert summary["row_scale"]["train_rows"] == [21177]
+    assert summary["row_scale_frequency"]["run_id"] == frequency_arm
+    assert summary["row_scale_frequency"]["target"] == "frequency_french"
+    assert summary["row_scale_frequency"]["train_rows"] == [40000]
+    assert summary["row_scale"]["mean"] != summary["row_scale_frequency"]["mean"]

@@ -4,7 +4,8 @@
 **Origin:** ticket #572. **Pre-registration:** the dated amendment in
 `docs/current/REGRESSOR_FINETUNING_PREREGISTRATION_FREQ_SEV_2026-11.md`.
 **Sibling plan (already done):** `docs/plans/572-row-scale-outcome.md` — the `severity_french` half.
-**Evidence:** `results/20261113T095502Z/` (30 entries, schema v3, 13.1 MB). Paid run:
+**Evidence:** `results/20261113T095502Z/` (30 entries, schema v3, 29.8 MB of arrays, 17.8 MB on the
+wire). Paid run:
 `est_cost_usd` 0.5705 and `wall_minutes` 115.82 in `outputs/gpu-pilot/run_20261113T095502Z.json`.
 **Outcome:** r = **+11.84%**, CI [+8.93%, +14.76%], MDE 2.94%, **Go** — against **+9.69%** at
 10,000 rows, on identical test rows. The gain did not shrink, so the frequency Go was not a
@@ -15,7 +16,7 @@ small-data artefact; the intervals overlap, so no increase is claimed.
 The amendment raises the per-fold training budget from 10,000 to 40,000 rows for a row-scaling arm,
 applied to **both** arms, and names `frequency_french` as its second target. The severity half ran
 on 2026-11-13 and returned **No-go** at 2.1× (the budget clamped to each fold's whole claim pool):
-the null survived. The frequency half has not run.
+the null survived. This plan covers the frequency half, which ran the same day.
 
 It matters more than the severity half did, on the amendment's own numbers: the published **+9.69%**
 is measured on **10,000 of ~542,000** available French policies — **1.8%**. That is the starved end
@@ -66,8 +67,8 @@ same 30-fit shape, so **~2–3 h and roughly $0.6–1.0** expected, dominated by
 larger capture. The ticket's own `$1.50–2.50` estimate was written before any measurement in this
 arm and overshot the severity launch ~7×; it is kept here only as the upper bound it now is.
 
-**Measured:** 115.82 min at the $0.2956/hr effective rate the record reports = **$0.5705**, inside
-the estimate and a third of the ceiling. Transfer was the slow half, as predicted: the fits finished
+**Measured:** 115.82 min at the $0.2956/hr effective rate the record reports = **$0.5705**, just under
+the estimated range and a third of the ceiling. Transfer was the slow half, as predicted: the fits finished
 well before the poll window filled.
 
 ## Risks measured on the last two launches
@@ -83,7 +84,7 @@ well before the poll window filled.
 
 ## What changes when it lands
 
-1. **Commit the capture** under `results/<run id>/` (schema v4, 30 entries), with the PR labelled
+1. **Commit the capture** under `results/<run id>/` (schema v3, 30 entries), with the PR labelled
    `evidence-change` so the evidence gate accepts the addition.
 2. **`scripts/analyses/freq_sev_fair_test.py` gains `--row-scale-frequency`**, symmetrical to
    `--row-scale-french`: printed beside the target table, excluded from the frequency task mean,
@@ -100,7 +101,7 @@ well before the poll window filled.
 python scripts/analyses/freq_sev_fair_test.py \
   --frequency-french 20261112T164543Z --frequency-spanish 20261112T184155Z \
   --severity-french 20261112T210029Z --severity-spanish 20261112T220641Z \
-  --row-scale-french 20261113T003320Z --row-scale-frequency <new run id>
+  --row-scale-french 20261113T003320Z --row-scale-frequency 20261113T095502Z
 EVIDENCE_CHANGE_OK=1 ./scripts/check.sh
 ```
 
