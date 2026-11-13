@@ -76,12 +76,12 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup and contribution gui
 ├── docs/                           # Start at docs/README.md
 │   ├── RUNNING.md                  #   the route in, if you are running the code
 │   ├── EVIDENCE_MAP.md             #   which tree holds which number
-│   ├── current/                    #   reports describing the design as built
-│   ├── reference/                  #   historical, still cited for provenance
-│   ├── archive/                    #   kept for the record, not cited
+│   ├── EXPERIMENTS.md              #   the map: which documents belong to which experiment
+│   ├── experiments/<campaign>/     #   one folder per line of work, with its runs named
+│   ├── shared/                     #   registries and explainers belonging to no campaign
+│   ├── archive/<campaign>/         #   superseded documents, same grouping
 │   ├── plans/                      #   one plan per task, written before the work
-│   ├── adr/                        #   accepted decisions that constrain the code
-│   └── analyses/                   #   methodology, diagnostics, result notes
+│   └── adr/                        #   accepted decisions that constrain the code
 │
 ├── scripts/                        # Indexed in scripts/README.md
 ├── results/                        # Committed run captures (see docs/EVIDENCE_MAP.md)
