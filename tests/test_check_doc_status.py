@@ -45,16 +45,17 @@ def test_titles_do_not_pass_but_markers_below_the_window_do_not_either(tmp_path:
     assert missing == ["late.md"], "a marker past the window is not a status"
 
 
-def test_default_scope_is_the_three_report_tiers(tmp_path: pathlib.Path, monkeypatch) -> None:
-    """The default must reach current/, reference/ and archive/ -- not the dissolved docs/reports/.
+def test_default_scope_is_the_report_trees(tmp_path: pathlib.Path, monkeypatch) -> None:
+    """The default must reach the experiment, shared and archive trees -- not the dissolved docs/reports/.
 
-    docs/reports/ was folded into these three in #200-#202 and the default was left behind, so the
-    check exited 2 ("no such directory") and enforced nothing at all.
+    Two moves have broken this default before: #200-#202 dissolved docs/reports/ and left the check
+    pointing at it, so it exited 2 and enforced nothing; #595 replaced the three status directories
+    with the campaign tree. A default that reaches no documents is worse than no check.
     """
-    assert set(DEFAULT_DIRS) == {"docs/current", "docs/reference", "docs/archive"}
+    assert set(DEFAULT_DIRS) == {"docs/experiments", "docs/shared", "docs/archive"}
     for tier in DEFAULT_DIRS:
         (tmp_path / tier).mkdir(parents=True)
-    (tmp_path / "docs/current/marked.md").write_text("> **Status:** current\n\nbody\n")
+    (tmp_path / "docs/experiments/marked.md").write_text("> **Status:** current\n\nbody\n")
     (tmp_path / "docs/archive/bare.md").write_text("# A report\n\nbody\n")
 
     monkeypatch.chdir(tmp_path)

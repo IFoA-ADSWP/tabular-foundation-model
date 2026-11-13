@@ -1,4 +1,4 @@
-"""Paired analysis for Pilot 2, as fixed by `docs/current/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md`.
+"""Paired analysis for Pilot 2, as fixed by `docs/experiments/pilot2-phase2/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md`.
 
 Three primitives, and nothing else:
 

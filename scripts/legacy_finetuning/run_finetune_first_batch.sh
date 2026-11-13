@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Runs the first limit-finding batch from docs/analyses/tabpfn_finetune_limit_test_plan.md.
+# Runs the first limit-finding batch from docs/experiments/pilot2-phase2/tabpfn_finetune_limit_test_plan.md.
 # For each trial:
 # 1) run fine-tune trial
 # 2) run saved-model reload check

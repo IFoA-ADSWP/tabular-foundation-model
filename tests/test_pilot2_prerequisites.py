@@ -1,6 +1,6 @@
 """Acceptance tests for the Pilot 2 prerequisites implemented in scripts/run_pilot.py.
 
-These are the checks recorded in docs/current/FINETUNING_PREREQUISITES.md. Each test
+These are the checks recorded in docs/experiments/pilot2-phase2/FINETUNING_PREREQUISITES.md. Each test
 corresponds to one prerequisite's acceptance criterion, so a prerequisite can only
 be marked DONE when the matching test passes.
 

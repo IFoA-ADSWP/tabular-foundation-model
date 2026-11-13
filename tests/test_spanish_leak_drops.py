@@ -23,7 +23,7 @@ import verdict  # noqa: E402
 SCRIPT = REPO / "scripts" / "run_pilot.py"
 SPANISH = REPO / "data" / "raw" / "spanish_motor_lapse.csv"
 EUDIRECT = REPO / "data" / "raw" / "eudirectlapse.csv"
-PREREG = REPO / "docs" / "current" / "FINETUNING_PREREGISTRATION_SPANISH_2026-11.md"
+PREREG = REPO / "docs" / "experiments" / "pilot2-phase2" / "FINETUNING_PREREGISTRATION_SPANISH_2026-11.md"
 REGISTRY = REPO / "scripts" / "eval" / "insurance_benchmark_v1" / "experiments.toml"
 
 LEAK_COLUMNS = ("N_claims_year", "Cost_claims_year")

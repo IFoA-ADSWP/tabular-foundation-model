@@ -18,9 +18,9 @@ CONTENT_DIR="$(cd "$(dirname "$0")/.." && pwd)/.wiki-content"
 
 # Stage release-facing pages for colleagues (browser-viewable, no repo clone needed)
 mkdir -p "$CONTENT_DIR"
-cp docs/archive/TABPFN_BENCHMARK_SUMMARY.md "$CONTENT_DIR/Benchmark-Summary.md"
-cp docs/analyses/regime_characterization.md "$CONTENT_DIR/Adoption-Guidance.md"
-cp docs/analyses/metrics_explained.md "$CONTENT_DIR/Metrics-Explained.md"
+cp docs/archive/frontier-benchmark/TABPFN_BENCHMARK_SUMMARY.md "$CONTENT_DIR/Benchmark-Summary.md"
+cp docs/experiments/frontier-benchmark/regime_characterization.md "$CONTENT_DIR/Adoption-Guidance.md"
+cp docs/shared/metrics_explained.md "$CONTENT_DIR/Metrics-Explained.md"
 
 echo "==> Cloning $REPO.wiki.git into $WIKI_DIR"
 if [[ -d "$WIKI_DIR" ]]; then

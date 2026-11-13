@@ -235,7 +235,7 @@ fi
 # resolved by the installed package, so moving TABPFN_PIN changes what loads while the record
 # still says `auto` -- and a breadth cell that quietly moved line would be compared against the
 # anchor as if it were the same model. Override only when the move is intended and recorded
-# (docs/current/FINETUNING_BREADTH_SPEC.md).
+# (docs/experiments/pilot2-phase2/FINETUNING_BREADTH_SPEC.md).
 export TFM_EXPECT_CHECKPOINT="${TFM_EXPECT_CHECKPOINT:-tabpfn-v3-classifier-v3_default.ckpt}"
 
 # ---- 3b. Prove the TabPFN licence BEFORE running any arm ----

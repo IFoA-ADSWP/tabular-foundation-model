@@ -202,7 +202,7 @@ def test_a_seed_subset_selects_within_the_declaration():
 
     assert seeds == [331, 332, 333]
     assert experiment_id == CELL
-    assert preregistration == "docs/current/FINETUNING_PREREGISTRATION_SPANISH_2026-11.md"
+    assert preregistration == "docs/experiments/pilot2-phase2/FINETUNING_PREREGISTRATION_SPANISH_2026-11.md"
 
 
 def test_a_seed_outside_the_declaration_is_refused():
@@ -264,7 +264,7 @@ def test_the_run_manifest_names_the_preregistration(monkeypatch, tmp_path):
         mod.main()
 
     assert captured["preregistration"] == (
-        "docs/current/FINETUNING_PREREGISTRATION_SPANISH_2026-11.md")
+        "docs/experiments/pilot2-phase2/FINETUNING_PREREGISTRATION_SPANISH_2026-11.md")
     # The subset is what this launch asked for, so two launches of one cell cannot both claim
     # the whole range.
     assert captured["seeds"] == [331, 332]

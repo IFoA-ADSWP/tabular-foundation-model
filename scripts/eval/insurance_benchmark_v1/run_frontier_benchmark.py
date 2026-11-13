@@ -1,7 +1,7 @@
 """Insurance frontier benchmark — full v1 scope (3 independent frontiers).
 
 Generalizes the validated pilot (run_frontier_pilot_bemtl97.py) to all three
-home-turf sweep datasets per docs/analyses/insurance_frontier_benchmark_spec.md
+home-turf sweep datasets per docs/experiments/frontier-benchmark/insurance_frontier_benchmark_spec.md
 (commit 037d215, branch feat/tabarena-benchmark), D5 Option A:
 
   The six datasets are declared in experiments.toml, with their targets and leak-drops;
@@ -918,7 +918,7 @@ def write_predictions_npz(ds: dict, pred_store: dict[str, np.ndarray], methods: 
                            n_rows: int | None = None,
                            row_size: int | None = None) -> Path:
     """Write predictions/<dataset>__seed<seed>__<model_path>.npz + sibling .manifest.json
-    (schema v1, docs/analyses/prediction_capture_rescore_spec.md §4). Asserts every
+    (schema v1, docs/experiments/frontier-benchmark/prediction_capture_rescore_spec.md §4). Asserts every
     fold/method array is present, length-matched to its test split, and finite before
     writing anything.
 

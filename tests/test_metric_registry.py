@@ -1,6 +1,6 @@
 """The registry names the metrics the tool computes — one list, not two.
 
-`docs/analyses/METRIC_REGISTRY.md` is the claim a report cites ("measured with `ece/1`"); the
+`docs/shared/METRIC_REGISTRY.md` is the claim a report cites ("measured with `ece/1`"); the
 tool is the behaviour. If they can disagree, the claim is unverifiable, so the suite reads the
 table and compares it to `src/rescore.py`.
 """
@@ -12,7 +12,7 @@ from pathlib import Path
 
 import rescore
 
-REGISTRY = Path(__file__).resolve().parents[1] / "docs" / "analyses" / "METRIC_REGISTRY.md"
+REGISTRY = Path(__file__).resolve().parents[1] / "docs" / "shared" / "METRIC_REGISTRY.md"
 
 
 def _table_rows() -> list[list[str]]:
