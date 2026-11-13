@@ -383,3 +383,123 @@ def test_a_v4_frequency_capture_carrying_the_severity_pair_fails(tmp_path):
     root = make_v4_repo(tmp_path, task="frequency")
 
     assert run(root) == 1
+
+
+def make_v5_repo(
+    tmp_path: Path,
+    *,
+    method: str = "E_glm",
+    arm: str | None = None,
+    quantiles: bool = False,
+    versions: dict | None = None,
+    entry_overrides: dict | None = None,
+) -> Path:
+    """A v5 capture over one baseline slot (#597): the method axis, quantiles optional."""
+    root = tmp_path / "repo"
+    (root / "docs").mkdir(parents=True)
+    (root / "docs" / "analysis.md").write_text(f"The run `{RUN}` produced these numbers.\n")
+    label = arm or method
+    slot = root / "results" / RUN / "freMTPL2freq" / label / "seed43_fold0"
+    slot.mkdir(parents=True)
+    meta = {
+        "method": method,
+        "arm": arm,
+        "seed": 43,
+        "fold": 0,
+        "task": "frequency",
+        "test_rows": 100,
+        "verdict_metric": "poisson_deviance",
+        "verdict_metric_value": 1.5,
+        "rmse": 0.25,
+        "quantile_levels": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+        if quantiles
+        else None,
+        "versions": versions
+        if versions is not None
+        else {"numpy": "2.0.0", "python": "3.12.0"},
+    }
+    if method == "tabpfn" and versions is None:
+        meta["versions"] = {"tabpfn": "8.5.0", "python": "3.12.0"}
+        meta["weights"] = {"path": "/cache/checkpoint.ckpt", "sha256": "c" * 64}
+    (slot / "meta.json").write_text(json.dumps(meta))
+    capture = {
+        "method": method,
+        "arm": arm,
+        "seed": 43,
+        "fold": 0,
+        "rows": 100,
+        "predictions_sha256": "a" * 64,
+        "truth_sha256": "b" * 64,
+        "test_index_sha256": "d" * 64,
+        "exposure_sha256": "e" * 64,
+        "record": f"{label}/seed43_fold0/meta.json",
+        "reason": None,
+    }
+    if quantiles:
+        capture["quantiles_sha256"] = "f" * 64
+    capture.update(entry_overrides or {})
+    (root / "results" / RUN / "capture.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 5,
+                "run_id": RUN,
+                "dataset": "freMTPL2freq",
+                "created_utc": "2026-11-02T10:10:00Z",
+                "captures": [capture],
+            }
+        )
+    )
+    return root
+
+
+def test_a_v5_baseline_capture_without_quantiles_passes(tmp_path):
+    assert run(make_v5_repo(tmp_path)) == 0
+
+
+def test_a_v5_tabpfn_capture_with_quantiles_passes(tmp_path):
+    assert run(make_v5_repo(tmp_path, method="tabpfn", arm="A_raw", quantiles=True)) == 0
+
+
+def test_a_v5_entry_missing_its_method_fails(tmp_path):
+    root = make_v5_repo(tmp_path)
+    manifest_path = root / "results" / RUN / "capture.json"
+    manifest = json.loads(manifest_path.read_text())
+    del manifest["captures"][0]["method"]
+    manifest_path.write_text(json.dumps(manifest))
+
+    assert run(root) == 1
+
+
+def test_a_v5_baseline_with_no_library_version_fails(tmp_path):
+    root = make_v5_repo(tmp_path, versions={"python": "3.12.0"})
+
+    assert run(root) == 1
+
+
+def test_a_v5_baseline_carrying_a_quantiles_hash_fails(tmp_path):
+    """The writer refuses a distribution the method did not claim; the gate must agree."""
+    root = make_v5_repo(tmp_path, entry_overrides={"quantiles_sha256": "f" * 64})
+
+    assert run(root) == 1
+
+
+def test_a_v5_tabpfn_record_declaring_quantiles_without_the_hash_fails(tmp_path):
+    root = make_v5_repo(tmp_path, method="tabpfn", arm="A_raw", quantiles=True)
+    manifest_path = root / "results" / RUN / "capture.json"
+    manifest = json.loads(manifest_path.read_text())
+    del manifest["captures"][0]["quantiles_sha256"]
+    manifest_path.write_text(json.dumps(manifest))
+
+    assert run(root) == 1
+
+
+def test_the_gate_and_the_writer_agree_on_what_a_quantile_declaration_is():
+    """The paid path imports the gate without `src/` on the path, so the rule is duplicated.
+
+    A duplicate that can drift is worse than an import that cannot ship: this pins the two.
+    """
+    sys.path.insert(0, str(REPO_ROOT / "src"))
+    from run_capture import declares_quantiles
+
+    for record in ({"quantile_levels": None}, {}, {"quantile_levels": [0.5]}):
+        assert cc._declares_quantiles(record) is declares_quantiles(record)

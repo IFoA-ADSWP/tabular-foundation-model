@@ -24,6 +24,7 @@ from run_capture import (
     CAPTURE_SCHEMA_VERSION,
     CAPTURE_SCHEMA_VERSION_ARRAYS,
     CAPTURE_SCHEMA_VERSION_FOLDED,
+    CAPTURE_SCHEMA_VERSION_METHODS,
     CAPTURE_SCHEMA_VERSION_WEIGHTS,
     CLUSTER,
     EXPOSURE,
@@ -33,6 +34,7 @@ from run_capture import (
     WEIGHTS,
     CaptureRefused,
     Slot,
+    declares_quantiles,
     discover_slots,
 )
 
@@ -42,6 +44,7 @@ READABLE_VERSIONS = (
     CAPTURE_SCHEMA_VERSION_FOLDED,
     CAPTURE_SCHEMA_VERSION_ARRAYS,
     CAPTURE_SCHEMA_VERSION_WEIGHTS,
+    CAPTURE_SCHEMA_VERSION_METHODS,
 )
 
 
@@ -49,7 +52,7 @@ READABLE_VERSIONS = (
 class VerifiedSlot:
     """One arm × seed × fold's arrays, after whatever hash source exists has proved them."""
 
-    arm: str
+    arm: str | None
     seed: int
     fold: int | None
     predictions: np.ndarray
@@ -57,6 +60,7 @@ class VerifiedSlot:
     capture_sha: str
     source: str
     record: dict
+    method: str | None = None
     test_index: np.ndarray | None = None
     exposure: np.ndarray | None = None
     quantiles: np.ndarray | None = None
@@ -73,15 +77,17 @@ class VerifiedRun:
     slots: tuple[VerifiedSlot, ...]
 
 
-def _slot_key(slot: Slot) -> tuple[str, int, int | None]:
-    return (slot.arm, slot.seed, slot.fold)
+def _slot_key(slot: Slot) -> tuple[str | None, str | None, int, int | None]:
+    return (slot.method, slot.arm, slot.seed, slot.fold)
 
 
-def read_manifest(run_dir: Path) -> tuple[dict[tuple[str, int, int | None], dict], int] | None:
-    """The run's manifest entries by arm × seed × fold, and the schema version.
+def read_manifest(
+    run_dir: Path,
+) -> tuple[dict[tuple[str | None, str | None, int, int | None], dict], int] | None:
+    """The run's manifest entries by method × arm × seed × fold, and the schema version.
 
     None when no manifest exists. A version this reader does not know refuses rather than
-    guessing; v1, v2 and v3 are readable.
+    guessing; v1 through v5 are readable, and a v1–v4 entry keys on `method: None`.
     """
     path = Path(run_dir) / CAPTURE_FILE
     if not path.exists():
@@ -94,7 +100,7 @@ def read_manifest(run_dir: Path) -> tuple[dict[tuple[str, int, int | None], dict
             f"{', '.join(str(v) for v in READABLE_VERSIONS)}"
         )
     entries = {
-        (entry["arm"], entry["seed"], entry.get("fold")): entry
+        (entry.get("method"), entry.get("arm"), entry["seed"], entry.get("fold")): entry
         for entry in payload.get("captures", [])
     }
     return entries, version
@@ -188,13 +194,21 @@ def _verify_arrays(
             "cluster": None,
         }
 
-    wanted = {
-        TEST_INDEX: "test_index_sha256",
-        QUANTILES: "quantiles_sha256",
-    }
+    wanted = {TEST_INDEX: "test_index_sha256"}
+    if version < CAPTURE_SCHEMA_VERSION_METHODS:
+        wanted[QUANTILES] = "quantiles_sha256"
+    else:
+        record = json.loads(slot.record.read_text(encoding="utf-8"))
+        if declares_quantiles(record):
+            wanted[QUANTILES] = "quantiles_sha256"
+        elif slot.quantiles.is_file():
+            raise CaptureRefused(
+                f"{slot.quantiles} is present but the record declares no quantile_levels; "
+                "an unverified distribution is refused rather than ignored"
+            )
     if dataset == EXPOSURE_DATASET:
         wanted[EXPOSURE] = "exposure_sha256"
-    if version == CAPTURE_SCHEMA_VERSION_WEIGHTS:
+    if version >= CAPTURE_SCHEMA_VERSION_WEIGHTS:
         task = json.loads(slot.record.read_text(encoding="utf-8")).get("task")
         # The manifest is the artifact under verification: if it carries the hashes, the arrays
         # are owed and checked even when the record's pointer forgot to say `task`.
@@ -269,6 +283,7 @@ def read_run(run_dir: Path) -> VerifiedRun:
         verified.append(
             VerifiedSlot(
                 arm=slot.arm,
+                method=slot.method,
                 seed=slot.seed,
                 fold=slot.fold,
                 predictions=predictions,

@@ -1,6 +1,6 @@
 # Plan — the actuarial baseline (#597)
 
-**Status:** current — scoped 2026-11-13; build not started.
+**Status:** current — scoped 2026-11-13; build in progress (parts 1–3, on `feat/597-method-axis`).
 **Origin:** ticket #597. **Specification:** `docs/experiments/fair-test-freq-sev/baseline_method_specification.md`.
 **Pre-registration:** `docs/experiments/fair-test-freq-sev/ACTUARIAL_BASELINE_PREREGISTRATION_2026-11.md`.
 
@@ -25,7 +25,7 @@ Fine-tuned TabPFN (`B_ft30`, with `A_raw` alongside) against two actuarial basel
 |---|---|
 | Targets | `frequency_french`, `frequency_spanish`, `severity_french`, `severity_spanish` |
 | Methods | `B_ft30`, `A_raw` (TabPFN); `E_glm`, `F_catboost` (baselines) |
-| Rows | full fold pool primary; the fair test's 10,000-row sample as a sensitivity arm |
+| Rows | full fold pool primary; the fair test's 10,000-row sample as a sensitivity budget |
 | Folds / seeds | five policy-grouped folds × three seeds |
 | Statistic | `r = (M(baseline) − M(TabPFN)) / M(baseline)`, positive when TabPFN is better |
 | Floors | per target as registered: 2% / 4% / 2% / 2% |
@@ -59,8 +59,10 @@ Fine-tuned TabPFN (`B_ft30`, with `A_raw` alongside) against two actuarial basel
 
 1. Method axis + baseline backends behind the existing `Backend` seam — testable without the data.
 2. Capture version + citation gate + tests.
-3. One fold per target locally: measures the real runtime before the full matrix, and proves the
-   `test_index` match on the cheapest possible run.
+3. One fold per target locally: measures the real runtime before the full matrix. It does **not**
+   prove the `test_index` match — `n_folds=1` takes `group_fold_splits`' holdout branch, a fresh
+   80/20 permutation, not the registered five-fold split (measured 2026-11-13). That proof is a
+   unit test at two folds and a runtime refusal in the analysis tool, and it runs on the matrix.
 4. Full matrix; the analysis tool; the write-up.
 5. `analysis-review` and `code-review` before merge.
 
@@ -83,6 +85,52 @@ hash must equal its target's registered capture.
   claim and is thin; reusing it would widen the claim surface for no evidence.
 - It does not touch the fair test's verdict, floors, folds or seeds.
 - It spends nothing: this is CPU work on data already in `data/raw`.
+
+## Build log — 2026-11-13
+
+Parts 1–3 of the order of work, with the seams that were chosen:
+
+| Piece | Where | What it does |
+|---|---|---|
+| `Method` axis | `src/fair_test_runner.py` | `RunConfig.methods`; `METHODS` names `tabpfn`, `E_glm`, `F_catboost`, `M_intercept`. Only `tabpfn` carries Arms. A baseline slot is written under `<dataset>/<method>/seed<S>_fold<F>` and its record carries `arm: null`. |
+| `FitRequest` | `src/fair_test_runner.py` | One object per fit carrying the encoded arrays **and** the source frame, the row indices, exposure and weights. TabPFN reads the same `X`/`y` it always did; a baseline can reach the raw levels and the exposure column `.cat.codes` and `log(Exposure)` destroyed. |
+| Backends | `src/baselines.py` | `GlmBackend` (Poisson-log on rate + exposure weight; Tweedie `power=0`, identity on `log(amount)`), `CatBoostBackend` (Poisson/RMSE, raw categoricals), `InterceptBackend` (exposure-weighted anchor). Baselines return `(predictions, None)` — they decline quantiles. The GLM is solved by Newton–Cholesky on a training-fold-standardised design: `lbfgs` reached `max_iter=500` on the 542k-row French fold and overflowed on the Spanish columns, where it silently returned the intercept (measured 2026-11-13). The chosen solver and design scale are recorded in each record's `config`; the rejected alternative is recorded here, not in the artifact. |
+| Capture v5 | `src/run_capture.py`, `src/capture_reader.py`, `scripts/check_citations.py` | Entry and record carry `method`; `quantile_levels: null` means the method has no distribution and a `quantiles.npy` is refused; a method-declaring record makes the whole run v5 or the run is refused. The citation gate accepts v5 and asks a baseline for an interpreter plus a library version instead of TabPFN's checkpoint. |
+| CLI | `scripts/run_fair_test.py` | `--methods` selects predictors, `--folds`/`--seeds` scope a timing run (the gate and smoke paths fix their own and refuse the flags); `--arms` remains the TabPFN ladder and is refused when `tabpfn` is not selected. A baseline's default budget is the full fold pool, overridable by `--train-rows` (the sensitivity budget). |
+| Analysis | `scripts/analyses/actuarial_baseline.py` | Per-target `r` against the **better** baseline, paired t over folds, floors unchanged, `A_raw` and the anchor reported beside, task means descriptive. Imports `decide`/`target_interval` from the fair-test analyser so the rule cannot drift, and **refuses** when a fold's `test_index` differs from the registered capture's. |
+
+**Measured runtime — one fold, one seed, all three baselines, full fold pool.** Command, per target
+(output to a temp root so no evidence tree changes):
+
+```
+.venv/bin/python scripts/run_fair_test.py --methods E_glm,F_catboost,M_intercept \
+    --targets <target> --folds 1 --seeds 0 --out-root "$TMPDIR/tfm-baseline-timing"
+```
+
+| Target | Fit rows | Wall time |
+|---|---|---|
+| `frequency_french` | 542,410 | 319.9 s |
+| `frequency_spanish` | 42,801 | 28.0 s |
+| `severity_french` | 21,157 | 11.9 s |
+| `severity_spanish` | 4,760 | 5.7 s |
+
+Measured 2026-11-13 on this workstation (CPU, CatBoost on all cores). One fold × one seed is
+**6.1 minutes**; the registered matrix is 5 folds × 3 seeds, so a full run is ≈ 1.5 hours of CPU
+and $0. The French frequency CatBoost fit is ~85% of it. These are timings, not results: one fold
+is not a verdict and none of the four numbers above is quoted as one. Nor do they carry the
+comparability proof: at `n_folds=1` the split is the holdout branch, so these slots' `test_index`
+is **not** the registered capture's, and no number here is scored against it.
+
+Verification at this point:
+
+```
+.venv/bin/ruff check src/ scripts/ tests/     # pass
+.venv/bin/pytest tests/ -q                     # 908 passed
+./scripts/check.sh doclinks|docstatus|citation|verdict   # pass
+```
+
+Not done, deliberately: the full matrix. The pre-registration is still unsigned ("proposed"), so
+the matrix waits for the owner's sign-off row; the build and its timing measurement are complete.
 
 ## The risk this buys
 

@@ -53,7 +53,12 @@ class TargetSpec:
 
 @dataclass
 class LoadedTarget:
-    """A target's frame, split groups, and the arrays the capture must retain."""
+    """A target's frame, split groups, and the arrays the capture must retain.
+
+    `frame` is the feature columns before encoding, row-aligned with `X`: a baseline needs the
+    raw categorical levels and the exposure column (which TabPFN sees as `log(Exposure)`), and a
+    second encoding stage cannot recover them from `.cat.codes` (#597).
+    """
 
     spec: TargetSpec
     X: np.ndarray
@@ -63,6 +68,7 @@ class LoadedTarget:
     clusters: np.ndarray
     files: tuple[Path, ...]
     features: tuple[str, ...] = ()
+    frame: pd.DataFrame | None = None
 
     @property
     def rows(self) -> int:
@@ -114,22 +120,26 @@ TARGETS: tuple[TargetSpec, ...] = (
 
 
 def _features(frame: pd.DataFrame, *, drop: tuple[str, ...], target: str,
-              log_features: tuple[str, ...], source: str) -> tuple[np.ndarray, tuple[str, ...]]:
-    """The feature matrix, categoricals code-encoded and target-blind.
+              log_features: tuple[str, ...],
+              source: str) -> tuple[pd.DataFrame, np.ndarray, tuple[str, ...]]:
+    """The encoded feature matrix, and the unencoded frame it was built from.
 
     Encoding is over the whole column and independent of the target, matching `regression_data`,
-    so the fold split cannot leak through the codes.
+    so the fold split cannot leak through the codes. The frame is returned before the log
+    transforms and the `.cat.codes`, so a baseline can apply its own encoding and reach the
+    exposure column as a column rather than as `log(Exposure)` (#597).
     """
     missing = [column for column in (*drop, target, *log_features) if column not in frame.columns]
     if missing:
         raise KeyError(f"{source} has no columns {missing}")
-    features = frame.drop(columns=[*drop, target])
+    raw = frame.drop(columns=[*drop, target])
+    features = raw.copy()
     for column in log_features:
         features[column] = np.log(np.clip(features[column].to_numpy(dtype=float), 1e-12, None))
     for column in features.columns:
         if not np.issubdtype(features[column].dtype, np.number):
             features[column] = features[column].astype("category").cat.codes
-    return features.to_numpy(dtype=float), tuple(features.columns)
+    return raw, features.to_numpy(dtype=float), tuple(features.columns)
 
 
 def _aligned_spanish(raw_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -158,34 +168,34 @@ def load_target(spec: TargetSpec, *, raw_dir: Path | None = None) -> LoadedTarge
         if (frame["_merge"] != "both").any():
             raise ValueError("a French claim has no policy row")
         frame = frame.drop(columns=["_merge"])
-        X, features = _features(frame, drop=spec.drop, target=spec.target_column, log_features=(),
-                                source="freMTPL2sev+freMTPL2freq")
+        raw, X, features = _features(frame, drop=spec.drop, target=spec.target_column,
+                                     log_features=(), source="freMTPL2sev+freMTPL2freq")
         y = np.log(frame[spec.target_column].to_numpy(dtype=float))
         if not np.all(np.isfinite(y)):
             raise ValueError("a French claim amount is not positive, so log(amount) is undefined")
         groups = frame["IDpol"].to_numpy(dtype=np.int64)
         weights = np.ones(len(frame), dtype=float)
         return LoadedTarget(spec, X, y, groups, weights, groups.copy(),
-                            tuple(root / name for name in spec.files), features)
+                            tuple(root / name for name in spec.files), features, raw)
 
     if spec.name == "severity_spanish":
         frequency, severity = _aligned_spanish(root)
         mask = frequency["N_claims_year"].to_numpy() > 0
         frame = severity.loc[mask].reset_index(drop=True)
         counts = frequency.loc[mask, "N_claims_year"].to_numpy(dtype=float)
-        X, features = _features(frame, drop=spec.drop, target=spec.target_column, log_features=(),
-                                source="spanish_motor_severity")
+        raw, X, features = _features(frame, drop=spec.drop, target=spec.target_column,
+                                     log_features=(), source="spanish_motor_severity")
         y = np.log(frame[spec.target_column].to_numpy(dtype=float) / counts)
         if not np.all(np.isfinite(y)):
             raise ValueError("a claiming policy has a non-positive cost, so log(Cost/N) is undefined")
         groups = np.arange(len(frame), dtype=np.int64)
         return LoadedTarget(spec, X, y, groups, counts, groups.copy(),
-                            tuple(root / name for name in spec.files), features)
+                            tuple(root / name for name in spec.files), features, raw)
 
     path = root / spec.files[0]
     frame = pd.read_csv(path)
-    X, features = _features(frame, drop=spec.drop, target=spec.target_column,
-                            log_features=spec.log_features, source=str(path))
+    raw, X, features = _features(frame, drop=spec.drop, target=spec.target_column,
+                                 log_features=spec.log_features, source=str(path))
     y = frame[spec.target_column].to_numpy(dtype=float)
     groups = (
         frame["IDpol"].to_numpy(dtype=np.int64)
@@ -193,4 +203,4 @@ def load_target(spec: TargetSpec, *, raw_dir: Path | None = None) -> LoadedTarge
         else np.arange(len(frame), dtype=np.int64)
     )
     weights = np.ones(len(frame), dtype=float)
-    return LoadedTarget(spec, X, y, groups, weights, groups.copy(), (path,), features)
+    return LoadedTarget(spec, X, y, groups, weights, groups.copy(), (path,), features, raw)

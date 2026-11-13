@@ -1,13 +1,15 @@
-"""The regressor fair-test runner (#539, #555).
+"""The regressor fair-test runner (#539, #555, #597).
 
 The pre-registration fixes what a run is: four targets (frequency and severity across a French and
-a Spanish portfolio), four Arms, five folds built on policies, three model seeds inside each fold,
-and 10,000-row training and test caps for the policy-level targets. This module produces that run
-and nothing else — the model sits behind `Backend`, so the matrix is testable without `tabpfn` and
-a paid launch is a separate decision.
+a Spanish portfolio), a set of **methods**, five folds built on policies, and three model seeds
+inside each fold. A method is a predictor; an Arm is one training configuration of the TabPFN
+method (`GLOSSARY.md`). The actuarial baselines (#597) enter through the method axis, so the same
+runner produces the comparison and the fair test — the model sits behind `Backend`, so the matrix
+is testable without `tabpfn` and a paid launch is a separate decision.
 
-Writes capture v4 (#555): `test_index`, `quantiles`, exposure for freMTPL2freq, and the claim
-weight and cluster id for severity, each hashed in the manifest. Frequency runs stay v3.
+Writes capture v5 (#597): every slot records `method`, keeps `test_index`, exposure for freMTPL2freq
+and the severity weight/cluster pair, and makes `quantiles` optional — a GLM has no honest
+predictive distribution to record, and emitting the mean nine times would assert one.
 """
 
 from __future__ import annotations
@@ -17,9 +19,10 @@ import platform
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Protocol
+from typing import Mapping, Protocol
 
 import numpy as np
+import pandas as pd
 
 import metrics
 from freq_sev_data import TARGETS as FREQ_SEV_TARGETS
@@ -70,54 +73,119 @@ TARGETS = FREQ_SEV_TARGETS
 
 
 @dataclass(frozen=True)
+class Method:
+    """One predictor under comparison (`GLOSSARY.md`).
+
+    `arms` is empty for a method that has no training configurations: `E_glm` is one model, not a
+    ladder, and calling it an Arm is the pilot's naming bug. A method without Arms trains on the
+    whole fold pool — the baselines' primary budget — while `A_raw`/`B_ft30` keep their 10,000-row
+    context.
+    """
+
+    name: str
+    arms: tuple[str, ...] = ()
+
+    @property
+    def is_tabpfn(self) -> bool:
+        return self.name == "tabpfn"
+
+
+METHODS: dict[str, Method] = {
+    "tabpfn": Method("tabpfn", arms=TARGET_ARMS),
+    "E_glm": Method("E_glm"),
+    "F_catboost": Method("F_catboost"),
+    "M_intercept": Method("M_intercept"),
+}
+
+DEFAULT_METHODS: tuple[str, ...] = ("tabpfn",)
+
+
+@dataclass(frozen=True)
 class RunConfig:
     folds: int = 5
     seeds: tuple[int, ...] = (0, 1, 2)
     test_rows: int = 10_000
     fold_seed: int = 42
     targets: tuple[TargetSpec, ...] = FREQ_SEV_TARGETS
-    # The gate runs `A_raw` alone; the fair test runs every Arm (#552).
+    # The gate runs `A_raw` alone; the fair test runs every Arm (#552). The ladder belongs to the
+    # TabPFN method, and is ignored by the baselines.
     arms: tuple[str, ...] = TARGET_ARMS
+    methods: tuple[str, ...] = DEFAULT_METHODS
 
 
 @dataclass(frozen=True)
 class SlotSpec:
     target: TargetSpec
-    arm: Arm
+    method: Method
+    arm: Arm | None
     fold: int
     seed: int
 
+    @property
+    def label(self) -> str:
+        """The directory and record label: the Arm for TabPFN, the method for a baseline."""
+        return self.arm.name if self.arm is not None else self.method.name
+
+
+def method_arms(config: RunConfig, method: Method) -> tuple[Arm | None, ...]:
+    """The training configurations one method contributes: its ladder, or none at all."""
+    if not method.is_tabpfn:
+        return (None,)
+    return tuple(ARMS[name] for name in config.arms)
+
 
 def slot_matrix(config: RunConfig) -> list[SlotSpec]:
-    """Every Arm × fold × model seed, in a fixed order."""
+    """Every Method × (Arm) × fold × model seed, in a fixed order."""
     slots = []
     for target in config.targets:
-        for arm_name in config.arms:
-            for fold in range(config.folds):
-                for seed in config.seeds:
-                    slots.append(SlotSpec(target, ARMS[arm_name], fold, seed))
+        for method_name in config.methods:
+            method = METHODS[method_name]
+            for arm in method_arms(config, method):
+                for fold in range(config.folds):
+                    for seed in config.seeds:
+                        slots.append(SlotSpec(target, method, arm, fold, seed))
     return slots
 
 
 # ---------------------------------------------------------------------------
 # The model seam
 # ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class FitRequest:
+    """One fit's data, on both scales a method may need.
+
+    It carries the source frame as well as the encoded arrays because the baselines cannot read
+    `X` alone: the GLM needs the raw levels and the exposure column, and CatBoost needs the raw
+    strings. `X` stays exactly what TabPFN has always been given, so the two arms are unchanged.
+    """
+
+    target: TargetSpec
+    X_train: np.ndarray
+    X_test: np.ndarray
+    y_train: np.ndarray
+    frame: pd.DataFrame
+    train_index: np.ndarray
+    test_index: np.ndarray
+    weights_train: np.ndarray
+    exposure_train: np.ndarray | None
+    exposure_test: np.ndarray | None
+    seed: int
+    epochs: int
+
+
 class Backend(Protocol):
-    """The only surface the runner needs from `tabpfn`."""
+    """The only surface the runner needs from a method."""
+
+    method: str
 
     def provenance(self) -> dict:
         """`versions` and `weights`: what ran, and on which bytes."""
 
-    def fit_predict(
-        self,
-        X_train: np.ndarray,
-        y_train: np.ndarray,
-        X_test: np.ndarray,
-        *,
-        seed: int,
-        epochs: int,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """One fit: predictions `(n,)` and quantiles `(9, n)` on the test rows."""
+    def fit_predict(self, request: FitRequest) -> tuple[np.ndarray, np.ndarray | None]:
+        """One fit: predictions `(n,)` and quantiles `(9, n)`, or `None` for a method that has none.
+
+        A baseline declines quantiles rather than fabricating them (#597).
+        """
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +205,7 @@ def _write_slot(
     spec: SlotSpec,
     truth: np.ndarray,
     predictions: np.ndarray,
-    quantiles: np.ndarray,
+    quantiles: np.ndarray | None,
     test_index: np.ndarray,
     exposure: np.ndarray | None,
     weights: np.ndarray | None,
@@ -145,13 +213,14 @@ def _write_slot(
     provenance: dict,
     meta_extra: dict,
     reported_scale: str,
-    quantile_scale: str,
+    quantile_scale: str | None,
 ) -> None:
     slot_dir.mkdir(parents=True, exist_ok=True)
     np.save(slot_dir / PREDICTIONS, np.asarray(predictions, dtype=float))
     np.save(slot_dir / TRUTH, np.asarray(truth, dtype=float))
     np.save(slot_dir / TEST_INDEX, np.asarray(test_index, dtype=np.int64))
-    np.save(slot_dir / QUANTILES, np.asarray(quantiles, dtype=float))
+    if quantiles is not None:
+        np.save(slot_dir / QUANTILES, np.asarray(quantiles, dtype=float))
     if exposure is not None:
         np.save(slot_dir / EXPOSURE, np.asarray(exposure, dtype=float))
     severity = spec.target.task == "severity"
@@ -173,7 +242,10 @@ def _write_slot(
         else "policy"
     )
     meta = {
-        "arm": spec.arm.name,
+        "method": spec.method.name,
+        # Null for a baseline: it has no training configuration to name, and inventing one is the
+        # distinction the glossary forbids (#597).
+        "arm": spec.arm.name if spec.arm is not None else None,
         "seed": spec.seed,
         "fold": spec.fold,
         "dataset": spec.target.dataset,
@@ -187,7 +259,7 @@ def _write_slot(
         "log_features": list(spec.target.log_features),
         "drop": list(spec.target.drop),
         "test_rows": int(len(truth)),
-        "quantile_levels": list(QUANTILE_LEVELS),
+        "quantile_levels": list(QUANTILE_LEVELS) if quantiles is not None else None,
         "verdict_metric": metric_name,
         "verdict_metric_value": float(verdict),
         "rmse": float(metrics.rmse(truth, predictions)),
@@ -246,7 +318,7 @@ def _run_ids(base: str, count: int) -> list[str]:
 
 def run(
     config: RunConfig,
-    backend: Backend,
+    backends: Mapping[str, Backend] | Backend,
     out_root: Path,
     *,
     run_id: str | None = None,
@@ -259,10 +331,28 @@ def run(
     One capture carries one dataset (#362), so the four targets are four runs of one Launch. The
     target's rows, groups, weight and cluster come from `freq_sev_data`; the folds are built on
     policies, so a policy's claims never straddle one.
+
+    `backends` is one backend per selected method — a single backend is accepted and shared, which
+    is what a TabPFN-only run is. A baseline is a different predictor, so a run that selects two of
+    them cannot share one object.
     """
+    if not isinstance(backends, Mapping):
+        backends = {method: backends for method in config.methods}
+    missing = [method for method in config.methods if method not in backends]
+    if missing:
+        raise ValueError(f"no backend for method(s): {', '.join(missing)}")
+    misplaced = [
+        name for name in config.methods if getattr(backends[name], "method", None) != name
+    ]
+    if misplaced:
+        raise ValueError(
+            f"a backend is wired to the wrong method: {', '.join(misplaced)}; a baseline is a "
+            "different predictor, so its backend cannot stand in for TabPFN"
+        )
+
     base = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_ids = _run_ids(base, len(config.targets))
-    provenance: dict | None = None
+    provenance: dict[str, dict] = {}
     produced: dict[str, Path] = {}
 
     for target, target_run_id in zip(config.targets, run_ids):
@@ -270,6 +360,8 @@ def run(
         if run_dir.exists():
             raise FileExistsError(f"{run_dir} exists; a record is refused rather than replaced")
         loaded = load_target(target)
+        if loaded.frame is None:
+            raise RuntimeError(f"{target.name} carries no source frame; a baseline cannot encode")
         splits = group_fold_splits(
             loaded.groups, n_folds=config.folds, seed=config.fold_seed
         )
@@ -290,77 +382,100 @@ def run(
             weights_test = loaded.weights[test_index]
             clusters_test = loaded.clusters[test_index]
 
-            for arm_name in config.arms:
-                arm = ARMS[arm_name]
-                # `train_rows` is the row budget for EVERY arm (#572): the fair test's premise is a
-                # matched inference context, so a raised budget must reach the control as well as
-                # the treatment or the comparison stops being like-for-like. `train_rows_cap`
-                # remains the smoke path's ceiling, which lowers but never raises.
-                if train_rows is not None:
-                    rows = train_rows
-                elif train_rows_cap is not None:
-                    rows = min(arm.train_rows, train_rows_cap)
-                else:
-                    rows = arm.train_rows
-                rows = min(rows, len(split.train_pool))
-                epochs = (
-                    arm.epochs if epochs_cap is None else min(arm.epochs, epochs_cap)
-                )
-                for seed in config.seeds:
-                    train_index = sample(split.train_pool, rows, seed=1_000 * seed + fold)
-                    predictions, quantiles = backend.fit_predict(
-                        loaded.X[train_index],
-                        loaded.y[train_index],
-                        loaded.X[test_index],
-                        seed=seed,
-                        epochs=epochs,
-                    )
-                    truth = loaded.y[test_index]
-                    if provenance is None:
-                        # After a fit, the checkpoint is on disk; before one, a cold cache would
-                        # record a null hash and pass a path-only gate.
-                        provenance = backend.provenance()
-                    if not (
-                        np.all(np.isfinite(predictions))
-                        and np.all(np.isfinite(truth))
-                        and np.all(np.isfinite(quantiles))
-                    ):
-                        raise RuntimeError(
-                            f"{target.name}/{arm.name} seed {seed} fold {fold}: "
-                            "non-finite predictions"
+            for method_name in config.methods:
+                method = METHODS[method_name]
+                for arm in method_arms(config, method):
+                    # `train_rows` is the row budget for EVERY arm (#572): the fair test's premise
+                    # is a matched inference context, so a raised budget must reach the control as
+                    # well as the treatment or the comparison stops being like-for-like.
+                    # `train_rows_cap` remains the smoke path's ceiling, which lowers but never
+                    # raises. A baseline with no Arm trains on the whole fold pool.
+                    if train_rows is not None:
+                        rows = train_rows
+                    elif train_rows_cap is not None:
+                        budget = (
+                            arm.train_rows if arm is not None else len(split.train_pool)
                         )
-                    slot_provenance = {
-                        **provenance,
-                        "provenance": {
-                            "dataset": _dataset_block(target),
-                            "split": split_section(
-                                n_folds=config.folds,
-                                seed=config.fold_seed,
-                                rule=_split_rule(config),
-                            ),
-                        },
-                    }
-                    _write_slot(
-                        run_dir / target.dataset / arm.name / f"seed{seed}_fold{fold}",
-                        spec=SlotSpec(target, arm, fold, seed),
-                        truth=truth,
-                        predictions=predictions,
-                        quantiles=quantiles,
-                        test_index=test_index,
-                        exposure=exposure_test,
-                        weights=weights_test,
-                        clusters=clusters_test,
-                        provenance=slot_provenance,
-                        meta_extra={
-                            "train_rows": int(len(train_index)),
-                            "epochs": epochs,
-                            "fold_seed": config.fold_seed,
-                            "n_folds": config.folds,
-                            "features": list(loaded.features),
-                        },
-                        reported_scale="log" if severity else "native",
-                        quantile_scale="log" if severity else "native",
+                        rows = min(budget, train_rows_cap)
+                    elif arm is not None:
+                        rows = arm.train_rows
+                    else:
+                        rows = len(split.train_pool)
+                    rows = min(rows, len(split.train_pool))
+                    epochs = (
+                        None
+                        if arm is None
+                        else (arm.epochs if epochs_cap is None else min(arm.epochs, epochs_cap))
                     )
+                    for seed in config.seeds:
+                        train_index = sample(split.train_pool, rows, seed=1_000 * seed + fold)
+                        request = FitRequest(
+                            target=target,
+                            X_train=loaded.X[train_index],
+                            X_test=loaded.X[test_index],
+                            y_train=loaded.y[train_index],
+                            frame=loaded.frame,
+                            train_index=train_index,
+                            test_index=test_index,
+                            weights_train=loaded.weights[train_index],
+                            exposure_train=(
+                                None if exposure_all is None else exposure_all[train_index]
+                            ),
+                            exposure_test=exposure_test,
+                            seed=seed,
+                            epochs=epochs,
+                        )
+                        predictions, quantiles = backends[method.name].fit_predict(request)
+                        truth = loaded.y[test_index]
+                        if method.name not in provenance:
+                            # After a fit, the checkpoint is on disk; before one, a cold cache
+                            # would record a null hash and pass a path-only gate.
+                            provenance[method.name] = backends[method.name].provenance()
+                        finite = np.all(np.isfinite(predictions)) and np.all(np.isfinite(truth))
+                        if quantiles is not None:
+                            finite = finite and bool(np.all(np.isfinite(quantiles)))
+                        if not finite:
+                            raise RuntimeError(
+                                f"{target.name}/{method.name} seed {seed} fold {fold}: "
+                                "non-finite predictions"
+                            )
+                        slot = SlotSpec(target, method, arm, fold, seed)
+                        slot_provenance = {
+                            **provenance[method.name],
+                            "provenance": {
+                                "dataset": _dataset_block(target),
+                                "split": split_section(
+                                    n_folds=config.folds,
+                                    seed=config.fold_seed,
+                                    rule=_split_rule(config),
+                                ),
+                            },
+                        }
+                        _write_slot(
+                            run_dir / target.dataset / slot.label / f"seed{seed}_fold{fold}",
+                            spec=slot,
+                            truth=truth,
+                            predictions=predictions,
+                            quantiles=quantiles,
+                            test_index=test_index,
+                            exposure=exposure_test,
+                            weights=weights_test,
+                            clusters=clusters_test,
+                            provenance=slot_provenance,
+                            meta_extra={
+                                "train_rows": int(len(train_index)),
+                                "epochs": epochs,
+                                "fold_seed": config.fold_seed,
+                                "n_folds": config.folds,
+                                "features": list(loaded.features),
+                            },
+                            reported_scale="log" if severity else "native",
+                            quantile_scale=(
+                                None
+                                if quantiles is None
+                                else ("log" if severity else "native")
+                            ),
+                        )
 
         (run_dir / "capture.json").write_text(render_capture(build_capture(run_dir)))
         produced[target.name] = run_dir
@@ -442,6 +557,8 @@ def _main_output(model, X_test) -> tuple[np.ndarray, np.ndarray]:
 class TabPFNBackend:
     """Drives the shipped regressor on the pinned v3 line."""
 
+    method = "tabpfn"
+
     def __init__(self, device: str = "cuda", n_estimators: int = 8) -> None:
         self.device = device
         self.n_estimators = n_estimators
@@ -468,12 +585,15 @@ class TabPFNBackend:
         }
         return self._provenance
 
-    def fit_predict(self, X_train, y_train, X_test, *, seed, epochs):
+    def fit_predict(self, request: FitRequest):
         from tabpfn import TabPFNRegressor  # noqa: PLC0415
         from tabpfn.constants import ModelVersion  # noqa: PLC0415
         from tabpfn.finetuning.finetuned_regressor import (  # noqa: PLC0415
             FinetunedTabPFNRegressor,
         )
+
+        X_train, y_train, X_test = request.X_train, request.y_train, request.X_test
+        seed, epochs = request.seed, request.epochs or 0
 
         if epochs == 0:
             model = TabPFNRegressor.create_default_for_version(

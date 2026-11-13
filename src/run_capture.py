@@ -4,9 +4,12 @@ One `capture.json` per run directory, an entry per arm × seed × fold carrying 
 the hashes of the two arrays — or null hashes and a reason when an array was not retained. The
 shape was decided in #355; this module only writes it.
 
-Two schema versions exist. `schema_version: 1` is the original arm × seed shape and stays
+Five schema versions exist. `schema_version: 1` is the original arm × seed shape and stays
 byte-identical, so the committed anchor still matches. `schema_version: 2` is written when any
-slot carries a real fold: every entry gains a `fold` key, which is an integer or null.
+slot carries a real fold: every entry gains a `fold` key, which is an integer or null. Versions 3
+and 4 add the retained arrays. `schema_version: 5` (#597) adds the **method** the slot belongs to,
+and makes `quantiles` optional: a GLM has no predictive distribution to retain, and a manifest
+that demanded one would force it to fabricate nine copies of the mean.
 
 **The hashes cover the array's contiguous bytes, not the `.npy` file's bytes.** The record
 already spells `predictions_sha256` that way (`provenance.sha256_array`), and the
@@ -33,6 +36,7 @@ CAPTURE_SCHEMA_VERSION = 1
 CAPTURE_SCHEMA_VERSION_FOLDED = 2
 CAPTURE_SCHEMA_VERSION_ARRAYS = 3
 CAPTURE_SCHEMA_VERSION_WEIGHTS = 4
+CAPTURE_SCHEMA_VERSION_METHODS = 5
 
 _RUN_ID = re.compile(r"^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$")
 _SLOT = re.compile(r"^seed(\d+)_fold(\w+)$")
@@ -57,13 +61,19 @@ class CaptureRefused(Exception):
 
 @dataclass(frozen=True)
 class Slot:
-    """One arm × seed × fold directory, and the files a manifest entry points at."""
+    """One method × (arm) × seed × fold directory, and the files a manifest entry points at.
 
-    arm: str
+    `arm` is null for a baseline: a GLM is a method, not a TabPFN training configuration, so it has
+    no Arm to name (`GLOSSARY.md`, #597). `method` is null on a v1–v4 capture, where the axis did
+    not exist.
+    """
+
+    arm: str | None
     seed: int
     fold: int | None
     directory: Path
     record: Path
+    method: str | None = None
 
     @property
     def predictions(self) -> Path:
@@ -95,8 +105,12 @@ class Slot:
 
     @property
     def relative_record(self) -> str:
-        """The record path as a manifest entry spells it: relative to the dataset directory."""
-        return f"{self.arm}/{self.directory.name}/{RECORD}"
+        """The record path as a manifest entry spells it: relative to the dataset directory.
+
+        Taken from the directory rather than from `arm`, because a baseline's directory is named
+        after its method and its `arm` is null.
+        """
+        return f"{self.directory.parent.name}/{self.directory.name}/{RECORD}"
 
 
 def created_utc_from_run_id(run_id: str) -> str:
@@ -162,8 +176,27 @@ def discover_slots(run_dir: Path) -> tuple[str, list[Slot]]:
                     f"{slot_dir} has no {RECORD}; a capture entry points at its record and a "
                     "pointer to nothing is not a manifest"
                 )
+            try:
+                payload = json.loads(record.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                raise CaptureRefused(f"{record} is not valid JSON ({exc})") from exc
+            # The record decides the identity, not the directory name: a baseline's directory is
+            # named after its method, and its arm is null.
+            method = payload.get("method")
+            arm = payload["arm"] if "arm" in payload else arm_dir.name
+            if method is None and arm is None:
+                raise CaptureRefused(
+                    f"{record} names neither a method nor an arm; the slot has no identity"
+                )
             slots.append(
-                Slot(arm=arm_dir.name, seed=seed, fold=fold, directory=slot_dir, record=record)
+                Slot(
+                    arm=arm,
+                    seed=seed,
+                    fold=fold,
+                    directory=slot_dir,
+                    record=record,
+                    method=method,
+                )
             )
 
     if not slots:
@@ -182,6 +215,16 @@ def _rows(slot: Slot, predictions, truth) -> int | None:
 
 def _load(path: Path) -> "np.ndarray | None":
     return np.load(path) if path.is_file() else None
+
+
+def declares_quantiles(record: dict) -> bool:
+    """Whether a record says its method produced a predictive distribution.
+
+    `quantile_levels` is the declaration: a list means the array is owed, `null` means the method
+    has no distribution to retain. The writer, the reader and the citation gate all ask this one
+    question, so they ask it here (#597).
+    """
+    return record.get("quantile_levels") is not None
 
 
 def _check_test_index(array: np.ndarray, rows: int, slot: Slot) -> None:
@@ -215,33 +258,23 @@ def _check_quantiles(array: np.ndarray, rows: int, slot: Slot) -> None:
         raise CaptureRefused(f"{slot.quantiles} has dtype {array.dtype}; v3 requires float64")
 
 
-def _v3_arrays(slot: Slot, dataset: str, rows: int) -> dict:
-    """The v3 arrays of one slot, validated, or a refusal naming what is missing."""
+def _index_and_exposure(slot: Slot, dataset: str, rows: int, version: str) -> dict:
+    """`test_index`, plus exposure where the dataset owes it — shared by v3, v4 and v5."""
     index = _load(slot.test_index)
-    quantiles = _load(slot.quantiles)
-    if index is None or quantiles is None:
-        missing = [
-            name
-            for name, array in ((TEST_INDEX, index), (QUANTILES, quantiles))
-            if array is None
-        ]
+    if index is None:
         raise CaptureRefused(
-            f"{slot.directory} declares schema v3 but lacks {', '.join(missing)}; "
-            "a partial v3 run is refused rather than recorded"
+            f"{slot.directory} declares schema {version} but lacks {TEST_INDEX}; "
+            "a partial run is refused rather than recorded"
         )
     _check_test_index(index, rows, slot)
-    _check_quantiles(quantiles, rows, slot)
+    arrays = {"test_index_sha256": sha256_array(index)}
 
-    arrays = {
-        "test_index_sha256": sha256_array(index),
-        "quantiles_sha256": sha256_array(quantiles),
-    }
     exposure = _load(slot.exposure)
     if dataset == EXPOSURE_DATASET:
         if exposure is None:
             raise CaptureRefused(
-                f"{slot.directory} is {EXPOSURE_DATASET} and declares schema v3, but has no "
-                f"{EXPOSURE}; exposure is required for this dataset"
+                f"{slot.directory} is {EXPOSURE_DATASET} and declares schema {version}, but has "
+                f"no {EXPOSURE}; exposure is required for this dataset"
             )
         _check_vector(exposure, rows, slot.exposure)
         arrays["exposure_sha256"] = sha256_array(exposure)
@@ -253,15 +286,8 @@ def _v3_arrays(slot: Slot, dataset: str, rows: int) -> dict:
     return arrays
 
 
-def _v4_arrays(slot: Slot, dataset: str, rows: int) -> dict:
-    """The v3 arrays plus the two a grouped severity target needs (#555).
-
-    The weight and the cluster id are what make a claim-level or policy-grouped severity target
-    honest: without the weight a 5-claim policy counts as one observation, and without the cluster
-    the interval treats its claims as independent. A frequency slot carrying them is refused, so
-    the arrays cannot become decoration.
-    """
-    arrays = _v3_arrays(slot, dataset, rows)
+def _weight_arrays(slot: Slot, rows: int, arrays: dict, version: str) -> dict:
+    """The weight and cluster id a grouped severity slot owes (#555, #564)."""
     task = json.loads(slot.record.read_text(encoding="utf-8")).get("task")
     weights = _load(slot.weights)
     cluster = _load(slot.cluster)
@@ -274,17 +300,19 @@ def _v4_arrays(slot: Slot, dataset: str, rows: int) -> dict:
         ]
         if missing:
             raise CaptureRefused(
-                f"{slot.directory} is a severity slot and declares schema v4, but lacks "
+                f"{slot.directory} is a severity slot and declares schema {version}, but lacks "
                 f"{', '.join(missing)}; both are required for a grouped severity target"
             )
         _check_vector(weights, rows, slot.weights)
         if cluster.ndim != 1 or cluster.shape[0] != rows:
             raise CaptureRefused(
-                f"{slot.cluster} has shape {cluster.shape}; v4 requires one cluster id per row "
-                f"({rows},)"
+                f"{slot.cluster} has shape {cluster.shape}; {version} requires one cluster id per "
+                f"row ({rows},)"
             )
         if cluster.dtype != np.int64:
-            raise CaptureRefused(f"{slot.cluster} has dtype {cluster.dtype}; v4 requires int64")
+            raise CaptureRefused(
+                f"{slot.cluster} has dtype {cluster.dtype}; {version} requires int64"
+            )
         arrays["weights_sha256"] = sha256_array(weights)
         arrays["cluster_sha256"] = sha256_array(cluster)
     elif weights is not None or cluster is not None:
@@ -293,6 +321,53 @@ def _v4_arrays(slot: Slot, dataset: str, rows: int) -> dict:
             "defined for severity only"
         )
     return arrays
+
+
+def _v3_arrays(slot: Slot, dataset: str, rows: int) -> dict:
+    """The v3 arrays of one slot, validated, or a refusal naming what is missing."""
+    arrays = _index_and_exposure(slot, dataset, rows, "v3")
+    quantiles = _load(slot.quantiles)
+    if quantiles is None:
+        raise CaptureRefused(
+            f"{slot.directory} declares schema v3 but lacks {QUANTILES}; "
+            "a partial v3 run is refused rather than recorded"
+        )
+    _check_quantiles(quantiles, rows, slot)
+    arrays["quantiles_sha256"] = sha256_array(quantiles)
+    return arrays
+
+
+def _v4_arrays(slot: Slot, dataset: str, rows: int) -> dict:
+    """The v3 arrays plus the two a grouped severity target needs (#555)."""
+    return _weight_arrays(slot, rows, _v3_arrays(slot, dataset, rows), "v4")
+
+
+def _v5_arrays(slot: Slot, dataset: str, rows: int) -> dict:
+    """v4 with the method axis, and quantiles only where the record declares them (#597).
+
+    The record is the declaration: `quantile_levels` is a list when the method produced a
+    predictive distribution and null when it did not. Requiring the array in the first case and
+    refusing it in the second is what stops a mean repeated nine times from passing as a
+    distribution, and stops a TabPFN slot from quietly losing its quantiles.
+    """
+    arrays = _index_and_exposure(slot, dataset, rows, "v5")
+    record = json.loads(slot.record.read_text(encoding="utf-8"))
+    declared = declares_quantiles(record)
+    quantiles = _load(slot.quantiles)
+    if declared:
+        if quantiles is None:
+            raise CaptureRefused(
+                f"{slot.directory} declares quantile_levels but lacks {QUANTILES}; a run that "
+                "loses its distribution is refused rather than recorded as one without"
+            )
+        _check_quantiles(quantiles, rows, slot)
+        arrays["quantiles_sha256"] = sha256_array(quantiles)
+    elif quantiles is not None:
+        raise CaptureRefused(
+            f"{slot.directory} carries {QUANTILES} but its record declares no quantile_levels; "
+            "the array would describe a distribution the method did not claim"
+        )
+    return _weight_arrays(slot, rows, arrays, "v5")
 
 
 def _entry(slot: Slot, version: int, dataset: str) -> dict:
@@ -308,7 +383,11 @@ def _entry(slot: Slot, version: int, dataset: str) -> dict:
     if missing:
         reason = " and ".join(f"{name} not retained" for name in missing)
 
-    entry = {"arm": slot.arm, "seed": slot.seed}
+    entry: dict = {}
+    if version >= CAPTURE_SCHEMA_VERSION_METHODS:
+        entry["method"] = slot.method
+    entry["arm"] = slot.arm
+    entry["seed"] = slot.seed
     if version >= CAPTURE_SCHEMA_VERSION_FOLDED:
         # v1 must stay byte-identical; v2 puts the fold after the seed.
         entry["fold"] = slot.fold
@@ -322,7 +401,9 @@ def _entry(slot: Slot, version: int, dataset: str) -> dict:
             "reason": reason,
         }
     )
-    if version == CAPTURE_SCHEMA_VERSION_WEIGHTS:
+    if version == CAPTURE_SCHEMA_VERSION_METHODS:
+        entry.update(_v5_arrays(slot, dataset, rows))
+    elif version == CAPTURE_SCHEMA_VERSION_WEIGHTS:
         entry.update(_v4_arrays(slot, dataset, rows))
     elif version == CAPTURE_SCHEMA_VERSION_ARRAYS:
         entry.update(_v3_arrays(slot, dataset, rows))
@@ -330,13 +411,33 @@ def _entry(slot: Slot, version: int, dataset: str) -> dict:
 
 
 def _capture_version(dataset: str, slots: list[Slot]) -> int:
-    """v3 when a slot declares the arrays, v2 when folded without them, v1 when foldless.
+    """v5 when a record declares its method, v4/v3 when a slot declares the arrays, v2 when
+    folded without them, v1 when foldless.
 
-    A declaration is one slot carrying `test_index.npy`. From it every slot must carry the
-    arrays, so a run with one missing array is refused rather than demoted to v2 and left
-    unhashed (#538).
+    A declaration is one slot carrying `test_index.npy`, or one record naming `method`. From it
+    every slot must carry the arrays, so a run with one missing array is refused rather than
+    demoted to v2 and left unhashed (#538). A run that mixes a method-declaring record with one
+    that does not is refused: the axis would be half-recorded, and a reader could not tell a
+    baseline from a legacy arm.
     """
     folded = any(slot.fold is not None for slot in slots)
+    declaring = [slot for slot in slots if slot.method is not None]
+    if declaring:
+        if len(declaring) != len(slots):
+            raise CaptureRefused(
+                f"{declaring[0].record} declares a method but {len(slots) - len(declaring)} "
+                "record(s) of this run do not; a method axis is recorded for the whole run"
+            )
+        if not folded:
+            raise CaptureRefused(
+                "a method-declaring run is foldless; a v5 manifest requires folds"
+            )
+        if not any(slot.test_index.is_file() for slot in slots):
+            raise CaptureRefused(
+                "a method-declaring run carries no test_index; a v5 manifest needs the row "
+                "identity a comparison is made on"
+            )
+        return CAPTURE_SCHEMA_VERSION_METHODS
     # The record's task declares v4, not only the files: a severity slot that lost BOTH arrays
     # would otherwise demote to v3 and read silently (review, 2026-11-12).
     severity_records = any(
