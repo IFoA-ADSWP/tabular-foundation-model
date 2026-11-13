@@ -155,7 +155,7 @@ Know these exist and what they're for:
 - `README.md` — project purpose, environment, how to run things
 - `data/README.md` — dataset provenance
 - `docs/REPORT_REGISTRY.md` — the index: every report, its evidence files, its dedup key
-- `docs/experiments/<campaign>/` — specs, studies and results, grouped by the campaign they belong to
+- `docs/analyses/` — specs and studies of the current (scripts) era
 - `outputs/current/tables/` — **the source of truth** (you just read four files from it)
 
 One-paragraph mental model (don't live here yet): the repo has two eras — the older notebook era (`notebooks/baseline_experiments/` + `src/`) produced the tables above, and the current scripts era (`scripts/eval/insurance_benchmark_v1/`) superseded it. Phase 3 covers the current era. For now: notebooks made the tables; scripts make the frontier.

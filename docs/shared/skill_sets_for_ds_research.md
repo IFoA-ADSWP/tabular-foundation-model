@@ -223,7 +223,7 @@ the split.
 | Dataset readiness / first look | **Partly** | `tabpfn-explore` covers schema, target, missingness, task type, pilot subset — but **not** distributions, outliers, correlation redundancy, leakage or time-ordering as a ranked findings list |
 | Journal-ready figures | **No** | `docs/figures/` holds 4 PNGs; plotting is ad hoc per script (`scripts/infra/make_learning_path_charts.py` hard-codes `#4C72B0`, `fontsize=8`, `figsize=(8, 6.5)`; `scripts/eval/insurance_benchmark_v1/plot_money_chart.py` likewise). No shared rcParams style file, no export checklist, no caption draft anywhere in `scripts/` or `src/` |
 | Spreadsheet intake / reconciliation | **No** | Nothing in `.opencode/skills/` or `scripts/` reads `.xlsx`; `data/README.md` + `data/raw` are the intake. **unverified** whether messy spreadsheets are actually a recurring input here |
-| BibTeX / DOI-or-arXiv citation verification | **Partly** | `FINETUNING_LITERATURE.md` enforces *status* labels and holds arXiv IDs in prose; `docs/References/` holds two raw PDFs. No identifier-resolution or `.bib` step exists — **gap** for anything heading to `archive/papers/` |
+| BibTeX / DOI-or-arXiv citation verification | **Partly** | `FINETUNING_LITERATURE.md` enforces *status* labels and holds arXiv IDs in prose; `docs/references/` holds two raw PDFs. No identifier-resolution or `.bib` step exists — **gap** for anything heading to `archive/papers/` |
 
 ---
 
