@@ -32,6 +32,7 @@ import math
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from statistics import NormalDist
 
 import matplotlib
 
@@ -47,6 +48,7 @@ sys.path.insert(0, str(_REPO))
 
 from scripts.analyses import freq_sev_fair_test as fair_test  # noqa: E402
 from scripts.infra.figure_style import (  # noqa: E402
+    NEUTRAL,
     OKABE_ITO,
     apply_static_style,
     save_publication,
@@ -55,8 +57,9 @@ from scripts.infra.figure_style import (  # noqa: E402
 RESULTS = _REPO / "results"
 FIGURES = _REPO / "docs" / "figures"
 
-#: Two-sided normal quantile, the interval the verdicts publish.
-Z95 = 1.959964
+#: Two-sided 95% normal quantile, the interval the verdicts publish. Computed rather than spelled
+#: out, so no second copy of the constant can drift.
+Z95 = NormalDist().inv_cdf(0.975)
 #: The pre-registered practical-effect bar, agreed 2026-11-03 before the replication.
 DELTA = 0.002
 
@@ -67,12 +70,6 @@ FAIR_TEST_IDS = {
     "severity_french": "20261112T210029Z",
     "severity_spanish": "20261112T220641Z",
 }
-#: The #572 row-scaling arms, carried into the summary but not drawn (#607 keeps one claim a figure).
-ROW_SCALE_IDS = {
-    "severity_french": "20261113T003320Z",
-    "frequency_french": "20261113T095502Z",
-}
-
 #: Phase 2 cells recomputed from their committed metrics tables.
 ANCHOR_RUN = "20261104T123839Z"
 EUDIRECTLAPSE_RUNS = (
@@ -101,11 +98,8 @@ DECISION_COLOR = {
     "Inconclusive": OKABE_ITO["blue"],
     "equivalence": OKABE_ITO["sky_blue"],
     "Heterogeneous": OKABE_ITO["orange"],
-    "stopped": "#666666",
+    "stopped": NEUTRAL["muted"],
 }
-
-GREY = "#666666"
-BAND = "#d9d9d9"
 
 @dataclass(frozen=True)
 class Row:
@@ -120,6 +114,7 @@ class Row:
     floor: float | None = None
     computed: bool = True
     detail: str = ""
+    emphasis: bool = False
 
 
 def _delta_series(run_dir: Path) -> pd.Series:
@@ -186,8 +181,8 @@ def phase2_rows() -> list[Row]:
             decision="stopped",
             group="stopped",
             detail=(
-                f"not measurable: ±{COIL2000['half_width']:.4f} at "
-                f"{COIL2000['rows']:,} test rows"
+                f"not measurable: ±{COIL2000['half_width']:.4f} at {COIL2000['rows']:,} test rows\n"
+                f"against the design's {COIL2000['floor']:.3f} floor"
             ),
         )
     )
@@ -196,11 +191,9 @@ def phase2_rows() -> list[Row]:
 
 def fair_test_rows() -> list[Row]:
     """The registered fair-test verdict: pooled tasks and the four portfolios under them."""
-    summary = fair_test.build_summary(
-        FAIR_TEST_IDS,
-        row_scale_french=ROW_SCALE_IDS["severity_french"],
-        row_scale_frequency=ROW_SCALE_IDS["frequency_french"],
-    )
+    # The row-scaling arms are deliberately not requested: #607 keeps one claim a figure, and a
+    # figure must not depend on evidence it does not draw.
+    summary = fair_test.build_summary(FAIR_TEST_IDS)
 
     rows: list[Row] = []
     for task in ("frequency", "severity"):
@@ -214,6 +207,7 @@ def fair_test_rows() -> list[Row]:
                 floor=pooled["floor"],
                 decision=pooled["decision"],
                 group=task,
+                emphasis=True,
             )
         )
         for member in pooled["members"]:
@@ -221,7 +215,7 @@ def fair_test_rows() -> list[Row]:
             portfolio = member.split("_")[1].capitalize()
             rows.append(
                 Row(
-                    label=f"    {portfolio} portfolio",
+                    label=f"{portfolio} portfolio",
                     value=target["mean"],
                     low=target["ci"][0],
                     high=target["ci"][1],
@@ -259,6 +253,8 @@ def _draw(
     pad = (hi - lo) * 0.16 or 0.001
     xlim = (lo - pad, hi + pad)
 
+    # Two panels — the forest and its decision column — so the width sits between the single- and
+    # double-column sizes: the decision word is part of the claim, not a caption detail.
     fig = plt.figure(figsize=(5.5, 2.7))
     grid = fig.add_gridspec(
         1,
@@ -275,8 +271,8 @@ def _draw(
     ax.set_xlim(*xlim)
 
     if band is not None:
-        ax.axvspan(-band, band, color=BAND, alpha=0.55, lw=0, zorder=0)
-    ax.axvline(0.0, color="#444444", lw=0.7, zorder=1)
+        ax.axvspan(-band, band, color=NEUTRAL["band"], alpha=0.55, lw=0, zorder=0)
+    ax.axvline(0.0, color=NEUTRAL["ink"], lw=0.7, zorder=1)
 
     positions: list[tuple[Row, float]] = []
     y = 0.0
@@ -289,19 +285,19 @@ def _draw(
         y -= 1.0
 
     for row, at in positions:
-        colour = DECISION_COLOR.get(row.decision, GREY)
+        colour = DECISION_COLOR[row.decision]  # a typo must fail, not grey a row
 
         if row.value is None:
-            ax.axhspan(at - 0.32, at + 0.32, color="#f2f2f2", lw=0, zorder=0)
+            ax.axhspan(at - 0.34, at + 0.34, color=NEUTRAL["panel"], lw=0, zorder=0)
             ax.text(
                 xlim[0] + pad * 0.35,
                 at,
                 row.detail,
                 ha="left",
                 va="center",
-                fontsize=7,
+                fontsize=8,
                 style="italic",
-                color=GREY,
+                color=NEUTRAL["muted"],
                 zorder=3,
             )
         else:
@@ -331,7 +327,7 @@ def _draw(
                 textcoords="offset points",
                 ha="center",
                 va="bottom",
-                fontsize=7,
+                fontsize=8,
                 color=colour,
             )
 
@@ -340,7 +336,7 @@ def _draw(
             ax.plot(
                 [row.floor, row.floor],
                 [at - 0.42, at - 0.05],
-                color=GREY,
+                color=NEUTRAL["muted"],
                 lw=1.0,
                 ls=(0, (2, 1)),
                 zorder=2,
@@ -354,13 +350,13 @@ def _draw(
             va="center",
             fontsize=8,
             color=colour,
-            fontweight="bold" if row.label.startswith("Task") else "normal",
+            fontweight="bold" if row.emphasis else "normal",
         )
 
     ax.set_yticks([at for _, at in positions])
     ax.set_yticklabels([row.label for row, _ in positions])
     for tick_label, (row, _) in zip(ax.get_yticklabels(), positions):
-        if row.label.startswith("Task"):
+        if row.emphasis:
             tick_label.set_fontweight("bold")
 
     ax.set_ylim(y + 0.35, 0.8)
@@ -368,14 +364,16 @@ def _draw(
     decisions.axis("off")
     ax.set_xlabel(xlabel)
     ax.xaxis.set_major_formatter(_formatter(percent))
-    ax.grid(axis="x", color="#e8e8e8", lw=0.6, zorder=0)
+    ax.grid(axis="x", color=NEUTRAL["grid"], lw=0.6, zorder=0)
     ax.set_axisbelow(True)
 
     handles = []
     if band is not None:
-        handles.append(Patch(facecolor=BAND, alpha=0.55, edgecolor="none", label=f"δ = {band:.3f} band"))
         handles.append(
-            Line2D([], [], marker="o", lw=0, color=GREY, label="computed from evidence")
+            Patch(facecolor=NEUTRAL["band"], alpha=0.55, edgecolor="none", label=f"δ = {band:.3f} band")
+        )
+        handles.append(
+            Line2D([], [], marker="o", lw=0, color=NEUTRAL["muted"], label="computed from evidence")
         )
         handles.append(
             Line2D(
@@ -383,16 +381,33 @@ def _draw(
                 [],
                 marker="o",
                 lw=0,
-                color=GREY,
+                color=NEUTRAL["muted"],
                 markerfacecolor="white",
                 label="quoted (no capture)",
             )
         )
     else:
-        handles.append(Line2D([], [], color=GREY, lw=1.2, marker="o", markersize=4, label="95% interval"))
+        handles.append(
+            Line2D(
+                [],
+                [],
+                color=NEUTRAL["muted"],
+                lw=1.2,
+                marker="o",
+                markersize=4,
+                label="95% interval",
+            )
+        )
         if applied:
             handles.append(
-                Line2D([], [], color=GREY, lw=1.0, ls=(0, (2, 1)), label="registered floor")
+                Line2D(
+                    [],
+                    [],
+                    color=NEUTRAL["muted"],
+                    lw=1.0,
+                    ls=(0, (2, 1)),
+                    label="registered floor",
+                )
             )
     ax.legend(
         handles=handles,

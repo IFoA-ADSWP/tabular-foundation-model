@@ -34,7 +34,7 @@ for that reason.
 `coil2000` carries no interval at all: its best attainable half-width at 4,000 test rows is ±0.0149 against
 the design's 0.006 floor, so no seed count closes it. A filled marker is computed from committed evidence, a
 hollow one quoted — the figure states the difference rather than leaving it to the caption. Regenerate with
-`python scripts/infra/verdict_figures.py --only phase2`; vector PDF at
+`.venv/bin/python scripts/infra/verdict_figures.py --only phase2`; vector PDF at
 [`figures/finetuning_phase2_forest.pdf`](../../figures/finetuning_phase2_forest.pdf).
 
 What this says: adapting the weights helps on one dataset, by an amount you would not notice in a

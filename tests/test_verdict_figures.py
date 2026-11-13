@@ -12,6 +12,7 @@ directory leaves `docs/figures/` untouched.
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 from pathlib import Path
 
@@ -23,6 +24,7 @@ import pytest  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "infra" / "verdict_figures.py"
+SPANISH_RESULT = REPO / "docs" / "experiments" / "pilot2-phase2" / "finetuning_breadth_spanish_result.md"
 
 
 def _module():
@@ -108,34 +110,64 @@ def test_every_row_states_where_its_number_came_from(figures):
         assert isinstance(row.computed, bool)
 
 
-def test_both_figures_export_a_pdf_and_a_png(tmp_path, figures):
-    figures.apply_static_style()
-    rows = [
-        ("phase2", figures.phase2_rows(), False, figures.DELTA),
-        ("fair", figures.fair_test_rows(), True, None),
-    ]
+def test_the_cli_exports_a_pdf_and_a_png_for_both_figures(tmp_path, figures):
+    """The seam a caller uses is the command line, so the test drives that rather than `_draw`."""
+    assert figures.main(["--only", "both", "--out", str(tmp_path)]) == 0
 
-    for name, data, percent, band in rows:
-        pdf, png = figures._draw(
-            data, stem=tmp_path / name, xlabel="x", percent=percent, band=band
-        )
+    for stem in ("finetuning_phase2_forest", "freq_sev_forest"):
+        pdf, png = tmp_path / f"{stem}.pdf", tmp_path / f"{stem}.png"
         assert pdf.read_bytes().startswith(b"%PDF")
         assert png.read_bytes()[1:4] == b"PNG"
         assert pdf.stat().st_size > 1_000 and png.stat().st_size > 5_000
-        plt.close("all")
+    plt.close("all")
+
+
+def test_the_quoted_spanish_cell_matches_the_owning_analysis(figures):
+    """The one typed row is pinned to the document that owns it, not to itself.
+
+    `spanish_motor_lapse` has no committed capture, so its interval is quoted. Quoting makes the
+    figure the second place the number lives; this test makes a correction to the owning analysis
+    fail here rather than leave the figure quietly wrong.
+    """
+    text = SPANISH_RESULT.read_text(encoding="utf-8").replace("\u2212", "-")
+    match = re.search(
+        r"\*\*\+(?P<value>[\d.]+) ROC AUC\*\*, 95% interval "
+        r"\*\*\[(?P<low>[-+]?[\d.]+), (?P<high>[-+]?[\d.]+)\]\*\*",
+        text,
+    )
+    assert match, "the owning analysis no longer states the interval this test parses"
+    seeds = re.search(r"Across \*\*(\d+) fresh seeds\*\*", text)
+
+    quoted = figures.SPANISH_PUBLISHED
+    assert quoted["value"] == pytest.approx(float(match.group("value")), abs=1e-9)
+    assert quoted["low"] == pytest.approx(float(match.group("low")), abs=1e-9)
+    assert quoted["high"] == pytest.approx(float(match.group("high")), abs=1e-9)
+    assert seeds and quoted["seeds"] == int(seeds.group(1))
+
+
+def test_regeneration_is_byte_identical(tmp_path, figures):
+    """A committed figure that has not changed must not produce a binary diff.
+
+    The PDF exporter stamps a creation date by default, so two identical draws differed byte for byte
+    until `save_publication` stopped writing the timestamp. This pins that: a diff in a committed
+    figure now means the picture changed.
+    """
+    first, second = tmp_path / "first", tmp_path / "second"
+    assert figures.main(["--only", "phase2", "--out", str(first)]) == 0
+    assert figures.main(["--only", "phase2", "--out", str(second)]) == 0
+    plt.close("all")
+
+    for suffix in (".pdf", ".png"):
+        assert (first / f"finetuning_phase2_forest{suffix}").read_bytes() == (
+            second / f"finetuning_phase2_forest{suffix}"
+        ).read_bytes()
 
 
 def test_rendering_leaves_the_committed_figures_alone(tmp_path, figures):
     """A regenerating run aimed elsewhere must not touch cited evidence in `docs/figures/`."""
-    figures.apply_static_style()
     before = {path.name: path.stat().st_mtime for path in figures.FIGURES.iterdir()}
 
-    figures._draw(
-        figures.fair_test_rows(),
-        stem=tmp_path / "elsewhere" / "fair",
-        xlabel="x",
-        percent=True,
-    )
+    assert figures.main(["--only", "fair-test", "--out", str(tmp_path)]) == 0
     plt.close("all")
 
     after = {path.name: path.stat().st_mtime for path in figures.FIGURES.iterdir()}

@@ -45,6 +45,7 @@ for the static branch. Interactive HTML would add a file nobody opens from a rep
 
 ```
 scripts/infra/verdict_figures.py                  # builders + drawing + CLI
+scripts/infra/figure_style.py                     # NEUTRAL inks; deterministic PDF timestamps
 scripts/analyses/freq_sev_fair_test.py            # main() calls the extracted build_summary()
 tests/test_verdict_figures.py                     # reproduces the published tables; renders to tmp
 docs/figures/finetuning_phase2_forest.{pdf,png}
@@ -53,6 +54,9 @@ docs/figures/README.md
 docs/experiments/pilot2-phase2/FINETUNING_PHASE2_OUTCOME.md
 docs/experiments/fair-test-freq-sev/freq_sev_fair_test_result.md
 docs/EVIDENCE_MAP.md                              # the docs/figures row
+docs/plans/README.md                              # the index row
+scripts/README.md                                 # the infra row and count
+.opencode/skills/dataviz/SKILL.md                 # non-data ink comes from NEUTRAL
 CHANGELOG.md
 ```
 
@@ -60,11 +64,14 @@ CHANGELOG.md
 
 ```sh
 .venv/bin/python scripts/infra/verdict_figures.py     # both pairs regenerate
-.venv/bin/python -m pytest tests/test_verdict_figures.py tests/test_freq_sev_fair_test.py -q
-./scripts/check.sh                                   # all eight green
+PATH="$PWD/.venv/bin:$PATH" ./scripts/check.sh        # all eight; ruff lives in .venv, not on PATH
 ```
 
-Run on 2026-11-13: figures regenerate from a clean tree; both test files pass; `check.sh` green.
+The review pass found five things, all fixed: the stopped row's floor was defined and never drawn;
+two tests reached into `_draw` instead of the CLI seam; data labels sat below the style's 8 pt floor;
+the greys were local hex codes; and the one quoted row was pinned only to itself. The quoted row is
+now parsed from the document that owns it, so a correction there fails the test rather than leaving
+the figure quietly wrong.
 
 ## What this does not do
 

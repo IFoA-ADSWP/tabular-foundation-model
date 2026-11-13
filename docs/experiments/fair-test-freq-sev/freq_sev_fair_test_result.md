@@ -63,7 +63,7 @@ frequency carries its own 4% per-target floor and does not decide the frequency 
 
 ![The fair-test verdict as a forest plot](../../figures/freq_sev_forest.png)
 
-*Figure 1 — the verdict as a picture.* One row per portfolio, then the pooled task; the line is the
+*Figure 1 — the verdict as a picture.* One row per pooled task, with its two portfolios beneath it; the line is the
 95% interval, the dashed tick below it the row's registered floor, and the word at the right the
 decision the rule returned. French frequency clears its 2% floor; French severity is a small but real
 harm; both Spanish cells are inconclusive against their floors; and the pooled severity task is
@@ -71,7 +71,7 @@ heterogeneous because the two portfolios disagree in sign. Every value is comput
 committed captures by `freq_sev_fair_test.build_summary()` — the function that prints the table above —
 so the figure cannot disagree with it. The 2.1× and 4× row-scaling arms ([below](#the-row-scaling-arm-572))
 are robustness checks on this verdict, not a second verdict, and are not drawn. Regenerate with
-`python scripts/infra/verdict_figures.py --only fair-test`; vector PDF at
+`.venv/bin/python scripts/infra/verdict_figures.py --only fair-test`; vector PDF at
 [`figures/freq_sev_forest.pdf`](../../figures/freq_sev_forest.pdf).
 
 ## What the numbers say, and what they do not
