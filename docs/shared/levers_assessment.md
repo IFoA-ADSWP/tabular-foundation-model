@@ -32,8 +32,8 @@ Keep, sharpened. "Levers narrow but do not close the at-scale gap" is confirmed 
 - If fine-tuned arms show no beyond-SE improvement on both targets, close #54 with the hypothesis confirmed and no further runs.
 
 ## References
-- Master report: docs/analyses/tabpfn_vs_gbdt_baselines_finetuning.md (§5, §8, §11.4, §12.1, §12.3, §13, §13.5, §14, §14.2, §14.8, §14.10, §15)
-- docs/analyses/regime_characterization.md
+- Master report: docs/experiments/frontier-benchmark/tabpfn_vs_gbdt_baselines_finetuning.md (§5, §8, §11.4, §12.1, §12.3, §13, §13.5, §14, §14.2, §14.8, §14.10, §15)
+- docs/experiments/frontier-benchmark/regime_characterization.md
 - docs/archive/TABPFN_BENCHMARK_SUMMARY.md (Conclusion & adoption guidance)
 - scripts/legacy_finetuning/ (fine-tune pipeline)
 - Issue #54
