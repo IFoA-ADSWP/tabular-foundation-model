@@ -22,6 +22,21 @@ after the anchor's first pass had failed. A cell is a gain when its whole interv
 equivalence when its whole interval sits inside ±δ, and unresolved otherwise. One cell cleared the bar, two
 were bounded inside it, and one never ran because it could not be bounded.
 
+![The Phase 2 outcome as a forest plot](../../figures/finetuning_phase2_forest.png)
+
+*Figure 1 — the outcome as a picture.* Δ ROC AUC for in-domain fine-tuning against the raw arm of the same
+seeds and launch, with 95% intervals from the between-seed spread; the shaded band is δ = 0.002. The anchor
+and `eudirectlapse` are recomputed from each run's committed `pilot_metrics.parquet` by
+`scripts/infra/verdict_figures.py` — those runs carry their metrics table and `meta.json`, not the
+prediction arrays, so the table is the committed source. `spanish_motor_lapse` is **quoted** from its owning
+analysis, because its records live in the paid-run tree and no capture was committed, and is drawn hollow
+for that reason.
+`coil2000` carries no interval at all: its best attainable half-width at 4,000 test rows is ±0.0149 against
+the design's 0.006 floor, so no seed count closes it. A filled marker is computed from committed evidence, a
+hollow one quoted — the figure states the difference rather than leaving it to the caption. Regenerate with
+`.venv/bin/python scripts/infra/verdict_figures.py --only phase2`; vector PDF at
+[`figures/finetuning_phase2_forest.pdf`](../../figures/finetuning_phase2_forest.pdf).
+
 What this says: adapting the weights helps on one dataset, by an amount you would not notice in a
 deployment decision. What it does not say: that it helps on these datasets generally.
 
