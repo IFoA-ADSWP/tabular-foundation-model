@@ -301,3 +301,16 @@ def test_the_intercept_anchor_is_the_exposure_weighted_mean_rate():
     )
     assert quantiles is None
     assert predictions == pytest.approx(expected_rate * request.exposure_test)
+
+
+def test_the_intercept_anchor_is_claim_weighted_on_a_grouped_severity_target():
+    """`severity_spanish` registers `w = N_claims_year`; the anchor must be the weighted mean."""
+    request = request_for(
+        target_name="severity_spanish",
+        y=np.array([0.0, 2.0, 4.0]),
+        weights=np.array([1.0, 1.0, 8.0]),
+    )
+    predictions, quantiles = InterceptBackend().fit_predict(request)
+
+    assert quantiles is None
+    assert predictions == pytest.approx(np.average([0.0, 2.0, 4.0], weights=[1.0, 1.0, 8.0]))

@@ -38,8 +38,9 @@ _Avoid_: table, file, corpus
 
 **Capture**:
 The persisted evidence from a run: per-row predictions, truth, and the row identity and
-predictive distributions the run retained, keyed by dataset, Arm, seed and fold, with
-hashes that prove the arrays.
+predictive distributions the run retained, keyed by dataset, Method (with its Arm where one
+applies), seed and fold, with hashes that prove the arrays. A method that has no predictive
+distribution records that it has none rather than storing nine copies of its mean.
 _Avoid_: prediction file, checkpoint, dump
 
 **Rescore**:

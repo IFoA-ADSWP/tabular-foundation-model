@@ -37,14 +37,6 @@ RULE_DATE = "20261031T000000Z"
 LEGACY = Path("docs/analyses/legacy_citations.txt")
 SCANNED_SUFFIXES = {".md", ".csv", ".txt"}
 
-_REPO = Path(__file__).resolve().parents[1]
-if str(_REPO / "src") not in sys.path:
-    sys.path.insert(0, str(_REPO / "src"))
-
-# The v5 rule for whether a slot owes quantiles lives with the writer, so the gate cannot hold a
-# second copy of it.
-from run_capture import declares_quantiles  # noqa: E402
-
 
 def cited(root: Path) -> dict[str, set[tuple[str, int]]]:
     """Every run id mentioned under docs/, with the `(file, line)` that mention it.
@@ -119,6 +111,18 @@ def expected_entries(run_dir: Path) -> list[Expected]:
     return expected
 
 
+def _declares_quantiles(record: dict) -> bool:
+    """The v5 rule: a record owes quantiles exactly when it declares `quantile_levels`.
+
+    This is a second copy of `run_capture.declares_quantiles` on purpose. The paid path imports
+    this module through `scripts/gpu_helpers/verify_artifacts.py` with only `scripts/` on
+    `sys.path` — it has no `src/` beside it — so a module-level import from `src` turns a
+    legitimate capture into "not beside the verifier" (measured 2026-11-13). `tests/
+    test_check_citations.py` pins the two copies to each other, so they cannot drift.
+    """
+    return record.get("quantile_levels") is not None
+
+
 def _where(exp: "Expected") -> str:
     """The slot as an operator can find it, without inventing an Arm a baseline does not have."""
     label = " ".join(part for part in (exp.method, exp.arm) if part)
@@ -183,7 +187,7 @@ def _array_problems(
             record = json.loads(exp.record.read_text())
         except json.JSONDecodeError as exc:
             return [f"{run_id}: {exp.record} is not valid JSON ({exc})"]
-        declared_quantiles = declares_quantiles(record)
+        declared_quantiles = _declares_quantiles(record)
     if declared_quantiles:
         required.append("quantiles_sha256")
     if dataset == "freMTPL2freq":

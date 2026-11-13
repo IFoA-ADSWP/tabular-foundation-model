@@ -45,6 +45,7 @@ _ANALYSES = Path(__file__).resolve().parent
 _REPO = _ANALYSES.parents[1]
 RESULTS = _REPO / "results"
 sys.path.insert(0, str(_ANALYSES))
+sys.path.insert(0, str(_REPO / "src"))
 
 # The registered decision rule and its t multiplier live in the fair-test analyser; importing them
 # keeps the two reports from drifting apart.
@@ -54,6 +55,7 @@ from freq_sev_fair_test import (  # noqa: E402
     FLOOR_SEVERITY,
     target_summary,
 )
+from provenance import sha256_array  # noqa: E402
 
 CONTENDER = "B_ft30"
 ALONGSIDE = "A_raw"
@@ -143,45 +145,67 @@ def target_verdict(ratios: dict[int, float], floor: float) -> dict:
     """One target's `r`, interval, MDE and registered decision.
 
     `target_summary` is the fair test's own function, so the statistic, the t multiplier and the
-    rule are one definition rather than two that agree today.
+    rule are one definition rather than two that agree today. It carries `T975_DF4` and the
+    4-degrees-of-freedom MDE constant, so a run that is not five folds cannot be summarised by it:
+    a 1-fold run divides by zero and a 3-fold run silently reports a 4-df interval.
     """
+    if len(ratios) != 5:
+        raise SystemExit(
+            f"the registered interval is a paired t over five folds (4 df); this target has "
+            f"{len(ratios)} fold(s), so the summary would not be the registered statistic"
+        )
     row = target_summary(ratios, "", floor)
     row.pop("run_id")
     return row
 
 
-def _test_indices(run_dir: Path) -> dict[int, np.ndarray]:
-    """One `test_index` per fold. The index belongs to the fold, not to a slot."""
-    indices: dict[int, np.ndarray] = {}
+def _fold_index_hashes(run_dir: Path) -> dict[int, list[str]]:
+    """Every slot's `test_index` sha256, grouped by fold.
+
+    Per slot, not one per fold: the acceptance criterion is that *each* baseline slot's index
+    equals the registered capture's, and taking the first slot of a fold would let the rest differ.
+    """
+    hashes: dict[int, list[str]] = {}
     for meta, record in _records(run_dir):
         if record.get("fold") is None:
             continue
         path = meta.parent / "test_index.npy"
         if path.is_file():
-            indices.setdefault(int(record["fold"]), np.load(path))
-    return indices
+            hashes.setdefault(int(record["fold"]), []).append(sha256_array(np.load(path)))
+    return hashes
 
 
 def assert_comparability(tabpfn_dir: Path, baseline_dir: Path) -> None:
     """Every fold's test rows must be the registered capture's, or the comparison means nothing."""
-    reference = _test_indices(tabpfn_dir)
-    candidate = _test_indices(baseline_dir)
+    reference = _fold_index_hashes(tabpfn_dir)
+    candidate = _fold_index_hashes(baseline_dir)
 
     if not reference or not candidate:
         raise SystemExit(
             "comparability: a run carries no test_index, so the folds have not been checked"
         )
-    for fold in sorted(set(reference) & set(candidate)):
-        if not np.array_equal(reference[fold], candidate[fold]):
-            raise SystemExit(
-                f"comparability: fold {fold}'s test_index differs between {tabpfn_dir} and "
-                f"{baseline_dir}; the rows are not the registered ones"
-            )
-    missing = sorted(set(reference) - set(candidate))
-    if missing:
+    if set(reference) != set(candidate):
+        missing = sorted(set(reference) - set(candidate))
+        extra = sorted(set(candidate) - set(reference))
         raise SystemExit(
-            f"comparability: {baseline_dir} has no test_index for fold(s) {missing}"
+            f"comparability: the runs do not cover the same folds (missing {missing}, "
+            f"not in the registered run {extra})"
         )
+    for fold in sorted(reference):
+        # One hash per fold in the registered run: the index belongs to the fold, not the slot.
+        registered = set(reference[fold])
+        if len(registered) != 1:
+            raise SystemExit(
+                f"comparability: {tabpfn_dir} disagrees with itself at fold {fold}; its slots "
+                "carry different test_index arrays"
+            )
+        expected = registered.pop()
+        mismatched = [value for value in candidate[fold] if value != expected]
+        if mismatched:
+            raise SystemExit(
+                f"comparability: {len(mismatched)} slot(s) of fold {fold} in {baseline_dir} "
+                f"score rows other than the registered capture's ({expected[:12]}…)"
+            )
 
 
 def _print_row(label: str, row: dict) -> None:

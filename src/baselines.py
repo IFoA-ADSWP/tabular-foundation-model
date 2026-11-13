@@ -266,7 +266,11 @@ class CatBoostBackend:
                 "catboost": catboost.__version__,
                 "python": platform.python_version(),
             },
-            "config": {**HYPERPARAMETERS_CATBOOST, "loss": "Poisson (frequency) | RMSE (severity)"},
+            "config": {
+                **HYPERPARAMETERS_CATBOOST,
+                "loss": "Poisson (frequency) | RMSE (severity)",
+                "random_seed": "the slot's model seed",
+            },
         }
 
     def _frame(self, request) -> pd.DataFrame:
@@ -335,7 +339,16 @@ class InterceptBackend:
             if exposure_test is not None:
                 predictions = predictions * exposure_test
             return predictions, None
-        return np.full(len(request.test_index), float(np.mean(request.y_train))), None
+        # The weighted mean, not the plain one: `severity_spanish` registers `w = N_claims_year`,
+        # so the one-parameter member of that model space is the claim-weighted average. On the
+        # French rows the weight is 1 and the two coincide.
+        return (
+            np.full(
+                len(request.test_index),
+                float(np.average(request.y_train, weights=request.weights_train)),
+            ),
+            None,
+        )
 
 
 BACKENDS = {

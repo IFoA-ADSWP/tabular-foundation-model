@@ -59,8 +59,10 @@ Fine-tuned TabPFN (`B_ft30`, with `A_raw` alongside) against two actuarial basel
 
 1. Method axis + baseline backends behind the existing `Backend` seam — testable without the data.
 2. Capture version + citation gate + tests.
-3. One fold per target locally: measures the real runtime before the full matrix, and proves the
-   `test_index` match on the cheapest possible run.
+3. One fold per target locally: measures the real runtime before the full matrix. It does **not**
+   prove the `test_index` match — `n_folds=1` takes `group_fold_splits`' holdout branch, a fresh
+   80/20 permutation, not the registered five-fold split (measured 2026-11-13). That proof is a
+   unit test at two folds and a runtime refusal in the analysis tool, and it runs on the matrix.
 4. Full matrix; the analysis tool; the write-up.
 5. `analysis-review` and `code-review` before merge.
 
@@ -94,7 +96,7 @@ Parts 1–3 of the order of work, with the seams that were chosen:
 | `FitRequest` | `src/fair_test_runner.py` | One object per fit carrying the encoded arrays **and** the source frame, the row indices, exposure and weights. TabPFN reads the same `X`/`y` it always did; a baseline can reach the raw levels and the exposure column `.cat.codes` and `log(Exposure)` destroyed. |
 | Backends | `src/baselines.py` | `GlmBackend` (Poisson-log on rate + exposure weight; Tweedie `power=0`, identity on `log(amount)`), `CatBoostBackend` (Poisson/RMSE, raw categoricals), `InterceptBackend` (exposure-weighted anchor). Baselines return `(predictions, None)` — they decline quantiles. The GLM is solved by Newton–Cholesky on a training-fold-standardised design: `lbfgs` reached `max_iter=500` on the 542k-row French fold and overflowed on the Spanish columns, where it silently returned the intercept (measured 2026-11-13). The chosen solver and design scale are recorded in each record's `config`; the rejected alternative is recorded here, not in the artifact. |
 | Capture v5 | `src/run_capture.py`, `src/capture_reader.py`, `scripts/check_citations.py` | Entry and record carry `method`; `quantile_levels: null` means the method has no distribution and a `quantiles.npy` is refused; a method-declaring record makes the whole run v5 or the run is refused. The citation gate accepts v5 and asks a baseline for an interpreter plus a library version instead of TabPFN's checkpoint. |
-| CLI | `scripts/run_fair_test.py` | `--methods` selects predictors; `--arms` remains the TabPFN ladder and is refused when `tabpfn` is not selected. A baseline's default budget is the full fold pool, overridable by `--train-rows` (the sensitivity budget). |
+| CLI | `scripts/run_fair_test.py` | `--methods` selects predictors, `--folds`/`--seeds` scope a timing run (the gate and smoke paths fix their own and refuse the flags); `--arms` remains the TabPFN ladder and is refused when `tabpfn` is not selected. A baseline's default budget is the full fold pool, overridable by `--train-rows` (the sensitivity budget). |
 | Analysis | `scripts/analyses/actuarial_baseline.py` | Per-target `r` against the **better** baseline, paired t over folds, floors unchanged, `A_raw` and the anchor reported beside, task means descriptive. Imports `decide`/`target_interval` from the fair-test analyser so the rule cannot drift, and **refuses** when a fold's `test_index` differs from the registered capture's. |
 
 **Measured runtime — one fold, one seed, all three baselines, full fold pool.** Command, per target
@@ -115,7 +117,9 @@ Parts 1–3 of the order of work, with the seams that were chosen:
 Measured 2026-11-13 on this workstation (CPU, CatBoost on all cores). One fold × one seed is
 **6.1 minutes**; the registered matrix is 5 folds × 3 seeds, so a full run is ≈ 1.5 hours of CPU
 and $0. The French frequency CatBoost fit is ~85% of it. These are timings, not results: one fold
-is not a verdict and none of the four numbers above is quoted as one.
+is not a verdict and none of the four numbers above is quoted as one. Nor do they carry the
+comparability proof: at `n_folds=1` the split is the holdout branch, so these slots' `test_index`
+is **not** the registered capture's, and no number here is scored against it.
 
 Verification at this point:
 

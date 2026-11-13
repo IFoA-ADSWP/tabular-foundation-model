@@ -69,7 +69,7 @@ def test_the_verdict_is_against_the_better_baseline(tmp_path):
     tabpfn_run = tmp_path / "20261112T000001Z"
     baseline_run = tmp_path / "20261114T090001Z"
     index = np.arange(5, dtype=np.int64)
-    for fold in range(2):
+    for fold in range(5):
         _tabpfn_slot(tabpfn_run, arm="B_ft30", seed=0, fold=fold, value=80.0, index=index)
         _tabpfn_slot(tabpfn_run, arm="A_raw", seed=0, fold=fold, value=85.0, index=index)
         # E_glm is the weaker baseline (higher deviance); F_catboost is the one to beat.
@@ -92,6 +92,14 @@ def test_the_verdict_is_against_the_better_baseline(tmp_path):
     assert row["train_rows"] == [500000]
 
 
+def test_a_run_that_is_not_five_folds_is_refused(tmp_path):
+    """The interval and the MDE constant are the registered 4-df ones; a 3-fold run is not it."""
+    module = _module()
+
+    with pytest.raises(SystemExit, match="paired t over five folds"):
+        module.target_verdict({0: 0.1, 1: 0.1, 2: 0.1}, floor=0.02)
+
+
 def test_the_comparability_proof_refuses_a_different_test_index(tmp_path):
     module = _module()
     tabpfn_run = tmp_path / "20261112T000001Z"
@@ -99,7 +107,7 @@ def test_the_comparability_proof_refuses_a_different_test_index(tmp_path):
     _tabpfn_slot(tabpfn_run, arm="A_raw", seed=0, fold=0, value=1.0, index=[0, 1, 2])
     _baseline_slot(baseline_run, method="E_glm", seed=0, fold=0, value=1.0, index=[0, 1, 3])
 
-    with pytest.raises(SystemExit, match="fold 0's test_index differs"):
+    with pytest.raises(SystemExit, match="score rows other than the registered capture"):
         module.assert_comparability(tabpfn_run, baseline_run)
 
 
@@ -127,7 +135,7 @@ def test_the_task_mean_is_descriptive_and_carries_no_decision(tmp_path, monkeypa
         baseline_id = f"20261114T09000{index}Z"
         argv += [f"--tabpfn-{flag}", tabpfn_id, f"--baseline-{flag}", baseline_id]
         run_index = np.arange(3, dtype=np.int64)
-        for fold in range(2):
+        for fold in range(5):
             _tabpfn_slot(tmp_path / tabpfn_id, arm="B_ft30", seed=0, fold=fold, value=80.0,
                          index=run_index)
             _tabpfn_slot(tmp_path / tabpfn_id, arm="A_raw", seed=0, fold=fold, value=85.0,

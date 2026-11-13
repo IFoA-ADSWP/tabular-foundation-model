@@ -62,6 +62,11 @@ Spanish rows: identical, except `w = N_claims_year` (claim-equivalents) and `y =
 severity — the weight the fair test already registers for `severity_spanish`. On the French
 severity rows `w ≡ 1`: the weight column exists in schema v4 but is a no-op there.
 
+> **Amendment 2026-11-13 — the CatBoost seed.** The table pins `random_seed=0`; the run passes the
+> slot's model seed instead. Held at 0, the three registered seeds would be three identical
+> CatBoost fits, contradicting §1.3 ("only CatBoost's differ"), and `random_seed` is not among the
+> hyperparameters the pre-registration fixes. The mapping is recorded in each record's `config`.
+
 Two rows from the first draft of this note are **deliberately not run** (decision #597): the
 Gamma-log severity arm and the Tweedie-on-raw CatBoost arm. Both are native-scale models and cannot
 be scored on the registered metric for the reason in §3.3.

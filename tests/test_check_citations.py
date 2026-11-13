@@ -491,3 +491,15 @@ def test_a_v5_tabpfn_record_declaring_quantiles_without_the_hash_fails(tmp_path)
     manifest_path.write_text(json.dumps(manifest))
 
     assert run(root) == 1
+
+
+def test_the_gate_and_the_writer_agree_on_what_a_quantile_declaration_is():
+    """The paid path imports the gate without `src/` on the path, so the rule is duplicated.
+
+    A duplicate that can drift is worse than an import that cannot ship: this pins the two.
+    """
+    sys.path.insert(0, str(REPO_ROOT / "src"))
+    from run_capture import declares_quantiles
+
+    for record in ({"quantile_levels": None}, {}, {"quantile_levels": [0.5]}):
+        assert cc._declares_quantiles(record) is declares_quantiles(record)
