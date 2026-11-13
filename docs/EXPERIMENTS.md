@@ -10,8 +10,8 @@ each document declares in its first lines says what it is worth now.
 | Campaign | Documents | Runs | What it is |
 | --- | --- | --- | --- |
 | [`diagnostics`](experiments/diagnostics/README.md) | 2 live, 0 archived | 0 | D1–D5: the diagnostics design and D5's explanation. |
-| [`fair-test-freq-sev`](experiments/fair-test-freq-sev/README.md) | 7 live, 0 archived | 7 | The 2026-11 frequency/severity fair test — four pre-registered targets, policy-grouped folds. |
-| [`frontier-benchmark`](experiments/frontier-benchmark/README.md) | 8 live, 8 archived | 0 | The 2026-07→08 frontier suite: the benchmark that produced master report §14, its re-scores, and the v3.5 re-test. |
+| [`fair-test-freq-sev`](experiments/fair-test-freq-sev/README.md) | 9 live, 0 archived | 7 | The 2026-11 frequency/severity fair test — four pre-registered targets, policy-grouped folds. |
+| [`frontier-benchmark`](experiments/frontier-benchmark/README.md) | 8 live, 8 archived | 4 | The 2026-07→08 frontier suite: the benchmark that produced master report §14, its re-scores, and the v3.5 re-test. |
 | [`lapse-students`](experiments/lapse-students/README.md) | 0 live, 0 archived | 1 | Measuring the lapse GBDTs on the teacher's own folds instead of estimating them (#377). |
 | [`pilot2-phase2`](experiments/pilot2-phase2/README.md) | 26 live, 9 archived | 23 | The fine-tuning programme: design, pre-registrations, the replication and breadth cells, the decision log and the Phase 2 outcome. |
 | [`probe`](experiments/probe/README.md) | 3 live, 0 archived | 0 | The 2026-09 budget probe: whether the paid path could measure anything at the smaller budget. |
