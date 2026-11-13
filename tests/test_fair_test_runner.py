@@ -23,6 +23,7 @@ RAW = Path(__file__).resolve().parents[1] / "data" / "raw"
 
 class StubBackend:
     name = "stub"
+    method = "tabpfn"
 
     def provenance(self) -> dict:
         return {
@@ -30,17 +31,14 @@ class StubBackend:
             "weights": {"path": "/cache/stub.ckpt", "sha256": "a" * 64},
         }
 
-    def fit_predict(self, X_train, y_train, X_test, *, seed, epochs):
-        del seed, epochs
-        prediction = np.full(len(X_test), float(np.mean(y_train)))
+    def fit_predict(self, request):
+        prediction = np.full(len(request.X_test), float(np.mean(request.y_train)))
         return prediction, np.tile(prediction, (9, 1))
 
 
 class NaNBackend(StubBackend):
-    def fit_predict(self, X_train, y_train, X_test, *, seed, epochs):
-        prediction, quantiles = super().fit_predict(
-            X_train, y_train, X_test, seed=seed, epochs=epochs
-        )
+    def fit_predict(self, request):
+        prediction, quantiles = super().fit_predict(request)
         prediction[0] = np.nan
         return prediction, quantiles
 
@@ -75,14 +73,100 @@ def test_the_slot_matrix_is_the_pre_registered_design():
     assert len(slots) == 4 * 4 * 5 * 3  # targets x arms x folds x model seeds
 
 
+class BaselineStub:
+    """A baseline: a different predictor, and one with no predictive distribution."""
+
+    method = "M_intercept"
+
+    def provenance(self) -> dict:
+        return {"versions": {"numpy": np.__version__, "python": "3.12"}}
+
+    def fit_predict(self, request):
+        return np.full(len(request.test_index), float(np.mean(request.y_train))), None
+
+
+def test_the_method_axis_adds_a_baseline_without_inventing_an_arm():
+    slots = slot_matrix(RunConfig(methods=("E_glm",)))
+    labels = {slot.label for slot in slots}
+
+    assert labels == {"E_glm"}
+    assert all(slot.arm is None for slot in slots)
+    assert len(slots) == 4 * 5 * 3  # targets x folds x seeds; a baseline has no Arm ladder
+
+
+def test_a_baseline_run_writes_a_method_record_and_no_quantiles(tmp_path):
+    config = RunConfig(
+        folds=1, seeds=(0,), test_rows=32, targets=(TARGETS[0],), methods=("M_intercept",)
+    )
+    runs = run(config, BaselineStub(), tmp_path, run_id="20261113T000000Z")
+    run_dir = runs["frequency_french"]
+    slot = run_dir / "freMTPL2freq" / "M_intercept" / "seed0_fold0"
+
+    manifest = json.loads((run_dir / "capture.json").read_text())
+    assert manifest["schema_version"] == 5
+    assert manifest["captures"][0]["method"] == "M_intercept"
+    assert manifest["captures"][0]["arm"] is None
+    assert "quantiles_sha256" not in manifest["captures"][0]
+
+    record = json.loads((slot / "meta.json").read_text())
+    assert record["method"] == "M_intercept"
+    assert record["arm"] is None
+    assert record["quantile_levels"] is None
+    assert record["epochs"] is None
+    assert record["train_rows"] > 10_000, "a baseline's primary budget is the full fold pool"
+    assert not (slot / "quantiles.npy").exists()
+
+    verified = read_run(run_dir)
+    assert verified.slots[0].method == "M_intercept"
+    assert verified.slots[0].arm is None
+    assert verified.slots[0].quantiles is None
+
+
+def test_a_run_needs_a_backend_for_every_selected_method(tmp_path):
+    config = RunConfig(
+        folds=1, seeds=(0,), test_rows=16, targets=(TARGETS[0],),
+        methods=("tabpfn", "M_intercept"),
+    )
+    with pytest.raises(ValueError, match="no backend for method"):
+        run(config, {"tabpfn": StubBackend()}, tmp_path, run_id="20261113T000000Z")
+
+
+def test_a_baseline_and_tabpfn_share_the_fold_test_index(tmp_path):
+    """The comparability proof (#597): the folds are shared, not assumed."""
+    tabpfn_config = RunConfig(
+        folds=2, seeds=(0,), test_rows=32, targets=(TARGETS[0],), arms=("A_raw",),
+        methods=("tabpfn",),
+    )
+    baseline_config = RunConfig(
+        folds=2, seeds=(0,), test_rows=32, targets=(TARGETS[0],), methods=("M_intercept",)
+    )
+    tabpfn_runs = run(tabpfn_config, StubBackend(), tmp_path, run_id="20261113T000000Z")
+    baseline_runs = run(
+        baseline_config, BaselineStub(), tmp_path, run_id="20261113T010000Z",
+        train_rows_cap=64,
+    )
+
+    for fold in range(2):
+        from_tabpfn = np.load(
+            tabpfn_runs["frequency_french"] / "freMTPL2freq" / "A_raw"
+            / f"seed0_fold{fold}" / "test_index.npy"
+        )
+        from_baseline = np.load(
+            baseline_runs["frequency_french"] / "freMTPL2freq" / "M_intercept"
+            / f"seed0_fold{fold}" / "test_index.npy"
+        )
+        assert np.array_equal(from_tabpfn, from_baseline), f"fold {fold} is not the same rows"
+
+
 def test_a_run_writes_one_capture_per_target_the_reader_accepts(tmp_path):
     runs = _run(tmp_path)
 
     assert set(runs) == {spec.name for spec in TARGETS}
     for name, run_dir in runs.items():
         manifest = json.loads((run_dir / "capture.json").read_text())
-        expected = 4 if name.startswith("severity") else 3
-        assert manifest["schema_version"] == expected, name
+        # v5 (#597): the method axis, with quantiles retained because TabPFN produced them.
+        assert manifest["schema_version"] == 5, name
+        assert {entry["method"] for entry in manifest["captures"]} == {"tabpfn"}
         verified = read_run(run_dir)
         assert len(verified.slots) == 4  # four Arms x one fold x one seed
 
@@ -305,6 +389,29 @@ def test_the_cli_runs_only_the_arms_it_was_given(tmp_path, monkeypatch):
         path.name for path in (tmp_path / "20261112T000000Z" / "freMTPL2freq").iterdir()
     )
     assert arms == ["A_raw", "B_ft30"]
+
+
+def test_the_cli_can_run_one_fold_one_seed_for_a_timing_measurement(tmp_path, monkeypatch):
+    """The one-fold timing run is a measurement, not a result: it must be expressible exactly."""
+    module = _cli(monkeypatch)
+
+    code = module.main(
+        [
+            "--targets", "frequency_french",
+            "--methods", "M_intercept",
+            "--folds", "1",
+            "--seeds", "0",
+            "--train-rows", "128",
+            "--out-root", str(tmp_path),
+            "--run-id", "20261113T120000Z",
+        ]
+    )
+
+    assert code == 0
+    slots = list(
+        (tmp_path / "20261113T120000Z" / "freMTPL2freq" / "M_intercept").glob("seed*_fold*")
+    )
+    assert [path.name for path in slots] == ["seed0_fold0"]
 
 
 def test_the_cli_refuses_an_unknown_arm(tmp_path, monkeypatch):

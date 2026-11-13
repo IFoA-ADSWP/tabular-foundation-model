@@ -6,7 +6,13 @@
 The sizes come from the pre-registration. `--smoke` shrinks them to a CPU-sized run that writes a
 real capture — useful to prove the wiring, never a result to quote.
 
-This rents nothing on its own: a real run is a paid launch and a separate decision.
+`--methods` selects the predictors. The default is the TabPFN fair test; the actuarial baseline
+(#597) is `--methods E_glm,F_catboost,M_intercept`, which runs on CPU and spends nothing:
+
+    python scripts/run_fair_test.py --methods E_glm,F_catboost,M_intercept \\
+        --targets frequency_french --out-root /tmp/baseline
+
+A TabPFN launch rents a machine on its own: a real run is a paid launch and a separate decision.
 """
 
 from __future__ import annotations
@@ -20,8 +26,11 @@ from pathlib import Path
 _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "src"))
 
+from baselines import BACKENDS  # noqa: E402
 from fair_test_runner import (  # noqa: E402
     ARMS,
+    DEFAULT_METHODS,
+    METHODS,
     TARGETS,
     RunConfig,
     TabPFNBackend,
@@ -72,6 +81,29 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--methods",
+        default=None,
+        help=(
+            "comma-separated methods (tabpfn, E_glm, F_catboost, M_intercept); default tabpfn. "
+            "The actuarial baseline (#597) is 'E_glm,F_catboost,M_intercept': a baseline is a "
+            "method, not an Arm, so it is never named with --arms"
+        ),
+    )
+    parser.add_argument(
+        "--folds",
+        type=int,
+        default=None,
+        help=(
+            "fold count; default 5. A timing measurement runs one fold per target before the "
+            "matrix (#597), and one fold is a measurement, never a result"
+        ),
+    )
+    parser.add_argument(
+        "--seeds",
+        default=None,
+        help="comma-separated model seeds; default 0,1,2",
+    )
+    parser.add_argument(
         "--smoke",
         action="store_true",
         help="1 fold, 1 seed, 64 test rows, 128 train rows, at most 2 epochs (CPU, minutes)",
@@ -96,9 +128,26 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.gate and args.smoke:
         parser.error("--gate and --smoke describe different runs; pick one")
+    if args.smoke and (args.folds is not None or args.seeds is not None):
+        parser.error("--smoke fixes the fold count and seeds; do not pass --folds or --seeds")
+
+    methods = DEFAULT_METHODS
+    if args.methods:
+        wanted_methods = tuple(name.strip() for name in args.methods.split(","))
+        unknown_methods = [name for name in wanted_methods if name not in METHODS]
+        if unknown_methods:
+            parser.error(f"unknown method(s): {', '.join(unknown_methods)}")
+        if not wanted_methods:
+            parser.error("--methods is empty; omit it for the TabPFN fair test")
+        methods = wanted_methods
 
     arms = tuple(ARMS)
     if args.arms:
+        if "tabpfn" not in methods:
+            parser.error(
+                "--arms names the TabPFN ladder, but --methods selects no tabpfn method; "
+                "name the baseline in --methods instead"
+            )
         wanted_arms = tuple(name.strip() for name in args.arms.split(","))
         unknown_arms = [name for name in wanted_arms if name not in ARMS]
         if unknown_arms:
@@ -109,6 +158,10 @@ def main(argv: list[str] | None = None) -> int:
 
     caps: dict[str, int] = {}
     if args.gate:
+        if "tabpfn" not in methods:
+            parser.error(
+                "--gate measures the TabPFN ladder against itself; select the tabpfn method"
+            )
         # The gate matches the Run's statistic: five folds, both Arms, and the same three model
         # seeds per fold. That is 120 fits, and it is the only way `SD_fold(r)` predicts the fair
         # test's variance rather than a single-seed upper bound (#555).
@@ -116,12 +169,28 @@ def main(argv: list[str] | None = None) -> int:
             folds=5, seeds=(0, 1, 2), targets=selected, arms=("A_raw", "B_ft30")
         )
     elif args.smoke:
-        config = RunConfig(folds=1, seeds=(0,), test_rows=64, targets=selected, arms=arms)
+        config = RunConfig(
+            folds=1, seeds=(0,), test_rows=64, targets=selected, arms=arms, methods=methods
+        )
         caps = {"train_rows_cap": 128, "epochs_cap": 2}
     else:
-        config = RunConfig(targets=selected, arms=arms)
+        seeds = (0, 1, 2)
+        if args.seeds:
+            try:
+                seeds = tuple(int(value) for value in args.seeds.split(","))
+            except ValueError:
+                parser.error(f"--seeds {args.seeds!r} is not a comma-separated list of integers")
+            if not seeds:
+                parser.error("--seeds is empty")
+        folds = 5 if args.folds is None else args.folds
+        if folds < 1:
+            parser.error("--folds must be at least 1")
+        config = RunConfig(folds=folds, seeds=seeds, targets=selected, arms=arms, methods=methods)
 
-    backend = TabPFNBackend(device=args.device)
+    backends = {
+        name: TabPFNBackend(device=args.device) if name == "tabpfn" else BACKENDS[name]()
+        for name in methods
+    }
     base = args.run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     try:
         base = (
@@ -135,7 +204,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     if args.train_rows is not None:
         caps["train_rows"] = args.train_rows
-    runs = run(config, backend, args.out_root, run_id=base, **caps)
+    runs = run(config, backends, args.out_root, run_id=base, **caps)
     for target, run_dir in runs.items():
         print(f"{target}: {run_dir}  ({run_dir / 'capture.json'})")
     if args.gate:
