@@ -77,3 +77,15 @@ def test_a_directory_outside_the_documentation_tiers_is_not_a_reference(tmp_path
         "Caches land in `scripts/experiments/lapse/` and `predications/`, beside the run.\n"
     )
     assert check(sorted((tmp_path / "docs").rglob("*.md")), tmp_path) == []
+
+
+def test_a_reference_that_escapes_the_repository_does_not_resolve(tmp_path: pathlib.Path) -> None:
+    """A worktree nested inside another checkout used to make this pass locally and fail on CI."""
+    (tmp_path / "outer").mkdir()
+    (tmp_path / "outer" / "scripts").mkdir()
+    (tmp_path / "outer" / "scripts" / "x.py").write_text("x\n")
+    inner = tmp_path / "outer" / "worktree"
+    (inner / "docs").mkdir(parents=True)
+    (inner / "docs" / "a.md").write_text("`../../scripts/x.py`\n")
+    broken = check(sorted((inner / "docs").rglob("*.md")), inner)
+    assert [r for _, _, r in broken] == ["../../scripts/x.py"]

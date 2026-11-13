@@ -5,7 +5,7 @@ description: 'Make figures with the repo''s shared figure style — static matpl
 
 # Dataviz
 
-One style, two renderers. [`scripts/infra/figure_style.py`](../../scripts/infra/figure_style.py)
+One style, two renderers. [`scripts/infra/figure_style.py`](../../../scripts/infra/figure_style.py)
 is the single source of truth for the look; this skill is the procedure around it.
 
 ## 1. Choose the mode

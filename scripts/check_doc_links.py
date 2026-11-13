@@ -73,7 +73,12 @@ def resolves(doc: pathlib.Path, root: pathlib.Path, ref: str) -> bool:
         return True  # a described shape, not a committed file
     wants_directory = ref.startswith("docs/") and ref.endswith("/")
     for base in (doc.parent, root / "docs", root):
-        target = base / ref
+        target = (base / ref).resolve()
+        # A reference that climbs out of the repository is not a reference into it. It can
+        # *appear* to resolve when the checkout sits inside another one — a worktree two levels
+        # deep climbs into the clone beside it — so CI and the author would disagree.
+        if not target.is_relative_to(root):
+            continue
         if (target.is_dir() if wants_directory else target.exists()):
             return True
     return False
