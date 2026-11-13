@@ -84,9 +84,9 @@ exceeds its own 4% floor.
 The verdict above is measured on a 10,000-row training cap — 48% of the French severity claims
 available to a fold, and 1.8% of the French frequency policies. #572 registered a repeat at a
 40,000-row budget applied to **both** arms, on severity first and frequency second. Both halves have
-now run, and they answer in opposite directions only in the sense that one had room to move at 4×
-and the other did not: severity could not reach the budget, and frequency is the target where the
-cap was most severe.
+now run. Neither changes the registered verdict, and together they close the question the amendment
+was written to ask: severity could not reach 4× (its folds hold only 2.1× the cap), frequency could
+and did.
 
 ### Severity: 2.1×, the most this dataset can express
 
