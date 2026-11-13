@@ -8,6 +8,9 @@
 > **Answer:** yes for claim frequency (pooled **+6.85%**, CI [+2.65%, +10.36%], **Go** against the
 > 2% floor); no for severity (pooled **+0.36%**, CI [−0.99%, +2.06%], **heterogeneous** — the two
 > portfolios disagree in sign, so no task-level gain is claimed).
+> **At scale:** both targets were then re-tested at the largest training budget their data allows
+> (#572). Severity stayed **No-go** at 2.1× the cap; frequency stayed **Go** at 4×, on a larger point
+> estimate. Neither moves the verdict above.
 
 ## Design, as registered
 
@@ -88,16 +91,24 @@ now run. Neither changes the registered verdict, and together they close the que
 was written to ask: severity could not reach 4× (its folds hold only 2.1× the cap), frequency could
 and did.
 
+| Target | Budget | r | 95% CI | MDE | Decision |
+|---|---:|---:|---|---:|---:|
+| frequency_french | 10,000 (registered) | +9.69% | [+7.43%, +11.95%] | 2.28% | Go |
+| frequency_french | **40,000** (4×, `20261113T095502Z`) | **+11.84%** | [+8.93%, +14.76%] | 2.94% | **Go** |
+| severity_french | 10,000 (registered) | −0.92% | [−1.16%, −0.68%] | 0.24% | No-go |
+| severity_french | **21,177** (2.1×, the whole claim pool, `20261113T003320Z`) | **−0.79%** | [−1.55%, −0.03%] | 0.77% | **No-go** |
+| frequency_spanish | 10,000 (registered) | +4.00% | [−0.64%, +8.65%] | 4.69% | Inconclusive |
+| severity_spanish | 10,000 (registered) | +1.64% | [+0.24%, +3.05%] | 1.42% | Inconclusive |
+
+The two Spanish targets were **not** re-run: at ~42,800 policies and ~8,900 claim-equivalents they
+were never capped in the way the French targets were, and each needs a new registration rather than
+a larger budget. Their rows are the registered ones, and their intervals are unaffected.
+
 ### Severity: 2.1×, the most this dataset can express
 
 On French severity the budget clamped to the fold's whole claim pool, so the arm trained on
 **21,131–21,177 rows**: 2.1× the cap and every claim the fold had. Thirty entries, same folds, same
 seeds, same decision rule.
-
-| Training budget | r | 95% CI | MDE | Decision |
-|---|---:|---|---:|---:|
-| 10,000 rows (`20261112T210029Z`) | −0.92% | [−1.16%, −0.68%] | 0.24% | No-go |
-| 40,000 budget, 21,177 rows (`20261113T003320Z`) | −0.79% | [−1.55%, −0.03%] | 0.77% | No-go |
 
 **The No-go survives at 2.1× the rows.** The point estimate moves 0.13 points toward zero and the
 interval is about three times wider (−0.68% to −0.03% at the upper bound). It still excludes zero,
@@ -121,22 +132,17 @@ The per-fold pattern says the same without the average: four of five folds are n
 ### Frequency: the 4× the budget was written for
 
 French frequency is the starved target — 10,000 of the ~542,000 policies a fold can train on, 1.8%
-— and the only one where the registered 40,000 is reachable. The arm ran at **40,000 rows on every fold**, both arms, thirty
-entries, and on **exactly the test rows the registered run used**: every fold's `test_index` and
-`ground_truth` hashes are identical to `20261112T164543Z`, so the only thing that moved between the
-two rows below is the training budget.
+— and the only one where the registered 40,000 is reachable. The arm ran at **40,000 rows on every
+fold**, both arms, thirty entries, and on **exactly the test rows the registered run used**: every
+fold's `test_index` and `ground_truth` hashes are identical to `20261112T164543Z`, so the only thing
+that moved between its two rows in the table above is the training budget.
 
-| Training budget | r | 95% CI | MDE | Decision |
-|---|---:|---|---:|---:|
-| 10,000 rows (`20261112T164543Z`) | +9.69% | [+7.43%, +11.95%] | 2.28% | Go |
-| 40,000 rows (`20261113T095502Z`) | +11.84% | [+8.93%, +14.76%] | 2.94% | Go |
-
-**The Go does not weaken.** The point estimate rises 2.15 points and the
-interval's lower bound rises with it, from +7.43% to +8.93% — still nearly seven points clear of the
-2% floor. All five folds clear the floor on their own (+8.03%, +13.52%, +12.53%, +13.84%, +11.30%),
-so the result is not one fold carrying a mean. Every slot in both rows was measured under the same
-pin: `v3_default` (`tabpfn-v3-regressor-v3_default.ckpt`, tabpfn 8.5.0, Python 3.11.12), as each
-capture's `meta.json` records.
+**The Go does not weaken.** The point estimate rises 2.15 points and the interval's lower bound
+rises with it, from +7.43% to +8.93% — still nearly seven points clear of the 2% floor. All five
+folds clear the floor on their own (+8.03%, +13.52%, +12.53%, +13.84%, +11.30%), so the result is
+not one fold carrying a mean. Every slot in both rows was measured under the same pin: `v3_default`
+(`tabpfn-v3-regressor-v3_default.ckpt`, tabpfn 8.5.0, Python 3.11.12), as each capture's `meta.json`
+records.
 
 **What this does and does not establish.** The concern the amendment was written to test was that
 the 10,000-row cap *created* the frequency win — the classifier lane's history read the other way
