@@ -44,6 +44,11 @@ VEH_GAS_REFERENCE = "Diesel"
 REGION_REFERENCE = "R24"
 
 HYPERPARAMETERS_GLM = {"alpha": 0.0, "max_iter": 500, "tol": 1e-10}
+# The solver is an engineering choice, not a registered one. `lbfgs` reached `max_iter` on the
+# 542k-row French fold and overflowed on the Spanish design's unscaled columns (measured
+# 2026-11-13: the fit returned the intercept, identical to the anchor). Newton–Cholesky on a
+# standardised design converges in a handful of iterations and is what the run records.
+GLM_SOLVER = "newton-cholesky"
 HYPERPARAMETERS_CATBOOST = {
     "iterations": 1000,
     "depth": 6,
@@ -200,7 +205,12 @@ class GlmBackend:
             "versions": {
                 "scikit-learn": sklearn.__version__,
                 "python": platform.python_version(),
-            }
+            },
+            "config": {
+                **HYPERPARAMETERS_GLM,
+                "solver": GLM_SOLVER,
+                "scale": "standardised on the training fold",
+            },
         }
 
     def _design(self, request) -> pd.DataFrame:
@@ -212,14 +222,19 @@ class GlmBackend:
 
     def fit_predict(self, request):
         from sklearn.linear_model import PoissonRegressor, TweedieRegressor  # noqa: PLC0415
+        from sklearn.preprocessing import StandardScaler  # noqa: PLC0415
 
         design = self._design(request)
-        X_train = design.iloc[request.train_index]
-        X_test = design.iloc[request.test_index]
+        # Standardising is an exact reparametrisation of an unpenalised GLM, so it cannot move the
+        # fit; it only keeps the solver off `max_iter` and away from overflow. The scaler is fitted
+        # on the training fold, never on the test rows.
+        scaler = StandardScaler()
+        X_train = scaler.fit_transform(design.iloc[request.train_index])
+        X_test = scaler.transform(design.iloc[request.test_index])
 
         if request.target.task == "frequency":
             y, weight, exposure_test = _frequency_response(request)
-            model = PoissonRegressor(**HYPERPARAMETERS_GLM)
+            model = PoissonRegressor(solver=GLM_SOLVER, **HYPERPARAMETERS_GLM)
             model.fit(X_train, y, sample_weight=weight)
             predictions = model.predict(X_test)
             if exposure_test is not None:
@@ -228,7 +243,9 @@ class GlmBackend:
 
         # power=0 with an identity link is OLS on log(amount): the lognormal severity model the
         # registered RMSE rewards (§3.3). The claim weight is the design's, and is 1 in French.
-        model = TweedieRegressor(power=0, link="identity", **HYPERPARAMETERS_GLM)
+        model = TweedieRegressor(
+            power=0, link="identity", solver=GLM_SOLVER, **HYPERPARAMETERS_GLM
+        )
         model.fit(X_train, request.y_train, sample_weight=request.weights_train)
         return model.predict(X_test), None
 
@@ -248,7 +265,8 @@ class CatBoostBackend:
             "versions": {
                 "catboost": catboost.__version__,
                 "python": platform.python_version(),
-            }
+            },
+            "config": {**HYPERPARAMETERS_CATBOOST, "loss": "Poisson (frequency) | RMSE (severity)"},
         }
 
     def _frame(self, request) -> pd.DataFrame:
@@ -305,7 +323,8 @@ class InterceptBackend:
 
     def provenance(self) -> dict:
         return {
-            "versions": {"numpy": np.__version__, "python": platform.python_version()}
+            "versions": {"numpy": np.__version__, "python": platform.python_version()},
+            "config": {"strategy": "exposure-weighted mean rate (frequency), mean (severity)"},
         }
 
     def fit_predict(self, request):

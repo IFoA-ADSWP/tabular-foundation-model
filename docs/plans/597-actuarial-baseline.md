@@ -92,21 +92,41 @@ Parts 1–3 of the order of work, with the seams that were chosen:
 |---|---|---|
 | `Method` axis | `src/fair_test_runner.py` | `RunConfig.methods`; `METHODS` names `tabpfn`, `E_glm`, `F_catboost`, `M_intercept`. Only `tabpfn` carries Arms. A baseline slot is written under `<dataset>/<method>/seed<S>_fold<F>` and its record carries `arm: null`. |
 | `FitRequest` | `src/fair_test_runner.py` | One object per fit carrying the encoded arrays **and** the source frame, the row indices, exposure and weights. TabPFN reads the same `X`/`y` it always did; a baseline can reach the raw levels and the exposure column `.cat.codes` and `log(Exposure)` destroyed. |
-| Backends | `src/baselines.py` | `GlmBackend` (Poisson-log on rate + exposure weight; Tweedie `power=0`, identity on `log(amount)`), `CatBoostBackend` (Poisson/RMSE, raw categoricals), `InterceptBackend` (exposure-weighted anchor). Baselines return `(predictions, None)` — they decline quantiles. |
+| Backends | `src/baselines.py` | `GlmBackend` (Poisson-log on rate + exposure weight; Tweedie `power=0`, identity on `log(amount)`), `CatBoostBackend` (Poisson/RMSE, raw categoricals), `InterceptBackend` (exposure-weighted anchor). Baselines return `(predictions, None)` — they decline quantiles. The GLM is solved by Newton–Cholesky on a training-fold-standardised design: `lbfgs` reached `max_iter=500` on the 542k-row French fold and overflowed on the Spanish columns, where it silently returned the intercept (measured 2026-11-13; both are recorded in the run's `config`). |
 | Capture v5 | `src/run_capture.py`, `src/capture_reader.py`, `scripts/check_citations.py` | Entry and record carry `method`; `quantile_levels: null` means the method has no distribution and a `quantiles.npy` is refused; a method-declaring record makes the whole run v5 or the run is refused. The citation gate accepts v5 and asks a baseline for an interpreter plus a library version instead of TabPFN's checkpoint. |
 | CLI | `scripts/run_fair_test.py` | `--methods` selects predictors; `--arms` remains the TabPFN ladder and is refused when `tabpfn` is not selected. A baseline's default budget is the full fold pool, overridable by `--train-rows` (the sensitivity arm). |
 | Analysis | `scripts/analyses/actuarial_baseline.py` | Per-target `r` against the **better** baseline, paired t over folds, floors unchanged, `A_raw` and the anchor reported beside, task means descriptive. Imports `decide`/`target_interval` from the fair-test analyser so the rule cannot drift, and **refuses** when a fold's `test_index` differs from the registered capture's. |
 
-Verification at this point (CPU, no data fitted beyond unit fixtures):
+**Measured runtime — one fold, one seed, all three baselines, full fold pool.** Command, per target
+(output to a temp root so no evidence tree changes):
+
+```
+.venv/bin/python scripts/run_fair_test.py --methods E_glm,F_catboost,M_intercept \
+    --targets <target> --folds 1 --seeds 0 --out-root "$TMPDIR/tfm-baseline-timing"
+```
+
+| Target | Fit rows | Wall time |
+|---|---|---|
+| `frequency_french` | 542,410 | 319.9 s |
+| `frequency_spanish` | 42,801 | 28.0 s |
+| `severity_french` | 21,157 | 11.9 s |
+| `severity_spanish` | 4,760 | 5.7 s |
+
+Measured 2026-11-13 on this workstation (CPU, CatBoost on all cores). One fold × one seed is
+**6.1 minutes**; the registered matrix is 5 folds × 3 seeds, so a full run is ≈ 1.5 hours of CPU
+and $0. The French frequency CatBoost fit is ~85% of it. These are timings, not results: one fold
+is not a verdict and none of the four numbers above is quoted as one.
+
+Verification at this point:
 
 ```
 .venv/bin/ruff check src/ scripts/ tests/     # pass
-.venv/bin/pytest tests/ -q                     # pass
+.venv/bin/pytest tests/ -q                     # 903 passed
+./scripts/check.sh doclinks|docstatus|citation|verdict   # pass
 ```
 
-Not done, deliberately: the full matrix. The pre-registration is still unsigned, so the next
-step is one fold per target to measure runtime — a timing run, not a result — and the matrix waits
-for the sign-off row.
+Not done, deliberately: the full matrix. The pre-registration is still unsigned ("proposed"), so
+the matrix waits for the owner's sign-off row; the build and its timing measurement are complete.
 
 ## The risk this buys
 

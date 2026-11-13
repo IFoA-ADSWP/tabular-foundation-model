@@ -242,6 +242,31 @@ def test_the_glm_predicts_a_count_not_a_rate():
     assert predictions.mean() > 0.1 * request.exposure_test.mean()
 
 
+def test_the_glm_survives_an_unscaled_design():
+    """Measured 2026-11-13: `lbfgs` overflowed on the Spanish columns and returned the intercept.
+
+    The Spanish score is a red flag rather than a crash: a constant prediction is a valid array and
+    scores exactly the anchor's deviance, so nothing in the capture refuses it. The solver and the
+    design's scale are engineering, and this pins that the fit is not the anchor.
+    """
+    frame = pd.DataFrame(
+        {
+            "Premium": [1_000_000.0, 2_000_000.0, 3_000_000.0, 4_000_000.0, 5_000_000.0, 6_000_000.0],
+            "Value_vehicle": [1e7, 2.1e7, 2.9e7, 4.2e7, 5.1e7, 6.3e7],
+            "Area": [0, 1, 0, 1, 0, 1],
+            "Type_fuel": ["P", "P", "R", "R", "P", "R"],
+        }
+    )
+    y = np.array([0.0, 1.0, 0.0, 1.0, 0.0, 1.0])
+    request = request_for(target_name="frequency_spanish", frame=frame, y=y)
+
+    predictions, quantiles = GlmBackend().fit_predict(request)
+
+    assert quantiles is None
+    assert np.all(np.isfinite(predictions))
+    assert np.std(predictions) > 1e-9, "the fit collapsed to the intercept"
+
+
 def test_catboost_reads_raw_categoricals_and_declines_quantiles():
     request = _french_frequency_request(rows=60)
     frame = catboost_frame(request.frame, drop=("Exposure",))
