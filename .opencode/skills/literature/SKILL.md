@@ -1,6 +1,6 @@
 ---
 name: literature
-description: 'Citation hygiene for literature docs — no identifier, no citation: every cited work carries a verified DOI or arXiv id and a verified/unverified/corrected status, maintained in references.bib. Use when writing or auditing citations, adding references, reviewing docs/current/FINETUNING_LITERATURE.md or archive/papers/, or maintaining references.bib.'
+description: 'Citation hygiene for literature docs — no identifier, no citation: every cited work carries a verified DOI or arXiv id and a verified/unverified/corrected status, maintained in references.bib. Use when writing or auditing citations, adding references, reviewing docs/experiments/pilot2-phase2/FINETUNING_LITERATURE.md or archive/papers/, or maintaining references.bib.'
 ---
 
 # Literature

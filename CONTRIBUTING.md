@@ -95,7 +95,7 @@ The main replication notebook is `notebooks/adswp_project/REPLICATION_There_Is_L
 | Write a reusable utility | `src/` as a Python module | Importable function/class, notebook-inline code does not belong here |
 | Run a one-off analysis (not a notebook) | `scripts/descriptive_name.py` | snake_case, `if __name__ == "__main__":` guard |
 | Write an analysis report | `docs/reports/DESCRIPTIVE_NAME.md` | ALL_CAPS snake_case, register in `docs/REPORT_REGISTRY.md` |
-| Write a lightweight methodology note | `docs/analyses/descriptive_name.md` | snake_case, no registry entry needed |
+| Write a lightweight methodology note | `docs/experiments/<campaign>/descriptive_name.md` | snake_case, no registry entry needed |
 | Update the paper | `docs/papers/` | Markdown or `.sty` as appropriate |
 | Save output figures | `outputs/current/figures/` | Descriptive PNG name |
 | Save output tables | `outputs/current/tables/` | Descriptive CSV name |
