@@ -525,7 +525,7 @@ def _with_seed_block(seed_line: str) -> str:
 def test_a_seed_list_loads_and_keeps_its_order(tmp_path):
     text = _with_seed_block(
         'seeds = [331, 332, 333]\n'
-        'preregistration = "docs/current/FINETUNING_PREREGISTRATION_SPANISH_2026-11.md"'
+        'preregistration = "docs/experiments/pilot2-phase2/FINETUNING_PREREGISTRATION_SPANISH_2026-11.md"'
     )
     experiment = load_registry(write(tmp_path, text)).pilot_experiment("toy_p1a")
 
@@ -582,7 +582,7 @@ def test_the_spanish_cell_resolves_to_its_pre_registered_design():
     assert cell.arms == ("A_raw", "B_ft3", "B_ft10", "B_ft30")
     assert (cell.train_size, cell.test_size) == (10000, 10000)
     assert cell.model_version == "v3_default"
-    assert cell.preregistration == "docs/current/FINETUNING_PREREGISTRATION_SPANISH_2026-11.md"
+    assert cell.preregistration == "docs/experiments/pilot2-phase2/FINETUNING_PREREGISTRATION_SPANISH_2026-11.md"
 
     # The document must exist, or the record would name a file a reader cannot open.
     assert (Path(__file__).resolve().parents[1] / cell.preregistration).is_file()

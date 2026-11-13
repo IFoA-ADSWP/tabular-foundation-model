@@ -2,7 +2,7 @@
 
 One command, no refitting: `rescore --run <dir>` recomputes the five metrics a pilot run records
 and reports, per arm × seed × metric, whether each recomputation agrees with the record. The
-identity decisions are #356's (name plus a version, defined in `docs/analyses/METRIC_REGISTRY.md`)
+identity decisions are #356's (name plus a version, defined in `docs/shared/METRIC_REGISTRY.md`)
 and the interface is #357's (long-format CSV, fail closed).
 
 **Integrity** comes from `capture_reader.read_run`: every slot is verified against the manifest

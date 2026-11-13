@@ -11,7 +11,7 @@ this module imports on a machine without the pinned environment.
 
 Run it (Python 3.12 with `tabpfn==8.5.0`)::
 
-    python src/positive_control.py --out docs/analyses/regressor_positive_control_result.json
+    python src/positive_control.py --out docs/analyses/data/regressor_positive_control.json
 
 The runner writes the result and exits non-zero when any check fails. The spec says stop on
 failure; it does not say retune the control.
@@ -466,7 +466,7 @@ def result_to_dict(result: ControlResult) -> dict:
         "control": "regressor_positive_control",
         "ticket": 516,
         "decision": 498,
-        "spec": "docs/current/REGRESSOR_FINETUNING_PREREGISTRATION_2026-11.md",
+        "spec": "docs/experiments/fair-test-freq-sev/REGRESSOR_FINETUNING_PREREGISTRATION_2026-11.md",
         "environment": result.environment,
         "config": asdict(result.config),
         "overfit": asdict(result.overfit),

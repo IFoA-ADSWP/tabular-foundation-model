@@ -4,5 +4,6 @@ These documents now live with the experiment they belong to, under
 [`docs/experiments/`](../experiments/) and [`docs/archive/`](../archive/), and the map is
 [`EXPERIMENTS.md`](../EXPERIMENTS.md).
 
-`docs/analyses/data/` still holds the exported diagnostic tables that documents cite. The directory is kept
-because those paths are cited; nothing else stays here.
+Two things stay here because code and citations point at them: `docs/analyses/data/` (the exported diagnostic
+tables) and `docs/analyses/legacy_citations.txt` (the append-only list of run ids that predate the citation rule).
+Nothing else does.

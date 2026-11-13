@@ -5,7 +5,7 @@ one definition of `ece`, `log_loss` and the rest instead of the registry naming 
 implementations; `run_pilot` re-exports these names, so every call site and every test that
 reached them through the runner keeps working.
 
-`docs/analyses/METRIC_REGISTRY.md` states the version of each definition. Any edit here that could
+`docs/shared/METRIC_REGISTRY.md` states the version of each definition. Any edit here that could
 move a value bumps the version there, and old numbers keep their old identity.
 """
 

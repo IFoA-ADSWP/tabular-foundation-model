@@ -3,7 +3,7 @@
   "control": "regressor_positive_control",
   "ticket": 516,
   "decision": 498,
-  "spec": "docs/current/REGRESSOR_FINETUNING_PREREGISTRATION_2026-11.md",
+  "spec": "docs/experiments/fair-test-freq-sev/REGRESSOR_FINETUNING_PREREGISTRATION_2026-11.md",
   "environment": {
     "python": "3.12.11",
     "platform": "macOS-26.5.1-arm64-arm-64bit",
