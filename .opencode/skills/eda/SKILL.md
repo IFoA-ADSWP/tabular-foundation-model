@@ -24,7 +24,7 @@ The registry is the anti-sprawl gate: one note, registered, or nothing.
    correlation with the target; class balance or target skew.
 6. **Rank the findings** — leakage > drift > imbalance > structural noise, adjusted by
    what step 1 said matters. Every finding carries evidence and a recommended action.
-7. **Write the note** — `docs/analyses/eda_<dataset>.md`:
+7. **Write the note** — `docs/experiments/<campaign>/eda_<dataset>.md`:
    - status banner in the first fifteen lines (the `docs/README.md` rule);
    - findings-first and ranked; raw dumps stay in the session, not the note;
    - dedup first: search `docs/REPORT_REGISTRY.md` topic keys — a matching topic gets the
