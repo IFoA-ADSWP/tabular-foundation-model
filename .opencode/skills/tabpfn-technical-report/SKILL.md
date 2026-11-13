@@ -12,7 +12,7 @@ argument-hint: "Objective, target dataset/task, source tables/logs, source noteb
 - Summarizing regressor stability diagnostics and failure modes
 
 ## Pre-Write Checks
-1. Read docs/reports/REPORT_REGISTRY.md.
+1. Read docs/REPORT_REGISTRY.md.
 2. Search docs/reports for overlapping topic/title.
 3. If overlap exists, extend the existing report unless a new version is explicitly requested.
 
@@ -34,7 +34,7 @@ argument-hint: "Objective, target dataset/task, source tables/logs, source noteb
 - List exact table/log paths used (for example outputs/current/tables/*.csv and outputs/current/logs/*.md or *.csv).
 
 ## Registry Update Rule
-After writing/updating report, update docs/reports/REPORT_REGISTRY.md with:
+After writing/updating report, update docs/REPORT_REGISTRY.md with:
 - report path
 - topic key
 - audience

@@ -65,6 +65,7 @@ docs/
   status/               # Project status and security record
   plans/                # One plan per task, written before non-trivial work
   adr/                  # Architecture decision records (accepted decisions)
+  roadmap/              # Workstream workbook (the Excel dashboard)
 tests/                  # Smoke tests and test-support helpers
 ```
 
