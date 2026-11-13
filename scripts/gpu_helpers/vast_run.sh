@@ -489,40 +489,20 @@ rec = {
 with open(os.path.join(outdir, f"run_{stamp}.json"), "w") as f:
     json.dump(rec, f, indent=2)
 
-ledger = os.path.join(outdir, "run_ledger.csv")
-# The header MUST match the record's fields -- DictWriter will happily write rows
-# against an older, shorter header, silently shifting every column. That is exactly
-# what happened when machine_id/host_id/attempt were added: the ledger then reported
-# \$1789231403 for a five-minute run and 1789231352 "minutes" of wall time. Compare
-# the header and start a fresh file on mismatch. The per-run JSONs are the source of
-# truth and the ledger is derived from them, so quarantining loses nothing.
-#
-# NOTE ON THIS HEREDOC: it is deliberately UNQUOTED (<<PY, not <<'PY') because it
-# interpolates the shell variables below into the Python source. Consequence: any
-# LITERAL dollar sign in this block must be escaped as \$, or the shell expands it
-# as a positional parameter and silently mangles that line.
-fields = list(rec)
-if os.path.exists(ledger):
-    try:
-        with open(ledger, newline="") as f:
-            hdr = next(csv.reader(f), [])
-    except Exception:
-        hdr = []
-    if hdr != fields:
-        stale = ledger + ".stale-" + stamp
-        os.rename(ledger, stale)
-        print("[cost] ledger header did not match the record fields -> moved to "
-              + os.path.basename(stale) + " and started a new ledger")
-with open(ledger, "a", newline="") as f:
-    w = csv.DictWriter(f, fieldnames=fields)
-    if f.tell() == 0:
-        w.writeheader()
-    w.writerow(rec)
+ledger_path = os.path.join(outdir, "run_ledger.csv")
+# The ledger is derived from the record, so a record that gains a field must migrate the file
+# rather than append a wider row to a narrower header. That logic lives in ledger.py because a
+# test cannot reach code inside this heredoc, and because this heredoc is UNQUOTED: a literal
+# dollar sign here would be expanded by the shell. See #416.
+sys.path.insert(0, os.path.join(repo, "scripts", "gpu_helpers"))
+import ledger as ledger_mod
 
-# NB: %-formatting, not f-strings, on the lines below. This heredoc is
-# UNQUOTED, so the shell performs parameter expansion on its body before Python
-# ever sees it. Dollar-brace expressions referencing rec[...] are not valid
-# shell variables, so they expand to nothing and the line prints blank.
+status = ledger_mod.append(ledger_path, rec, stamp)
+if status == ledger_mod.MIGRATED:
+    print("[cost] ledger header changed -> every existing row migrated to the new field set")
+elif status == ledger_mod.QUARANTINED:
+    print("[cost] ledger was unreadable -> moved aside and started fresh")
+
 print("[cost] wall %s min x $%s/hr = $%s"
       % (rec['wall_minutes'], rec['dph_total'], rec['est_cost_usd']))
 print("[cost] recorded -> %s + %s" % (os.path.join(outdir, "run_%s.json" % stamp), os.path.join(outdir, "run_ledger.csv")))
