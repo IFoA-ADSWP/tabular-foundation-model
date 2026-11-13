@@ -125,7 +125,7 @@ Verification at this point:
 
 ```
 .venv/bin/ruff check src/ scripts/ tests/     # pass
-.venv/bin/pytest tests/ -q                     # 903 passed
+.venv/bin/pytest tests/ -q                     # 908 passed
 ./scripts/check.sh doclinks|docstatus|citation|verdict   # pass
 ```
 
