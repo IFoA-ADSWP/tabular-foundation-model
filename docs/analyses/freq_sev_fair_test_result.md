@@ -132,9 +132,11 @@ two rows below is the training budget.
 | 40,000 rows (`20261113T095502Z`) | +11.84% | [+8.93%, +14.76%] | 2.94% | Go |
 
 **The Go does not weaken; it is, if anything, larger.** The point estimate rises 2.15 points and the
-interval's lower bound rises with it, from +7.43% to +8.93% — still four and a half points clear of
-the 2% floor. All five folds clear the floor on their own (+8.03%, +13.52%, +12.53%, +13.84%,
-+11.30%), so the result is not one fold carrying a mean.
+interval's lower bound rises with it, from +7.43% to +8.93% — still nearly seven points clear of the
+2% floor. All five folds clear the floor on their own (+8.03%, +13.52%, +12.53%, +13.84%, +11.30%),
+so the result is not one fold carrying a mean. Every slot in both rows was measured under the same
+pin: `v3_default` (`tabpfn-v3-regressor-v3_default.ckpt`, tabpfn 8.5.0, Python 3.11.12), as each
+capture's `meta.json` records.
 
 **What this does and does not establish.** The concern the amendment was written to test was that
 the 10,000-row cap *created* the frequency win — the classifier lane's history read the other way

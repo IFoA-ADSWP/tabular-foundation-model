@@ -66,9 +66,9 @@ same 30-fit shape, so **~2–3 h and roughly $0.6–1.0** expected, dominated by
 larger capture. The ticket's own `$1.50–2.50` estimate was written before any measurement in this
 arm and overshot the severity launch ~7×; it is kept here only as the upper bound it now is.
 
-**Measured:** 115.82 min at $0.2956/hr = **$0.5705**, inside the estimate and a third of the
-ceiling. Transfer was the slow half, as predicted: the fits finished well before the poll window
-filled.
+**Measured:** 115.82 min at the $0.2956/hr effective rate the record reports = **$0.5705**, inside
+the estimate and a third of the ceiling. Transfer was the slow half, as predicted: the fits finished
+well before the poll window filled.
 
 ## Risks measured on the last two launches
 
