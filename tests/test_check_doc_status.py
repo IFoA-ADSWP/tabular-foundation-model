@@ -6,6 +6,7 @@ import pathlib
 from scripts.check_doc_status import (
     CLAIM_REGISTRY,
     DEFAULT_DIRS,
+    index_problems,
     main,
     registry_problems,
     unlabelled,
@@ -113,3 +114,32 @@ def test_the_committed_registry_carries_no_numbers() -> None:
     """The shipped artefact, not a fixture: this is the check running on the real page."""
     root = pathlib.Path(__file__).resolve().parents[1]
     assert registry_problems(root / CLAIM_REGISTRY) == []
+
+
+def test_an_index_that_misses_a_document_is_reported(tmp_path: pathlib.Path) -> None:
+    """A hand-written index drifts on the next merge.
+
+    docs/plans/README.md was one document short within a day of landing: #580 generated
+    it, #576 added another plan, and nothing noticed. The check lives in this job rather
+    than a ninth one, following #489.
+    """
+    plans = tmp_path / "docs" / "plans"
+    plans.mkdir(parents=True)
+    (plans / "README.md").write_text("| [`a.md`](a.md) |\n")
+    (plans / "a.md").write_text("x\n")
+    (plans / "b.md").write_text("x\n")
+
+    problems = index_problems(tmp_path)
+
+    assert len(problems) == 1
+    assert "b.md" in problems[0]
+
+
+def test_a_complete_index_is_not_reported(tmp_path: pathlib.Path) -> None:
+    plans = tmp_path / "docs" / "plans"
+    plans.mkdir(parents=True)
+    (plans / "README.md").write_text("| [`a.md`](a.md) | [`b.md`](b.md) |\n")
+    (plans / "a.md").write_text("x\n")
+    (plans / "b.md").write_text("x\n")
+
+    assert index_problems(tmp_path) == []
