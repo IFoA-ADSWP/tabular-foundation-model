@@ -217,6 +217,16 @@ def _load(path: Path) -> "np.ndarray | None":
     return np.load(path) if path.is_file() else None
 
 
+def declares_quantiles(record: dict) -> bool:
+    """Whether a record says its method produced a predictive distribution.
+
+    `quantile_levels` is the declaration: a list means the array is owed, `null` means the method
+    has no distribution to retain. The writer, the reader and the citation gate all ask this one
+    question, so they ask it here (#597).
+    """
+    return record.get("quantile_levels") is not None
+
+
 def _check_test_index(array: np.ndarray, rows: int, slot: Slot) -> None:
     if array.ndim != 1 or array.shape[0] != rows:
         raise CaptureRefused(
@@ -342,7 +352,7 @@ def _v5_arrays(slot: Slot, dataset: str, rows: int) -> dict:
     """
     arrays = _index_and_exposure(slot, dataset, rows, "v5")
     record = json.loads(slot.record.read_text(encoding="utf-8"))
-    declared = record.get("quantile_levels") is not None
+    declared = declares_quantiles(record)
     quantiles = _load(slot.quantiles)
     if declared:
         if quantiles is None:

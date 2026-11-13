@@ -73,7 +73,6 @@ def request_for(
         train_index=index,
         test_index=index,
         weights_train=weights,
-        weights_test=weights,
         exposure_train=exposure,
         exposure_test=exposure,
         seed=seed,
@@ -218,7 +217,21 @@ def test_the_weighted_deviance_on_the_rate_equals_the_count_deviance():
 # ---------------------------------------------------------------------------
 def _french_frequency_request(rows: int = 200, seed: int = 0) -> FitRequest:
     rng = np.random.default_rng(seed)
-    frame = french_frame(rows=6).iloc[np.arange(rows) % 6].reset_index(drop=True)
+    # Independent draws, not a repeated six-row pattern: repeating rows makes some dummies exactly
+    # collinear, and Newton–Cholesky then warns instead of solving.
+    frame = pd.DataFrame(
+        {
+            "Area": rng.choice(list("ABCDEF"), size=rows),
+            "VehPower": rng.integers(4, 16, size=rows),
+            "VehAge": rng.integers(0, 25, size=rows),
+            "DrivAge": rng.integers(18, 80, size=rows),
+            "BonusMalus": rng.integers(50, 200, size=rows),
+            "VehBrand": rng.choice(["B1", "B2", "B3"], size=rows),
+            "VehGas": rng.choice(["Diesel", "Regular"], size=rows),
+            "Density": rng.uniform(1.0, 27_000.0, size=rows),
+            "Region": rng.choice(["R11", "R24", "R82"], size=rows),
+        }
+    )
     exposure = rng.uniform(0.1, 1.0, size=rows)
     rate = 0.1 + 0.05 * rng.integers(0, 3, size=rows)
     counts = rng.poisson(rate * exposure)

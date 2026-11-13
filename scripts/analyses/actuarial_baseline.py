@@ -48,7 +48,12 @@ sys.path.insert(0, str(_ANALYSES))
 
 # The registered decision rule and its t multiplier live in the fair-test analyser; importing them
 # keeps the two reports from drifting apart.
-from freq_sev_fair_test import decide, target_interval  # noqa: E402
+from freq_sev_fair_test import (  # noqa: E402
+    FLOOR_FREQUENCY,
+    FLOOR_FREQUENCY_SPANISH,
+    FLOOR_SEVERITY,
+    target_summary,
+)
 
 CONTENDER = "B_ft30"
 ALONGSIDE = "A_raw"
@@ -56,11 +61,13 @@ BASELINES = ("E_glm", "F_catboost")
 ANCHOR = "M_intercept"
 
 TARGETS = ("frequency_french", "frequency_spanish", "severity_french", "severity_spanish")
+# The registered per-target floors, taken from the fair-test analyser so the two reports cannot
+# disagree about what a `Go` on this target required.
 FLOORS = {
-    "frequency_french": 0.02,
-    "frequency_spanish": 0.04,
-    "severity_french": 0.02,
-    "severity_spanish": 0.02,
+    "frequency_french": FLOOR_FREQUENCY,
+    "frequency_spanish": FLOOR_FREQUENCY_SPANISH,
+    "severity_french": FLOOR_SEVERITY,
+    "severity_spanish": FLOOR_SEVERITY,
 }
 TASKS = {
     "frequency": ("frequency_french", "frequency_spanish"),
@@ -73,6 +80,12 @@ def _mean(values) -> float:
     return sum(values) / len(values)
 
 
+def _records(run_dir: Path):
+    """Every slot record under a run, with the path that holds its arrays."""
+    for meta in sorted(Path(run_dir).glob("*/*/seed*_fold*/meta.json")):
+        yield meta, json.loads(meta.read_text())
+
+
 def slot_metrics(
     run_dir: Path, *, arm: str | None = None, method: str | None = None
 ) -> dict[tuple[int, int], float]:
@@ -83,8 +96,7 @@ def slot_metrics(
     other (`GLOSSARY.md`).
     """
     values: dict[tuple[int, int], float] = {}
-    for meta in sorted(Path(run_dir).glob("*/*/seed*_fold*/meta.json")):
-        record = json.loads(meta.read_text())
+    for _meta, record in _records(run_dir):
         if arm is not None and record.get("arm") != arm:
             continue
         if method is not None and record.get("method") != method:
@@ -99,8 +111,7 @@ def slot_metrics(
 def train_rows(run_dir: Path) -> list[int]:
     """The distinct training budgets the slots recorded, ascending."""
     rows = set()
-    for meta in Path(run_dir).glob("*/*/seed*_fold*/meta.json"):
-        record = json.loads(meta.read_text())
+    for _meta, record in _records(run_dir):
         if record.get("train_rows") is not None:
             rows.add(int(record["train_rows"]))
     return sorted(rows)
@@ -129,37 +140,32 @@ def fold_ratios(
 
 
 def target_verdict(ratios: dict[int, float], floor: float) -> dict:
-    """One target's `r`, interval, MDE and registered decision."""
-    mean, half, sd = target_interval(ratios)
-    return {
-        "mean": mean,
-        "ci": [mean - half, mean + half],
-        "sd_fold": sd,
-        "mde": 2.8016 * sd / np.sqrt(len(ratios)),
-        "floor": floor,
-        "decision": decide(mean, mean - half, mean + half, floor),
-    }
+    """One target's `r`, interval, MDE and registered decision.
+
+    `target_summary` is the fair test's own function, so the statistic, the t multiplier and the
+    rule are one definition rather than two that agree today.
+    """
+    row = target_summary(ratios, "", floor)
+    row.pop("run_id")
+    return row
+
+
+def _test_indices(run_dir: Path) -> dict[int, np.ndarray]:
+    """One `test_index` per fold. The index belongs to the fold, not to a slot."""
+    indices: dict[int, np.ndarray] = {}
+    for meta, record in _records(run_dir):
+        if record.get("fold") is None:
+            continue
+        path = meta.parent / "test_index.npy"
+        if path.is_file():
+            indices.setdefault(int(record["fold"]), np.load(path))
+    return indices
 
 
 def assert_comparability(tabpfn_dir: Path, baseline_dir: Path) -> None:
     """Every fold's test rows must be the registered capture's, or the comparison means nothing."""
-    # The index belongs to the fold, so compare fold by fold across all slots.
-    reference = {}
-    for meta in sorted(Path(tabpfn_dir).glob("*/*/seed*_fold*/meta.json")):
-        record = json.loads(meta.read_text())
-        if record.get("fold") is None:
-            continue
-        path = meta.parent / "test_index.npy"
-        if path.is_file():
-            reference.setdefault(int(record["fold"]), np.load(path))
-    candidate = {}
-    for meta in sorted(Path(baseline_dir).glob("*/*/seed*_fold*/meta.json")):
-        record = json.loads(meta.read_text())
-        if record.get("fold") is None:
-            continue
-        path = meta.parent / "test_index.npy"
-        if path.is_file():
-            candidate.setdefault(int(record["fold"]), np.load(path))
+    reference = _test_indices(tabpfn_dir)
+    candidate = _test_indices(baseline_dir)
 
     if not reference or not candidate:
         raise SystemExit(

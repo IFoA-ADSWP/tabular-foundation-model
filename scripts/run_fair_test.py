@@ -130,6 +130,11 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--gate and --smoke describe different runs; pick one")
     if args.smoke and (args.folds is not None or args.seeds is not None):
         parser.error("--smoke fixes the fold count and seeds; do not pass --folds or --seeds")
+    if args.gate and (args.folds is not None or args.seeds is not None):
+        parser.error(
+            "--gate fixes five folds and three seeds, because that is the variance it measures; "
+            "do not pass --folds or --seeds"
+        )
 
     methods = DEFAULT_METHODS
     if args.methods:
@@ -137,13 +142,11 @@ def main(argv: list[str] | None = None) -> int:
         unknown_methods = [name for name in wanted_methods if name not in METHODS]
         if unknown_methods:
             parser.error(f"unknown method(s): {', '.join(unknown_methods)}")
-        if not wanted_methods:
-            parser.error("--methods is empty; omit it for the TabPFN fair test")
         methods = wanted_methods
 
     arms = tuple(ARMS)
     if args.arms:
-        if "tabpfn" not in methods:
+        if not any(METHODS[name].is_tabpfn for name in methods):
             parser.error(
                 "--arms names the TabPFN ladder, but --methods selects no tabpfn method; "
                 "name the baseline in --methods instead"
@@ -158,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
 
     caps: dict[str, int] = {}
     if args.gate:
-        if "tabpfn" not in methods:
+        if not any(METHODS[name].is_tabpfn for name in methods):
             parser.error(
                 "--gate measures the TabPFN ladder against itself; select the tabpfn method"
             )
@@ -166,7 +169,8 @@ def main(argv: list[str] | None = None) -> int:
         # seeds per fold. That is 120 fits, and it is the only way `SD_fold(r)` predicts the fair
         # test's variance rather than a single-seed upper bound (#555).
         config = RunConfig(
-            folds=5, seeds=(0, 1, 2), targets=selected, arms=("A_raw", "B_ft30")
+            folds=5, seeds=(0, 1, 2), targets=selected, arms=("A_raw", "B_ft30"),
+            methods=("tabpfn",),
         )
     elif args.smoke:
         config = RunConfig(
@@ -175,7 +179,7 @@ def main(argv: list[str] | None = None) -> int:
         caps = {"train_rows_cap": 128, "epochs_cap": 2}
     else:
         seeds = (0, 1, 2)
-        if args.seeds:
+        if args.seeds is not None:
             try:
                 seeds = tuple(int(value) for value in args.seeds.split(","))
             except ValueError:
@@ -188,7 +192,7 @@ def main(argv: list[str] | None = None) -> int:
         config = RunConfig(folds=folds, seeds=seeds, targets=selected, arms=arms, methods=methods)
 
     backends = {
-        name: TabPFNBackend(device=args.device) if name == "tabpfn" else BACKENDS[name]()
+        name: TabPFNBackend(device=args.device) if METHODS[name].is_tabpfn else BACKENDS[name]()
         for name in methods
     }
     base = args.run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")

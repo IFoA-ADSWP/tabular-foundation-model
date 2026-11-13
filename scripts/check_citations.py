@@ -37,6 +37,14 @@ RULE_DATE = "20261031T000000Z"
 LEGACY = Path("docs/analyses/legacy_citations.txt")
 SCANNED_SUFFIXES = {".md", ".csv", ".txt"}
 
+_REPO = Path(__file__).resolve().parents[1]
+if str(_REPO / "src") not in sys.path:
+    sys.path.insert(0, str(_REPO / "src"))
+
+# The v5 rule for whether a slot owes quantiles lives with the writer, so the gate cannot hold a
+# second copy of it.
+from run_capture import declares_quantiles  # noqa: E402
+
 
 def cited(root: Path) -> dict[str, set[tuple[str, int]]]:
     """Every run id mentioned under docs/, with the `(file, line)` that mention it.
@@ -140,8 +148,11 @@ def _environment_problems(run_id: str, exp: Expected, entry: dict, version: int)
     problems: list[str] = []
     if not versions.get("python"):
         problems.append(f"{run_id}: {where} record has no versions.python")
+    if version >= 5 and not exp.method:
+        # The record is where a method is recorded, never inferred from a default.
+        problems.append(f"{run_id}: {where} v5 record has no method")
 
-    tabpfn_slot = version < 5 or (exp.method or "tabpfn") == "tabpfn"
+    tabpfn_slot = version < 5 or exp.method == "tabpfn"
     if tabpfn_slot:
         if not versions.get("tabpfn"):
             problems.append(f"{run_id}: {where} record has no versions.tabpfn")
@@ -172,7 +183,7 @@ def _array_problems(
             record = json.loads(exp.record.read_text())
         except json.JSONDecodeError as exc:
             return [f"{run_id}: {exp.record} is not valid JSON ({exc})"]
-        declared_quantiles = record.get("quantile_levels") is not None
+        declared_quantiles = declares_quantiles(record)
     if declared_quantiles:
         required.append("quantiles_sha256")
     if dataset == "freMTPL2freq":

@@ -25,7 +25,7 @@ Fine-tuned TabPFN (`B_ft30`, with `A_raw` alongside) against two actuarial basel
 |---|---|
 | Targets | `frequency_french`, `frequency_spanish`, `severity_french`, `severity_spanish` |
 | Methods | `B_ft30`, `A_raw` (TabPFN); `E_glm`, `F_catboost` (baselines) |
-| Rows | full fold pool primary; the fair test's 10,000-row sample as a sensitivity arm |
+| Rows | full fold pool primary; the fair test's 10,000-row sample as a sensitivity budget |
 | Folds / seeds | five policy-grouped folds × three seeds |
 | Statistic | `r = (M(baseline) − M(TabPFN)) / M(baseline)`, positive when TabPFN is better |
 | Floors | per target as registered: 2% / 4% / 2% / 2% |
@@ -92,9 +92,9 @@ Parts 1–3 of the order of work, with the seams that were chosen:
 |---|---|---|
 | `Method` axis | `src/fair_test_runner.py` | `RunConfig.methods`; `METHODS` names `tabpfn`, `E_glm`, `F_catboost`, `M_intercept`. Only `tabpfn` carries Arms. A baseline slot is written under `<dataset>/<method>/seed<S>_fold<F>` and its record carries `arm: null`. |
 | `FitRequest` | `src/fair_test_runner.py` | One object per fit carrying the encoded arrays **and** the source frame, the row indices, exposure and weights. TabPFN reads the same `X`/`y` it always did; a baseline can reach the raw levels and the exposure column `.cat.codes` and `log(Exposure)` destroyed. |
-| Backends | `src/baselines.py` | `GlmBackend` (Poisson-log on rate + exposure weight; Tweedie `power=0`, identity on `log(amount)`), `CatBoostBackend` (Poisson/RMSE, raw categoricals), `InterceptBackend` (exposure-weighted anchor). Baselines return `(predictions, None)` — they decline quantiles. The GLM is solved by Newton–Cholesky on a training-fold-standardised design: `lbfgs` reached `max_iter=500` on the 542k-row French fold and overflowed on the Spanish columns, where it silently returned the intercept (measured 2026-11-13; both are recorded in the run's `config`). |
+| Backends | `src/baselines.py` | `GlmBackend` (Poisson-log on rate + exposure weight; Tweedie `power=0`, identity on `log(amount)`), `CatBoostBackend` (Poisson/RMSE, raw categoricals), `InterceptBackend` (exposure-weighted anchor). Baselines return `(predictions, None)` — they decline quantiles. The GLM is solved by Newton–Cholesky on a training-fold-standardised design: `lbfgs` reached `max_iter=500` on the 542k-row French fold and overflowed on the Spanish columns, where it silently returned the intercept (measured 2026-11-13). The chosen solver and design scale are recorded in each record's `config`; the rejected alternative is recorded here, not in the artifact. |
 | Capture v5 | `src/run_capture.py`, `src/capture_reader.py`, `scripts/check_citations.py` | Entry and record carry `method`; `quantile_levels: null` means the method has no distribution and a `quantiles.npy` is refused; a method-declaring record makes the whole run v5 or the run is refused. The citation gate accepts v5 and asks a baseline for an interpreter plus a library version instead of TabPFN's checkpoint. |
-| CLI | `scripts/run_fair_test.py` | `--methods` selects predictors; `--arms` remains the TabPFN ladder and is refused when `tabpfn` is not selected. A baseline's default budget is the full fold pool, overridable by `--train-rows` (the sensitivity arm). |
+| CLI | `scripts/run_fair_test.py` | `--methods` selects predictors; `--arms` remains the TabPFN ladder and is refused when `tabpfn` is not selected. A baseline's default budget is the full fold pool, overridable by `--train-rows` (the sensitivity budget). |
 | Analysis | `scripts/analyses/actuarial_baseline.py` | Per-target `r` against the **better** baseline, paired t over folds, floors unchanged, `A_raw` and the anchor reported beside, task means descriptive. Imports `decide`/`target_interval` from the fair-test analyser so the rule cannot drift, and **refuses** when a fold's `test_index` differs from the registered capture's. |
 
 **Measured runtime — one fold, one seed, all three baselines, full fold pool.** Command, per target

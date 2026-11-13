@@ -127,16 +127,20 @@ class SlotSpec:
         return self.arm.name if self.arm is not None else self.method.name
 
 
+def method_arms(config: RunConfig, method: Method) -> tuple[Arm | None, ...]:
+    """The training configurations one method contributes: its ladder, or none at all."""
+    if not method.is_tabpfn:
+        return (None,)
+    return tuple(ARMS[name] for name in config.arms)
+
+
 def slot_matrix(config: RunConfig) -> list[SlotSpec]:
     """Every Method × (Arm) × fold × model seed, in a fixed order."""
     slots = []
     for target in config.targets:
         for method_name in config.methods:
             method = METHODS[method_name]
-            arms: tuple[Arm | None, ...] = (
-                tuple(ARMS[name] for name in config.arms) if method.is_tabpfn else (None,)
-            )
-            for arm in arms:
+            for arm in method_arms(config, method):
                 for fold in range(config.folds):
                     for seed in config.seeds:
                         slots.append(SlotSpec(target, method, arm, fold, seed))
@@ -163,7 +167,6 @@ class FitRequest:
     train_index: np.ndarray
     test_index: np.ndarray
     weights_train: np.ndarray
-    weights_test: np.ndarray
     exposure_train: np.ndarray | None
     exposure_test: np.ndarray | None
     seed: int
@@ -339,7 +342,7 @@ def run(
     if missing:
         raise ValueError(f"no backend for method(s): {', '.join(missing)}")
     misplaced = [
-        name for name in config.methods if getattr(backends[name], "method", name) != name
+        name for name in config.methods if getattr(backends[name], "method", None) != name
     ]
     if misplaced:
         raise ValueError(
@@ -381,10 +384,7 @@ def run(
 
             for method_name in config.methods:
                 method = METHODS[method_name]
-                arms: tuple[Arm | None, ...] = (
-                    tuple(ARMS[name] for name in config.arms) if method.is_tabpfn else (None,)
-                )
-                for arm in arms:
+                for arm in method_arms(config, method):
                     # `train_rows` is the row budget for EVERY arm (#572): the fair test's premise
                     # is a matched inference context, so a raised budget must reach the control as
                     # well as the treatment or the comparison stops being like-for-like.
@@ -418,7 +418,6 @@ def run(
                             train_index=train_index,
                             test_index=test_index,
                             weights_train=loaded.weights[train_index],
-                            weights_test=weights_test,
                             exposure_train=(
                                 None if exposure_all is None else exposure_all[train_index]
                             ),

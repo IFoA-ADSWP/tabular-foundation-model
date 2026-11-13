@@ -34,6 +34,7 @@ from run_capture import (
     WEIGHTS,
     CaptureRefused,
     Slot,
+    declares_quantiles,
     discover_slots,
 )
 
@@ -194,13 +195,17 @@ def _verify_arrays(
         }
 
     wanted = {TEST_INDEX: "test_index_sha256"}
-    if version < CAPTURE_SCHEMA_VERSION_METHODS or entry.get("quantiles_sha256") is not None:
+    if version < CAPTURE_SCHEMA_VERSION_METHODS:
         wanted[QUANTILES] = "quantiles_sha256"
-    elif slot.quantiles.is_file():
-        raise CaptureRefused(
-            f"{slot.quantiles} is present but the v5 manifest declares no quantiles_sha256; "
-            "an unverified distribution is refused rather than ignored"
-        )
+    else:
+        record = json.loads(slot.record.read_text(encoding="utf-8"))
+        if declares_quantiles(record):
+            wanted[QUANTILES] = "quantiles_sha256"
+        elif slot.quantiles.is_file():
+            raise CaptureRefused(
+                f"{slot.quantiles} is present but the record declares no quantile_levels; "
+                "an unverified distribution is refused rather than ignored"
+            )
     if dataset == EXPOSURE_DATASET:
         wanted[EXPOSURE] = "exposure_sha256"
     if version >= CAPTURE_SCHEMA_VERSION_WEIGHTS:
