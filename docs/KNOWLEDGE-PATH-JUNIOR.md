@@ -300,7 +300,7 @@ By now you should be able to:
 Goal: the loop, complete — read it in finished form.
 
 Read:
-- Pick one report in `docs/current/` (e.g. the reframe-frequency study) and read its objective, method, results, and limitation sections
+- Pick one report in `docs/current/` (e.g. `FINETUNING_PHASE2_OUTCOME.md`) and read its objective, method, results, and limitation sections
 - Open the evidence CSVs it points to (`outputs/current/tables/`, or wherever the report cites) and confirm the report's numbers come from them
 - Open the matching reproducibility notebook in `notebooks/reproducibility/` and step through its cells — the evidence cells are pre-executed with committed outputs, so you can follow each step without running anything
 
