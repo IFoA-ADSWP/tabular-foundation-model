@@ -104,6 +104,14 @@ _Avoid_: method
 The pilot's prose predates this glossary. New text in the analysis pipeline uses
 _method_; _arm_ stays where it already means a training configuration.
 
+**Actuarial baseline**:
+A method built the way a pricing team builds one — a GLM, or a gradient-boosted
+model on the same folds and metric — used to ask whether a foundation model is worth
+deploying at all. It is a _method_, never an _arm_: the distinction the fair test's
+`B_ft30` versus `A_raw` cares about is how a model is trained, while a baseline differs
+in which predictor is compared.
+_Avoid_: reference model, competitor, baseline arm
+
 ## Paid-run path
 
 **Launch**:
