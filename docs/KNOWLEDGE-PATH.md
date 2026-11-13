@@ -40,7 +40,7 @@ Read:
 - `docs/` tree: `docs/REPORT_REGISTRY.md` (the index of every report + evidence), `analyses/` (specs/studies for current era)
 - `outputs/current/` — skim `tables/` and `logs/` (this is the "source of truth" for results)
 - `CHANGELOG.md` + `TASKS.md` (history + current state)
-- `0_roadmap and project dashboard/` — the workstream roadmap (Excel dashboard: current state, milestones)
+- `docs/roadmap/workstream-dashboard.xlsx` — the workstream roadmap (Excel dashboard: current state, milestones)
 
 By the end of this stage: you can name 5 datasets, the two eras, and where results accumulate.
 

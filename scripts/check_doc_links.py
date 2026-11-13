@@ -22,7 +22,7 @@ import re
 import sys
 
 EXTS = (".md", ".py", ".json", ".csv", ".npz", ".npy", ".png", ".parquet", ".sh", ".ipynb", ".txt", ".lock",
-        ".toml", ".yaml", ".yml")
+        ".toml", ".yaml", ".yml", ".xlsx")
 MD_LINK = re.compile(r"\]\(([^)\s#]+?)(?:#[^)]*)?\)")
 
 
