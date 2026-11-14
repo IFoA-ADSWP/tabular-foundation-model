@@ -1,0 +1,79 @@
+{
+  "arm": null,
+  "config": {
+    "depth": 6,
+    "iterations": 1000,
+    "l2_leaf_reg": 3.0,
+    "learning_rate": 0.03,
+    "loss": "Poisson (frequency) | RMSE (severity)",
+    "random_seed": "the slot's model seed"
+  },
+  "dataset": "freMTPL2sev",
+  "drop": [
+    "IDpol",
+    "ClaimNb",
+    "Exposure"
+  ],
+  "epochs": null,
+  "features": [
+    "Area",
+    "VehPower",
+    "VehAge",
+    "DrivAge",
+    "BonusMalus",
+    "VehBrand",
+    "VehGas",
+    "Density",
+    "Region"
+  ],
+  "fold": 2,
+  "fold_seed": 42,
+  "log_features": [],
+  "method": "F_catboost",
+  "n_folds": 5,
+  "predictions_sha256": "1c44dfa325e60e19afb62c6cd931e503a6b77f86598f444f4b79ab8e282272a4",
+  "provenance": {
+    "dataset": {
+      "files": [
+        {
+          "name": "freMTPL2sev.csv",
+          "path": "/Users/Scott/projects/tabular-foundation-model/.worktrees/main/data/raw/freMTPL2sev.csv",
+          "sha256": "be2adb9f95bdab4f7e73e07904626caae6b02248ea6101cdd04a7b3ca3e1aac7"
+        },
+        {
+          "name": "freMTPL2freq.csv",
+          "path": "/Users/Scott/projects/tabular-foundation-model/.worktrees/main/data/raw/freMTPL2freq.csv",
+          "sha256": "6577226166e0e83efe52a431141f1ff5262a4d8fe6626c1d53912cc8943a9893"
+        }
+      ],
+      "join_key": "IDpol",
+      "name": "freMTPL2sev",
+      "path": "/Users/Scott/projects/tabular-foundation-model/.worktrees/main/data/raw/freMTPL2sev.csv",
+      "sha256": "be2adb9f95bdab4f7e73e07904626caae6b02248ea6101cdd04a7b3ca3e1aac7"
+    },
+    "split": {
+      "n_folds": 5,
+      "rule": "KFold(shuffle=True, random_state=42)",
+      "seed": 42,
+      "sha256": null
+    }
+  },
+  "quantile_levels": null,
+  "quantile_scale": null,
+  "reported_scale": "log",
+  "rmse": 1.1354182529216525,
+  "seed": 1,
+  "target": "ClaimAmount",
+  "task": "severity",
+  "test_rows": 5301,
+  "train_rows": 21143,
+  "transform": "log",
+  "unit": "claim",
+  "verdict_metric": "rmse",
+  "verdict_metric_value": 1.1354182529216525,
+  "versions": {
+    "catboost": "1.2.10",
+    "python": "3.12.2"
+  },
+  "weighted": false
+}

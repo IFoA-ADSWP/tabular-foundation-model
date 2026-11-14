@@ -1,0 +1,73 @@
+{
+  "arm": null,
+  "config": {
+    "alpha": 0.0,
+    "max_iter": 500,
+    "scale": "standardised on the training fold",
+    "solver": "newton-cholesky",
+    "tol": 1e-10
+  },
+  "dataset": "freMTPL2freq",
+  "drop": [
+    "IDpol"
+  ],
+  "epochs": null,
+  "features": [
+    "Exposure",
+    "Area",
+    "VehPower",
+    "VehAge",
+    "DrivAge",
+    "BonusMalus",
+    "VehBrand",
+    "VehGas",
+    "Density",
+    "Region"
+  ],
+  "fold": 3,
+  "fold_seed": 42,
+  "log_features": [
+    "Exposure"
+  ],
+  "method": "E_glm",
+  "n_folds": 5,
+  "predictions_sha256": "76327ba4b926a549b63851dd7c80555de7b29830ba66deeb6b5792c0132e4b44",
+  "provenance": {
+    "dataset": {
+      "files": [
+        {
+          "name": "freMTPL2freq.csv",
+          "path": "/Users/Scott/projects/tabular-foundation-model/.worktrees/main/data/raw/freMTPL2freq.csv",
+          "sha256": "6577226166e0e83efe52a431141f1ff5262a4d8fe6626c1d53912cc8943a9893"
+        }
+      ],
+      "name": "freMTPL2freq",
+      "path": "/Users/Scott/projects/tabular-foundation-model/.worktrees/main/data/raw/freMTPL2freq.csv",
+      "sha256": "6577226166e0e83efe52a431141f1ff5262a4d8fe6626c1d53912cc8943a9893"
+    },
+    "split": {
+      "n_folds": 5,
+      "rule": "KFold(shuffle=True, random_state=42)",
+      "seed": 42,
+      "sha256": null
+    }
+  },
+  "quantile_levels": null,
+  "quantile_scale": null,
+  "reported_scale": "native",
+  "rmse": 0.22608508623081874,
+  "seed": 0,
+  "target": "ClaimNb",
+  "task": "frequency",
+  "test_rows": 10000,
+  "train_rows": 542411,
+  "transform": "native",
+  "unit": "policy",
+  "verdict_metric": "poisson_deviance",
+  "verdict_metric_value": 2994.91542165886,
+  "versions": {
+    "python": "3.12.2",
+    "scikit-learn": "1.6.1"
+  },
+  "weighted": false
+}
