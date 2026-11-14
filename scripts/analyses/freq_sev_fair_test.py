@@ -157,6 +157,73 @@ def _print_target(label: str, row: dict) -> None:
     )
 
 
+#: The four registered targets, in the order the verdict table prints them.
+TARGETS = ("frequency_french", "frequency_spanish", "severity_french", "severity_spanish")
+
+#: Each target's floor. Spanish frequency carries its own 4% bar and does not decide the task.
+FLOORS = {
+    "frequency_french": FLOOR_FREQUENCY,
+    "frequency_spanish": FLOOR_FREQUENCY_SPANISH,
+    "severity_french": FLOOR_SEVERITY,
+    "severity_spanish": FLOOR_SEVERITY,
+}
+
+
+def build_summary(
+    ids: dict[str, str],
+    *,
+    reps: int = 10_000,
+    row_scale_french: str | None = None,
+    row_scale_frequency: str | None = None,
+) -> dict:
+    """The registered verdict from the four captures, plus any row-scaling arm named.
+
+    Extracted from `main` so a caller that is not a command line -- the verdict figure (#607) -- gets
+    the same arithmetic rather than a second copy of it.
+    """
+    ratios = {target: fold_ratios(RESULTS / run_id) for target, run_id in ids.items()}
+
+    summary: dict = {"targets": {}, "tasks": {}}
+    for target, values in ratios.items():
+        summary["targets"][target] = target_summary(values, ids[target], FLOORS[target])
+
+    for task, members, floor in (
+        ("frequency", ["frequency_french", "frequency_spanish"], FLOOR_FREQUENCY),
+        ("severity", ["severity_french", "severity_spanish"], FLOOR_SEVERITY),
+    ):
+        portfolios = [ratios[m] for m in members]
+        signs = {math.copysign(1, _mean(p.values())) for p in portfolios}
+        mean, low, high = task_interval(portfolios, reps)
+        heterogeneous = len(signs) > 1
+        summary["tasks"][task] = {
+            "members": members,
+            "mean": mean,
+            "ci": [low, high],
+            "floor": floor,
+            "heterogeneous": heterogeneous,
+            "decision": "Heterogeneous" if heterogeneous else decide(mean, low, high, floor),
+        }
+
+    # Each row-scaling arm is reported beside the registered targets and never folded into a task
+    # mean: the registered verdict is the 10,000-row pair (#572).
+    for run_id, key, target, floor in (
+        (row_scale_french, "row_scale", "severity_french", FLOOR_SEVERITY),
+        (row_scale_frequency, "row_scale_frequency", "frequency_french", FLOOR_FREQUENCY),
+    ):
+        if not run_id:
+            continue
+        run_dir = RESULTS / run_id
+        values = fold_ratios(run_dir)
+        summary[key] = {
+            **target_summary(values, run_id, floor),
+            "target": target,
+            "folds": {str(fold): value for fold, value in values.items()},
+            "train_rows": fold_train_rows(run_dir),
+        }
+
+    return summary
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     for name in ("frequency-french", "frequency-spanish", "severity-french", "severity-spanish"):
@@ -177,57 +244,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    ids = {
-        "frequency_french": args.frequency_french,
-        "frequency_spanish": args.frequency_spanish,
-        "severity_french": args.severity_french,
-        "severity_spanish": args.severity_spanish,
-    }
-    ratios = {target: fold_ratios(RESULTS / run_id) for target, run_id in ids.items()}
-
-    floors = {
-        "frequency_french": FLOOR_FREQUENCY,
-        "frequency_spanish": FLOOR_FREQUENCY_SPANISH,
-        "severity_french": FLOOR_SEVERITY,
-        "severity_spanish": FLOOR_SEVERITY,
-    }
-    summary: dict = {"targets": {}, "tasks": {}}
-    for target, values in ratios.items():
-        summary["targets"][target] = target_summary(values, ids[target], floors[target])
-
-    for task, members, floor in (
-        ("frequency", ["frequency_french", "frequency_spanish"], FLOOR_FREQUENCY),
-        ("severity", ["severity_french", "severity_spanish"], FLOOR_SEVERITY),
-    ):
-        portfolios = [ratios[m] for m in members]
-        signs = {math.copysign(1, _mean(p.values())) for p in portfolios}
-        mean, low, high = task_interval(portfolios, args.reps)
-        heterogeneous = len(signs) > 1
-        summary["tasks"][task] = {
-            "members": members,
-            "mean": mean,
-            "ci": [low, high],
-            "floor": floor,
-            "heterogeneous": heterogeneous,
-            "decision": "Heterogeneous" if heterogeneous else decide(mean, low, high, floor),
-        }
-
-    # Each row-scaling arm is reported beside the registered targets and never folded into a task
-    # mean: the registered verdict is the 10,000-row pair (#572).
-    for run_id, key, target, floor in (
-        (args.row_scale_french, "row_scale", "severity_french", FLOOR_SEVERITY),
-        (args.row_scale_frequency, "row_scale_frequency", "frequency_french", FLOOR_FREQUENCY),
-    ):
-        if not run_id:
-            continue
-        run_dir = RESULTS / run_id
-        values = fold_ratios(run_dir)
-        summary[key] = {
-            **target_summary(values, run_id, floor),
-            "target": target,
-            "folds": {str(fold): value for fold, value in values.items()},
-            "train_rows": fold_train_rows(run_dir),
-        }
+    ids = {target: getattr(args, target) for target in TARGETS}
+    summary = build_summary(
+        ids,
+        reps=args.reps,
+        row_scale_french=args.row_scale_french,
+        row_scale_frequency=args.row_scale_frequency,
+    )
 
     if args.json:
         print(json.dumps(summary, indent=2))

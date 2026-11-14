@@ -62,6 +62,9 @@ def _load(path: Path, name: str):
         spec = importlib.util.spec_from_file_location(name, path)
         assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
+        # Register before executing: `@dataclass` resolves its own module through `sys.modules`,
+        # so an unregistered module raises on the first dataclass it defines.
+        sys.modules[name] = module
         spec.loader.exec_module(module)
         return module
     finally:
@@ -129,6 +132,7 @@ def test_the_analysis_and_rescore_scripts_read_the_registry():
     pr_auc = _load(EVAL / "analyze_pr_auc.py", "analyze_pr_auc_235")
     tuned = _load(EVAL / "analyze_tuned_baselines.py", "analyze_tuned_235")
     plot = _load(EVAL / "plot_money_chart.py", "plot_money_235")
+    adoption = _load(ROOT / "scripts/infra/adoption_figures.py", "adoption_figures_235")
     rescore = _load(EVAL / "rescore_altmetrics.py", "rescore_235")
     reframe = _load(EVAL / "run_reframe_frequency.py", "reframe_235")
 
@@ -137,7 +141,11 @@ def test_the_analysis_and_rescore_scripts_read_the_registry():
     assert pr_auc.METHODS == CLASSIFICATION_METHODS
     assert tuned.CANON_METHODS == CLASSIFICATION_METHODS
     assert reframe.BINARY_METHODS == CLASSIFICATION_METHODS
-    # the plotted set is the committed chart's set; the files come from the registry
-    assert plot.DATASETS == {name: file for name, (file, *_rest) in EXPECTED.items()}
+    # The plotted set is the committed chart's set, and the files come from the registry. The
+    # selection moved into the shared loader the chart calls, so the pin follows it there and also
+    # checks the chart really plots that set (#609).
+    expected_files = {name: file for name, (file, *_rest) in EXPECTED.items()}
+    assert adoption.DATASETS == expected_files
+    assert set(plot.load_points()["dataset"]) == set(expected_files)
     assert set(rescore.REG_ALT_CONFIG) == set(REGRESSION_ORDER)
     assert rescore.METHODS == REGRESSION_METHODS

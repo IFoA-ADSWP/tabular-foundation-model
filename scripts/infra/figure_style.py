@@ -10,6 +10,7 @@ from pathlib import Path
 
 import plotly.graph_objects as go
 from cycler import cycler
+from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.figure import Figure as MplFigure
 
 # Okabe-Ito colour-blind-safe palette (Okabe & Ito, 2008).
@@ -38,6 +39,21 @@ SERIES_COLORS: list[str] = [
     )
 ]
 
+#: Sequential ramp for a matrix or heatmap: white to the palette's blue. A heatmap needs a ramp
+#: rather than a categorical colour; deriving it from the palette keeps one palette per figure.
+SEQUENTIAL_CMAP = LinearSegmentedColormap.from_list("okabe_blue", ["#FFFFFF", OKABE_ITO["blue"]])
+
+#: Non-data ink: rules, bands, grid lines, de-emphasised text. Deliberately not series colours —
+#: a grey must not read as a category — but shared, so every figure greys the same way.
+NEUTRAL: dict[str, str] = {
+    "ink": "#444444",     # zero rule, axis rule
+    "muted": "#666666",   # secondary text, floor ticks
+    "band": "#D9D9D9",    # a shaded reference region, or a cell with no measurement
+    "grid": "#E8E8E8",    # grid lines
+    "panel": "#F2F2F2",   # a row that carries no measurement
+    "surface": "#FFFFFF", # the page; a marker outline or a "nothing to draw" cell
+}
+
 #: Publication rcParams: single-column width, >=8 pt text, 300 dpi, embedded fonts.
 STATIC_RC: dict[str, object] = {
     "figure.figsize": (3.5, 2.625),
@@ -64,7 +80,8 @@ STATIC_RC: dict[str, object] = {
 EXPORT_CHECKLIST: tuple[str, ...] = (
     "width 3.5 in single column (7 in double) — override figsize only for multi-panel",
     "fonts >= 8 pt (ticks 7 pt), embedded: pdf.fonttype 42, svg text as paths",
-    "palette from SERIES_COLORS only (Okabe-Ito)",
+    "series colours from SERIES_COLORS (Okabe-Ito); greys from NEUTRAL, never a sixth hue",
+    "a matrix or heatmap ramp is SEQUENTIAL_CMAP, with the value printed in the cell",
     "saved as vector PDF and 300 dpi PNG",
     "caption drafted: what it shows, on what data, the key comparison",
 )
@@ -78,12 +95,17 @@ def apply_static_style() -> None:
 
 
 def save_publication(fig: MplFigure, stem: str | Path) -> tuple[Path, Path]:
-    """Save `fig` as vector PDF + 300 dpi PNG at `stem` (no suffix). Returns (pdf, png)."""
+    """Save `fig` as vector PDF + 300 dpi PNG at `stem` (no suffix). Returns (pdf, png).
+
+    The PDF's creation and modification timestamps are omitted so the bytes depend only on the
+    drawing: regenerating a figure that has not changed produces an identical file, and a diff in
+    a committed figure means the picture changed.
+    """
     path = Path(stem)
     path.parent.mkdir(parents=True, exist_ok=True)
     pdf = path.with_suffix(".pdf")
     png = path.with_suffix(".png")
-    fig.savefig(pdf, bbox_inches="tight")
+    fig.savefig(pdf, bbox_inches="tight", metadata={"CreationDate": None, "ModDate": None})
     fig.savefig(png, bbox_inches="tight")
     return pdf, png
 

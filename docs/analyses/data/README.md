@@ -151,6 +151,24 @@ these are the definitions, so a reviewer can reproduce them without the JSON:
   whose `|univariate_auc - 0.5| < 0.02`. A screen with its threshold recorded, not a proof of
   interaction. TabPFN is excluded as well as GLM because it is itself an interaction learner.
 
+![Top-ten overlap and rank agreement between the three families](../../figures/diagnostics_feature_agreement.png)
+
+*Two of the three readings, for all four datasets.* The bars are the top-ten Jaccard overlap for each
+family pair; the dots are the Spearman correlation of the same pair's full ranking, so a pair can share
+the ten features and still order them differently. `uslapseagent` records only **ten** features, so its
+top ten is the whole feature set and its overlap of 1.00 is an artefact of that width — the rank
+correlation (0.55–0.72) is the reading that means something there. Elsewhere the overlap is a real
+selection: `coil2000`'s TabPFN and GLM share two of eighteen. `eudirectlapse`'s LGBM arm is hatched and hollow because its own `test_auc` is 0.494: that
+ranking is noise, and it is drawn that way rather than dropped. Regenerate with
+`.venv/bin/python scripts/infra/diagnostics_figures.py`; vector PDF beside the PNG.
+
+**What the figure is not.** Importance is a shuffle-drop ROC AUC on the 2,000-row subsample
+(1,500 train / 500 test), so it approximates the full table rather than measuring it; and the TabPFN
+arm is the local **v2.5** checkpoint, not the `v3_default` line the frontier and fine-tuning numbers
+use. The two interaction candidates the screen returns (`polholder_diffdriver` on `eudirectlapse`,
+`vehicle_age` on `spanish_motor_lapse`) are not drawn: one of them comes off the at-chance arm, and
+two points do not need a panel.
+
 **Check `no_better_than_chance` before quoting any of the three.** A family whose `test_auc` is at
 chance still has a ranking, and that ranking is noise; `eudirectlapse`'s `lgbm` arm is at 0.494, so
 its top ten — and any interaction candidate read off it — describes the measurement's error rather

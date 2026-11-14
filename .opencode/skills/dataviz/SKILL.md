@@ -30,8 +30,11 @@ Done when: the mode is chosen and stated in one line before any plotting code is
    ```
 
 2. Build the figure. Series colours come from the `axes.prop_cycle` (Okabe-Ito) — the
-   palette is already the default, no hex codes needed. Override `figsize` only for
-   multi-panel layouts.
+   palette is already the default, no hex codes needed. Non-data ink (rules, bands, grid
+   lines, de-emphasised text) comes from `NEUTRAL`; a grey must never encode a category. A
+   matrix or heatmap uses `SEQUENTIAL_CMAP` and prints its value in each cell, so colour is
+   never the only encoding.
+   Override `figsize` only for multi-panel layouts.
 3. Draft the caption: what it shows, on what data, the key comparison.
 4. Export with `save_publication(fig, "path/to/stem")` — vector PDF **and** 300 dpi PNG, both.
 5. Run every item in `EXPORT_CHECKLIST` (same module).
