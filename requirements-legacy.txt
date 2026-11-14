@@ -17,4 +17,4 @@ scipy>=1.10,<2
 joblib>=1.2,<2
 torch>=2.0,<3
 tabpfn>=6,<7
-tabpfn-extensions>=0.2,<0.3
+tabpfn-extensions>=0.6.3,<0.7
