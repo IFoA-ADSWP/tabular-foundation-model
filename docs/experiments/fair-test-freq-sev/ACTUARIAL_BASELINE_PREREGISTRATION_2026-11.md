@@ -113,3 +113,5 @@ target, method, fold, metric, floor or row budget after that is a dated amendmen
 | Date | Change | By |
 |---|---|---|
 | 2026-11-13 | Filed. Scope, method set, statistic, per-target floors, row budgets and feature policy settled with the owner in #597. | agent, for owner review |
+| 2026-11-13 | **Released for execution by the owner**, immediately after #608 merged: the method axis, both baselines, capture v5, the analysis tool and the one-fold timing are on `main`. No target, method, fold, seed, metric, floor or row budget changed. | owner, via session instruction |
+| 2026-11-14 | **Outcome recorded** in `actuarial_baseline_result.md`: No-go on all four targets at the primary full-pool budget; the matched 10,000-row arm is reported beside it (French frequency Inconclusive, the other three No-go). No parameter changed after release. | agent, for owner review |
