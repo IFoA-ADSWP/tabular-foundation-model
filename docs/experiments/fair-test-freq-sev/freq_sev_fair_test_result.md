@@ -23,7 +23,9 @@ statistic is the per-fold, per-seed relative improvement
 r_{t,f,s} = (M(A_raw) - M(B_ft30)) / M(A_raw)
 ```
 
-averaged over seeds inside each fold. Target intervals are paired t over five folds (4 df); task
+`M` is the target's verdict metric: **Poisson deviance** for the two frequency targets and
+**weighted RMSE** for the two severity targets, so a positive `r` means fine-tuning improved the
+metric. `r` is averaged over seeds inside each fold. Target intervals are paired t over five folds (4 df); task
 intervals are the registered two-way bootstrap (portfolios × folds, 10,000 draws, indicative
 because two portfolios is a thin resample).
 
@@ -63,15 +65,16 @@ frequency carries its own 4% per-target floor and does not decide the frequency 
 
 ![The fair-test verdict as a forest plot](../../figures/freq_sev_forest.png)
 
-*Figure 1 — the verdict as a picture.* One row per pooled task, with its two portfolios beneath it; the line is the
+*Figure 1 — frequency clears its floor; severity does not.* Positive `r` means fine-tuning improved
+the target's metric. One row per pooled task, with its two portfolios beneath it; the line is the
 95% interval, the dashed tick below it the row's registered floor, and the word at the right the
-decision the rule returned. French frequency clears its 2% floor; French severity is a small but real
-harm; both Spanish cells are inconclusive against their floors; and the pooled severity task is
+decision the rule returned. French frequency clears its 2% floor; French severity is a small but
+real harm; both Spanish cells are inconclusive against their floors; and the pooled severity task is
 heterogeneous because the two portfolios disagree in sign. Every value is computed from the four
-committed captures by `freq_sev_fair_test.build_summary()` — the function that prints the table above —
-so the figure cannot disagree with it. The 2.1× and 4× row-scaling arms ([below](#the-row-scaling-arm-572))
-are robustness checks on this verdict, not a second verdict, and are not drawn. Regenerate with
-`.venv/bin/python scripts/infra/verdict_figures.py --only fair-test`; vector PDF at
+committed captures by `freq_sev_fair_test.build_summary()` — the function that prints the table
+above — so the figure cannot disagree with it. The 2.1× and 4× row-scaling arms ([below](#the-row-
+scaling-arm-572)) are robustness checks on this verdict, not a second verdict, and are not drawn.
+Regenerate with `.venv/bin/python scripts/infra/verdict_figures.py --only fair-test`; vector PDF at
 [`figures/freq_sev_forest.pdf`](../../figures/freq_sev_forest.pdf).
 
 ## What the numbers say, and what they do not
