@@ -12,6 +12,7 @@ is in [EVIDENCE_MAP.md](EVIDENCE_MAP.md).
 | If you want… | Begin with |
 | --- | --- |
 | **The outcome** — did fine-tuning help, and by how much? | [FINETUNING_PHASE2_OUTCOME.md](experiments/pilot2-phase2/FINETUNING_PHASE2_OUTCOME.md) — the canonical statement of what Phase 2 found |
+| **To see the pictures** — what a finding looks like | [figures/README.md](figures/README.md) — every committed figure with the claim it carries, its evidence and the command that regenerates it |
 | **To check a number** — where does this figure come from? | [EVIDENCE_MAP.md](EVIDENCE_MAP.md) — which tree holds what, and what a citation must have |
 | **To run the code** — which environment, which command? | [RUNNING.md](RUNNING.md) — the four routes, what each writes, and the two environments |
 | **The method and the decisions** | [FINETUNING_PILOT_DESIGN.md](experiments/pilot2-phase2/FINETUNING_PILOT_DESIGN.md) (what was proposed and why) and [FINETUNING_DECISION_LOG.md](experiments/pilot2-phase2/FINETUNING_DECISION_LOG.md) (what was decided, with its caveats) |

@@ -48,7 +48,11 @@ cells** — all six ≤5K cells plus both small full-size cells (coil2000 9,822,
 fold-noise margin.
 
 Totals across the 14 tasks: **6 wins, 2 fold-noise ties, 6 losses; on the parsimony
-frontier 7 of 12 frontier datasets** (one-pager §"The evidence"; §14.4). The loss count
+frontier 7 of 12 frontier datasets** (one-pager §"The evidence"; §14.4). **Frontier membership and
+being the best metric are different tests**: the frontier is a trade-off position — no cheaper method
+with equal accuracy — so a dataset can sit on it while LGBM holds the lower mean (`bemtl97`, `norauto`),
+and off it because a seven-parameter GLM ties the metric (`ausprivauto0405`). That is why the section
+says 7 on the frontier and the figure says TabPFN is the best method on 5. The loss count
 reflects the log-loss axis only — §14.11's AUC rescore reclassifies ausprivauto0405 to
 tie-with-ranking-edge. Money chart
 (`plot_money_chart.py` docstring): every off-frontier point sits at ≥53.5K training rows.
@@ -74,9 +78,11 @@ beside the PNG.
 
 ![Every frontier method on every dataset](../../figures/frontier_method_matrix.png)
 
-*Figure 2 — the whole benchmark at a glance.* One row per dataset ordered by size, one column per
-method that ran, TabPFN's column outlined. Each cell is that method's metric ÷ the dataset's best, so
-1.00 is the best available there; the number is printed because colour alone is not an encoding.
+*Figure 2 — where TabPFN is the best method, and where something cheaper ties it.* Down the outlined
+column: 1.00 on five datasets, within 0.6% on two more, and 1.003–1.50 on the five off the frontier.
+One row per dataset ordered by size, one column per method that ran. Each cell is that method's
+metric ÷ the dataset's best, so 1.00 is the best available there; the number is printed because colour
+alone is not an encoding.
 Shading is clipped at 1.50 — the printed value carries anything larger, and `bemtl97_amount`'s Poisson
 GLM at 13.3 is why the clip exists rather than an axis that would flatten every near-1 cell. A blank
 cell is a method that did not run on that task (no logistic model on a regression target, no OLS on a

@@ -66,7 +66,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup and contribution gui
 │       └── 08_multi_dataset_regression_benchmark.ipynb
 │
 ├── outputs/
-│   ├── current/                    # Latest figures + tables
+│   ├── current/                    # Legacy v2-era figures + tables
 │   │   ├── figures/                #   Figure1–Figure6 PNGs
 │   │   ├── tables/                 #   Table1–Table4 CSVs
 │   │   └── logs/                   #   Finetuning logbooks
@@ -77,6 +77,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup and contribution gui
 │   ├── RUNNING.md                  #   the route in, if you are running the code
 │   ├── EVIDENCE_MAP.md             #   which tree holds which number
 │   ├── EXPERIMENTS.md              #   the map: which documents belong to which experiment
+│   ├── figures/                    #   the committed figures, with the claim each carries
 │   ├── experiments/<campaign>/     #   one folder per line of work, with its runs named
 │   ├── shared/                     #   registries and explainers belonging to no campaign
 │   ├── archive/<campaign>/         #   superseded documents, same grouping
