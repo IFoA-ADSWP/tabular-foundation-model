@@ -1,6 +1,7 @@
 # Plan — the actuarial baseline (#597)
 
-**Status:** current — scoped 2026-11-13; build in progress (parts 1–3, on `feat/597-method-axis`).
+**Status:** current — scoped 2026-11-13; built and merged (#608), matrix run and verdict recorded
+2026-11-14 (`actuarial_baseline_result.md`).
 **Origin:** ticket #597. **Specification:** `docs/experiments/fair-test-freq-sev/baseline_method_specification.md`.
 **Pre-registration:** `docs/experiments/fair-test-freq-sev/ACTUARIAL_BASELINE_PREREGISTRATION_2026-11.md`.
 
@@ -129,8 +130,11 @@ Verification at this point:
 ./scripts/check.sh doclinks|docstatus|citation|verdict   # pass
 ```
 
-Not done, deliberately: the full matrix. The pre-registration is still unsigned ("proposed"), so
-the matrix waits for the owner's sign-off row; the build and its timing measurement are complete.
+The matrix ran on 2026-11-13/14 after the owner released the pre-registration: the primary
+(full-pool) and matched (10,000-row) arms, 7.7 CPU-hours and 2 h 08 m at $0. The verdict is **No-go
+on all four targets** at the primary budget; at matched rows French frequency is Inconclusive and
+the other three stay No-go.
+`docs/experiments/fair-test-freq-sev/actuarial_baseline_result.md` is the record.
 
 ## The risk this buys
 

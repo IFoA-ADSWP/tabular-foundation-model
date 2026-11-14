@@ -178,7 +178,9 @@ not; the v3/v4 split is the writer's rule, not a difference in what was captured
 ## Limits
 
 - **Not a comparison with actuarial baselines.** Both arms are TabPFN; `E_glm` and `F_catboost` are
-  not in this run. This measures the value of fine-tuning, not the value of TabPFN.
+  not in this run. This measures the value of fine-tuning, not the value of TabPFN. The missing
+  comparison has since run on these same folds and test rows: see
+  `actuarial_baseline_result.md` (2026-11-14).
 - **The epoch ladder was not run.** `B_ft10` and `B_ft3` are a follow-up; no floor is registered for
   them, so they could not have moved these decisions.
 - **The row cap is settled at the budgets this data allows.** French severity was repeated on each

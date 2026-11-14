@@ -1,0 +1,18 @@
+# Measured wall/user/sys time for the actuarial baseline runs (#597), 2026-11-13/14.
+# Captured from `/usr/bin/time -p` around each target's runner process; one process per target,
+# one target per invocation, CPU only, no GPU. Reproduce the matrix with the commands in
+# docs/experiments/fair-test-freq-sev/actuarial_baseline_result.md §Reproduce.
+#
+# arm                 target              real_s    user_s    sys_s
+primary_full_pool     frequency_french    6433.15  21520.76  2364.40
+primary_full_pool     frequency_spanish    460.75   1682.40   310.65
+primary_full_pool     severity_french      165.94    530.05   101.95
+primary_full_pool     severity_spanish      55.38    183.27    62.65
+matched_10000_rows    frequency_french     246.03    735.32   232.72
+matched_10000_rows    frequency_spanish    185.47    624.08   206.42
+matched_10000_rows    severity_french       92.71    311.62    81.60
+matched_10000_rows    severity_spanish      53.60    189.11    61.87
+#
+# primary: real 7115.22 s = 1 h 58 m 35 s, user 23916.48 s = 6.643 h
+# matched: real  577.81 s = 9 m 38 s,     user  1860.13 s = 0.517 h
+# both:    real 7693.03 s = 2 h 08 m 13 s, user 25776.61 s = 7.160 h, sys 3422.26 s
