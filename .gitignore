@@ -222,3 +222,6 @@ outputs/gpu-pilot/leases/
 # (`.worktrees/<name>/`); it carries its own .git and must never be committed, nor
 # show up as untracked content in `git status`.
 .worktrees/
+
+# dagr run state (local only)
+.dagr/

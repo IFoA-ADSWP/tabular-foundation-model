@@ -11,9 +11,7 @@ directory leaves `docs/figures/` untouched.
 
 from __future__ import annotations
 
-import importlib.util
 import re
-import sys
 from pathlib import Path
 
 import matplotlib
@@ -27,17 +25,9 @@ SCRIPT = REPO / "scripts" / "infra" / "verdict_figures.py"
 SPANISH_RESULT = REPO / "docs" / "experiments" / "pilot2-phase2" / "finetuning_breadth_spanish_result.md"
 
 
-def _module():
-    spec = importlib.util.spec_from_file_location("verdict_figures", SCRIPT)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["verdict_figures"] = module
-    spec.loader.exec_module(module)
-    return module
-
-
 @pytest.fixture(scope="module")
-def figures():
-    return _module()
+def figures(load_script):
+    return load_script("verdict_figures", SCRIPT)
 
 
 def _by_label(rows, fragment):

@@ -106,9 +106,19 @@ A pull request whose base is another pull request's branch — a stack — is no
 protection is on `main`, so the top of a stack can still read `CLEAN` while its parent is
 red. Check the parent before merging the child.
 
-## Issue tracker
+## Agent skills
 
-Config: docs/issue-tracker.md
+### Issue tracker
+
+GitHub issues on `IFoA-ADSWP/tabular-foundation-model`; external PRs are triaged only when the author is not a collaborator. See `docs/issue-tracker.md`.
+
+### Triage labels
+
+Five state roles — `needs-triage`, `needs-info`, `ready-to-build`, `needs-decision`, `wontfix` — plus one category; the state pair was renamed 2026-11-11. Mapping: the Vocabulary section of `docs/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` for vocabulary and `docs/adr/` for decisions; index at `docs/README.md`.
 
 ## Research workflow
 

@@ -8,8 +8,6 @@ presented as a ranking of signal.
 
 from __future__ import annotations
 
-import importlib.util
-import sys
 from pathlib import Path
 
 import matplotlib
@@ -22,17 +20,9 @@ REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "infra" / "diagnostics_figures.py"
 
 
-def _module():
-    spec = importlib.util.spec_from_file_location("diagnostics_figures", SCRIPT)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["diagnostics_figures"] = module
-    spec.loader.exec_module(module)
-    return module
-
-
 @pytest.fixture(scope="module")
-def figures():
-    return _module()
+def figures(load_script):
+    return load_script("diagnostics_figures", SCRIPT)
 
 
 @pytest.fixture(scope="module")

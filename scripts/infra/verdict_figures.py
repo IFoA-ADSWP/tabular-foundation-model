@@ -27,7 +27,6 @@ figure, `save_publication()` for the PDF + 300 dpi PNG pair.
 
 from __future__ import annotations
 
-import argparse
 import math
 import sys
 from dataclasses import dataclass
@@ -51,6 +50,8 @@ from scripts.infra.figure_style import (  # noqa: E402
     NEUTRAL,
     OKABE_ITO,
     apply_static_style,
+    figure_parser,
+    report_written,
     save_publication,
 )
 
@@ -426,8 +427,7 @@ def _draw(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--out", type=Path, default=FIGURES, help="directory for the PDF/PNG pairs")
+    parser = figure_parser(FIGURES, description=__doc__.splitlines()[0])
     parser.add_argument("--only", choices=("phase2", "fair-test", "both"), default="both")
     args = parser.parse_args(argv)
 
@@ -454,8 +454,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
 
-    for path in written:
-        print(path.relative_to(_REPO) if path.is_relative_to(_REPO) else path)
+    report_written(written)
     return 0
 
 

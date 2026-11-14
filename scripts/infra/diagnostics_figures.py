@@ -23,7 +23,6 @@ the local **v2.5** checkpoint, not the `v3_default` line the frontier and fine-t
 
 from __future__ import annotations
 
-import argparse
 import sys
 from dataclasses import dataclass
 from itertools import combinations
@@ -43,6 +42,8 @@ from scripts.infra.figure_style import (  # noqa: E402
     NEUTRAL,
     OKABE_ITO,
     apply_static_style,
+    figure_parser,
+    report_written,
     save_publication,
 )
 
@@ -205,14 +206,12 @@ def draw(readings: list[Agreement], stem: Path) -> tuple[Path, Path]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--out", type=Path, default=FIGURES, help="directory for the PDF/PNG pair")
+    parser = figure_parser(FIGURES, description=__doc__.splitlines()[0])
     args = parser.parse_args(argv)
 
     apply_static_style()
     pdf, png = draw(agreements(), args.out / "diagnostics_feature_agreement")
-    for path in (pdf, png):
-        print(path.relative_to(_REPO) if path.is_relative_to(_REPO) else path)
+    report_written((pdf, png))
     return 0
 
 

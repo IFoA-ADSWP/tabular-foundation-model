@@ -12,8 +12,6 @@ come back.
 
 from __future__ import annotations
 
-import importlib.util
-import sys
 from pathlib import Path
 
 import matplotlib
@@ -28,17 +26,9 @@ REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "infra" / "adoption_figures.py"
 
 
-def _module():
-    spec = importlib.util.spec_from_file_location("adoption_figures", SCRIPT)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["adoption_figures"] = module
-    spec.loader.exec_module(module)
-    return module
-
-
 @pytest.fixture(scope="module")
-def figures():
-    return _module()
+def figures(load_script):
+    return load_script("adoption_figures", SCRIPT)
 
 
 @pytest.fixture(scope="module")
