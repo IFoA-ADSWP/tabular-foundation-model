@@ -1,0 +1,75 @@
+{
+  "arm": null,
+  "config": {
+    "strategy": "exposure-weighted mean rate (frequency), mean (severity)"
+  },
+  "dataset": "spanish_motor_freq",
+  "drop": [],
+  "epochs": null,
+  "features": [
+    "Distribution_channel",
+    "Seniority",
+    "Policies_in_force",
+    "Max_policies",
+    "Max_products",
+    "Payment",
+    "Premium",
+    "Type_risk",
+    "Area",
+    "Second_driver",
+    "driver_age",
+    "licence_age",
+    "vehicle_age",
+    "Power",
+    "Cylinder_capacity",
+    "Value_vehicle",
+    "N_doors",
+    "Type_fuel",
+    "Length",
+    "Weight"
+  ],
+  "fold": 4,
+  "fold_seed": 42,
+  "log_features": [],
+  "method": "M_intercept",
+  "n_folds": 5,
+  "predictions_sha256": "e72b2e3d8602ebfec68b1ddb55f001ec6e1232560e7b4a06f2249a882ffaa46c",
+  "provenance": {
+    "dataset": {
+      "files": [
+        {
+          "name": "spanish_motor_freq.csv",
+          "path": "/Users/Scott/projects/tabular-foundation-model/.worktrees/main/data/raw/spanish_motor_freq.csv",
+          "sha256": "4efbef8d0f3fe44654c964e3c0aad317853f26799b41ed60d1753f17601d2708"
+        }
+      ],
+      "name": "spanish_motor_freq",
+      "path": "/Users/Scott/projects/tabular-foundation-model/.worktrees/main/data/raw/spanish_motor_freq.csv",
+      "sha256": "4efbef8d0f3fe44654c964e3c0aad317853f26799b41ed60d1753f17601d2708"
+    },
+    "split": {
+      "n_folds": 5,
+      "rule": "KFold(shuffle=True, random_state=42)",
+      "seed": 42,
+      "sha256": null
+    }
+  },
+  "quantile_levels": null,
+  "quantile_scale": null,
+  "reported_scale": "native",
+  "rmse": 0.7840462039956574,
+  "seed": 1,
+  "target": "N_claims_year",
+  "task": "frequency",
+  "test_rows": 10000,
+  "train_rows": 10000,
+  "transform": "native",
+  "unit": "policy",
+  "verdict_metric": "poisson_deviance",
+  "verdict_metric_value": 10127.686720488427,
+  "versions": {
+    "numpy": "1.26.4",
+    "python": "3.12.2"
+  },
+  "weighted": false
+}

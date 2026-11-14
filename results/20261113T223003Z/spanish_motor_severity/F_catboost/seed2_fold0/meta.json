@@ -1,0 +1,88 @@
+{
+  "arm": null,
+  "config": {
+    "depth": 6,
+    "iterations": 1000,
+    "l2_leaf_reg": 3.0,
+    "learning_rate": 0.03,
+    "loss": "Poisson (frequency) | RMSE (severity)",
+    "random_seed": "the slot's model seed"
+  },
+  "dataset": "spanish_motor_severity",
+  "drop": [
+    "Cost_claims_year",
+    "Policies_in_force"
+  ],
+  "epochs": null,
+  "features": [
+    "Distribution_channel",
+    "Seniority",
+    "Max_policies",
+    "Max_products",
+    "Payment",
+    "Premium",
+    "Type_risk",
+    "Area",
+    "Second_driver",
+    "driver_age",
+    "licence_age",
+    "vehicle_age",
+    "Power",
+    "Cylinder_capacity",
+    "Value_vehicle",
+    "N_doors",
+    "Type_fuel",
+    "Length",
+    "Weight"
+  ],
+  "fold": 0,
+  "fold_seed": 42,
+  "log_features": [],
+  "method": "F_catboost",
+  "n_folds": 5,
+  "predictions_sha256": "23065cbbfe5c753a020ffc81703ad75d7497099a77e2f81d3108d3fe14e67d99",
+  "provenance": {
+    "dataset": {
+      "files": [
+        {
+          "name": "spanish_motor_severity.csv",
+          "path": "/Users/Scott/projects/tabular-foundation-model/.worktrees/main/data/raw/spanish_motor_severity.csv",
+          "sha256": "d474bea983188da97ca53f1fcca94c3e53dfdd9e268276f66f0be8afa13fb871"
+        },
+        {
+          "name": "spanish_motor_freq.csv",
+          "path": "/Users/Scott/projects/tabular-foundation-model/.worktrees/main/data/raw/spanish_motor_freq.csv",
+          "sha256": "4efbef8d0f3fe44654c964e3c0aad317853f26799b41ed60d1753f17601d2708"
+        }
+      ],
+      "join_key": "IDpol",
+      "name": "spanish_motor_severity",
+      "path": "/Users/Scott/projects/tabular-foundation-model/.worktrees/main/data/raw/spanish_motor_severity.csv",
+      "sha256": "d474bea983188da97ca53f1fcca94c3e53dfdd9e268276f66f0be8afa13fb871"
+    },
+    "split": {
+      "n_folds": 5,
+      "rule": "KFold(shuffle=True, random_state=42)",
+      "seed": 42,
+      "sha256": null
+    }
+  },
+  "quantile_levels": null,
+  "quantile_scale": null,
+  "reported_scale": "log",
+  "rmse": 0.538226623714386,
+  "seed": 2,
+  "target": "Cost_claims_year",
+  "task": "severity",
+  "test_rows": 1190,
+  "train_rows": 4760,
+  "transform": "log",
+  "unit": "claiming_policy",
+  "verdict_metric": "weighted_rmse",
+  "verdict_metric_value": 0.6103260495424147,
+  "versions": {
+    "catboost": "1.2.10",
+    "python": "3.12.2"
+  },
+  "weighted": true
+}
