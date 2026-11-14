@@ -9,6 +9,7 @@ The session fixture below is a guard, not decoration: see `tests/run_artifact_gu
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -24,6 +25,25 @@ from tests.run_artifact_guard import (  # noqa: E402  (path set up immediately a
     assert_no_new_run_artifacts,
     run_artifacts,
 )
+
+
+@pytest.fixture(scope="module")
+def load_script():
+    """Load a script from its path, registering it under `name` before it executes.
+
+    Registration is not optional: `@dataclass` resolves its own module through `sys.modules`, so a
+    module that defines one raises without it.
+    """
+
+    def _load(name: str, path: Path):
+        spec = importlib.util.spec_from_file_location(name, path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+        return module
+
+    return _load
 
 
 @pytest.fixture(scope="session", autouse=True)
