@@ -1,4 +1,5 @@
-"""Shared figure style for new figures — static (matplotlib/seaborn) and HTML (plotly).
+"""Shared figure style for new figures — static (matplotlib/seaborn) and HTML (plotly), plus the
+small command line every figure script shares.
 
 Single source of truth for the look of every figure this repo produces from now on.
 `.opencode/skills/dataviz/SKILL.md` is the procedure; this module is the style.
@@ -6,12 +7,16 @@ Figures already committed under docs/figures/ are cited evidence and are not res
 """
 from __future__ import annotations
 
+import argparse
+from collections.abc import Iterable
 from pathlib import Path
 
 import plotly.graph_objects as go
 from cycler import cycler
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.figure import Figure as MplFigure
+
+_REPO = Path(__file__).resolve().parents[2]
 
 # Okabe-Ito colour-blind-safe palette (Okabe & Ito, 2008).
 OKABE_ITO: dict[str, str] = {
@@ -108,6 +113,27 @@ def save_publication(fig: MplFigure, stem: str | Path) -> tuple[Path, Path]:
     fig.savefig(pdf, bbox_inches="tight", metadata={"CreationDate": None, "ModDate": None})
     fig.savefig(png, bbox_inches="tight")
     return pdf, png
+
+
+def figure_parser(default_out: str | Path, *, description: str) -> argparse.ArgumentParser:
+    """The command line every figure script shares: one `--out`, defaulting to its own directory.
+
+    Script-specific flags (`--only`, for instance) are added by the caller to the parser returned.
+    """
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=Path(default_out),
+        help="directory for the PDF/PNG pairs",
+    )
+    return parser
+
+
+def report_written(paths: Iterable[Path]) -> None:
+    """Print each written file, relative to the repository when it lives inside it."""
+    for path in paths:
+        print(path.relative_to(_REPO) if path.is_relative_to(_REPO) else path)
 
 
 def apply_html_theme(fig: go.Figure) -> None:

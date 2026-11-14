@@ -24,7 +24,6 @@ datasets. The figures say so rather than inviting the mistake.
 
 from __future__ import annotations
 
-import argparse
 import sys
 from dataclasses import dataclass
 from functools import lru_cache
@@ -49,6 +48,8 @@ from scripts.infra.figure_style import (  # noqa: E402
     OKABE_ITO,
     SEQUENTIAL_CMAP,
     apply_static_style,
+    figure_parser,
+    report_written,
     save_publication,
 )
 
@@ -344,8 +345,7 @@ def _method_matrix(points: list[FrontierDataset], stem: Path) -> tuple[Path, Pat
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--out", type=Path, default=FIGURES, help="directory for the PDF/PNG pairs")
+    parser = figure_parser(FIGURES, description=__doc__.splitlines()[0])
     parser.add_argument("--only", choices=("size", "matrix", "both"), default="both")
     args = parser.parse_args(argv)
 
@@ -358,8 +358,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.only in ("matrix", "both"):
         written += list(_method_matrix(points, args.out / "frontier_method_matrix"))
 
-    for path in written:
-        print(path.relative_to(_REPO) if path.is_relative_to(_REPO) else path)
+    report_written(written)
     return 0
 
 
