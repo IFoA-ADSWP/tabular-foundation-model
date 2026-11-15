@@ -67,6 +67,17 @@ So the experiment answers two different questions, and both are reported:
 | French severity | **−0.6%** | Still slightly worse |
 | Spanish severity | **−10.1%** | Same fit as above — the data does not allow 10,000 rows |
 
+![The actuarial baseline verdict as a forest](../../figures/actuarial_baseline_forest.png)
+
+*The whole verdict in one picture.* Each row is one target at one training budget — the baselines on
+all the data, then the matched 10,000 rows — with the 95% interval and the registered floor as a
+dashed tick. **Positive means TabPFN is better**; every point here is negative, and the floor sits on
+the other side of zero, which is the result at a glance. Spanish severity appears once because its
+fold holds fewer than 10,000 rows, so both arms are the same fit. The two budgets answer two
+questions: the gap between a target's two rows is a budget sensitivity, not a second verdict — the
+registered decision is the full-data row. Regenerate with
+`.venv/bin/python scripts/infra/baseline_figures.py`; vector PDF beside the PNG.
+
 ## The three things worth remembering
 
 **1. On French frequency, most of the "loss" is the data volume, not the model.** Give CatBoost
