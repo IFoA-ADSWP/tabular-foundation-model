@@ -158,14 +158,16 @@ The bars are the Jaccard index of two families' top-ten feature sets; the dots a
 correlation of the same pair's full ranking, so a pair can share the ten features and still order
 them differently. Within each group the three bars run TabPFN–GLM, TabPFN–LGBM, GLM–LGBM, left to
 right. The third reading — an LGBM top-ten feature outside both other top tens with near-zero
-univariate AUC — is not drawn: the table yields two candidates and one of them sits on the at-chance
-arm, which is caption territory rather than a panel. A hatched bar and a hollow dot mark a family
-whose own `test_auc` is at chance, so its ranking is noise rather than signal; `eudirectlapse`'s
-LGBM arm at 0.494 is the case that matters. `uslapseagent` records only **ten** features, so its top
-ten is the whole feature set and its overlap of 1.00 is an artefact of that width — the rank
-correlation (0.55–0.72) is the reading that means something there. Elsewhere the overlap is a real
-selection: `coil2000`'s TabPFN and GLM share two of eighteen. Regenerate with `.venv/bin/python
-scripts/infra/diagnostics_figures.py`; vector PDF beside the PNG.
+univariate AUC — is not drawn, and this table cannot settle it: the screen returns two candidates
+and one of them sits on the at-chance arm, so the interaction question needs a run whose LGBM arm is
+not at chance. A hatched bar and a hollow dot mark a family whose own `test_auc` is at chance, so
+its ranking is noise rather than signal; `eudirectlapse`'s LGBM arm at 0.494 is the case that
+matters. `uslapseagent` records only **ten** features, so its top ten is the whole feature set and
+its overlap of 1.00 is an artefact of that width — the rank correlation (0.55–0.72) is the reading
+that means something there. Elsewhere the overlap is a real selection: `coil2000`'s TabPFN and GLM
+share only two of eighteen features, so on that dataset the two models are not describing the same
+relationship. Regenerate with `.venv/bin/python scripts/infra/diagnostics_figures.py`; vector PDF
+beside the PNG.
 
 **What the figure is not.** Importance is a shuffle-drop ROC AUC on the 2,000-row subsample
 (1,500 train / 500 test), so it approximates the full table rather than measuring it; and the TabPFN
