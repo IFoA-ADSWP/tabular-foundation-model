@@ -46,7 +46,7 @@ EXPECTED = {
     "bemtl16": ("bemtl16.csv", "number_of_liability_claims", (), "log_loss", None),
     "ausautoBI8999": ("ausautoBI8999.csv", "AggClaim", (), "rmse", None),
     "ausprivauto0405_vehvalue": ("ausprivauto0405.csv", "VehValue", (), "rmse", None),
-    "bemtl97_amount": ("bemtl97.csv", "amount", ("claim",), "rmse", None),
+    "bemtl97_amount": ("bemtl97.csv", "amount", ("claim", "nclaims"), "rmse", None),
     "freMTPL2freq": ("freMTPL2freq.csv", "ClaimNb", ("IDpol",),
                      "poisson_deviance", "log_exposure"),
     "spanish_motor_freq": ("spanish_motor_freq.csv", "N_claims_year", (),
