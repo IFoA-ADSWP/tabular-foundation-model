@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "dataset": "uslapseagent",
+  "data_file": "uslapseagent.csv",
+  "target": "surrender",
+  "drop": [],
+  "problem_type": "classification",
+  "primary_metric": "log_loss",
+  "stored_scale_note": "target stored/used as returned by load_Xy (no additional transform on capture)",
+  "clip_convention": "poisson_deviance: y_pred clipped >= 1e-12 at scoring time (metric_fn); tweedieglm/poissonglm classification-mode mu clipped to [1e-6, 1-1e-6] at scoring time (run_dataset fold loop); stored arrays are raw, pre-clip",
+  "n_folds": 5,
+  "seed": 42,
+  "split": "StratifiedKFold(5, shuffle=True, random_state=42)",
+  "methods": [
+    "cat",
+    "lgbm",
+    "xgb",
+    "lr",
+    "logisticglm",
+    "tweedieglm",
+    "poissonglm",
+    "rf",
+    "tabpfn"
+  ],
+  "model_version": "v3_default",
+  "tabpfn_client_version": "0.6.0",
+  "script_git_sha": "d4cfc006005ce0602ea0583e959a1fa5f2175bdd",
+  "created_at": "2026-10-18T09:21:03Z",
+  "predictions_sha256": "f25ce6a69feb05b6a2cfe72a44f8d0abc916925e4c4941836e295b290ec5e769",
+  "predictions_sha256_scheme": "sha256 over arrays in sorted key order; per array: key, NUL, dtype.str, NUL, shape, NUL, C-contiguous data bytes. Hashes array content, not the .npz container, so zip timestamps/compression do not affect it"
+}

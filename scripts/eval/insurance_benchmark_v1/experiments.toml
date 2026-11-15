@@ -65,7 +65,7 @@ metric = "rmse"
 [datasets.bemtl97_amount]
 file = "bemtl97.csv"
 target = "amount"
-drop = ["claim"]
+drop = ["claim", "nclaims"]
 metric = "rmse"
 
 [datasets.freMTPL2freq]

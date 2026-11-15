@@ -1,9 +1,9 @@
 # TabPFN vs GBDT Baselines on Insurance Datasets, and Domain Fine-Tuning Effectiveness
 
-> **Status:** current as of 2026-11-13 — the master report, §§1–16.
+> **Status:** current as of 2026-11-15 — the master report, §§1–24.
 
 Technical research report — engineering/data-science audience.
-Branch: `feat/tabarena-benchmark`. Date: 2026-08-01. Updated: 2026-08-02 (§11, §12, §13, §14); 2026-08-03 (§14.6 norauto first extension, §14.7 v1-suite extension, §14.8 regression Phase 2); 2026-08-07 (§14.13 finality test — tuned/engineered classical baselines; §14.14 count/frequency classification reframe — issue #67).
+Branch: `feat/tabarena-benchmark`. Date: 2026-08-01. Updated: 2026-08-02 (§11, §12, §13, §14); 2026-08-03 (§14.6 norauto first extension, §14.7 v1-suite extension, §14.8 regression Phase 2); 2026-08-07 (§14.13 finality test — tuned/engineered classical baselines; §14.14 count/frequency classification reframe — issue #67); 2026-11-15 (§17–§24 — the v3.5 drift re-tests, both leak fixes, the v3.5 size sweep and the four frontier wins, issues #186/#216/#222).
 
 ## Results digest (12 datasets)
 
@@ -19,16 +19,24 @@ Compact cross-dataset digest of the frontier runs — mean over folds from
 | uslapseagent | classification — log loss (lapse) | 29,317 | tabpfn 0.24909 | 0.24909 | 1.000 | yes |
 | norauto | classification — log loss (claim occurrence) | 183,999 | lgbm 0.17518 | 0.17619 | 1.006 | yes |
 | ausprivauto0405 | classification — log loss (claim occurrence) | 67,856 | logisticglm 0.23947 | 0.24026 | 1.003 | no |
-| bemtl16 | classification — log loss (liability claim) | 58,723 | tabpfn 0.23803 | 0.23803 | 1.000 | yes |
+| bemtl16 † | classification — log loss (liability claim) | 58,723 | tabpfn 0.23803 | 0.23803 | 1.000 | yes |
 | ausautoBI8999 | regression — RMSE (BI severity) | 22,036 | tabpfn 0.96491 | 0.96491 | 1.000 | yes |
 | ausprivauto0405_vehvalue | regression — RMSE (vehicle value) | 67,856 | tabpfn 0.71162 | 0.71162 | 1.000 | yes |
-| bemtl97_amount | regression — RMSE (severity, log1p) | 163,212 | lgbm 0.48499 | 0.72825 | 1.502 | no |
+| bemtl97_amount ‡ | regression — RMSE (severity, log1p) | 163,212 | lgbm 0.48499 | 0.72825 | 1.502 | no |
 | freMTPL2freq | frequency — Poisson deviance | 678,013 | lgbm 0.29113 | 0.38770 | 1.332 | no |
 | spanish_motor_freq | frequency — Poisson deviance | 53,502 | lgbm 0.89157 | 0.98764 | 1.108 | no |
 | spanish_motor_severity | regression — RMSE (severity, log1p) | 53,502 | lgbm 1.83719 | 1.88616 | 1.027 | no |
 
 \* bemtl97: excluded from the v1 baseline tally (label leak, §6); this row is the
 leak-fixed frontier re-run (§14.2).
+
+† bemtl16: this row was computed with a target leak (`claim_responsibility_rate`, §6,
+issue #216). Superseded by the clean re-run in §21: TabPFN v3 0.5968 vs LightGBM 0.5985,
+still best.
+
+‡ bemtl97_amount: this row was computed with a target leak (`nclaims`, §6, issue #216).
+Superseded by the clean re-run in §22: TabPFN v3 2.0466 vs LightGBM 1.9954 RMSE (+2.6%,
+not +50%), and no model is much better than predicting the mean.
 
 ## 1. Objective
 
@@ -113,7 +121,8 @@ TabPFN rank within the task's method pool.
 - **LOSE (decisive)** — both severity regressions: bemtl97_amount (+48.3%) and
   ausprivauto0405_vehvalue (+67.2%), TabPFN rank 8/8. GBDTs and even linear models crush
   TabPFN on these; TabPFN's zero-shot regression transfer does not fit insurance severity
-  targets under default config.
+  targets under default config. *(bemtl97_amount superseded: this v1 run kept `claim` and
+  `nclaims` as features, both of which leak the target; see §22.)*
 
 **Tally on 8 valid tasks: 2 wins, 1 tie, 5 losses (2 of them large).** GBDTs (CAT/GBM/XGB)
 hold the aggregate lead; TabPFN wins only where default GBDTs are weakest.
@@ -191,6 +200,17 @@ leakage:
   `nclaims` as a feature, which encodes `amount>0` exactly — a partial target proxy; flag for
   the same cleanup.
 
+**`bemtl16` — `claim_responsibility_rate` (found 2026-10-08, issue #216).** A softer leak of
+the same kind: the prepared data kept the claim's responsibility rate, set after the
+accident, as a feature. Claim rate is 0.17% where it is 0 and ≈73% where it is 50 or 100;
+on its own it scores AUC 0.893. Every `bemtl16` number in §3–§14 includes it. Removed and
+re-run in §21.
+
+**`bemtl97_amount` — `nclaims` (applied 2026-10-08, issue #216).** The cleanup flagged
+above was never applied: the frontier entry dropped only `claim`, and the v1 harness
+dropped nothing. Every `bemtl97_amount` number in §4, §12.1, §14.8 and §16 includes
+`nclaims`. Removed and re-run in §22.
+
 ## 7. Limitations and Risks
 
 1. **Default configs only** — `can_hpo=False` for all methods; HPO-tuned TabPFN (e.g. TabPFN's
@@ -220,7 +240,8 @@ leakage:
   degrades AUC on 3/4 targets; step-count sweeps (1→5) and context (64→128) do not recover
   it. A working fine-tune is a precondition for any "TabPFN closes the gap" claim.
 - **Repair the benchmark**: remove `nclaims`/`amount` from bemtl97 features (also
-  `bemtl97_amount`), then re-run bemtl97.
+  `bemtl97_amount`), then re-run bemtl97. *(Done: bemtl97 in §14.2; `bemtl97_amount` on
+  2026-10-08, §22.)*
 - **What would change the answer**: (a) HPO-enabled TabPFN in the harness; (b) a
   fine-tuned-TabPFN arm inside the benchmark on the same folds; (c) GPU inference for the
   100K+ row tasks; (d) severity-specific transforms in the TabPFN arm. Without at least (a)
@@ -308,7 +329,7 @@ each prediction can effectively attend to only ~1K training rows — the local-A
 equivalent of this behavior is `ignore_pretraining_limits=True`. GBDTs, by contrast, see
 every row in training. This is a **capability limit of the model design, not a harness
 bug**. It predicts exactly where TabPFN lost worst: the largest datasets and the
-regression/severity tasks where every row of signal matters — bemtl97_amount +48.3% vs
+regression/severity tasks where every row of signal matters — bemtl97_amount +48.3% (with a target leak, §22) vs
 CAT (rank 8/8, §4), ausprivauto0405_vehvalue +67.2% vs XGB (rank 8/8, §4), and the
 184K-row norauto classification (+5.4%, rank 6/7, §4). The converse also holds: TabPFN
 won its two smallest classification tasks (bemtl16, coil2000; §4.1), where a ~1K-row
@@ -416,11 +437,14 @@ Winner per cell computed from the CSV means (mean of 5 folds per dataset × size
 cells.** The single loss is bemtl97@full: LGBM 0.3418 vs TabPFN 0.3428 — a 0.0010 margin
 at 163K rows, the largest cell in the sweep.
 
+*v3.5 (2026-10-08): TabPFN wins 9/9 — the bemtl97@full loss reverses (0.3404 vs LightGBM
+0.3418). See §23.*
+
 ### 13.3 The size-ceiling curve is fully mapped — and it is flat for TabPFN
 
 - TabPFN leads on **all six practical-size cells** (1K and 5K on all three datasets) and
   on two of the three full-size cells; the GBDTs draw even exactly once, at 163K rows,
-  within 0.001.
+  within 0.001. *(On v3.5 that full-size loss is gone, §23.)*
 - This confirms §12.1: the v1 headline losses were driven by **dataset-size mismatch**,
   not by TabPFN's context ceiling per se. When the benchmark stays within TabPFN's
   training-data sweet spot, it beats all three GBDT families on log loss on every dataset.
@@ -706,6 +730,10 @@ no reusable power; `run_frontier_benchmark.py` uses the same fallback path as no
 (calibration tie; TabPFN best AUC of the suite, 0.6622) — the log-loss mechanics below
 remain as recorded.*
 
+*Superseded for bemtl16 (2026-10-08): the bemtl16 table and paragraph below include a
+target leak (`claim_responsibility_rate`, §6). Clean re-run: §21 — TabPFN still has the
+lowest log loss, but not beyond SE.*
+
 **ausprivauto0405 — the first outright TabPFN domination.** The frontier is exactly the
 four 7-param GLMs (logisticglm/lr tied at 0.23947, then poissonglm 0.23956, tweedieglm
 0.23983); every other method — tabpfn, lgbm, cat, xgb, rf — is dominated. This
@@ -769,6 +797,10 @@ via hosted API), **5-fold KFold seed 42**, all fits fresh. The §14.7 pointer na
 | tweedieglm | 1.05117 | 0.01548 | 7 | yes |
 
 **bemtl97_amount** (163,212 rows, RMSE on stored log1p amount, `claim` dropped as leak):
+
+*Superseded (2026-10-08): `nclaims` was still a feature and leaks the target the same way
+(§6). The table and the "zero-inflation trap" paragraph below — including the
+"catastrophic" Poisson GLM — are leak effects; clean re-run in §22.*
 
 | method | mean RMSE | ± SE | n_params | on frontier |
 | --- | ---: | ---: | ---: | --- |
@@ -1259,6 +1291,10 @@ region; at the extreme top of the distribution it is dataset-dependent, not
 universal.** "Use for triage" should be read as "strong global ranker; validate
 top-decile behaviour on your own book" — consistent with the §14.4 adoption posture.
 
+*Superseded for bemtl16 (2026-10-08): its row was computed with a target leak (§6). On
+clean data TabPFN is lift rank 1/9 (1.776 vs LightGBM 1.754, §21), so the bemtl16 part
+of this caveat no longer holds.*
+
 ### 14.12.4 Seed stability (ausprivauto0405, bemtl97, norauto × seeds 7/42/123)
 
 | dataset | Δ AUC vs best GLM, seed 7 | seed 42 | seed 123 | TabPFN AUC rank |
@@ -1340,6 +1376,8 @@ uslapseagent (+0.0027, p=0.022). PR-AUC: rank #1 on all 6, paired-significant on
 5/6 — the one non-significant win is glm_eng on ausprivauto0405 (delta +0.0017,
 p=0.077). The §14.12 lift10 caveat is unchanged: lgbm still beats TabPFN on bemtl16
 (delta −0.018, p=0.015); the norauto lgbm edge stays non-significant (p=0.949).
+*(bemtl16 superseded: computed with a target leak; on clean data TabPFN leads lgbm on
+lift, §21.)*
 
 ### 14.13.3 Calibration — two small documented exceptions
 
@@ -1533,6 +1571,8 @@ fires.
   (`scripts/benchmarks/run_home_turf_size_sweep.py`) first, or the frontier will not
   see new model behavior on those three datasets. norauto / ausprivauto0405 / bemtl16
   and all regression datasets run fresh TabPFN power (lines 462–488, 603–626).
+  *(Closed 2026-10-08: the sweep was re-run on v3.5 (§23), and the frontier now refits every
+  method when the sweep's model version differs from the one under test, §23.4.)*
 
 ### 15.3 Procedure
 
@@ -1560,7 +1600,8 @@ the real run, not the §82 dry run (which was never executed and is superseded).
 Scope is deliberately partial: the four regression/count datasets where `v3_default` sits
 **off the parsimony frontier**, i.e. the evidence base for the "prefer GBDT/GLM for pricing
 at scale" verdict (§8, §14.9). The classification tiers (`ausprivauto0405`, `bemtl97`,
-`norauto`, `bemtl16`) and the `eudirectlapse` lapse loss are **not** covered here.
+`norauto`, `bemtl16`) and the `eudirectlapse` lapse loss are **not** covered here
+(`eudirectlapse`: see §17).
 
 ### 16.1 Versions and provenance (§15.3 step 1)
 
@@ -1596,6 +1637,16 @@ best rival within this run.
 | `spanish_motor_freq` | 53,502 | Poisson dev. | 0.9876 ± 0.0162 | **0.9031 ± 0.0085** | −8.6% | 5.2 | **no → yes** | **p=0.47 — not distinguishable** |
 | `bemtl97_amount` | 163,212 | RMSE | 0.7282 ± 0.0106 | **0.7012 ± 0.0062** | −3.7% | 2.6 | no | p<0.0001, 0/5 — worse |
 | `spanish_motor_severity` | 53,502 | RMSE | 1.8862 ± 0.0116 | **1.8607 ± 0.0113** | −1.4% | 2.2 | no | p=0.0004, 0/5 — worse |
+
+*`bemtl97_amount` row superseded (2026-10-08): computed with a target leak (`nclaims`).
+Clean re-run in §22 — v3.5 RMSE 2.0243 vs LightGBM 1.9954, a 1.4% loss rather than ~1.4×.*
+
+**2026-11-15 — evidence pointer.** The capture this table's `bemtl97_amount` row and the
+per-fold values below were read from is
+`scripts/eval/insurance_benchmark_v1/predictions/bemtl97_amount__seed42__v3.5_default__nclaims-leak.npz`
+(the 2026-09-16 run, `nclaims` still a feature). It was renamed from
+`…__v3.5_default.npz`, which now holds the 2026-10-08 leak-fixed re-run (§22). No number in §16
+changes; §22 supersedes them.
 
 Per-fold TabPFN values (`v3.5_default`):
 
@@ -1724,9 +1775,1078 @@ while actually costing ~50–95k per fold — treat quotes on small datasets as 
 > The pricing-at-scale verdict therefore **narrows but does not reverse** — and the
 > `scikit-learn` drift in §16.4 means the `ols` rows here are not comparable to v3.
 
+*`bemtl97_amount` (2026-10-08): the numbers above include a target leak. On clean data it is
+still a paired-significant loss, but by 1.4% rather than ~1.4× (§22).*
+
 Still open under #186: the classification tiers (`ausprivauto0405`, `bemtl97`, `norauto`
-calibration; `bemtl16` top-decile lift), the `eudirectlapse` loss, and the sweep refresh
-that §15.2 requires before any `bemtl97` frontier claim.
+calibration; `bemtl16` top-decile lift) and the sweep refresh that §15.2 requires before
+any `bemtl97` frontier claim. The `eudirectlapse` loss is covered in §17.
+
+## 17. Addendum — `eudirectlapse` re-test: the v3 loss does not reproduce (issue #186, 2026-09-17)
+
+Tier 2 of #186. The target was the one classification dataset disclosed as a genuine
+TabPFN loss in §14.10 (published, TabArena lapse harness, Aug 2026): **TabPFN v3 AUC
+0.6101 ± 0.0049**, last of three, behind GBM 0.6138 and LR **0.6260 ± 0.0037**. The
+regime analysis attributed it to additive lapse structure the model does not capture.
+
+### 17.1 Design — same-day, same-harness, model-only
+
+Unlike §16, which diffed against committed August numbers, **both model versions were
+run here** in one environment on one day. `eudirectlapse` went through the frontier harness
+(`run_frontier_benchmark.py --data data/raw/eudirectlapse.csv --target lapse
+--save-predictions`), once with `TABPFN_MODEL_PATH=v3_default` and once with
+`v3.5_default`, rather than rebuilding the autogluon/tabarena lapse harness.
+
+- 23,060 rows, 18 features (9 categorical), 12.8% positive
+- `StratifiedKFold(5, shuffle=True, random_state=42)`, `tabpfn-client` 0.6.0,
+  `scikit-learn` 1.9.0
+- Checked: the test folds are identical across the two runs, and all eight baselines'
+  predictions are bit-identical (max difference 0). The model is the only variable, so
+  §16.4's `scikit-learn` confound does not apply.
+- The test folds are also **identical to the published lapse benchmark's**: that harness
+  uses the same `StratifiedKFold` call on the same row order. The **training data is not**
+  identical — that harness held out part of each training fold for validation (§17.4).
+
+Per-fold predictions for all nine methods are saved for both runs
+(`predictions/eudirectlapse__seed42__{v3_default,v3.5_default}.npz`). This is the
+project's **first genuine paired version-vs-version test**.
+
+### 17.2 v3 vs v3.5 — a small, consistent improvement
+
+| Metric | v3 | v3.5 | Δ | Paired p | v3.5 better on |
+| --- | --- | --- | --- | --- | --- |
+| Log loss | 0.3726 ± 0.0012 | **0.3694 ± 0.0010** | −0.0032 | **0.002** | 5/5 folds |
+| Brier | 0.1092 ± 0.0002 | **0.1085 ± 0.0002** | −0.0007 | **0.002** | 5/5 |
+| PR-AUC | 0.2031 ± 0.0042 | **0.2080 ± 0.0046** | +0.0049 | **0.014** | 5/5 |
+| AUC | 0.6331 ± 0.0051 | **0.6367 ± 0.0048** | +0.0036 | 0.054 | 4/5 |
+| Lift@10% | 1.914 ± 0.033 | **1.954 ± 0.061** | +0.041 | 0.43 | 4/5 |
+
+v3.5 is significantly better on log loss, Brier and PR-AUC, borderline on AUC, and not
+distinguishable on lift. TabPFN is on the parsimony frontier under both versions; no flag
+changed.
+
+### 17.3 The published loss does not reproduce — even for v3
+
+On this harness, **TabPFN v3 ranks #2 of 10 methods on every metric**, behind only v3.5.
+The comparison needs care, because the harness's default `lr` receives categoricals as
+integer codes (`cat.codes`), which treats nominal levels such as `vehicl_region` (14
+levels) as ordinal. That handicaps it. A fair linear baseline — one-hot categoricals plus
+standardised numerics, `LogisticRegression`, fitted on the identical folds — was therefore
+added for the comparison:
+
+| AUC, identical test folds | Frontier harness | Published (TabArena harness) |
+| --- | --- | --- |
+| TabPFN v3.5 | **0.6367** | — |
+| TabPFN v3 | **0.6331** | 0.6101 |
+| LR, one-hot | **0.6271** | 0.6260 |
+| LR, integer codes (harness default) | 0.6132 | — |
+
+One-hot LR reproduces the published LR (0.6271 vs 0.6260). TabPFN v3 does **not** (0.6331
+vs 0.6101). Against the fair one-hot LR:
+
+| Metric | v3 vs one-hot LR | v3.5 vs one-hot LR |
+| --- | --- | --- |
+| AUC | +0.0060, p=0.047, 5/5 | +0.0096, p=0.005, 5/5 |
+| PR-AUC | +0.0094, p=0.007, 5/5 | +0.0143, p=0.008, 5/5 |
+| Lift@10% | +0.169, p=0.001, 5/5 | +0.210, p=0.012, 5/5 |
+| Log loss | +0.0007, p=0.19, 1/5 — **tie** | −0.0024, p<0.001, 5/5 |
+| Brier | −0.0000, p=0.86, 3/5 — **tie** | −0.0007, p=0.001, 5/5 |
+
+So on identical folds, **v3 beats a fair linear model on ranking and ties it on
+calibration; v3.5 beats it on all five metrics.** The version change turned a calibration
+tie into a paired-significant win. Measured against the integer-coded default `lr`, v3.5's
+log-loss margin looks about twice as large (−0.0045) — the harness default overstates it.
+
+### 17.4 Why the published number differs — unresolved
+
+The gap sits on TabPFN's side: v3 scores **0.023 AUC lower** in the TabArena harness on
+the same test folds. Two things are ruled out:
+
+- **Test-fold construction** — the test folds are identical (§17.1). The training data
+  is not, which makes it a candidate in its own right (3, below).
+- **One-hot vs integer encoding for TabPFN** — both harnesses feed TabPFN float32 arrays
+  (`src/tabpfn_client_model.py` `_preprocess` → `to_numpy(dtype=np.float32)`), not one-hot
+  columns.
+
+Three candidates remain, and none is verified:
+
+1. **Harness preprocessing.** The TabArena wrapper passes data through AutoGluon's
+   `super()._preprocess` before the float32 conversion. That step can re-encode, reorder or
+   drop categorical levels, so the integers TabPFN receives may differ from `cat.codes`.
+2. **Server-side drift of the `v3_default` alias.** Client 0.6.0 documents that the server
+   resolves each `<version>_default` alias to *its current default checkpoint*. The
+   `v3_default` run here (client 0.6.0, 2026-09-17) is therefore not guaranteed to be the
+   checkpoint the August run used (client 0.3.3).
+3. **Fewer training rows.** The lapse benchmark ran with `holdout_experiments=True`, which
+   sets aside part of each training fold as a validation set — its results file carries
+   populated validation scores (`metric_error_val`). TabPFN therefore trained on fewer rows
+   there than on the full training fold used here.
+
+**Discriminating test (not run):** re-run `v3_default` today on a dataset whose August
+per-fold TabPFN values are committed — for example `coil2000` at full size in
+`home_turf_sweep_results.csv` — and compare fold by fold. A match rules out alias drift and
+leaves preprocessing. A mismatch confirms drift.
+
+That outcome also bears on §16: its deltas compare **August** `v3_default` against
+**September** `v3.5_default`, so any alias drift would be folded into what §16 attributes to
+the version change. The same-day paired design here is immune to it.
+
+**Update 2026-10-07 — candidate 2 ruled out.** The test ran under Tier 3 on
+`ausprivauto0405` instead of `coil2000` (master report §18.5,
+[#215](https://github.com/IFoA-ADSWP/tabular-foundation-model/pull/215)). Today's
+`v3_default` (client 0.6.0) reproduces the committed August per-fold values (client 0.3.3)
+to ~1e-5 log loss and ≤ 1.1e-4 AUC, about 30× below the fold SE. A swapped checkpoint
+would show on every dataset, so alias drift cannot explain the 0.023 AUC gap here.
+Candidates 1 (harness preprocessing) and 3 (fewer training rows) remain, and the cause is
+still unverified. The same result makes it unlikely that §16's deltas include alias drift.
+
+**Update 2026-10-08 — candidate 3 ruled out.** `run_train_fraction_test.py` re-ran
+`v3_default` on the same seed-42 test folds, training on a stratified 90% of each training
+fold — about the share the TabArena run kept after its validation holdout (AutoGluon's
+default holdout at ~18k training rows is 10%; not verifiable here without the tabarena
+package). AUC moved by −0.0003 (0.6328 vs 0.6331, paired p=0.69) and log loss by +0.0002
+(p=0.51), against a published gap of 0.016–0.033 on every fold (mean 0.023). Fewer training
+rows cannot explain it, even under a much larger holdout. That leaves candidate 1 — the
+TabArena wrapper, through AutoGluon's preprocessing or the way it calls TabPFN — by
+elimination; it is not tested directly, since the tabarena environment is not installed.
+
+### 17.5 Caveats
+
+- **Weak default linear baselines, benchmark-wide.** The frontier harness gives `lr` and
+  `logisticglm` integer-coded categoricals on every dataset, not only this one. §14.13's
+  feature-engineered `glm_eng` partly addresses this for the six canonical classification
+  datasets, but untuned linear rows on categorical-heavy data understate the linear floor.
+- **Degenerate GLM rows.** `tweedieglm` and `poissonglm` score AUC exactly 0.5000 here —
+  constant predictions on the binary target — so they are not meaningful baselines on
+  this dataset.
+- **`rf` log loss is clip-dependent.** The random forest emits exact 0/1 probabilities (43
+  of them, 3 hard misses), so its log loss depends on the clipping epsilon: 0.3905 in
+  float64 vs 0.3878 from float32 storage. Rank-based metrics are unaffected.
+- **Single seed (42).** Seeds 7 and 123 were added on 2026-10-08 (§17.9).
+
+### 17.6 Harness defect found (fixed here)
+
+The first attempt at both runs completed every TabPFN fold, then aborted at the in-run
+read-back check with `read-back mismatch for rf: recomputed=0.387838 vs recorded=0.390453`.
+The check re-scored float32-stored predictions, while the run had scored in float64, and
+`log_loss` clips at the dtype's machine epsilon — so the three hard misses cost ~16 nats
+instead of ~36. It had never fired before because §16 was regression-only, where RMSE and
+Poisson deviance do not clip on dtype epsilon. `verify_predictions_readback` now scores in
+float64. Both runs were repeated after the fix, and the TabPFN fold values reproduced to
+the digit.
+
+### 17.7 Cost
+
+200,000 credits for four runs — the two aborted attempts plus the two repeats — which is
+10,000 per fold, the API's per-call minimum.
+
+### 17.8 Bottom line
+
+> The `eudirectlapse` "genuine classification loss" (§14.10) **does not reproduce** on the
+> frontier harness, even for v3, on the identical test folds. Against a fair one-hot logistic
+> regression, v3 wins on ranking (AUC +0.006, PR-AUC, lift) and ties on calibration;
+> v3.5 wins on all five metrics. Paired on the same folds, v3.5 improves on v3
+> significantly for log loss, Brier and PR-AUC. The published loss reflects TabPFN scoring
+> 0.023 AUC lower inside the TabArena harness, for a reason not yet isolated (§17.4). It
+> should **no longer be cited as a property of the model** — in particular, not as
+> evidence that TabPFN fails to capture additive structure.
+
+Docs that still cite the published loss and are **not** edited here: §14.10 (the source
+table, kept as the historical v3 record), `docs/archive/pilot2-phase2/PRE_FINETUNING_INVESTIGATIONS.md`
+("EU Lapse is the disclosed exception"), and `docs/experiments/r1-pilot/FINE_TUNING_PILOT_RESULTS.md`
+§4 finding 2. Read them through this section.
+
+### 17.9 Follow-up — seeds 7 and 123 (2026-10-08)
+
+The same same-day pair as §17.1 was repeated on split seeds 7 and 123
+(`run_frontier_benchmark.py --data data/raw/eudirectlapse.csv --target lapse
+--save-predictions --seed N`, commit `e87ceed`, `tabpfn-client` 0.6.0, `scikit-learn` 1.9.0).
+Within each pair the test folds are identical and all eight baselines' predictions are
+bit-identical. Analysis: `analyze_version_retest.py --data data/raw/eudirectlapse.csv
+--target lapse` → `version_retest_eudirectlapse.csv`; on seed 42 it reproduces §17.2–§17.3
+exactly.
+
+**v3 → v3.5 holds on every seed** (paired t, df=4; folds where v3.5 is better):
+
+| Seed | AUC v3 → v3.5 | Log loss Δ | Brier Δ | AUC Δ | PR-AUC Δ |
+| --- | --- | --- | --- | --- | --- |
+| 42 | 0.6331 → 0.6367 | −0.0032 (p=0.002, 5/5) | −0.0007 (p=0.002, 5/5) | +0.0036 (p=0.054, 4/5) | +0.0049 (p=0.014, 5/5) |
+| 7 | 0.6326 → 0.6363 | −0.0032 (p<0.001, 5/5) | −0.0007 (p<0.001, 5/5) | +0.0037 (p=0.023, 4/5) | +0.0036 (p<0.001, 5/5) |
+| 123 | 0.6320 → 0.6353 | −0.0031 (p=0.001, 5/5) | −0.0007 (p=0.002, 5/5) | +0.0033 (p=0.15, 4/5) | +0.0052 (p=0.057, 4/5) |
+
+Here AUC rises with v3.5 on every seed, as on `bemtl97` (§20.2) and unlike `ausprivauto0405`
+and `norauto` (§18.6, §19.6).
+
+**Against the fair one-hot LR (§17.3):**
+
+- **v3.5 wins every metric on every seed**, 5/5 folds each: log loss −0.0022 to −0.0027
+  (p ≤ 0.007), AUC +0.0075 to +0.0098 (p ≤ 0.025), PR-AUC, Brier, and lift.
+- **v3 leads on ranking on every seed:** PR-AUC +0.009 to +0.010 (p ≤ 0.021 on all three),
+  AUC +0.0042 to +0.0061 (p = 0.047 / 0.097 / 0.029 — significant on two seeds), lift +0.11
+  to +0.18.
+- **v3's calibration is a tie on seeds 42 and 7 but not on 123.** Brier ties on all three
+  (p ≥ 0.63); log loss ties on 42 and 7 (p = 0.19, 0.32) and is a narrow loss on 123
+  (+0.0009, p=0.022, 0/5 folds). §17.3's "v3 ties on calibration" therefore holds on two
+  seeds of three; read it as "v3 matches or narrowly trails the one-hot LR on calibration".
+
+Cost: 250,000 credits — 50,000 per harness run (four runs) and 50,000 for the train-fraction
+test, all at the 10,000-per-fold minimum — matching the `estimate_cost` quotes. No retries.
+
+Evidence: `results/20261008-142020/` (v3, seed 7), `results/20261008-142144/` (v3.5, seed 7),
+`results/20261008-142302/` (v3, seed 123), `results/20261008-142413/` (v3.5, seed 123),
+`results/20261008-142619/` (train-fraction test, with its own hashed predictions);
+`scripts/eval/insurance_benchmark_v1/predictions/eudirectlapse__seed7__v3_default.npz`,
+`scripts/eval/insurance_benchmark_v1/predictions/eudirectlapse__seed7__v3.5_default.npz`,
+`scripts/eval/insurance_benchmark_v1/predictions/eudirectlapse__seed123__v3_default.npz` and
+`scripts/eval/insurance_benchmark_v1/predictions/eudirectlapse__seed123__v3.5_default.npz`,
+each with a manifest carrying `predictions_sha256`;
+`scripts/eval/insurance_benchmark_v1/version_retest_eudirectlapse.csv`;
+`scripts/eval/insurance_benchmark_v1/run_train_fraction_test.py`.
+
+## 18. Addendum — Tier 3 calibration re-test: `ausprivauto0405` (issue #186, 2026-10-07)
+
+Tier 3 of #186 covers the three classification datasets where TabPFN ranks risks best but
+loses on calibration. This section covers the first, `ausprivauto0405`; `norauto` is §19 and
+`bemtl97` is §20. The target is §14.13.3's documented exception: on
+`ausprivauto0405` **the entire linear family beat TabPFN v3 on log loss and Brier**,
+paired-significant and stable across split seeds 42/7/123, while TabPFN stayed AUC #1.
+
+### 18.1 Design — same-day pair, then two more seeds
+
+- **Seed 42, both versions, same day.** As in §17: one environment, one commit
+  (`d0dd149`), `tabpfn-client` 0.6.0, `scikit-learn` 1.9.0,
+  `run_frontier_benchmark.py --save-predictions ausprivauto0405` run once with
+  `TABPFN_MODEL_PATH=v3_default` and once with `v3.5_default`, five minutes apart.
+  Test folds and `y_true` are identical across the runs, and all eight non-TabPFN methods'
+  predictions are bit-identical (max difference 0): the model is the only variable.
+- **Seeds 7 and 123, v3.5 only.** v3 for those seeds is the committed August per-fold
+  row (`frontier_pr_auc_results.csv`, §14.12.4). That comparison is valid because §18.5
+  shows `v3_default` has not drifted, and because August's per-fold baseline scores match
+  today's on each seed to ≤ 1.2e-5 (the analysis script asserts this), so the folds are
+  the same ones.
+- 67,856 rows, 6 features (4 categorical: `VehBody` 13 levels, `DrivAge` 6, `VehAge` 4,
+  `Gender` 2), 6.8% positive. `StratifiedKFold(5, shuffle=True, random_state=seed)`.
+- Paired t over the 5 folds of one seed, df=4, two-sided. Seeds are reported side by
+  side, never pooled — folds from different seeds overlap.
+
+Analysis: `scripts/eval/insurance_benchmark_v1/analyze_version_retest.py ausprivauto0405`
+(no API calls; reads the stored predictions) → `version_retest_ausprivauto0405.csv`.
+
+### 18.2 v3 → v3.5 (seed 42, same day) — calibration improves, ranking does not move
+
+| Metric | v3 | v3.5 | Δ | Paired p | v3.5 better on |
+| --- | --- | --- | --- | --- | --- |
+| Log loss | 0.24026 ± 0.00037 | **0.23816 ± 0.00028** | −0.00210 | **0.0002** | 5/5 folds |
+| Brier | 0.06247 ± 0.00005 | **0.06222 ± 0.00005** | −0.00025 | **0.0001** | 5/5 |
+| AUC | 0.66224 ± 0.00252 | 0.66156 ± 0.00248 | −0.00068 | 0.32 | 2/5 |
+| PR-AUC | 0.11289 ± 0.00160 | 0.11413 ± 0.00130 | +0.00124 | 0.086 | 4/5 |
+| Lift@10% | 1.877 ± 0.044 | 1.877 ± 0.041 | −0.00001 | 1.00 | 3/5 |
+
+TabPFN moves from **rank 5/9 to 1/9** on both log loss and Brier, and stays 1/9 on AUC,
+PR-AUC and lift. On seed 42 its frontier flag changes **no → yes**. (At seeds 7 and 123,
+August's v3 was already on the frontier — the D3 rule allowed it within one SE — so the
+flag does not change there.)
+
+### 18.3 Against the linear family — including fair baselines
+
+The harness's `lr` and `logisticglm` take the four categoricals as integer codes
+(§17.5), which handicaps them. v3.5 is therefore also tested against three stronger
+linear specifications: §17.3's one-hot LR (one-hot categoricals + standardised numerics);
+the same plus log(Exposure), since exposure drives claim occurrence; and §14.13's
+feature-engineered `glm_eng` (pairwise interactions, tuned C), whose per-fold values are
+committed for seed 42 only. Seed 42, delta = v3.5 − reference:
+
+| Reference | Its log loss | Log loss Δ | p | Brier Δ | p | AUC Δ | p |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `lr` (harness, integer codes) | 0.23947 | −0.00130 | 0.0002 | −0.00016 | 0.0007 | +0.00486 | 0.006 |
+| One-hot LR | 0.23921 | −0.00104 | 0.0002 | −0.00013 | 0.0001 | +0.00299 | 0.024 |
+| `glm_eng` (§14.13) | 0.23930 | −0.00114 | 0.0012 | −0.00015 | 0.0068 | +0.00296 | 0.020 |
+| One-hot LR + log(Exposure) | **0.23857** | **−0.00040** | **0.040** | −0.00005 | 0.0052 | +0.00142 | 0.088 |
+
+The one-hot LR + log(Exposure) is the strongest linear model this project has fitted on
+`ausprivauto0405` — stronger than §14.13's `glm_eng`. v3.5 beats it on log loss (4/5 folds)
+and Brier (5/5), but the log-loss margin is a third of the margin over the harness `lr`,
+and the AUC edge over it is no longer significant.
+
+### 18.4 Seed stability — the win holds on all three seeds
+
+Log loss (lower is better); last column is v3.5 vs the strongest linear model:
+
+| Seed | v3 | **v3.5** | `lr` | One-hot LR | One-hot LR + log(Exp) | v3.5 − strongest | p | Folds |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 42 | 0.24026 | **0.23816** | 0.23947 | 0.23921 | 0.23857 | −0.00040 | 0.040 | 4/5 |
+| 7 | 0.24033 | **0.23820** | 0.23943 | 0.23918 | 0.23853 | −0.00034 | 0.028 | 5/5 |
+| 123 | 0.24037 | **0.23824** | 0.23941 | 0.23917 | 0.23851 | −0.00027 | 0.043 | 4/5 |
+
+On every seed, v3.5 beats v3 on log loss and Brier on 5/5 folds (p ≤ 0.0002), and beats
+the harness `lr` and the one-hot LR on log loss and Brier on 5/5 folds (p ≤ 0.009). Against
+the strongest linear model it wins log loss on 13/15 folds (p = 0.028–0.043 per seed) and
+Brier on 15/15 (p = 0.002–0.039).
+
+### 18.5 `v3_default` has not drifted since August (closes §17.4 candidate 2)
+
+`v3_default` is a server-side alias (§17.4), so today's v3 arm need not be August's
+checkpoint. On the seed-42 folds, today's v3 (client 0.6.0) against the committed
+August v3 (client 0.3.3, `frontier_pr_auc_results.csv`):
+
+| Metric | August | Today | Max per-fold difference |
+| --- | --- | --- | --- |
+| Log loss | 0.240264 | 0.240261 | 1.3e-5 |
+| Brier | 0.062468 | 0.062467 | 2.2e-6 |
+| AUC | 0.662210 | 0.662242 | 1.1e-4 |
+| PR-AUC | 0.112926 | 0.112892 | 2.7e-4 |
+
+The log-loss differences are ~30× smaller than the fold SE (3.7e-4). They are not zero —
+consistent with run-to-run variation in hosted inference — and the two folds where lift
+differs by 0.011 are one positive crossing the top-decile cut. Neither the checkpoint
+behind the alias nor the 0.3.3 → 0.6.0 client change shows a measurable effect.
+
+Two consequences:
+
+- **§17.4:** alias drift cannot explain the 0.023 AUC gap between the published
+  `eudirectlapse` number and the frontier harness — a swapped checkpoint would show on every
+  dataset. That leaves AutoGluon preprocessing (candidate 1) or the validation holdout
+  (candidate 3).
+- **§16:** its deltas compare August v3 with September v3.5; this result makes it unlikely
+  that alias drift contaminates them.
+
+### 18.6 Caveats
+
+- **Thin margin over a well-specified GLM.** Against one-hot LR + log(Exposure) the
+  log-loss gain is ~0.0003 (≈0.1%), with p = 0.03–0.04 per seed on 5 folds. Consistent
+  across seeds, but not large; with three seeds and several references, treat individual
+  p-values near 0.04 as indicative, not decisive.
+- **AUC dips slightly from v3 to v3.5** on every seed (−0.0005 to −0.0007; p = 0.20–0.32,
+  1–2/5 folds better). Not significant on any seed, but the direction repeats: v3.5 may trade
+  a little ranking for calibration. TabPFN remains AUC #1 of 9 on all three seeds.
+- **Offline baselines.** The one-hot LR variants are fitted by the analysis script, not by
+  the frontier harness, so they do not appear in `frontier_results_*.csv` or the frontier
+  flag.
+- **Lift@10%** differences are within noise for every comparison.
+- `norauto` and `bemtl97` are covered in §19 and §20 (the latter with fresh fits, so the
+  §15.2 sweep-reuse caveat does not apply to its frontier numbers).
+
+### 18.7 Cost
+
+273,455 credits, matching the `estimate_cost` quote obtained before running (which uploads
+no data and uses no quota): 124,485 for the seed-42 pair (v3 10,000 per fold, the per-call
+minimum; v3.5 14,897 per fold) plus 148,970 for seeds 7 and 123 on v3.5. No retries.
+
+### 18.8 Bottom line
+
+> On `ausprivauto0405`, §14.13.3's calibration exception **does not hold on v3.5**. The
+> same-day paired test shows v3.5 improving log loss and Brier on every fold, which moves
+> TabPFN from 5th to 1st of 9; the result holds on all three split seeds behind the
+> original claim. v3.5 also beats every linear specification tested — including one-hot
+> encoding with log(Exposure), the strongest fitted on this dataset — though over that
+> one the margin is narrow (~0.1% log loss). Describe it as **a narrow, consistent
+> calibration win**, not a dominant one. The v3 exception remains the correct statement
+> for v3.
+
+Not edited here, and still citing the v3 exception: §14.13.3 and §14.13.5 (kept as the
+historical v3 record), and the benchmark summary's verdict paragraph (now carries a
+pointer). Read them through this section.
+
+Evidence: `results/20261007-142055/` (v3, seed 42), `results/20261007-142301/` (v3.5,
+seed 42), `results/20261007-142813/` (v3.5, seed 7), `results/20261007-143205/` (v3.5,
+seed 123); `scripts/eval/insurance_benchmark_v1/predictions/ausprivauto0405__seed42__v3_default.npz`
+and `ausprivauto0405__seed{42,7,123}__v3.5_default.npz`, each with a manifest carrying
+`predictions_sha256`; `scripts/eval/insurance_benchmark_v1/analyze_version_retest.py`;
+`scripts/eval/insurance_benchmark_v1/version_retest_ausprivauto0405.csv`.
+
+## 19. Addendum — Tier 3 calibration re-test: `norauto` (issue #186, 2026-10-07)
+
+Second Tier 3 dataset. The published v3 result (§14.11, §14.13.3): TabPFN is AUC #1 but
+loses log loss to LightGBM (0.17619 vs 0.17518, paired p=0.005) and Brier (p=0.011),
+the largest dataset in the canonical suite. `bemtl97` is §20.
+
+### 19.1 Design — same protocol as §18
+
+Identical to §18.1: v3 and v3.5 on seed 42 the same day (17:16–17:30 UTC, commit
+`3c25533`, `tabpfn-client` 0.6.0, `scikit-learn` 1.9.0), then v3.5 on seeds 7 and 123
+against the committed August v3 folds. Test folds and `y_true` are identical across the
+seed-42 runs and all eight non-TabPFN methods' predictions are bit-identical; for seeds 7
+and 123, August's per-fold baseline scores match today's (asserted by the analysis
+script). `norauto` has no home-turf sweep rows, so every method is a fresh fit.
+
+- 183,999 rows, 5 features: `DistLimit` and `GeoRegion` (categorical, 6 levels each),
+  `Male`, `Young` (binary), `Expo` (exposure, numeric); 4.6% positive.
+
+Analysis: `analyze_version_retest.py norauto` → `version_retest_norauto.csv`.
+
+### 19.2 v3 → v3.5 (seed 42, same day)
+
+| Metric | v3 | v3.5 | Δ | Paired p | v3.5 better on |
+| --- | --- | --- | --- | --- | --- |
+| Log loss | 0.17619 ± 0.00061 | **0.17446 ± 0.00053** | −0.00172 | **<0.0001** | 5/5 folds |
+| Brier | 0.04274 ± 0.00006 | **0.04260 ± 0.00006** | −0.00014 | **0.0001** | 5/5 |
+| AUC | 0.70158 ± 0.00438 | 0.70077 ± 0.00443 | −0.00082 | 0.27 | 1/5 |
+| PR-AUC | 0.10691 ± 0.00299 | 0.10709 ± 0.00277 | +0.00019 | 0.79 | 3/5 |
+| Lift@10% | 2.563 ± 0.063 | 2.576 ± 0.046 | +0.013 | 0.50 | 3/5 |
+
+Seeds 7 and 123 repeat it: log loss −0.00170 / −0.00178 and Brier −0.00014 / −0.00015,
+5/5 folds each (p ≤ 0.0011); AUC −0.0010 / −0.0005, not significant.
+
+### 19.3 Against LightGBM, the published rival — the loss reverses on every seed
+
+| Seed | v3 | **v3.5** | LightGBM | v3.5 − LGBM log loss | p | Brier p | AUC Δ | AUC p |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 42 | 0.17619 | **0.17446** | 0.17518 | −0.00072 | 0.0018 | 0.0020 | +0.0037 | 0.008 |
+| 7 | 0.17620 | **0.17450** | 0.17533 | −0.00083 | 0.0030 | 0.0026 | +0.0045 | 0.006 |
+| 123 | 0.17623 | **0.17445** | 0.17533 | −0.00089 | <0.0001 | 0.0042 | +0.0043 | 0.005 |
+
+v3.5 beats LightGBM on log loss and Brier on 15/15 folds and is rank 1 of the 9 harness
+methods on log loss, Brier and AUC on every seed. Against the other harness baselines and
+§14.13's `glm_eng` (seed 42: 0.17817) the log-loss and Brier margins are larger still
+(p ≤ 0.004).
+
+### 19.4 An exposure-aware GLM edges both versions
+
+The harness GLMs, the one-hot LR and §14.13's `glm_eng` all take `Expo` **raw**. With
+log(`Expo`) added to the one-hot LR — the usual actuarial treatment of exposure — the
+linear model becomes the strongest model on this dataset: log loss **0.17432**, against
+the one-hot LR's 0.17755 without it.
+
+v3.5 − that GLM (paired t, df=4; folds where v3.5 is better):
+
+| Seed | Log loss | Brier | AUC | PR-AUC |
+| --- | --- | --- | --- | --- |
+| 42 | +0.00014 (p=0.11, 1/5) | +0.00002 (p=0.051, 0/5) | −0.0012 (p=0.20, 1/5) | −0.0010 (p=0.054, 1/5) |
+| 7 | +0.00020 (p=0.049, 1/5) | +0.00003 (p=0.019, 0/5) | −0.0016 (p=0.11, 1/5) | −0.0015 (p=0.008, 0/5) |
+| 123 | +0.00015 (p=0.057, 0/5) | +0.00002 (p=0.13, 1/5) | −0.0010 (p=0.044, 0/5) | −0.0010 (p=0.23, 1/5) |
+
+The GLM is better on 13/15 folds for log loss, 14/15 for Brier, 13/15 for AUC and 13/15
+for PR-AUC. Per seed the gaps are small and only sometimes significant, so the fair
+reading is **v3.5 ≈ the exposure-aware GLM, with the GLM marginally ahead**.
+
+The **published v3** loses to the same GLM on every seed — log loss +0.0019 and Brier
++0.0002 (0/15 folds, p ≤ 0.0003); AUC −0.0003 to −0.0006 (v3 better on 1/15 folds;
+p=0.078 / 0.037 / 0.21); PR-AUC −0.0012 to −0.0015 (p=0.049 / 0.056 / 0.043). So
+§14.11–§14.13's "TabPFN AUC #1 on all six classification datasets" does not hold on
+`norauto` once the linear baseline treats exposure correctly. This is a property of the
+baselines, not of the version change, and is outside #186: it is flagged for a separate
+follow-up that re-tests all six datasets against exposure-aware GLMs. For contrast, on
+`ausprivauto0405` v3 keeps its AUC lead over the same specification (+0.0021, p=0.027,
+5/5 on seed 42; +0.0016, p=0.031, 5/5 on seed 7; +0.0011, p=0.15 on seed 123).
+
+### 19.5 No alias drift — second dataset
+
+Today's v3 against the committed August v3 on the seed-42 folds: log loss 0.176188 vs
+0.176192 (max per-fold difference 9.7e-6), Brier 1.5e-6, AUC 1.0e-4, PR-AUC 2.0e-4. This
+repeats §18.5 on a dataset nearly three times larger.
+
+### 19.6 Caveats
+
+- **Frontier flag, reversed pattern from §18.** August's v3 was on the frontier at seed 42
+  (and still is today) but off it at seeds 7 and 123; v3.5 is on it at all three. The flag
+  is computed over the 9 harness methods only, so the exposure-aware GLM (fitted offline)
+  does not enter it.
+- **AUC dips v3 → v3.5 on every seed of both Tier 3 datasets** — six of six cells, by
+  0.0005–0.0010, none significant alone. Six same-direction results make it a pattern
+  worth stating: v3.5 trades a little ranking for calibration on these two datasets. It is
+  not general — on `bemtl97` AUC rises (§20.2).
+- **The GLM comparison is one specification.** log(`Expo`) as a covariate approximates an
+  exposure offset; an explicit offset or a complementary log-log link could do slightly
+  better still.
+
+### 19.7 Cost
+
+1,262,655 credits, matching the `estimate_cost` quote: 176,265 for v3 (35,253 per fold)
+and 362,130 per v3.5 seed (72,426 per fold) × 3. No retries. Tier 3 to date: 1,536,110.
+
+### 19.8 Bottom line
+
+> On `norauto`, v3.5 **reverses the published calibration loss to LightGBM** on every
+> seed and ranks first among the harness methods on log loss, Brier and AUC. It is **not**
+> the best model on the dataset: an ordinary logistic GLM with one-hot factors and
+> log(exposure) is marginally better than v3.5 on most folds, and clearly better than the
+> published v3 on calibration — while matching or slightly beating it on AUC. The §14.11–§14.13
+> verdict for `norauto` should be read through §19.4 until the follow-up re-tests all six
+> datasets against exposure-aware GLMs.
+
+Evidence: `results/20261007-171627/` (v3, seed 42), `results/20261007-172201/` (v3.5,
+seed 42), `results/20261007-172949/` (v3.5, seed 7), `results/20261007-173750/` (v3.5,
+seed 123); `scripts/eval/insurance_benchmark_v1/predictions/norauto__seed42__v3_default.npz`
+and `norauto__seed{42,7,123}__v3.5_default.npz`, each with a manifest carrying
+`predictions_sha256`; `scripts/eval/insurance_benchmark_v1/version_retest_norauto.csv`.
+
+## 20. Addendum — Tier 3 calibration re-test: `bemtl97` (issue #186, 2026-10-07)
+
+Third and last Tier 3 dataset. The published v3 result (§14.11, §14.13.3): TabPFN is AUC #1
+but ranks 5/9 on log loss, behind LightGBM (0.34279 vs 0.34177, paired p<0.001), and loses
+Brier to LightGBM by ~1e-4 (p=0.016). It is also the only size-sweep cell TabPFN lost at
+full size (§13.2).
+
+### 20.1 Design — same protocol as §18–§19, fresh fits throughout
+
+Identical to §18.1: v3 and v3.5 on seed 42 the same day (17:53–18:07 UTC, commit
+`685c392`, `tabpfn-client` 0.6.0, `scikit-learn` 1.9.0), then v3.5 on seeds 7 and 123
+against the committed August v3 folds. Folds and `y_true` are identical across the seed-42
+runs, all eight non-TabPFN methods' predictions are bit-identical, and August's per-fold
+baselines match today's on seeds 7 and 123.
+
+**Sweep reuse (§15.2).** By default the frontier reuses `bemtl97`'s TabPFN, CatBoost,
+LightGBM and XGBoost log losses from `home_turf_sweep_results.csv`. `--save-predictions`
+forces fresh fits for every method, so none of the numbers here come from the sweep.
+Today's fresh v3 also reproduces the sweep-reused value (0.342789 vs 0.342787), so for v3
+the reuse was harmless. The sweep's 1k and 5k cells are not re-run on v3.5 here; the
+"8/9 size-sweep cells won" claim (§13.2) is still a v3 statement.
+
+- 163,212 rows, 10 features: `coverage` (3 levels), `sex`, `fuel`, `use` (categorical);
+  `expo` (exposure), `ageph`, `bm`, `power`, `agec`, `fleet` (numeric); 11.2% positive.
+  `nclaims` and `amount` are dropped as target leaks.
+
+Analysis: `analyze_version_retest.py bemtl97` → `version_retest_bemtl97.csv`.
+
+### 20.2 v3 → v3.5 (seed 42, same day) — calibration and ranking both improve
+
+| Metric | v3 | v3.5 | Δ | Paired p | v3.5 better on |
+| --- | --- | --- | --- | --- | --- |
+| Log loss | 0.34279 ± 0.00056 | **0.34044 ± 0.00048** | −0.00235 | **<0.0001** | 5/5 folds |
+| Brier | 0.09778 ± 0.00011 | **0.09739 ± 0.00011** | −0.00040 | **<0.0001** | 5/5 |
+| AUC | 0.62242 ± 0.00334 | **0.62344 ± 0.00321** | +0.00102 | **0.040** | 4/5 |
+| PR-AUC | 0.17053 ± 0.00226 | 0.17095 ± 0.00226 | +0.00042 | 0.13 | 4/5 |
+| Lift@10% | 1.840 ± 0.035 | 1.837 ± 0.033 | −0.003 | 0.53 | 1/5 |
+
+Seeds 7 and 123 repeat it: log loss −0.00234 / −0.00232 and Brier −0.00040 / −0.00040, 5/5
+folds each (p<0.0001); AUC +0.00124 (p=0.004, 5/5) / +0.00108 (p=0.006, 5/5). Unlike
+§18–§19, **AUC rises** from v3 to v3.5 here, on every seed.
+
+### 20.3 Against LightGBM — the loss reverses on every seed
+
+| Seed | v3 | **v3.5** | LightGBM | v3.5 − LGBM log loss | p | Brier p | AUC Δ | AUC p |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 42 | 0.34279 | **0.34044** | 0.34177 | −0.00133 | 0.0004 | 0.0011 | +0.0066 | 0.002 |
+| 7 | 0.34269 | **0.34035** | 0.34160 | −0.00125 | 0.0013 | 0.0003 | +0.0050 | 0.003 |
+| 123 | 0.34274 | **0.34042** | 0.34169 | −0.00127 | 0.0001 | 0.0001 | +0.0053 | 0.0002 |
+
+v3.5 beats LightGBM on log loss, Brier and AUC on 15/15 folds, and on PR-AUC on 15/15 too
+(p ≤ 0.002). On every seed TabPFN is now rank **1/9** on log loss (v3: 5/9, 2/9 and 4/9 on
+seeds 42, 7 and 123), 1/9 on Brier (v3: 2/9 on all three) and still 1/9 on AUC.
+
+### 20.4 Against the linear family — no exposure caveat here
+
+The same exposure-aware GLM as §19.4 (one-hot factors + log(`expo`)) scores 0.34209 —
+better than the harness GLMs, but **behind LightGBM**, so on this dataset it is not the
+strongest model. v3.5 beats it on all three seeds: log loss −0.00165 / −0.00174 /
+−0.00166 (5/5 folds each, p ≤ 0.0021), with AUC +0.010 (p ≤ 0.006). v3.5 also beats §14.13's
+`glm_eng` (seed 42: 0.34248; −0.00204, p=0.0001).
+
+The published v3 keeps its ranking lead over that GLM (AUC +0.009 on every seed, 5/5 folds,
+p < 0.01) but loses log loss to it (+0.0006 to +0.0007; v3 better on 2/15 folds). So on
+`bemtl97` the §14.11–§14.13 "AUC #1" claim survives a correctly specified GLM, unlike on
+`norauto` (§19.4).
+
+### 20.5 No alias drift — third dataset
+
+Today's v3 against the committed August v3 on the seed-42 folds: log loss 0.342789 vs
+0.342787 (max per-fold difference 2.4e-5), Brier 3.7e-6, AUC 1.2e-4, PR-AUC 6.6e-5.
+
+### 20.6 Caveats
+
+- **Frontier flag: same pattern as `norauto`.** August's v3 was on the frontier at seed 42
+  (and still is today) but off it at seeds 7 and 123; v3.5 is on it at all three.
+- **The AUC dip of §18.6 and §19.6 is dataset-specific,** not a v3.5 trait: on `bemtl97` AUC
+  rises from v3 to v3.5 on every seed (p = 0.004–0.04).
+- **Size sweep not refreshed** (§20.1): the frontier numbers here are fresh fits, but the
+  1k/5k cells behind the "8/9 cells won" claim are still v3.
+
+### 20.7 Cost
+
+1,034,350 credits, matching the `estimate_cost` quote: 144,580 for v3 (28,916 per fold)
+and 296,590 per v3.5 seed (59,318 per fold) × 3. No retries. Tier 3 total: 2,570,460
+credits for 12 runs.
+
+### 20.8 Bottom line — `bemtl97`, and Tier 3 overall
+
+> On `bemtl97`, v3.5 **reverses the published loss to LightGBM** on every seed — log loss
+> and Brier on 15/15 folds — puts TabPFN 1st of 9 on log loss on every seed (5th, 2nd and
+> 4th under v3), and improves AUC as well. No linear specification tested comes close. This is the cleanest of the three
+> Tier 3 results.
+
+> **Tier 3 overall.** All three published calibration losses reverse on v3.5, on all three
+> split seeds: `ausprivauto0405` (§18, narrowly over the best GLM), `norauto` (§19, beats
+> LightGBM but an exposure-aware GLM edges it), and `bemtl97` (§20, clear win). Across the
+> nine dataset-seed cells v3.5 improves log loss and Brier on every fold. `v3_default`
+> reproduced August on all three datasets, so these deltas are version effects rather
+> than alias drift. Not edited here, and still citing the v3 calibration exceptions:
+> §14.11.3, §14.13.3 and §14.13.5 (the historical v3 record).
+
+Evidence: `results/20261007-175302/` (v3, seed 42), `results/20261007-175951/` (v3.5,
+seed 42), `results/20261007-180725/` (v3.5, seed 7), `results/20261007-181518/` (v3.5,
+seed 123); `scripts/eval/insurance_benchmark_v1/predictions/bemtl97__seed42__v3_default.npz`
+and `bemtl97__seed{42,7,123}__v3.5_default.npz`, each with a manifest carrying
+`predictions_sha256`; `scripts/eval/insurance_benchmark_v1/version_retest_bemtl97.csv`.
+
+## 21. Addendum — `bemtl16` target leak removed (issue #216, 2026-10-08)
+
+Every `bemtl16` number in §3–§14 was computed with a target leak: the prepared data kept
+`claim_responsibility_rate`, a field that only exists once a claim has happened. This
+section removes it, re-runs `bemtl16` on both model versions, and supersedes the earlier
+numbers. They are not overwritten; they remain the record of what was run.
+
+### 21.1 The leak
+
+- **Definition.** CASdatasets `man/beMTPL16.Rd`: *"Rate of responsibility for the claim
+  (100% full responsibility, 0% no responsibility)"* — set after the accident. The same page
+  lists `claim_value` and `claim_time`, which `make_bemtl16` already excluded.
+- **Separation.** Claim rate is 0.17% (51 of 29,759) where the rate is 0, and ≈73% where it is
+  50 or 100. The rate alone scores AUC 0.893 against `number_of_liability_claims`; with it,
+  harness LightGBM reached AUC 0.955, and without it 0.694.
+- **No other leak.** A single-feature screen (out-of-fold target-mean AUC for categoricals,
+  raw-value AUC for numerics) puts every remaining feature at ≤ 0.664 (`catalog_value`).
+  `policy_year` was checked specifically because the prep keeps each contract's *last*
+  observed year, which encodes whether it continued: AUC 0.508, claim rates 35–38% across
+  its four values — no leak.
+- **Correction to #216:** `policy_year`, `mileage` and `driving_training_label` are not
+  constant (4, 7 and 2 values); the issue's description was based on a 3,000-row sample.
+
+### 21.2 Fix and re-run
+
+- `make_bemtl16` (`scripts/infra/prepare_insurance_datasets.py`) no longer keeps the column;
+  its docstring lists every excluded claim attribute. `data/raw/bemtl16.csv` was regenerated
+  by deleting the column from the committed file — equivalent to re-running `make_bemtl16`,
+  since the `.rda` source is not in the repo — and checked identical in every other value.
+  SHA-256 before `89e1b91d…`, after `c07c8552…`. 58,723 rows, 12 features.
+- Frontier re-run, `--save-predictions bemtl16`, v3 then v3.5 on seed 42 the same day
+  (2026-10-08 13:34–13:39 UTC), `tabpfn-client` 0.6.0, `scikit-learn` 1.9.0. Test folds are
+  identical across the two runs and all eight non-TabPFN methods' predictions are
+  bit-identical. The prediction manifests record `script_git_sha` `b97afff`, the commit
+  *before* this fix; the data they used is identified by the SHA-256 above.
+- `analyze_version_retest.py` now detects that the committed August `bemtl16` rows were
+  computed on different data (baselines differ by 0.365 log loss) and skips the alias-drift
+  check and the committed `glm_eng` reference instead of misreading the change as drift.
+
+### 21.3 Clean results (seed 42)
+
+| Method | Log loss | Brier | AUC | PR-AUC | Lift@10% |
+| --- | --- | --- | --- | --- | --- |
+| TabPFN v3.5 | **0.5955** | **0.2041** | **0.6991** | **0.5519** | 1.769 |
+| TabPFN v3 | 0.5968 | 0.2046 | 0.6982 | 0.5514 | **1.776** |
+| LightGBM | 0.5985 | 0.2054 | 0.6939 | 0.5455 | 1.754 |
+| CatBoost | 0.6016 | 0.2065 | 0.6909 | 0.5404 | 1.745 |
+| One-hot LR + log(exposure) | 0.6037 | 0.2073 | 0.6903 | 0.5374 | 1.737 |
+| One-hot LR | 0.6037 | 0.2073 | 0.6904 | 0.5376 | 1.734 |
+| XGBoost | 0.6125 | 0.2107 | 0.6803 | 0.5274 | 1.699 |
+| `lr` / `logisticglm` (harness) | 0.6195 | 0.2134 | 0.6636 | 0.5026 | 1.536 |
+
+TabPFN v3 SE: log loss 0.0022, AUC 0.0029, lift 0.012. Under either version TabPFN ranks
+**1/9 on all five metrics** among the harness methods, and ahead of both one-hot LRs.
+
+Paired against the GBDTs (v3, delta = TabPFN − reference, df=4):
+
+| Reference | Log loss | Brier | AUC | PR-AUC | Lift@10% |
+| --- | --- | --- | --- | --- | --- |
+| LightGBM | −0.0017 (p=0.015, 5/5) | −0.0008 (p=0.009, 5/5) | +0.0043 (p=0.001, 5/5) | +0.0059 (p=0.001, 5/5) | +0.022 (p=0.12, 4/5) |
+| CatBoost | −0.0048 (p<0.001, 5/5) | −0.0020 (p=0.001, 5/5) | +0.0072 (p=0.001, 5/5) | +0.0110 (p=0.001, 5/5) | +0.031 (p=0.028, 5/5) |
+
+### 21.4 What changes against the leaky numbers
+
+| | Leaky (Aug 2026, v3) | Clean (v3, §21.3) |
+| --- | --- | --- |
+| TabPFN / LightGBM AUC | 0.9560 / 0.9552 | 0.6982 / 0.6939 |
+| TabPFN / LightGBM log loss | 0.2380 / 0.2398 | 0.5968 / 0.5985 |
+| TabPFN lift@10% | 2.607, **rank 3/9** behind LightGBM 2.625, CatBoost 2.615 | 1.776, **rank 1/9** |
+| TabPFN rank: log loss, Brier, AUC, PR-AUC | 1/9 | 1/9 |
+| Harness `logisticglm` log-loss gap (regime table) | +10.6% | +3.8% (+1.2% to the one-hot LR) |
+| On the frontier | TabPFN, LightGBM, the four GLMs | the same plus CatBoost |
+
+- **The ranking story survives; the magnitudes do not.** TabPFN stays first on every metric,
+  but every absolute value in §3–§14 overstates what is predictable here, and the GLM gap
+  that made `bemtl16` a "thin-signal win" is a third of what was published.
+- **"Beyond SE" (§14.7) does not hold.** Clean, TabPFN's log-loss lead over LightGBM is
+  paired-significant (p=0.015, 5/5) but inside one SE (TabPFN mean + SE 0.59895 vs LightGBM
+  mean − SE 0.59671). §14.7's leaky check compared the bounds the other way round; in the
+  orientation it uses for `ausprivauto0405` the leaky lead was not beyond SE either
+  (0.23932 vs 0.23873).
+- **The lift gap was the leak.** The only metric on which TabPFN trailed (§14.12.3, §14.13.2)
+  is now its best rank. #186's Tier 4 target — TabPFN losing top-decile lift on `bemtl16` —
+  does not exist on clean data.
+
+### 21.5 v3 → v3.5 (same day) — Tier 4 closed out
+
+| Metric | v3 | v3.5 | Δ | Paired p | v3.5 better on |
+| --- | --- | --- | --- | --- | --- |
+| Log loss | 0.5968 | **0.5955** | −0.0013 | 0.009 | 5/5 folds |
+| Brier | 0.2046 | **0.2041** | −0.0005 | 0.016 | 5/5 |
+| AUC | 0.6982 | 0.6991 | +0.0009 | 0.055 | 5/5 |
+| PR-AUC | 0.5514 | 0.5519 | +0.0005 | 0.41 | 3/5 |
+| Lift@10% | 1.776 | 1.769 | −0.007 | 0.12 | 1/5 |
+
+v3.5 beats LightGBM on log loss (−0.0030), Brier, AUC and PR-AUC on 5/5 folds (p<0.0001);
+lift +0.015 (p=0.14, 4/5). With no underperformance left to re-test, Tier 4 of #186 is
+answered by this run: on clean `bemtl16` TabPFN leads under both versions.
+
+### 21.6 Not re-run
+
+- **§14.13 tuned baselines** (`lr_tuned`, `glm_eng`, `lgbm_tuned`, `cat_tuned`, `rf_tuned`).
+  Their runner appends to the committed ledger with no data-version column and checks fold
+  identity against the leaky August rows, so it needs adapting first. Until then the
+  "#1 of 14" statement for `bemtl16` is unverified; the one-hot LRs above are the strongest
+  linear references fitted on the clean data.
+- **v1 TabArena run** (§3–§4, `results_per_split.csv`) and the §14.12 per-fold rows — superseded
+  by this section, not regenerated.
+- Single seed (August had only seed 42 for `bemtl16`). Reproducing the superseded numbers
+  needs a checkout from before this fix.
+
+### 21.7 Cost
+
+115,175 credits, matching the `estimate_cost` quote: v3 50,000 (10,000 per fold, the
+per-call minimum), v3.5 65,175 (13,035 per fold). No retries.
+
+### 21.8 Bottom line
+
+> `claim_responsibility_rate` leaked the target, and every published `bemtl16` number used
+> it. Without it the task is ordinary claim-occurrence prediction (best AUC ≈ 0.70, not
+> 0.96). TabPFN still ranks first on all five metrics under both versions — including
+> top-decile lift, where the published deficit was an artefact of the leak — but its lead
+> over LightGBM is small (v3: 0.0017 log loss, 0.0043 AUC; v3.5: 0.0030, 0.0052) and not
+> beyond one SE under either version. Cite §21, not §14.7–§14.13, for `bemtl16`.
+
+Evidence: `results/20261008-133359/` (v3), `results/20261008-133634/` (v3.5);
+`scripts/eval/insurance_benchmark_v1/predictions/bemtl16__seed42__v3_default.npz` and
+`scripts/eval/insurance_benchmark_v1/predictions/bemtl16__seed42__v3.5_default.npz`, each with
+a manifest carrying `predictions_sha256`;
+`scripts/eval/insurance_benchmark_v1/version_retest_bemtl16.csv`;
+`data/raw/bemtl16.csv` (SHA-256 `c07c8552a83799ac793c077ae4c3a7f29c7e54ca470509daf3d453f8b1b9ba67`).
+
+## 22. Addendum — `bemtl97_amount` target leak removed (issue #216, 2026-10-08)
+
+The second leak in #216. `bemtl97_amount` (target log1p `amount`) dropped `claim` but kept
+`nclaims`, and `(nclaims > 0) == (amount > 0)` on every row. §6 flagged this in August
+("flag for the same cleanup") and §8 listed it under "Repair the benchmark", but the drop
+list was never changed. Every `bemtl97_amount` number in §4, §12.1, §14.8 and §16 includes
+the leak; the v1 TabArena harness, which had no drop list at all, also kept `claim`. This
+section removes it and re-runs both model versions. The earlier numbers stay as recorded.
+
+### 22.1 The leak
+
+- `nclaims > 0` matches `amount > 0` on all 163,212 rows (18,276 non-zero). The target is
+  88.8% zeros with standard deviation 2.014.
+- A one-line rule — predict the non-zero mean where `nclaims > 0`, else 0 — scores RMSE
+  0.4977, close to the published LightGBM 0.4850. Without `nclaims`, LightGBM scores 1.9954.
+- **No other leak.** Out-of-fold, no remaining feature explains more than 1% of the
+  target's variance (`bm`, R² 0.0098) or scores above AUC 0.581 for `amount > 0`.
+
+### 22.2 Fix and re-run
+
+- **Frontier harness:** `drop=["claim", "nclaims"]`, with the comments that justify the
+  list corrected. Each prediction manifest records the drop list, so the clean runs say
+  `["claim", "nclaims"]` and the leaky Tier 1 file says `["claim"]`.
+- **v1 TabArena harness:** `_load_raw` now applies a per-dataset `drop` list —
+  `["claim", "nclaims"]` for `bemtl97_amount` and `["nclaims", "amount"]` for `bemtl97`,
+  so a v1 re-run no longer reproduces §6's leak either. `make_bemtl97` documents that its
+  three targets are outcomes of the same event and must exclude each other.
+- **Earlier predictions kept.** Tier 1's leaky v3.5 file would have been overwritten by the
+  same name, so it was renamed `bemtl97_amount__seed42__v3.5_default__nclaims-leak.npz`
+  (and `.manifest.json`); its contents and stored hash are unchanged.
+- **Re-run:** `run_frontier_benchmark.py --regression --save-predictions bemtl97_amount`,
+  v3 then v3.5 the same day (2026-10-08 13:52–14:05 UTC), `tabpfn-client` 0.6.0,
+  `scikit-learn` 1.9.0. Folds identical across runs; all seven baselines bit-identical.
+  Regression splits are fixed at `KFold(5, shuffle=True, random_state=42)`, so one seed.
+- **Analysis:** `analyze_regression_retest.py bemtl97_amount` (new; the regression
+  counterpart of `analyze_version_retest.py`, with a training-mean null model) →
+  `version_retest_bemtl97_amount.csv`.
+
+### 22.3 Clean results
+
+| Method | RMSE (± SE) | MAE | Mean prediction | AUC for `amount > 0` | Spearman |
+| --- | --- | --- | --- | --- | --- |
+| LightGBM | **1.9954 ± 0.0063** | 1.2048 | 0.693 | 0.619 | 0.131 |
+| OLS | 1.9979 ± 0.0063 | 1.2107 | 0.693 | 0.610 | 0.120 |
+| CatBoost | 1.9981 ± 0.0062 | 1.2048 | 0.693 | 0.615 | 0.126 |
+| Poisson GLM | 1.9982 ± 0.0063 | 1.2103 | 0.693 | 0.611 | 0.121 |
+| Tweedie GLM | 2.0022 ± 0.0063 | 1.2166 | 0.692 | 0.591 | 0.100 |
+| XGBoost | 2.0077 ± 0.0060 | 1.2077 | 0.695 | 0.603 | 0.114 |
+| Null (training-fold mean) | 2.0137 ± 0.0067 | 1.2306 | 0.693 | — | — |
+| TabPFN v3.5 | 2.0243 ± 0.0072 | 0.9589 | **0.361** | **0.622** | **0.134** |
+| TabPFN v3 | 2.0466 ± 0.0075 | **0.8813** | **0.258** | 0.619 | 0.130 |
+| Random forest | 2.1463 ± 0.0046 | 1.3192 | 0.845 | 0.560 | 0.066 |
+
+The observed mean of the target is 0.693. Paired over the 5 folds, both TabPFN versions
+lose RMSE to every method except the random forest (0/5 folds each, p ≤ 0.0004) and win
+MAE against all of them (5/5).
+
+### 22.4 What changes against the leaky numbers
+
+| | Leaky (published) | Clean (§22.3) |
+| --- | --- | --- |
+| TabPFN v3 vs LightGBM, RMSE | 0.7282 vs 0.4850 (+50%) | 2.0466 vs 1.9954 (+2.6%) |
+| TabPFN v3.5 vs LightGBM, RMSE (§16) | 0.7012 vs 0.4850 (~1.4×) | 2.0243 vs 1.9954 (+1.4%) |
+| Best model vs the null model | — | LightGBM 0.9% better |
+| Poisson GLM (§14.8 "catastrophic") | 6.459 | 1.998, level with OLS |
+| TabPFN on the parsimony frontier | no | no (both versions) |
+
+- **Nobody predicts this target well.** Without the leak, the best model is 0.9% better
+  than always predicting the training mean: RMSE on a log1p amount that is 89% zeros is
+  dominated by the zero mass.
+- **TabPFN's RMSE loss is calibration, not ranking.** Its mean predictions average 0.26 (v3)
+  and 0.36 (v3.5) against an observed 0.69 — too low by 63% and 48% — while its ordering of
+  policies matches or beats every other method (v3.5 has the best AUC and Spearman). The same
+  low bias gives it by far the lowest MAE. This is the zero-inflated-target behaviour that
+  #159 studies, not weaker risk discrimination.
+- **The verdict's direction survives, its size does not.** TabPFN stays off the frontier and
+  remains a paired-significant RMSE loss, but by 1.4–2.6%, not 50%. The off-frontier count
+  (4 of 12 on v3.5) is unchanged.
+- **§14.8's Poisson-GLM explanation does not reproduce.** Its "catastrophic" 6.459 was the
+  leak, not the zero mass.
+
+### 22.5 v3 → v3.5
+
+RMSE −0.0223 (p<0.0001, 5/5 folds) and MAE +0.0776 (0/5). v3.5's predictions are less
+biased (mean 0.36 vs 0.26), which helps RMSE and costs MAE; it still loses RMSE to
+LightGBM by 0.0289 (0/5).
+
+### 22.6 Not re-run
+
+- **v1 TabArena run** (§4: +48.3%, with both `claim` and `nclaims` as features) — needs the
+  tabarena environment; superseded, not regenerated.
+- **#123 alt-metrics rescore** — the 144 `bemtl97_amount` rows in `alt_metrics_per_fold.csv`
+  and `alt_metrics_summary.csv` were computed from leaky predictions; superseded.
+- One seed by construction (§22.2).
+
+### 22.7 Cost
+
+441,170 credits, matching the `estimate_cost` quote: v3 144,580 (28,916 per fold), v3.5
+296,590 (59,318 per fold). No retries.
+
+### 22.8 Bottom line
+
+> `nclaims` leaked `bemtl97_amount`'s zero/non-zero split, and every published number used
+> it: the "+50%" gap measured how well each model exploited the leak. Without it, no model
+> predicts this target much better than its mean. TabPFN still loses RMSE — by 1.4% (v3.5)
+> to 2.6% (v3), not 50% — because its mean predictions are biased low on this zero-inflated
+> target, while it ranks policies as well as or better than LightGBM. Cite §22, not §14.8
+> or §16, for `bemtl97_amount`.
+
+Evidence: `results/20261008-135230/` (v3), `results/20261008-135747/` (v3.5);
+`scripts/eval/insurance_benchmark_v1/predictions/bemtl97_amount__seed42__v3_default.npz` and
+`scripts/eval/insurance_benchmark_v1/predictions/bemtl97_amount__seed42__v3.5_default.npz`,
+each with a manifest carrying `predictions_sha256` and the drop list; the leaky Tier 1
+predictions, renamed with the `__nclaims-leak` suffix;
+`scripts/eval/insurance_benchmark_v1/version_retest_bemtl97_amount.csv`.
+
+## 23. Addendum — size sweep on v3.5: TabPFN wins 9/9 cells (issue #186, 2026-10-08)
+
+The last item of #186: the §13 home-turf size sweep on v3.5. §15.2 required it before any
+`bemtl97` frontier claim, because the frontier reused the sweep's v3 TabPFN rows. §18–§20
+avoided that with fresh fits; this section refreshes the sweep itself and closes the gap in
+the harness (§23.4).
+
+### 23.1 Design
+
+- `run_home_turf_size_sweep.py --tabpfn-default-only` with `TABPFN_MODEL_PATH=v3.5_default`,
+  2026-10-08 14:39–14:50 UTC, commit `f87d4f5`, `tabpfn-client` 0.6.0. Same nine cells
+  (3 datasets × 1K / 5K / full, stratified slices) and folds as §13. It fits the
+  server-default TabPFN arm — the one §13.2's table scores — and refits CatBoost, LightGBM
+  and XGBoost in the same run. The `n_estimators` = 8 and 1 arms are not re-run.
+- **Output goes to `results/20261008-143926/`.** The committed August sweep is untouched: the
+  frontier still reuses it as the v3 record. Every row now records its `model_version`, and
+  a manifest records the run.
+- **Same folds.** CatBoost and LightGBM reproduce August's per-fold log loss exactly in every
+  cell. XGBoost differs in every cell (by up to 0.034) — a library-version change (xgboost
+  2.1.4 now; August's environment no longer exists). It is never the strongest GBDT in any
+  cell, so no winner depends on it.
+- Analysis: `analyze_sweep_retest.py` → `version_retest_home_turf_sweep.csv`.
+
+### 23.2 Results — mean log loss over 5 folds, lower is better
+
+| Dataset | Size | Rows | TabPFN v3 (Aug) | **TabPFN v3.5** | CatBoost | LightGBM | XGBoost | Winner, v3 → v3.5 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| coil2000 | 1K | 1,000 | 0.2080 | **0.2028** | 0.2205 | 0.3914 | 0.3396 | TabPFN → TabPFN |
+| coil2000 | 5K | 5,000 | 0.2026 | **0.1952** | 0.2103 | 0.2558 | 0.2836 | TabPFN → TabPFN |
+| coil2000 | full | 9,822 | 0.2006 | **0.1968** | 0.2082 | 0.2219 | 0.2494 | TabPFN → TabPFN |
+| uslapseagent | 1K | 1,000 | 0.2513 | **0.2320** | 0.2763 | 0.3459 | 0.3838 | TabPFN → TabPFN |
+| uslapseagent | 5K | 5,000 | 0.2602 | **0.2470** | 0.2718 | 0.2838 | 0.3125 | TabPFN → TabPFN |
+| uslapseagent | full | 29,317 | 0.2491 | **0.2438** | 0.2529 | 0.2537 | 0.2652 | TabPFN → TabPFN |
+| bemtl97 | 1K | 1,000 | 0.3529 | **0.3508** | 0.3687 | 0.5103 | 0.5317 | TabPFN → TabPFN |
+| bemtl97 | 5K | 5,000 | 0.3462 | **0.3439** | 0.3545 | 0.3778 | 0.4105 | TabPFN → TabPFN |
+| bemtl97 | full | 163,212 | 0.3428 | **0.3404** | 0.3436 | 0.3418 | 0.3451 | **LightGBM → TabPFN** |
+
+**TabPFN wins 9/9 cells (v3: 8/9).** Paired over the 5 folds (df=4):
+
+- **v3.5 vs the best GBDT:** lower log loss on 5/5 folds in every cell (p = 0.0004–0.026).
+- **v3.5 vs v3** (same folds): lower in every cell, by 0.0021 to 0.0193 (p ≤ 0.046); 5/5 folds
+  in eight cells, 4/5 at `uslapseagent` 5K. The largest gain is at `uslapseagent` 1K
+  (−0.019); on `bemtl97` it is a steady ~0.002 at every size.
+- **The flip:** `bemtl97` full — v3.5 0.3404 vs LightGBM 0.3418 (−0.0013, p=0.0004, 5/5). This
+  is the same computation as §20's seed-42 run (same folds, same call), and the cell
+  reproduces it to 7e-9 per fold: hosted v3.5 inference is effectively deterministic.
+
+### 23.3 What this changes
+
+- **§13.2–§13.3:** the single full-size loss (0.001 at 163K rows) is gone. On v3.5 TabPFN has
+  the lowest log loss in every cell from 1K to 163K rows, and the size-ceiling effect §13.3
+  described is not visible in this sweep.
+- **The adoption rule** cites "8/9 size-sweep cells won"; on v3.5 it is 9/9. The rule's
+  wording is unchanged here — the summary gets a pointer only.
+- **§15.2's sweep caveat is closed** two ways: the refreshed sweep exists, and the frontier
+  no longer reuses sweep rows from another model version (§23.4).
+
+### 23.4 Frontier guard
+
+`run_frontier_benchmark.py` now reuses committed sweep rows only when they came from the
+model under test (`reusable_sweep_rows`). The committed sweep predates the `model_version`
+column and counts as `v3_default` (`SWEEP_MODEL_VERSION`), so any other `TABPFN_MODEL_PATH`
+fits every method fresh and logs that it did. v3 runs are unchanged: a v3 frontier run on
+`coil2000` reproduces the committed TabPFN, CatBoost, LightGBM and XGBoost rows to 1e-16,
+while a v3.5 run logs the guard and refits. Unit test:
+`test_sweep_rows_reused_only_for_the_model_that_produced_them`.
+
+### 23.5 Cost
+
+696,590 credits, matching the `estimate_cost` quote: 50,000 per cell at the per-call
+minimum, and 296,590 for full-size `bemtl97`. No failed folds.
+
+### 23.6 Bottom line
+
+> On v3.5, TabPFN has the lowest log loss in all nine size-sweep cells — 1K, 5K and full size
+> on `coil2000`, `uslapseagent` and `bemtl97` — up from 8/9 on v3, and it improves on v3 in
+> every cell. The one v3 loss, LightGBM by 0.001 at 163K rows, reverses. This completes the
+> checklist of #186.
+
+Evidence: `results/20261008-143926/` (`home_turf_sweep_results.csv`, `home_turf_sweep_run.log`,
+`manifest.json`); `scripts/eval/insurance_benchmark_v1/version_retest_home_turf_sweep.csv`;
+`scripts/eval/insurance_benchmark_v1/analyze_sweep_retest.py`;
+`scripts/benchmarks/run_home_turf_size_sweep.py`.
+
+## 24. Addendum — the v3 wins on v3.5: none lost (issue #222, 2026-10-18)
+
+#186 re-tested v3.5 only where `v3_default` lost. This section covers the other side: the
+four frontier datasets where v3 won, which #186 never ran through the frontier on v3.5
+(§23's sweep covered only the log loss of `coil2000` and `uslapseagent`, and only against
+the GBDTs). With it, all 12 frontier datasets have been run on v3.5.
+
+### 24.1 Design
+
+- `run_frontier_benchmark.py --save-predictions --seed 42`, run once with
+  `TABPFN_MODEL_PATH=v3_default` and once with `v3.5_default`, on `coil2000` and
+  `uslapseagent` and, with `--regression`, on `ausautoBI8999` and `ausprivauto0405_vehvalue`.
+  Runs were on 2026-10-18 between 09:14 and 09:32 UTC, at commit `d4cfc00`, with
+  `tabpfn-client` 0.6.0 and `scikit-learn` 1.9.0. Versions and quotes were recorded before
+  any fit in `results/issue-222-preflight/preflight.json`.
+- **Same day, paired, model-only.** In every pair the test folds and `y_true` are
+  identical, and every non-TabPFN method's predictions are bit-identical between the v3 and
+  the v3.5 run, so the model is the only variable.
+- **No `--pr-auc`.** That flag appends to the committed `frontier_pr_auc_results.csv`, which
+  has no model-version column, and that file is the August reference the drift check reads.
+  It is unchanged.
+- Analysis, with no API calls: `analyze_version_retest.py <ds> --seeds 42` and
+  `analyze_regression_retest.py <ds>` → `version_retest_<ds>.csv`. Paired t over the 5 folds
+  (df=4, two-sided).
+
+### 24.2 Classification — mean over 5 folds (seed 42)
+
+| Dataset | Metric | TabPFN v3 | **TabPFN v3.5** | v3.5 − v3 (p, folds) | Best rival | v3.5 − rival (p) |
+| --- | --- | ---: | ---: | --- | --- | --- |
+| coil2000 | log loss ↓ | 0.20060 | **0.19681** | −0.00379 (0.013, 5/5) | lr 0.20548 | −0.00866 (0.003) |
+| | Brier ↓ | 0.05276 | **0.05232** | −0.00044 (0.037, 4/5) | lr 0.05361 | −0.00129 (0.002) |
+| | AUC ↑ | 0.77315 | **0.77685** | +0.00370 (0.30, 4/5) | cat 0.74687 | +0.02998 (0.003) |
+| | PR-AUC ↑ | 0.18700 | **0.18990** | +0.00290 (0.47, 3/5) | lr 0.16739 | +0.02251 (0.024) |
+| | lift@10% ↑ | 3.335 | **3.489** | +0.154 (0.18, 4/5) | lr 3.147 | +0.342 (0.011) |
+| uslapseagent | log loss ↓ | 0.24906 | **0.24380** | −0.00526 (0.0002, 5/5) | cat 0.25286 | −0.00905 (0.002) |
+| | Brier ↓ | 0.08135 | **0.07954** | −0.00181 (0.0001, 5/5) | cat 0.08263 | −0.00309 (0.002) |
+| | AUC ↑ | 0.94661 | **0.94941** | +0.00280 (<0.0001, 5/5) | cat 0.94395 | +0.00546 (0.003) |
+| | PR-AUC ↑ | 0.88667 | **0.89403** | +0.00736 (<0.0001, 5/5) | cat 0.87896 | +0.01507 (0.0045) |
+| | lift@10% ↑ | 2.457 | **2.474** | +0.017 (0.003, 5/5) | lgbm 2.439 | +0.035 (0.042) |
+
+The best rival is the best mean among the harness methods of the same-day run.
+
+- **v3.5 is rank 1 on every metric of both datasets, and significantly better than the best
+  rival on all ten.** In August, the v3 log loss and Brier leads on `uslapseagent` were
+  within one SE; paired on the same folds, the v3.5 leads are significant.
+- **v3.5 vs v3:** better on all 5 metrics on `uslapseagent`, on every fold. On `coil2000` it
+  is significantly better on log loss and Brier, and better but not significantly on AUC,
+  PR-AUC and lift. No metric is worse.
+- v3.5 also wins every metric on both datasets against §17.3's fair one-hot LR
+  (`onehot_lr`, p ≤ 0.032), and on `uslapseagent` against §14.13's engineered GLM
+  (`glm_eng`). On `coil2000` the script skipped `glm_eng` (§24.4).
+
+### 24.3 Regression — mean over 5 folds
+
+| Dataset | Metric | TabPFN v3 | **TabPFN v3.5** | v3.5 − v3 (p, folds) | Best rival | v3.5 − rival (p) |
+| --- | --- | ---: | ---: | --- | --- | --- |
+| ausautoBI8999 | RMSE ↓ | 0.96490 | **0.95194** | −0.01296 (0.0002, 5/5) | cat 0.96883 | −0.01689 (0.0006) |
+| | MAE ↓ | 0.72312 | **0.71605** | −0.00708 (0.0006, 5/5) | cat 0.73061 | −0.01456 (0.0004) |
+| ausprivauto0405_vehvalue | RMSE ↓ | 0.71163 | **0.71049** | −0.00114 (0.17, 3/5) | lgbm 0.71645 | −0.00596 (0.078) |
+| | MAE ↓ | **0.41143** | 0.41649 | **+0.00506 (0.0001, 0/5)** | lgbm 0.41909 | −0.00260 (0.016) |
+
+- **`ausautoBI8999`:** v3.5 improves on v3 on every fold for both RMSE and MAE. On v3 the
+  RMSE lead over CatBoost was within one SE (p=0.15 paired); on v3.5 it is significant.
+- **`ausprivauto0405_vehvalue`: the one regression in this re-test.** RMSE, the frontier
+  metric, is unchanged (p=0.17). **MAE is worse on v3.5 on every fold** (+0.0051,
+  p=0.0001), though v3.5 still beats LightGBM on MAE. On RMSE TabPFN keeps the best mean but
+  is not separable from LightGBM under either version (v3 p=0.084, v3.5 p=0.078); its
+  August lead was already within one SE.
+- TabPFN stays on the parsimony frontier for all four datasets under both versions, and
+  every method's frontier flag matches August.
+
+### 24.4 Reproduction of August
+
+- **No alias drift.** Today's `v3_default` matches the committed August v3 per fold to
+  ≤ 3.1e-5 log loss on `coil2000` and ≤ 1.3e-4 on `uslapseagent`. Its regression means match
+  to ≤ 7e-6 RMSE. This agrees with §17.4's update.
+- **Baselines, per-fold log loss (classification) or mean RMSE (regression) against
+  August:**
+  - CatBoost and LightGBM reproduce everywhere, to ≤ 5e-10 per fold (float32 storage) and
+    exactly on the regression means.
+  - XGBoost differs on classification (up to 7.7e-3 on `coil2000`, 1.7e-3 on
+    `uslapseagent`) but reproduces the regression means exactly. §23.1 saw the same
+    classification gap. The cause is not investigated here, and XGBoost is never the best
+    rival in this section.
+  - The linear `scikit-learn` models drift on classification: `lr` and `logisticglm` by up
+    to 2.5e-4 log loss, `poissonglm` and `tweedieglm` by up to 1.9e-3. On `ausautoBI8999`
+    `poissonglm` and `tweedieglm` drift by +0.8–0.9% RMSE. `rf` reproduces classification to
+    ≤ 2e-9 and the regression means to within ±0.06%.
+  - **`ols` reproduces August** (≤ 5e-9), unlike in §16.4.
+- **False alarm in the analysis script.** On `coil2000`, `analyze_version_retest.py` reports
+  that "the data changed since August" and skips its drift check and `glm_eng`. Its gate
+  compares `logisticglm` and `lgbm` against a 1e-4 threshold, and `logisticglm`'s
+  `scikit-learn` drift (2.5e-4) exceeds it. The data did not change: CatBoost, LightGBM and
+  RF reproduce August. The drift check above was done by hand from the same files.
+- Every rival number in §24.2–§24.3 comes from the same-day run, not August, so none of this
+  drift enters a v3.5 comparison.
+
+### 24.5 Seeds not added
+
+#222 asked for seeds 7 and 123 wherever a delta fell within one SE. That applies in two
+places:
+
+- **`coil2000` AUC, PR-AUC and lift, v3 → v3.5.** Not run. Every delta favours v3.5, and v3.5
+  beats every rival on every metric significantly. The point of this re-test is to catch a
+  v3.5 regression, and none is suggested here.
+- **`ausprivauto0405_vehvalue` RMSE.** Not possible: regression splits are always
+  `KFold(5, shuffle=True, random_state=42)` regardless of `--seed`, and TabPFN runs with
+  `random_state=0`. Any seed would reproduce these numbers.
+
+### 24.6 Cost
+
+424,485 credits, matching the `estimate_cost` quote. That is 50,000 per run (10,000 per fold,
+the per-call minimum) for seven of the eight, and 74,485 for v3.5 on
+`ausprivauto0405_vehvalue` (14,897 per fold). Account usage moved 4,073,395 → 4,497,880 of a
+180M allowance. No failed folds and no retries.
+
+### 24.7 Bottom line
+
+> On the four frontier datasets where v3 won, v3.5 loses no win and no frontier position. It
+> is rank 1 on every metric of `coil2000`, `uslapseagent` and `ausautoBI8999`, and on every
+> frontier metric it is better than v3 or tied. The one regression is secondary:
+> `ausprivauto0405_vehvalue` MAE is 0.005 worse on every fold, while its RMSE is unchanged
+> and still not separable from LightGBM. Together with #186, all 12 frontier datasets have
+> now been run on v3.5.
+
+Evidence: `results/issue-222-preflight/preflight.json`; `results/20261018-091411/` (v3) and
+`results/20261018-091634/` (v3.5), `coil2000`; `results/20261018-091945/` (v3) and
+`results/20261018-092104/` (v3.5), `uslapseagent`; `results/20261018-092514/` (v3) and
+`results/20261018-092822/` (v3.5), regression pair;
+`scripts/eval/insurance_benchmark_v1/predictions/<ds>__seed42__{v3,v3.5}_default.npz` with
+manifests, for the four datasets;
+`scripts/eval/insurance_benchmark_v1/version_retest_coil2000.csv`,
+`scripts/eval/insurance_benchmark_v1/version_retest_uslapseagent.csv`,
+`scripts/eval/insurance_benchmark_v1/version_retest_ausautoBI8999.csv`,
+`scripts/eval/insurance_benchmark_v1/version_retest_ausprivauto0405_vehvalue.csv`;
+`scripts/eval/insurance_benchmark_v1/analyze_version_retest.py`;
+`scripts/eval/insurance_benchmark_v1/analyze_regression_retest.py`.
 
 ## 9. Source Workbooks
 
