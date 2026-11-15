@@ -219,5 +219,5 @@ won every classification task tested (8/9 sweep cells including the two full-siz
 - Lapse: `scripts/eval/lapse_benchmark_v1/tabarena_leaderboard.csv` (ELO),
   `results_per_split.csv` (per-fold AUC).
 - Money chart: `scripts/eval/insurance_benchmark_v1/plot_money_chart.py` (docstring:
-  off-frontier ⇒ ≥53.5K rows, ratio ≥1.03; sweep 8/9).
+  off-frontier ⇒ ≥53.5K rows, ratios **1.003–1.502**, as corrected in §1; sweep 8/9).
 - One-pager: `../../archive/frontier-benchmark/TABPFN_BENCHMARK_SUMMARY.md`.
