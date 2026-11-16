@@ -33,6 +33,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402  (backend must be chosen before pyplot)
 import pandas as pd  # noqa: E402
+from matplotlib.lines import Line2D  # noqa: E402
 from matplotlib.patches import Patch  # noqa: E402
 
 _REPO = Path(__file__).resolve().parents[2]
@@ -68,6 +69,24 @@ class Agreement:
     overlap: dict[tuple[str, str], float]
     correlation: dict[tuple[str, str], float]
     at_chance: frozenset[str]
+    chance: float
+
+
+def chance_overlap(features: int, top: int = 10) -> float:
+    """Expected Jaccard of two top-ten sets drawn at random from `features` distinct features.
+
+    Two independent k-subsets of an N-set share k^2/N members in expectation, and their union holds
+    2k - k^2/N, so the expected Jaccard is (k^2/N) / (2k - k^2/N). When k == N the top ten is the whole
+    feature set and the expectation is 1.0 — which is why `uslapseagent`'s overlap says nothing (#651).
+    """
+    k = min(top, features)
+    shared = k * k / features
+    return shared / (2 * k - shared)
+
+
+def feature_counts(table: pd.DataFrame) -> dict[str, int]:
+    """Distinct features each dataset ranked — the denominator the chance model needs."""
+    return {dataset: int(group["feature"].nunique()) for dataset, group in table.groupby("dataset")}
 
 
 def load_table() -> pd.DataFrame:
@@ -115,7 +134,8 @@ def agreements() -> list[Agreement]:
             for family in FAMILIES
             if bool(_rows(table, dataset, family)["no_better_than_chance"].iloc[0])
         )
-        out.append(Agreement(dataset, overlap, correlation, chance))
+        counts = feature_counts(table)
+        out.append(Agreement(dataset, overlap, correlation, chance, chance_overlap(counts[dataset])))
     return out
 
 
@@ -130,6 +150,15 @@ def draw(readings: list[Agreement], stem: Path) -> tuple[Path, Path]:
     )
 
     for index, reading in enumerate(readings):
+        top.hlines(
+            reading.chance,
+            index - 0.45,
+            index + 0.45,
+            color=NEUTRAL["muted"],
+            lw=0.9,
+            ls=(0, (3, 2)),
+            zorder=3,
+        )
         for offset, (first, second) in enumerate(PAIRS):
             # Centre the group whatever the number of pairs, so a fourth family cannot skew it.
             x = index + (offset - (len(PAIRS) - 1) / 2) * width
@@ -186,6 +215,16 @@ def draw(readings: list[Agreement], stem: Path) -> tuple[Path, Path]:
             edgecolor=NEUTRAL["ink"],
             hatch="///",
             label="at chance: hatched bar, hollow dot — its ranking is noise",
+        )
+    )
+    handles.append(
+        Line2D(
+            [],
+            [],
+            color=NEUTRAL["muted"],
+            lw=0.9,
+            ls=(0, (3, 2)),
+            label="overlap expected by chance",
         )
     )
     top.legend(
