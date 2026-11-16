@@ -56,7 +56,9 @@ ties (`norauto`, `bemtl97`), where TabPFN holds no best metric but is not domina
 **Frontier membership and being the best metric are different tests**: the frontier is a trade-off
 position — no cheaper method with equal accuracy — so a dataset can sit on it while LGBM holds the lower
 mean, and off it because a seven-parameter GLM ties the metric (`ausprivauto0405`). That is why the section
-says 7 on the frontier and the figure says TabPFN is the best method on 5. The loss count
+says 7 on the frontier and the figure says TabPFN is the best method on 5 — both **in the `v3_default`
+panel**; on the current `v3.5` line the frontier count is 8, because `spanish_motor_freq` is no longer
+dominated (§16.3), while the best-method count stays 5. The loss count
 reflects the log-loss axis only — §14.11's AUC rescore reclassifies ausprivauto0405 to
 tie-with-ranking-edge. Money chart
 (`plot_money_chart.py` docstring): every off-frontier point sits at ≥53.5K training rows.
@@ -69,29 +71,32 @@ tie-with-ranking-edge. Money chart
 
 ![TabPFN against the best method, by dataset size](../../figures/tabpfn_size_drift.png)
 
-*Figure 1 — the size story.* One point per frontier dataset: TabPFN's metric ÷ the best method's,
-against training rows, so 1.00 is a tie with the best and above it is a loss. Blue points sit on the
-parsimony frontier, red ones off it; hollow diamonds are the nine home-turf sweep cells — the six
-1K/5K cells all sit at 1.00, so they overlap as two diamonds. Ratios
-compare within a dataset, not across: the frontier metric differs by task (log loss, Poisson deviance,
-RMSE). TabPFN is the single best method on **five** of the twelve; LGBM is best on six and a
-seven-parameter logistic GLM on one (`ausprivauto0405`, the 1.003 tie). Every off-frontier dataset is at
-least 53,502 rows; the two largest gaps are `bemtl97_amount` (1.50 at 163K) and `freMTPL2freq` (1.33 at
-678K). Regenerate with `.venv/bin/python scripts/infra/adoption_figures.py --only size`; vector PDF
-beside the PNG.
+*Figure 1 — in the `v3_default` panel, the size story.* One point per frontier dataset: TabPFN's
+metric ÷ the best method's, against training rows, so 1.00 is a tie with the best and above it is a
+loss. The figure states its model line; **daggered points were re-tested at `v3.5`**, where
+`spanish_motor_freq` falls from 1.11 to 1.01 and `freMTPL2freq` from 1.33 to 1.03 — so the drift
+below is this panel's, not the current line's. Blue points sit on the parsimony frontier, red ones
+off it; hollow diamonds are the nine home-turf sweep cells — the six 1K/5K cells all sit at 1.00, so
+they overlap as two diamonds. Ratios compare within a dataset, not across: the frontier metric
+differs by task (log loss, Poisson deviance, RMSE). TabPFN is the single best method on **five** of
+the twelve; LGBM is best on six and a seven-parameter logistic GLM on one (`ausprivauto0405`, the
+1.003 tie). Every off-frontier dataset is at least 53,502 rows; the two largest gaps in this panel
+are `bemtl97_amount` (1.50 at 163K) and `freMTPL2freq` (1.33 at 678K), and on the current line the
+second of those closes to 1.035. Regenerate with `.venv/bin/python scripts/infra/adoption_figures.py
+--only size`; vector PDF beside the PNG.
 
 ![Every frontier method on every dataset](../../figures/frontier_method_matrix.png)
 
 *Figure 2 — where TabPFN is the best method, and where something cheaper ties it.* Down the outlined
-column — TabPFN's: 1.00 on five datasets, within 0.6% on two more, and 1.003–1.50 on the five off the frontier.
-One row per dataset ordered by size, one column per method that ran. Each cell is that method's
-metric ÷ the dataset's best, so 1.00 is the best available there; the number is printed because colour
-alone is not an encoding.
-Shading is clipped at 1.50 — the printed value carries anything larger, and `bemtl97_amount`'s Poisson
-GLM at 13.3 is why the clip exists rather than an axis that would flatten every near-1 cell. A blank
-cell is a method that did not run on that task (no logistic model on a regression target, no OLS on a
-classification one), never a zero. Regenerate with
-`.venv/bin/python scripts/infra/adoption_figures.py --only matrix`.
+column — TabPFN's: 1.00 on five datasets, within 0.6% on two more, and 1.003–1.50 on the five off
+the frontier. One row per dataset ordered by size, one column per method that ran; daggered rows
+were re-tested at `v3.5`, and the cells are this panel's `v3_default` values. Each cell is that
+method's metric ÷ the dataset's best, so 1.00 is the best available there; the number is printed
+because colour alone is not an encoding. Shading is clipped at 1.50 — the printed value carries
+anything larger, and `bemtl97_amount`'s Poisson GLM at 13.3 is why the clip exists rather than an
+axis that would flatten every near-1 cell. A blank cell is a method that did not run on that task
+(no logistic model on a regression target, no OLS on a classification one), never a zero. Regenerate
+with `.venv/bin/python scripts/infra/adoption_figures.py --only matrix`.
 
 ## 2. Hypothesis test — thin-signal vs GLM-captured
 
