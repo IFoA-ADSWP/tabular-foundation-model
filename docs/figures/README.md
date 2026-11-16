@@ -35,7 +35,7 @@ Drawn by `scripts/infra/adoption_figures.py`, asserted against the frontier CSVs
 
 | Figure | The claim it carries | Evidence | Regenerate |
 | --- | --- | --- | --- |
-| [`diagnostics_feature_agreement.pdf`](diagnostics_feature_agreement.pdf) · [`.png`](diagnostics_feature_agreement.png) | How far the three model families agree on which features matter, per dataset | `docs/analyses/data/d2_importance.csv` (exported, hash-checked) | `.venv/bin/python scripts/infra/diagnostics_figures.py` |
+| [`diagnostics_feature_agreement.pdf`](diagnostics_feature_agreement.pdf) · [`.png`](diagnostics_feature_agreement.png) | How far the three model families agree on which features matter, per dataset, measured against the overlap chance alone would give | `docs/analyses/data/d2_importance.csv` (exported, hash-checked) | `.venv/bin/python scripts/infra/diagnostics_figures.py` |
 
 The hollow-dot and hatched-bar convention means something different here: a family whose own test AUC
 is at chance, so its ranking is noise rather than a quotation. `uslapseagent` records only ten

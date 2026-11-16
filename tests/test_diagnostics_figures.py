@@ -82,6 +82,33 @@ def test_overlaps_are_jaccard_indices_and_correlations_are_bounded(readings):
             assert -1.0 <= value <= 1.0
 
 
+def test_the_chance_reference_follows_the_feature_count(figures):
+    """Overlap is only interpretable against the number of features there were to overlap on (#651)."""
+    assert figures.chance_overlap(85) == pytest.approx(0.062, abs=0.001)
+    assert figures.chance_overlap(18) == pytest.approx(0.385, abs=0.002)
+    assert figures.chance_overlap(22) == pytest.approx(0.294, abs=0.002)
+    assert figures.chance_overlap(10) == pytest.approx(1.0)
+
+    counts = figures.feature_counts(figures.load_table())
+    assert counts == {
+        "coil2000": 85,
+        "eudirectlapse": 18,
+        "spanish_motor_lapse": 22,
+        "uslapseagent": 10,
+    }
+
+
+def test_the_caption_multiples_hold_against_the_table(figures):
+    """The caption quotes 1.4x and 1.8x; recompute both from the readings and the chance model."""
+    readings = {reading.dataset: reading for reading in figures.agreements()}
+
+    eudi = readings["eudirectlapse"]
+    assert eudi.overlap[("tabpfn", "glm")] / eudi.chance == pytest.approx(1.40, abs=0.05)
+    coil = readings["coil2000"]
+    assert coil.overlap[("tabpfn", "glm")] / coil.chance == pytest.approx(1.79, abs=0.05)
+    assert coil.overlap[("tabpfn", "lgbm")] / coil.chance == pytest.approx(5.37, abs=0.1)
+
+
 def test_the_cli_exports_a_deterministic_pair(tmp_path, figures):
     first, second = tmp_path / "first", tmp_path / "second"
     assert figures.main(["--out", str(first)]) == 0
