@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-08T14:39:26Z",
+  "git_sha": "f87d4f5ce630590bc558d7953f1efd846812b6a7",
+  "model_version": "v3.5_default",
+  "tabpfn_client_version": "0.6.0",
+  "argv": [
+    "scripts/benchmarks/run_home_turf_size_sweep.py",
+    "--tabpfn-default-only"
+  ]
+}
