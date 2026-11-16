@@ -2685,13 +2685,19 @@ the harness (§23.4).
 
 ### 23.4 Frontier guard
 
-`run_frontier_benchmark.py` now reuses committed sweep rows only when they came from the
-model under test (`reusable_sweep_rows`). The committed sweep predates the `model_version`
-column and counts as `v3_default` (`SWEEP_MODEL_VERSION`), so any other `TABPFN_MODEL_PATH`
-fits every method fresh and logs that it did. v3 runs are unchanged: a v3 frontier run on
-`coil2000` reproduces the committed TabPFN, CatBoost, LightGBM and XGBoost rows to 1e-16,
-while a v3.5 run logs the guard and refits. Unit test:
-`test_sweep_rows_reused_only_for_the_model_that_produced_them`.
+`run_frontier_benchmark.py` reuses committed sweep rows only when they came from the
+model under test (`reusable_sweep_rows`, #233). The predicate reads the table's own
+provenance: a row is reusable only when the table records this run's seed and its
+resolved model version. The committed August sweep predates both columns, so it
+attributes nothing and is never reused — the guard does not depend on which version is
+under test. A v3.5 run therefore fits every method fresh (TabPFN, CatBoost, LightGBM,
+XGBoost) and logs that it did, and a v3 run would refit the same way rather than
+standing on the committed rows. Nothing re-measured is affected: the committed sweep is
+still the v3 record §13 cites, and the re-test wrote to `results/` without overwriting
+it. The reuse path still pays off for a later sweep that records its own provenance —
+that table is reusable by the version that produced it. Unit tests:
+`test_sweep_reuse.py::test_a_legacy_table_without_provenance_is_never_reused` and
+`::test_a_different_model_version_is_never_reused`.
 
 ### 23.5 Cost
 
@@ -2705,8 +2711,8 @@ minimum, and 296,590 for full-size `bemtl97`. No failed folds.
 > every cell. The one v3 loss, LightGBM by 0.001 at 163K rows, reverses. This completes the
 > checklist of #186.
 
-Evidence: `results/20261008-143926/` (`home_turf_sweep_results.csv`, `home_turf_sweep_run.log`,
-`manifest.json`); `scripts/eval/insurance_benchmark_v1/version_retest_home_turf_sweep.csv`;
+Evidence: `results/20261008-143926/` (`home_turf_sweep_results.csv`, `manifest.json`; the run's
+log is git-ignored, so it is not cited); `scripts/eval/insurance_benchmark_v1/version_retest_home_turf_sweep.csv`;
 `scripts/eval/insurance_benchmark_v1/analyze_sweep_retest.py`;
 `scripts/benchmarks/run_home_turf_size_sweep.py`.
 

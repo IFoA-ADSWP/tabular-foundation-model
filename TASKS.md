@@ -1,7 +1,7 @@
 # Task List
 
 A **curated subset** of GitHub issues — these 27 rows, not the full backlog (the tracker holds 355).
-Reconciled against the tracker on **2026-11-13**; update a row when its issue changes state.
+Reconciled against the tracker on **2026-11-15**; update a row when its issue changes state.
 
 | Status | # | Title | Assignee |
 |--------|---|-------|----------|
