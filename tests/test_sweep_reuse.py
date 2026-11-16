@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -107,6 +108,65 @@ def test_the_sweep_writer_stamps_seed_and_model_version_on_every_row():
 
     assert row["seed"] == sweep.SPLIT_SEED == 42
     assert row["model_version"] == sweep._model_path()
+
+
+# ---------------------------------------------------------------------------
+# Arm selection (#186's --tabpfn-default-only / --out-dir, no fitting)
+# ---------------------------------------------------------------------------
+def arms(methods: list[tuple[str, dict]]) -> list[tuple[str, object]]:
+    return [(name, kw.get("n_estimators")) for name, kw in methods]
+
+
+DEFAULT_ARMS = [
+    ("tabpfn", None), ("tabpfn", 8), ("tabpfn", 1), ("cat", None), ("xgb", None),
+    ("lgbm", None),
+]
+GBDT_ARMS = [("cat", None), ("xgb", None), ("lgbm", None)]
+
+
+def test_the_default_cell_fits_every_arm():
+    sweep = _load(SWEEP, "sweep_for_186_arms_test")
+
+    assert arms(sweep.methods_for("coil2000", 1000)) == DEFAULT_ARMS
+    # The n=8 probe arm is dropped only after the probe proves it identical.
+    assert arms(sweep.methods_for("coil2000", 1000, n8_equals_default=True)) == [
+        ("tabpfn", None), ("tabpfn", 1)] + GBDT_ARMS
+    assert arms(sweep.methods_for("coil2000", 1000, n8_equals_default=False)) == DEFAULT_ARMS
+
+
+def test_tabpfn_default_only_keeps_the_winner_table_arms():
+    sweep = _load(SWEEP, "sweep_for_186_default_only_test")
+
+    for size in (1000, 5000, None):
+        assert arms(sweep.methods_for("coil2000", size, tabpfn_default_only=True)) == [
+            ("tabpfn", None)] + GBDT_ARMS
+    # §23.1's re-test: the default arm scored against the GBDTs, on the full bemtl97 cell too.
+    assert arms(sweep.methods_for("bemtl97", None, tabpfn_default_only=True)) == [
+        ("tabpfn", None)] + GBDT_ARMS
+
+
+def test_the_full_bemtl97_trim_drops_the_extra_tabpfn_configs():
+    sweep = _load(SWEEP, "sweep_for_trim_test")
+
+    assert sweep.trimmed_for("bemtl97", None) is True
+    assert arms(sweep.methods_for("bemtl97", None)) == [("tabpfn", None)] + GBDT_ARMS
+    # Only the full cell is trimmed; the declared 1K/5K points fit every arm.
+    assert sweep.trimmed_for("bemtl97", 5000) is False
+    assert arms(sweep.methods_for("bemtl97", 5000)) == DEFAULT_ARMS
+    assert sweep.trimmed_for("coil2000", None) is False
+
+
+def test_the_new_cli_flags_reach_the_run_settings(monkeypatch):
+    sweep = _load(SWEEP, "sweep_for_186_cli_test")
+
+    monkeypatch.setattr(sys, "argv", ["prog"])
+    default = sweep.parse_args()
+    assert default.out_dir is None and default.tabpfn_default_only is False
+
+    monkeypatch.setattr(sys, "argv", ["prog", "--out-dir", "results/run", "--tabpfn-default-only"])
+    explicit = sweep.parse_args()
+    assert explicit.out_dir == "results/run"
+    assert explicit.tabpfn_default_only is True
 
 
 def _experiment(model_version: str = "v3_default") -> Experiment:

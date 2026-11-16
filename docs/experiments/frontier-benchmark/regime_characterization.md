@@ -27,7 +27,7 @@ where the report records it. TabPFN n_params is the settled constant 10,000,000 
 | dataset | rows | target (metric) | balance | TabPFN mean ± SE | position | best competitor (mean, params) | GLM floor (params, score; gap) | outcome class |
 |---|---|---|---|---|---|---|---|---|
 | coil2000 | 9,822 | CARAVAN purchase (log loss) | 6% pos | 0.20059 ± 0.00221 | **on frontier, best** | lr 0.20554 (86) | lr 0.20554 (86); +2.5% | WIN |
-| bemtl16 | 58,723 | liability claims (log loss) | 36.0% pos | 0.23803 ± 0.00129 | **on frontier, best** | lgbm 0.23985 (3,100) | logisticglm 0.26315 (14); +10.6% | WIN |
+| bemtl16 † | 58,723 | liability claims (log loss) | 36.0% pos | 0.23803 ± 0.00129 | **on frontier, best** | lgbm 0.23985 (3,100) | logisticglm 0.26315 (14); +10.6% | WIN |
 | uslapseagent | 29,317 | surrender (log loss) | 38% pos | 0.24909 ± 0.00518 | **on frontier, best** | cat 0.25286 (63,394) | logisticglm 0.27624 (11); +10.9% | WIN |
 | ausautoBI8999 | 22,036 | log AggClaim (RMSE) | continuous | 0.96491 ± 0.00868 | **on frontier, best** | cat 0.96883 (63,944) | ols 1.07133 (12); +11.0% | WIN |
 | ausprivauto0405_vehvalue | 67,856 | VehValue (RMSE) | continuous | 0.71162 ± 0.01246 | **on frontier, best** | lgbm 0.71645 (3,100) | poissonglm 1.00932 (7); +41.8% | WIN (within SE of lgbm) |
@@ -36,10 +36,19 @@ where the report records it. TabPFN n_params is the settled constant 10,000,000 
 | ausprivauto0405 | 67,856 | ClaimOcc (log loss) | 6.8% pos | 0.24026 ± 0.00037 | **off frontier** | logisticglm 0.23947 (7) | GLM is the best; 0.0% | GLM-captured (retracted §14.11.3 — calibration tie, TabPFN best AUC of suite) |
 | spanish_motor_freq | 53,502 | N_claims_year (Poisson dev) | 11.1% >0 | 0.98764 ± 0.01624 | **off frontier** | lgbm 0.89157 (3,100) | poissonglm 1.01250 (21); null dev 1.0123 — GLM at the intercept floor; +13.6% vs lgbm | DOMINATED |
 | spanish_motor_severity | 53,502 | log1p cost (RMSE) | continuous | 1.88616 ± 0.01165 | **off frontier** (5th of 8) | lgbm 1.83719 (3,100) | ols 1.87810 (21); +2.2% | DOMINATED |
-| bemtl97_amount | 163,212 | log1p amount (RMSE) | ~89% zero mass | 0.72825 ± 0.01057 | **off frontier** | lgbm 0.48499 (3,100) | ols 0.70799 (12); +46.0% | DOMINATED |
+| bemtl97_amount ‡ | 163,212 | log1p amount (RMSE) | ~89% zero mass | 0.72825 ± 0.01057 | **off frontier** | lgbm 0.48499 (3,100) | ols 0.70799 (12); +46.0% | DOMINATED |
 | freMTPL2freq | 678,013 | frequency (Poisson dev) | count | 0.38770 ± 0.00201 | **off frontier** | lgbm 0.29113 (3,100) | poissonglm 0.32109 (11); +10.3% | DOMINATED |
 | spanish_motor_lapse | 53,502 | surrender (AUC) | 35.4% pos | **0.7553 ± 0.0026** | wins all 5 folds | lgbm 0.7500 ± 0.0022 | LR 0.6841 ± 0.0015 (gap 0.071 AUC / +9.4% on TabPFN) | WIN |
 | eudirectlapse | 23,000 | lapse (AUC) | 12.8% pos | 0.6101 ± 0.0049 | loses all 5 folds | linear 0.6260 ± 0.0037 | LR is the best; 0.0% | LOSE |
+
+† bemtl16: computed with a target leak (`claim_responsibility_rate`, issue #216). On clean
+data (master report §21) TabPFN is still best — 0.5968 ± 0.0022 vs LightGBM 0.5985 — but the
+harness-GLM gap is +3.8%, not +10.6%, and +1.2% to a one-hot logistic regression.
+
+‡ bemtl97_amount: computed with a target leak (`nclaims`, issue #216), as are the
++46.0% and "cannot beat even the GLM floor" readings below. Clean (master report §22): no
+model is much better than the mean; TabPFN trails LightGBM by 1.4–2.6% RMSE, from mean
+predictions biased low, while ranking policies as well.
 
 Size sweep (§13.2; `home_turf_sweep_results.csv`): bemtl97 / coil2000 / uslapseagent ×
 1K / 5K / full (163,212 / 9,822 / 29,317 rows) × 5 folds, log loss. **TabPFN wins 8/9
@@ -56,7 +65,9 @@ ties (`norauto`, `bemtl97`), where TabPFN holds no best metric but is not domina
 **Frontier membership and being the best metric are different tests**: the frontier is a trade-off
 position — no cheaper method with equal accuracy — so a dataset can sit on it while LGBM holds the lower
 mean, and off it because a seven-parameter GLM ties the metric (`ausprivauto0405`). That is why the section
-says 7 on the frontier and the figure says TabPFN is the best method on 5. The loss count
+says 7 on the frontier and the figure says TabPFN is the best method on 5 — both **in the `v3_default`
+panel**; on the current `v3.5` line the frontier count is 8, because `spanish_motor_freq` is no longer
+dominated (§16.3), while the best-method count stays 5. The loss count
 reflects the log-loss axis only — §14.11's AUC rescore reclassifies ausprivauto0405 to
 tie-with-ranking-edge. Money chart
 (`plot_money_chart.py` docstring): every off-frontier point sits at ≥53.5K training rows.
@@ -69,29 +80,32 @@ tie-with-ranking-edge. Money chart
 
 ![TabPFN against the best method, by dataset size](../../figures/tabpfn_size_drift.png)
 
-*Figure 1 — the size story.* One point per frontier dataset: TabPFN's metric ÷ the best method's,
-against training rows, so 1.00 is a tie with the best and above it is a loss. Blue points sit on the
-parsimony frontier, red ones off it; hollow diamonds are the nine home-turf sweep cells — the six
-1K/5K cells all sit at 1.00, so they overlap as two diamonds. Ratios
-compare within a dataset, not across: the frontier metric differs by task (log loss, Poisson deviance,
-RMSE). TabPFN is the single best method on **five** of the twelve; LGBM is best on six and a
-seven-parameter logistic GLM on one (`ausprivauto0405`, the 1.003 tie). Every off-frontier dataset is at
-least 53,502 rows; the two largest gaps are `bemtl97_amount` (1.50 at 163K) and `freMTPL2freq` (1.33 at
-678K). Regenerate with `.venv/bin/python scripts/infra/adoption_figures.py --only size`; vector PDF
-beside the PNG.
+*Figure 1 — in the `v3_default` panel, the size story.* One point per frontier dataset: TabPFN's
+metric ÷ the best method's, against training rows, so 1.00 is a tie with the best and above it is a
+loss. The figure states its model line; **daggered points were re-tested at `v3.5`**, where
+`spanish_motor_freq` falls from 1.11 to 1.01 and `freMTPL2freq` from 1.33 to 1.03 — so the drift
+below is this panel's, not the current line's. Blue points sit on the parsimony frontier, red ones
+off it; hollow diamonds are the nine home-turf sweep cells — the six 1K/5K cells all sit at 1.00, so
+they overlap as two diamonds. Ratios compare within a dataset, not across: the frontier metric
+differs by task (log loss, Poisson deviance, RMSE). TabPFN is the single best method on **five** of
+the twelve; LGBM is best on six and a seven-parameter logistic GLM on one (`ausprivauto0405`, the
+1.003 tie). Every off-frontier dataset is at least 53,502 rows; the two largest gaps in this panel
+are `bemtl97_amount` (1.50 at 163K) and `freMTPL2freq` (1.33 at 678K), and on the current line the
+second of those closes to 1.035. Regenerate with `.venv/bin/python scripts/infra/adoption_figures.py
+--only size`; vector PDF beside the PNG.
 
 ![Every frontier method on every dataset](../../figures/frontier_method_matrix.png)
 
 *Figure 2 — where TabPFN is the best method, and where something cheaper ties it.* Down the outlined
-column — TabPFN's: 1.00 on five datasets, within 0.6% on two more, and 1.003–1.50 on the five off the frontier.
-One row per dataset ordered by size, one column per method that ran. Each cell is that method's
-metric ÷ the dataset's best, so 1.00 is the best available there; the number is printed because colour
-alone is not an encoding.
-Shading is clipped at 1.50 — the printed value carries anything larger, and `bemtl97_amount`'s Poisson
-GLM at 13.3 is why the clip exists rather than an axis that would flatten every near-1 cell. A blank
-cell is a method that did not run on that task (no logistic model on a regression target, no OLS on a
-classification one), never a zero. Regenerate with
-`.venv/bin/python scripts/infra/adoption_figures.py --only matrix`.
+column — TabPFN's: 1.00 on five datasets, within 0.6% on two more, and 1.003–1.50 on the five off
+the frontier. One row per dataset ordered by size, one column per method that ran; daggered rows
+were re-tested at `v3.5`, and the cells are this panel's `v3_default` values. Each cell is that
+method's metric ÷ the dataset's best, so 1.00 is the best available there; the number is printed
+because colour alone is not an encoding. Shading is clipped at 1.50 — the printed value carries
+anything larger, and `bemtl97_amount`'s Poisson GLM at 13.3 is why the clip exists rather than an
+axis that would flatten every near-1 cell. A blank cell is a method that did not run on that task
+(no logistic model on a regression target, no OLS on a classification one), never a zero. Regenerate
+with `.venv/bin/python scripts/infra/adoption_figures.py --only matrix`.
 
 ## 2. Hypothesis test — thin-signal vs GLM-captured
 
@@ -160,7 +174,7 @@ won every classification task tested (8/9 sweep cells including the two full-siz
 
 ## 3. Regime descriptor (paste-ready for the one-pager)
 
-> **Use default TabPFN when** training rows are ≤ ~5K (won 8/9 size-sweep cells, §13.2),
+> **Use default TabPFN when** training rows are ≤ ~5K (won 8/9 size-sweep cells, §13.2; 9/9 on v3.5, master report §23),
 > **or** the task is classification/lapse-style and the linear floor is far from
 > achievable — best LR/GLM ≥ ~3% behind the best model (or ≥ ~0.05 AUC): that condition
 > holds for every TabPFN win (coil2000, bemtl16, uslapseagent, ausautoBI8999,
@@ -200,7 +214,7 @@ won every classification task tested (8/9 sweep cells including the two full-siz
   when the client/model version changes: master report §15 (Version-Drift Re-Test
   Policy, issue #55).
 - **Label-leak exclusions.** bemtl97 (`nclaims`/`amount` leak, §6) is leak-fixed
-  everywhere here; bemtl97_amount drops `claim` (§14.8); Spanish motor drops the
+  everywhere here; bemtl97_amount drops `claim` (§14.8) — and, only since #216, `nclaims` (§22), so its row above is leaky; Spanish motor drops the
   history-variable leak (pre-run AUC 0.76/0.92) and sibling targets `Cost_claims_year` /
   `N_claims_year` (§14.9, §14.10); freMTPL2freq drops `IDpol` and uses a log(`Exposure`)
   offset (§14.8). Excluded rows are not part of any number above.

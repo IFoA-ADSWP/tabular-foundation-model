@@ -67,6 +67,9 @@ def make_uslapseagent(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
 
 
 def make_bemtl97(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+    """Three targets, all outcomes of the same claim event: claim == (nclaims > 0) ==
+    (amount > 0) on every row. A task on one must drop the other two as features
+    (bemtl97: master report §6; bemtl97_amount: #216)."""
     keep = ["expo", "coverage", "ageph", "sex", "bm", "power", "agec", "fuel",
             "use", "fleet", "claim", "nclaims", "amount"]
     cats = ["coverage", "sex", "fuel", "use"]
@@ -79,11 +82,16 @@ def make_bemtl97(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
 
 
 def make_bemtl16(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+    """Leak exclusions (CASdatasets man/beMTPL16.Rd): the claim attributes claim_value,
+    claim_time, number_of_bodily_injury_liability_claims and claim_responsibility_rate
+    ("Rate of responsibility for the claim"), plus signal and the contract ID. The
+    responsibility rate was kept until #216: it is set after the accident, and rate > 0
+    alone scores AUC 0.89 against number_of_liability_claims (claim rate 0.17% at rate
+    0 vs ~73% above)."""
     keep = ["policy_year", "exposure", "insured_birth_year", "vehicle_age",
             "policy_holder_age", "driver_license_age", "vehicle_brand",
             "vehicle_model", "mileage", "vehicle_power", "catalog_value",
-            "claim_responsibility_rate", "driving_training_label",
-            "number_of_liability_claims"]
+            "driving_training_label", "number_of_liability_claims"]
     cats = ["vehicle_brand", "vehicle_model", "driving_training_label"]
     # Panel data: one row per policy-year; keep the latest year per contract.
     df = (df.sort_values("policy_year")

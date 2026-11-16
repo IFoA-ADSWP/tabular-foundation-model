@@ -27,7 +27,10 @@ Pareto comparison).
 
 TabPFN/CAT/LGBM/XGB log-loss values are REUSED from home_turf_sweep_results.csv
 (identical splits — no re-running), filtered to dataset + full size
-(n_rows == len(X), n_estimators.isna()): 5 fold rows per method. Datasets with NO
+(n_rows == len(X), n_estimators.isna()): 5 fold rows per method — but only when the
+sweep came from the model under test. The committed sweep predates the provenance columns,
+so no run reuses it and every method is fitted fresh; only a sweep that records its seed and
+model_version is reusable, and then only by that same version (§15.2). Datasets with NO
 sweep rows (norauto) fall back to FRESH power on the same 5 folds: cat/lgbm/xgb fit
 locally at sweep defaults; TabPFN runs last via the hosted API with a retry loop
 (3 attempts, backoff 10s/60s/300s) so a hosted stall never blocks the fast results.
@@ -39,8 +42,10 @@ classification-only — regression never reuses it):
   The six datasets, their stored scale, targets, drops and metrics are declared in
   experiments.toml (#235); this docstring no longer restates them.
 
-bemtl97_amount drops `claim` because claim == (amount > 0) at 100% — a deterministic
-leak of the target (verified). freMTPL2freq drops IDpol (unique ids) and replaces the
+bemtl97_amount drops `claim` and `nclaims`: claim == (amount > 0) and (nclaims > 0) ==
+(amount > 0) at 100% — deterministic leaks of the target's zero/non-zero split
+(verified). `nclaims` was only added to the drop list in #216; earlier results include
+it. freMTPL2freq drops IDpol (unique ids) and replaces the
 Exposure column with log(Exposure): Exposure is the natural Poisson offset (verified:
 no Exposure=0 rows), and log-offset is the standard GLM form. RMSE/poisson deviance
 are computed on the target AS STORED — no re-transform of the log-scale targets.
@@ -1035,7 +1040,10 @@ def verify_predictions_readback(npz_path: Path, methods: list[str], metric, rows
         fold_vals = []
         for k in range(n_folds):
             y_true = data[f"y_true__fold{k}"]
-            y_pred = data[f"{m}__fold{k}"]
+            # Score in float64, as the in-run metric did: log_loss clips at the dtype's
+            # machine eps, so a hard 0/1 miss (RF pure leaves) costs ~16 nats from float32
+            # storage vs ~36 in-run — a 2.6e-3 mean shift on eudirectlapse from 3 misses.
+            y_pred = data[f"{m}__fold{k}"].astype(np.float64)
             if problem_type == "classification":
                 fold_vals.append(metric(y_true, _reconstruct_pp(m, y_pred)))
             else:

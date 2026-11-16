@@ -25,8 +25,8 @@ reports by `tests/test_verdict_figures.py`.
 
 | Figure | The claim it carries | Evidence | Regenerate |
 | --- | --- | --- | --- |
-| [`tabpfn_size_drift.pdf`](tabpfn_size_drift.pdf) · [`.png`](tabpfn_size_drift.png) | Default TabPFN ties the best method on small data and drifts as the table grows | the twelve `frontier_results_*.csv` and `home_turf_sweep_results.csv`, with row counts from the committed raw CSVs | `.venv/bin/python scripts/infra/adoption_figures.py --only size` |
-| [`frontier_method_matrix.pdf`](frontier_method_matrix.pdf) · [`.png`](frontier_method_matrix.png) | Which method wins on which dataset, and by how much | the same frontier CSVs; each cell is the metric ÷ that dataset's best | `.venv/bin/python scripts/infra/adoption_figures.py --only matrix` |
+| [`tabpfn_size_drift.pdf`](tabpfn_size_drift.pdf) · [`.png`](tabpfn_size_drift.png) | In the `v3_default` panel, default TabPFN ties the best method on small data and drifts as the table grows; four daggered datasets have a newer line | the twelve `frontier_results_*.csv` and `home_turf_sweep_results.csv`, with row counts from the committed raw CSVs | `.venv/bin/python scripts/infra/adoption_figures.py --only size` |
+| [`frontier_method_matrix.pdf`](frontier_method_matrix.pdf) · [`.png`](frontier_method_matrix.png) | Which method wins on which dataset, and by how much, on the `v3_default` panel; daggered rows were re-tested at `v3.5` | the same frontier CSVs; each cell is the metric ÷ that dataset's best | `.venv/bin/python scripts/infra/adoption_figures.py --only matrix` |
 
 Drawn by `scripts/infra/adoption_figures.py`, asserted against the frontier CSVs by
 `tests/test_adoption_figures.py`. Every value is printed as well as coloured.

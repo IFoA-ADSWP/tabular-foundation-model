@@ -1,0 +1,15 @@
+{
+  "run_id": "20261007-171627",
+  "utc": "2026-10-07T17:16:27Z",
+  "git_sha": "3c25533eece0d3b5725cbedbaad101b9cad5aaf2",
+  "seed": 42,
+  "pr_auc_mode": false,
+  "argv": [
+    "scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py",
+    "--save-predictions",
+    "--seed",
+    "42",
+    "norauto"
+  ],
+  "note": null
+}
