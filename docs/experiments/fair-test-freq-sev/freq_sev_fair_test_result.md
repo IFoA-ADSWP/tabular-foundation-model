@@ -74,7 +74,9 @@ heterogeneous because the two portfolios disagree in sign. Every value is comput
 committed captures by `freq_sev_fair_test.build_summary()` — the function that prints the table
 above — so the figure cannot disagree with it. The 2.1× and 4× row-scaling arms ([below](#the-row-
 scaling-arm-572)) are robustness checks on this verdict, not a second verdict, and are not drawn.
-Regenerate with `.venv/bin/python scripts/infra/verdict_figures.py --only fair-test`; vector PDF at
+**Both arms are TabPFN**: this says fine-tuning beats not fine-tuning, not that either beats a GLM
+or CatBoost — the actuarial baseline answers that ([its own page](actuarial_baseline_summary.md)). Regenerate with `.venv/bin/python
+scripts/infra/verdict_figures.py --only fair-test`; vector PDF at
 [`figures/freq_sev_forest.pdf`](../../figures/freq_sev_forest.pdf).
 
 ## What the numbers say, and what they do not
