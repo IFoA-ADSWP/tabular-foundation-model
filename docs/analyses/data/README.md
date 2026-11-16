@@ -164,10 +164,12 @@ not at chance. A hatched bar and a hollow dot mark a family whose own `test_auc`
 its ranking is noise rather than signal; `eudirectlapse`'s LGBM arm at 0.494 is the case that
 matters. `uslapseagent` records only **ten** features, so its top ten is the whole feature set and
 its overlap of 1.00 is an artefact of that width — the rank correlation (0.55–0.72) is the reading
-that means something there. Elsewhere the overlap is a real selection: `coil2000`'s TabPFN and GLM
-share only two of eighteen features, so on that dataset the two models are not describing the same
-relationship. Regenerate with `.venv/bin/python scripts/infra/diagnostics_figures.py`; vector PDF
-beside the PNG.
+that means something there. The dashed line in each group is the overlap two top-tens would share
+**by chance**, which depends on how many features exist: 0.06 with 85 features, 0.39 with 18.
+Against it, `eudirectlapse`'s 0.54 is only 1.4× chance while `coil2000`'s 0.11 is 1.8× and its 0.33
+is 5.3×. Elsewhere the overlap is a real selection: `coil2000`'s TabPFN and GLM share only two of
+eighteen features, so on that dataset the two models are not describing the same relationship.
+Regenerate with `.venv/bin/python scripts/infra/diagnostics_figures.py`; vector PDF beside the PNG.
 
 **What the figure is not.** Importance is a shuffle-drop ROC AUC on the 2,000-row subsample
 (1,500 train / 500 test), so it approximates the full table rather than measuring it; and the TabPFN

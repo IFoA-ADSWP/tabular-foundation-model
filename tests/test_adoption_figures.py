@@ -122,6 +122,32 @@ def test_the_matrix_is_the_union_of_methods_with_honest_gaps(figures, points):
     assert np.nanmin(matrix) == pytest.approx(1.0)
 
 
+def test_the_retested_datasets_are_the_four_from_section_16(figures):
+    """The dagger is a version claim: it must name exactly the four re-tested datasets (#649)."""
+    assert figures.RETESTED_AT_V35 == {
+        "spanish_motor_freq",
+        "spanish_motor_severity",
+        "bemtl97_amount",
+        "freMTPL2freq",
+    }
+    assert figures.VERSION_NOTE == "model v3_default"
+    assert figures.mark("freMTPL2freq").endswith("†")
+    assert figures.mark("coil2000") == "coil2000"
+
+
+def test_the_document_scopes_its_counts_to_the_panel(figures):
+    """Both frontier counts are stated, and the panel's era is named (#649)."""
+    text = " ".join(
+        (REPO / "docs" / "experiments" / "frontier-benchmark" / "regime_characterization.md")
+        .read_text(encoding="utf-8")
+        .split()
+    )
+
+    assert "in the `v3_default` panel" in text
+    assert "7 on the frontier" in text
+    assert "frontier count is 8" in text
+
+
 def test_the_cli_exports_both_pairs_and_is_deterministic(tmp_path, figures):
     """A diff in a committed figure must mean the picture changed, not that it was redrawn."""
     first, second = tmp_path / "first", tmp_path / "second"

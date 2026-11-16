@@ -74,6 +74,18 @@ METHOD_ORDER = (
     "tweedieglm",
 )
 
+#: The model line this panel was measured on. Named in the figure itself (#649): a screenshot must
+#: not be able to present a v3_default number as current.
+VERSION_NOTE = "model v3_default"
+
+#: Datasets re-tested at v3.5 (§16). Their current line moves — `spanish_motor_freq` is no longer
+#: dominated and `freMTPL2freq` closes most of its gap — so the panel marks them and the caption
+#: says what moved. They are not mixed into the plotted values.
+RETESTED_AT_V35 = frozenset(
+    {"spanish_motor_freq", "spanish_motor_severity", "bemtl97_amount", "freMTPL2freq"}
+)
+DAGGER = "†"
+
 #: Label offsets in points, for the five off-frontier points — the ones that carry the claim.
 #: The seven on-frontier points sit on the 1.00 line and are named by the matrix figure and the
 #: caption; labelling twelve in a 0.9-decade band collides at any legible size.
@@ -84,6 +96,11 @@ LABEL_OFFSETS = {
     "bemtl97_amount": (-18, 10),
     "freMTPL2freq": (-14, 10),
 }
+
+
+def mark(dataset: str) -> str:
+    """The dataset's name, daggered when a newer model line exists for it (#649)."""
+    return f"{dataset} {DAGGER}" if dataset in RETESTED_AT_V35 else dataset
 
 
 @dataclass(frozen=True)
@@ -227,7 +244,7 @@ def _size_drift(points: list[FrontierDataset], sweep: pd.DataFrame, stem: Path) 
         if point.dataset in LABEL_OFFSETS:
             dx, dy = LABEL_OFFSETS[point.dataset]
             ax.annotate(
-                point.dataset,
+                mark(point.dataset),
                 (point.n_rows, point.ratio),
                 textcoords="offset points",
                 xytext=(dx, dy),
@@ -264,6 +281,7 @@ def _size_drift(points: list[FrontierDataset], sweep: pd.DataFrame, stem: Path) 
             markersize=5,
             label="size sweep 1K / 5K / full",
         ),
+        Line2D([], [], lw=0, alpha=0.0, label=f"{DAGGER} re-tested at v3.5 — see caption"),
     ]
     ax.legend(
         handles=handles,
@@ -273,6 +291,7 @@ def _size_drift(points: list[FrontierDataset], sweep: pd.DataFrame, stem: Path) 
         borderaxespad=0.3,
         frameon=False,
     )
+    fig.text(0.005, 0.005, VERSION_NOTE, ha="left", va="bottom", fontsize=7, color=NEUTRAL["muted"])
 
     return save_publication(fig, stem)
 
@@ -314,7 +333,7 @@ def _method_matrix(points: list[FrontierDataset], stem: Path) -> tuple[Path, Pat
     # at a legible size, and shortening them would introduce names the registry does not use.
     ax.set_xticklabels(METHOD_ORDER, rotation=90, ha="center", va="top", fontsize=8)
     ax.set_yticks(range(len(points)))
-    ax.set_yticklabels([point.dataset for point in points], fontsize=8)
+    ax.set_yticklabels([mark(point.dataset) for point in points], fontsize=8)
     ax.tick_params(length=0)
 
     ax.add_patch(
@@ -341,6 +360,16 @@ def _method_matrix(points: list[FrontierDataset], stem: Path) -> tuple[Path, Pat
     ax.tick_params(which="minor", length=0)
 
     fig.tight_layout()
+    fig.text(0.005, 0.005, VERSION_NOTE, ha="left", va="bottom", fontsize=7, color=NEUTRAL["muted"])
+    fig.text(
+        0.5,
+        0.005,
+        f"{DAGGER} re-tested at v3.5 — see caption",
+        ha="center",
+        va="bottom",
+        fontsize=7,
+        color=NEUTRAL["muted"],
+    )
     return save_publication(fig, stem)
 
 
