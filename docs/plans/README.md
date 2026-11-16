@@ -4,8 +4,8 @@ One file per task: `docs/plans/<task>.md`. Write it **before** non-trivial work,
 change. A plan outranks a fresh ticket — check this directory before speccing or building, because the ticket
 you are about to write may already be covered.
 
-**This index is the only map.** Of the 79 plans, 61 are linked from no other document and only
-18 are even mentioned anywhere else.
+**This index is the only map.** Of the 82 plans, 65 are linked from no other document and only
+17 are even mentioned anywhere else.
 
 Each row carries the plan's own first heading, so the index cannot drift from the file it points at. The
 group is the **first word of that plan's own `Status:` line** — the plans use *current*, *agreed*,
@@ -17,7 +17,7 @@ since merged, and the pull request that merged it is the record of what happened
 the fact: a plan that says proposed stays that way unless its author amends it, because rewriting the status
 of a plan after the data would make the trail say something it did not.
 
-## Current, agreed or implemented — 69 plans
+## Current, agreed or implemented — 72 plans
 
 Newest first, by ticket number where the filename carries one.
 
@@ -62,6 +62,9 @@ Newest first, by ticket number where the filename carries one.
 | [`truth-hash-verification.md`](truth-hash-verification.md) | the rescore verifies both hashes it was given |
 | [`vast-log-dir.md`](vast-log-dir.md) | a mock launch's log goes beside its records (#280) |
 | [`verification-gate.md`](verification-gate.md) | verification gate, slice 1: the local command |
+| [`651-diagnostics-chance.md`](651-diagnostics-chance.md) | the diagnostics figure shows what overlap to expect (#651) |
+| [`649-adoption-version.md`](649-adoption-version.md) | the adoption figures declare their model version (#649) |
+| [`653-baseline-power.md`](653-baseline-power.md) | the baseline forest exposes the power behind Inconclusive (#653) |
 | [`647-baseline-forest.md`](647-baseline-forest.md) | the actuarial baseline verdict as a forest (#647) |
 | [`618-621-caption-clarity.md`](618-621-caption-clarity.md) | the cold-read caption fixes, prose only (#618–#621) |
 | [`611-figure-boilerplate.md`](611-figure-boilerplate.md) | one CLI and one test loader for the figure scripts (#611) |
