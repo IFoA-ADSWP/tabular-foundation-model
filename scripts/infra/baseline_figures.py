@@ -98,6 +98,7 @@ class Row:
     low: float
     high: float
     floor: float
+    mde: float
     decision: str
     group: str
 
@@ -129,6 +130,7 @@ def rows() -> list[Row]:
                     low=float(verdict["ci"][0]),
                     high=float(verdict["ci"][1]),
                     floor=float(verdict["floor"]),
+                    mde=float(verdict["mde"]),
                     decision=str(verdict["decision"]),
                     group=target,
                 )
@@ -198,7 +200,9 @@ def draw(readings: list[Row], stem: Path) -> tuple[Path, Path]:
         ax.text(
             1.015,
             at,
-            row.decision,
+            # "Inconclusive" with an MDE above the floor means the design could not have detected the
+            # bar it was tested against — a power statement, not an absence of effect (#653).
+            row.decision + (" · underpowered" if row.decision == "Inconclusive" and row.mde > row.floor else ""),
             transform=ax.get_yaxis_transform(),
             ha="left",
             va="center",
