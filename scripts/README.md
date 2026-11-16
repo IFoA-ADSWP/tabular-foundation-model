@@ -43,7 +43,7 @@ route. This page is the index of the tree itself.
 | `benchmarks/` | 8 | TabArena-harness runners: the 7-dataset insurance benchmark, the lapse and imbalance pilots, the home-turf size sweep, the regressor-fit measurement. |
 | `analyses/` | 7 | Capture and analysis tooling: `make_capture.py`, `rescore.py`, `verdict.py`, `freq_sev_*`, `proxy_resolution.py`. `verdict.py` reproduces the null band the decision log cites (#398). |
 | `diagnostics/` | 5 | D1 profiling, D2 importance, D3 reframe, D5 eudirectlapse, and `export_records.py`, which writes the committed table under `docs/analyses/data/`. |
-| `infra/` | 10 | Dataset preparation (`prepare_insurance_datasets.py`, `download_datasets.py`), the wiki push, the shared figure style, and the verdict, adoption and diagnostics figures. |
+| `infra/` | 11 | Dataset preparation (`prepare_insurance_datasets.py`, `download_datasets.py`), the wiki push, the shared figure style, and the verdict, adoption, diagnostics and baseline figures. |
 | `colab_helpers/` | 3 | Superseded R1 launcher path, kept for provenance. |
 | `git-hooks/` | 1 | `pre-commit.local`. |
 
@@ -71,6 +71,7 @@ route. This page is the index of the tree itself.
 | `infra/verdict_figures.py` | The two verdict forest plots, drawn from committed evidence and exported as PDF + 300 dpi PNG (#607) |
 | `infra/adoption_figures.py` | The size/drift chart and the method × dataset matrix, drawn from the committed frontier CSVs (#609) |
 | `infra/diagnostics_figures.py` | Top-ten overlap and rank agreement across the three families, drawn from the exported D2 table (#610) |
+| `infra/baseline_figures.py` | The actuarial baseline verdict as a forest, both budgets, from the v5 captures (#647) |
 
 ## Legacy — fine-tuning era (legacy_finetuning/)
 
