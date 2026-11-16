@@ -28,8 +28,9 @@ Pareto comparison).
 TabPFN/CAT/LGBM/XGB log-loss values are REUSED from home_turf_sweep_results.csv
 (identical splits — no re-running), filtered to dataset + full size
 (n_rows == len(X), n_estimators.isna()): 5 fold rows per method — but only when the
-sweep came from the model under test. The committed sweep is v3_default, so any other
-TABPFN_MODEL_PATH fits every method fresh instead (SWEEP_MODEL_VERSION guard, §15.2). Datasets with NO
+sweep came from the model under test. The committed sweep predates the provenance columns,
+so no run reuses it and every method is fitted fresh; only a sweep that records its seed and
+model_version is reusable, and then only by that same version (§15.2). Datasets with NO
 sweep rows (norauto) fall back to FRESH power on the same 5 folds: cat/lgbm/xgb fit
 locally at sweep defaults; TabPFN runs last via the hosted API with a retry loop
 (3 attempts, backoff 10s/60s/300s) so a hosted stall never blocks the fast results.
@@ -140,7 +141,6 @@ METRIC_LABELS = {  # plot y-axis per metric (metric_fn dispatch)
 }
 N_FOLDS = 5
 SWEEP_CSV = HERE / "home_turf_sweep_results.csv"
-SWEEP_MODEL_VERSION = "v3_default"  # model behind SWEEP_CSV (Aug 2026); it predates the model_version column
 PR_AUC_CSV = HERE / "frontier_pr_auc_results.csv"  # per-fold PR-AUC/lift10 rows (append mode, --pr-auc only)
 PREDICTIONS_DIR = HERE / "predictions"  # --save-predictions: one .npz + manifest per dataset (#122)
 

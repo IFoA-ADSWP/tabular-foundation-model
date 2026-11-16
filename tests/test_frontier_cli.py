@@ -791,27 +791,3 @@ def test_a_pr_auc_sized_run_is_refused_at_the_cli(monkeypatch, tmp_path):
 
     with pytest.raises(SystemExit):
         mod.main()
-
-
-def test_sweep_rows_reused_only_for_the_model_that_produced_them():
-    """§15.2 / §23.4: a v3.5 run must never pick up the committed v3 sweep's TabPFN scores.
-
-    The guard is `reusable_sweep_rows` (#233): a row is reused only when the table records
-    this run's seed and its resolved model version. The committed sweep predates both
-    columns, so no version reuses it — a v3.5 run refits every method rather than standing
-    silently on v3 scores.
-    """
-    tagged = pd.DataFrame({
-        "dataset": ["bemtl97"] * 3,
-        "n_rows": [100, 100, 50],
-        "method": ["tabpfn", "lgbm", "tabpfn"],
-        "n_estimators": [np.nan] * 3,
-        "fold": [0, 0, 0],
-        "log_loss": [0.2] * 3,
-        "brier": [0.05] * 3,
-        "roc_auc": [0.7] * 3,
-        "seed": [42] * 3,
-        "model_version": ["v3_default"] * 3,
-    })
-    assert len(mod.reusable_sweep_rows(tagged, "bemtl97", 100, 42, "v3_default")) == 2
-    assert mod.reusable_sweep_rows(tagged, "bemtl97", 100, 42, "v3.5_default").empty

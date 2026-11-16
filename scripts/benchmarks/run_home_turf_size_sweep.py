@@ -144,6 +144,43 @@ def sweep_row(ds_name: str, n_rows: int, method: str, fold: int,
     }
 
 
+def trimmed_for(dataset: str, declared_size: int | None) -> bool:
+    """Full-size bemtl97 fits the TabPFN default arm only (the 30-min budget, §13.2).
+
+    `declared_size` is the registry's size point, not the realised row count: the trim is
+    declared per cell, so a re-test on a different slice size does not move it.
+    """
+    return dataset == "bemtl97" and declared_size is None
+
+
+def probe_wanted(dataset: str, declared_size: int | None, tabpfn_default_only: bool) -> bool:
+    """Whether this cell runs the n_estimators=8 vs default probe.
+
+    The probe needs the extra arms, so a trimmed cell and a default-arm-only re-test skip it.
+    """
+    return not trimmed_for(dataset, declared_size) and not tabpfn_default_only
+
+
+def methods_for(dataset: str, declared_size: int | None, *,
+                tabpfn_default_only: bool = False,
+                n8_equals_default: bool | None = None) -> list[tuple[str, dict]]:
+    """The arms a cell fits, in run order.
+
+    Default set: TabPFN default, the n_estimators=8 probe arm (dropped once the probe has
+    proved it identical to the default), n_estimators=1, then the three GBDTs.
+    `--tabpfn-default-only` keeps TabPFN default and the GBDTs (§13.2's winner table, #186);
+    the full-size bemtl97 trim does the same. No fitting happens here, so this is the seam
+    the arm selection is tested through.
+    """
+    methods: list[tuple[str, dict]] = [("tabpfn", {"n_estimators": None})]
+    if probe_wanted(dataset, declared_size, tabpfn_default_only):
+        # n8 included only while the probe is pending (None) or proved different (False)
+        if n8_equals_default is not True:
+            methods.append(("tabpfn", {"n_estimators": 8}))
+        methods.append(("tabpfn", {"n_estimators": 1}))
+    return methods + [("cat", {}), ("xgb", {}), ("lgbm", {})]
+
+
 def parse_args():
     import argparse
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -212,17 +249,12 @@ def main() -> None:
             n_rows = len(X)
             cell_t0 = time.time()
 
-            # Methods for this cell. Trim: full bemtl97 keeps TabPFN default only.
-            methods: list[tuple[str, dict]] = [
-                ("tabpfn", {"n_estimators": None}),
-            ]
-            trim_extra = ds["name"] == "bemtl97" and n is None
-            if not trim_extra and not args.tabpfn_default_only:
-                # n8 included only while the probe is pending (None) or proved different (False)
-                if n8_equals_default is not True:
-                    methods.append(("tabpfn", {"n_estimators": 8}))
-                methods.append(("tabpfn", {"n_estimators": 1}))
-            methods += [("cat", {}), ("xgb", {}), ("lgbm", {})]
+            # Methods for this cell: the default set, the full-bemtl97 trim, or a
+            # --tabpfn-default-only re-test (#186). Selection lives in `methods_for`.
+            trim_extra = trimmed_for(ds["name"], n)
+            methods = methods_for(ds["name"], n,
+                                  tabpfn_default_only=args.tabpfn_default_only,
+                                  n8_equals_default=n8_equals_default)
 
             say(f"cell {ds['name']} n={n_rows} methods={[m[0] + str(m[1]) for m in methods]}{' TRIMMED(no extra tabpfn configs)' if trim_extra else ''}")
 
@@ -270,7 +302,8 @@ def main() -> None:
             say(f"cell {ds['name']} n={n_rows} done in {time.time() - cell_t0:.0f}s")
 
             # Ensemble probe verdict (checked on first cell, applied everywhere)
-            if n8_equals_default is None and not trim_extra and not args.tabpfn_default_only:
+            if n8_equals_default is None and probe_wanted(
+                    ds["name"], n, args.tabpfn_default_only):
                 cell_rows = [r for r in all_rows if r["dataset"] == ds["name"] and r["n_rows"] == n_rows]
                 dflt = [r for r in cell_rows if r["method"] == "tabpfn" and r["n_estimators"] is None and r["error"] == ""]
                 n8 = [r for r in cell_rows if r["method"] == "tabpfn" and r["n_estimators"] == 8 and r["error"] == ""]
