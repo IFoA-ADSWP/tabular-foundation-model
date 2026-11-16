@@ -1,7 +1,7 @@
 # Task List
 
 A **curated subset** of GitHub issues — these 27 rows, not the full backlog (the tracker holds 355).
-Reconciled against the tracker on **2026-11-13**; update a row when its issue changes state.
+Reconciled against the tracker on **2026-11-15**; update a row when its issue changes state.
 
 | Status | # | Title | Assignee |
 |--------|---|-------|----------|
@@ -9,7 +9,7 @@ Reconciled against the tracker on **2026-11-13**; update a row when its issue ch
 | ✅ | #264 | The registry declares the row-size axis the size sweep varies — PR #311 | scotthawes |
 | ✅ | #239 | A run records its declared and resolved model version, and flags a mismatch — PR #295 | scotthawes |
 | ✅ | #230 | Declare the frontier suite's experiments in one committed registry — PR #254 | — |
-| 🔲 | #186 | Version-drift re-test: TabPFN 3.5 on the v3_default underperformance cases — regression/count tier **done** (4/4 improved; `spanish_motor_freq` onto the frontier, falsifies §14.9's tree-only reading; off-frontier count 5/12 → 4/12; master report §16). Open: classification calibration tier (`ausprivauto0405`, `bemtl97`, `norauto`), `bemtl16` lift, `eudirectlapse`, and the §15.2 sweep refresh required before any `bemtl97` frontier claim | Mako-120 |
+| ✅ | #186 | Version-drift re-test: TabPFN 3.5 on the v3_default underperformance cases — **the tiers landed**: regression/count (§16), the classification calibration tiers (§17 `eudirectlapse`, §18–§20 `ausprivauto0405` / `norauto` / `bemtl97`), both post-claim leak fixes (§21 `bemtl16`, §22 `bemtl97_amount`), the §23 size sweep (9/9 cells) and the four v3 frontier wins re-tested on v3.5 with none lost (§24) arrive on `main` with the v3.5 stack landing (spec #640; PR #645) | Mako-120 |
 | ✅ | #82 | B8 Exercise version-drift re-test policy (dry run) — **superseded by #186**, which executed §15 live after a real trigger fired; closed | — |
 | 🔲 | #125 | Fine-tuning negative-result audit — null-control Stage A harness (W1 confound) + power/dose/scale remediation; gates #85/#81 | scotthawes, Mako-120 |
 | ✅ | #— | Repository migrated to IFoA-ADSWP/tabular-foundation-model — full history, 123 issues+PRs (numbering preserved), wiki, collaborator access; open PR recreated as #124; old fork retained as read-only archive | scotthawes |

@@ -1,0 +1,13 @@
+{
+  "run_id": "20261007-142301",
+  "utc": "2026-10-07T14:23:01Z",
+  "git_sha": "d0dd1496dd222691d2208c9a8538b8fa6ce6cbed",
+  "seed": 42,
+  "pr_auc_mode": false,
+  "argv": [
+    "scripts/eval/insurance_benchmark_v1/run_frontier_benchmark.py",
+    "--save-predictions",
+    "ausprivauto0405"
+  ],
+  "note": null
+}
