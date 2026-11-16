@@ -71,18 +71,21 @@ So the experiment answers two different questions, and both are reported:
 
 *The whole verdict in one picture.* Each row is one target at one training budget — the baselines on
 all the data, then the matched 10,000 rows — with the 95% interval and the registered floor as a
-dashed tick. **Positive means TabPFN is better**; every point here is negative, and the floor sits on
-the other side of zero, which is the result at a glance. Spanish severity appears once because its
-fold holds fewer than 10,000 rows, so both arms are the same fit. The two budgets answer two
+dashed tick. **Positive means TabPFN is better**; every point here is negative, and the floor sits
+on the other side of zero, which is the result at a glance. Spanish severity appears once because
+its fold holds fewer than 10,000 rows, so both arms are the same fit. The two budgets answer two
 questions: the gap between a target's two rows is a budget sensitivity, not a second verdict — the
-registered decision is the full-data row. Regenerate with
-`.venv/bin/python scripts/infra/baseline_figures.py`; vector PDF beside the PNG.
+registered decision is the full-data row. French frequency's matched row is marked **underpowered**:
+its minimum detectable effect (2.35%) is larger than its 2% floor, so *Inconclusive* there means the
+design could not have detected the bar it was tested against, not that no difference exists.
+Regenerate with `.venv/bin/python scripts/infra/baseline_figures.py`; vector PDF beside the PNG.
 
 ## The three things worth remembering
 
 **1. On French frequency, most of the "loss" is the data volume, not the model.** Give CatBoost
 542,000 policies and TabPFN 10,000, and CatBoost wins by 7.9%. Give them both 10,000 and the
-experiment cannot separate them. The registered verdict is still based on the full-data comparison
+experiment cannot separate them — and at that budget the design could not have detected a gain as
+small as the 2% floor either (MDE 2.35%), so this is a limit of the experiment, not evidence of parity. The registered verdict is still based on the full-data comparison
 — that is what was pre-registered — but the fair sentence is "we cannot show TabPFN is better",
 not "TabPFN is worse".
 

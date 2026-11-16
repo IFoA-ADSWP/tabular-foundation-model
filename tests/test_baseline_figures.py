@@ -112,6 +112,30 @@ def test_the_floors_are_the_registered_ones(readings):
     assert floors["severity_spanish"] == pytest.approx(0.02)
 
 
+def test_the_underpowered_row_is_identified(readings):
+    """`Inconclusive` is a power statement when the MDE exceeds the floor (#653)."""
+    inconclusive = [row for row in readings if row.decision == "Inconclusive"]
+
+    assert len(inconclusive) == 1
+    row = inconclusive[0]
+    assert row.group == "frequency_french"
+    assert row.label.endswith("10k rows")
+    assert row.mde == pytest.approx(0.0235, abs=1e-4)
+    assert row.mde > row.floor
+    assert all(other.mde > 0 for other in readings)
+
+
+def test_only_an_inconclusive_row_can_be_called_underpowered(readings):
+    """A No-go row can have an MDE above its floor and still resolve: its upper bound excludes a gain.
+
+    So the flag is the combination — Inconclusive *and* MDE above the floor — and exactly one row has
+    it. Asserting MDE <= floor everywhere would be false, which is why this test does not.
+    """
+    flagged = [row for row in readings if row.decision == "Inconclusive" and row.mde > row.floor]
+    assert len(flagged) == 1
+    assert any(row.decision == "No-go" and row.mde > row.floor for row in readings)
+
+
 def test_the_cli_regenerates_byte_identically(tmp_path, figures):
     first, second = tmp_path / "first", tmp_path / "second"
     assert figures.main(["--out", str(first)]) == 0
