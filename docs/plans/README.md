@@ -4,7 +4,7 @@ One file per task: `docs/plans/<task>.md`. Write it **before** non-trivial work,
 change. A plan outranks a fresh ticket — check this directory before speccing or building, because the ticket
 you are about to write may already be covered.
 
-**This index is the only map.** Of the 82 plans, 65 are linked from no other document and only
+**This index is the only map.** Of the 84 plans, 65 are linked from no other document and only
 17 are even mentioned anywhere else.
 
 Each row carries the plan's own first heading, so the index cannot drift from the file it points at. The
@@ -17,7 +17,7 @@ since merged, and the pull request that merged it is the record of what happened
 the fact: a plan that says proposed stays that way unless its author amends it, because rewriting the status
 of a plan after the data would make the trail say something it did not.
 
-## Current, agreed or implemented — 72 plans
+## Current, agreed or implemented — 74 plans
 
 Newest first, by ticket number where the filename carries one.
 
@@ -92,6 +92,8 @@ Newest first, by ticket number where the filename carries one.
 | [`377-lapse-students.md`](377-lapse-students.md) | measure the lapse GBDTs instead of estimating them |
 | [`341-pilot-disposition.md`](341-pilot-disposition.md) | the pilot's disposition, and the pre-run documents |
 | [`296-significance-marker.md`](296-significance-marker.md) | the significance marker agrees with its own bounds (#296) |
+| [`159-zero-inflation-port.md`](159-zero-inflation-port.md) | the zero-inflation study lands on the current layout (#159) |
+| [`159-zero-inflation-hurdle.md`](159-zero-inflation-hurdle.md) | hurdle models in the zero-inflation study (#159) |
 | [`runner-onramp.md`](runner-onramp.md) | the runner's on-ramp is one page, and the indexes tell the truth (#575) |
 | [`416-ledger-migration.md`](416-ledger-migration.md) | the cost ledger migrates instead of quarantining (#416) |
 | [`docs-experiment-first.md`](docs-experiment-first.md) | group the documentation by experiment (#595) |

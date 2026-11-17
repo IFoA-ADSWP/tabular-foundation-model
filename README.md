@@ -24,7 +24,8 @@ the command, the output tree and the runbook section for each route. Note that t
 `tabpfn-client 0.3.3` — because the published verdicts were measured against the hosted client.
 
 `notebooks/adswp_project/` holds the paper-replication notebooks, which are v2-era; `notebooks/reproducibility/`
-holds the three that reproduce the current numbers without spending credits.
+holds the three that reproduce the current numbers without spending credits. `notebooks/zero_inflation/` holds
+the v3.5 zero-inflation analysis (#159), read from committed CSVs.
 
 ### API key setup
 
@@ -54,6 +55,9 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup and contribution gui
 │   │   ├── 03_usautoBI_fit.ipynb
 │   │   ├── 04_tabpfn_embedding_workflow.ipynb
 │   │   └── REPLICATION_There_Is_Life_in_the_Old_GLM_Yet.ipynb
+│   │
+│   ├── zero_inflation/             # v3.5 zero-inflation study (#159), reads committed CSVs
+│   │   └── zero_inflation_dispersion.ipynb
 │   │
 │   └── baseline_experiments/       # Head-to-head model comparisons
 │       ├── 01_claims_classification_baseline.ipynb
