@@ -1,7 +1,7 @@
 # Plan — hurdle models in the zero-inflation study (#159)
 
-**Issue:** #159 (question 1, zero inflation); the protocol ticket for the TabPFN comparison is filed
-separately and carries the hypothesis, bar and falsifier. Builds on
+**Issue:** #159 (question 1, zero inflation). Protocol ticket for the TabPFN comparison: #662, which carries
+the hypothesis, bar and falsifier (labelled `needs-decision` until a maintainer signs off the bar). Builds on
 [`159-zero-inflation-port.md`](159-zero-inflation-port.md).
 **Status:** Current — code only; no hurdle run has been made, so there is no result and no verdict.
 
@@ -60,7 +60,7 @@ measured on the same cells as the five models already scored.
 
 ## What is not decided here
 
-The hypothesis, the bar and the falsifier for the TabPFN comparison belong to the protocol ticket and its
+The hypothesis, the bar and the falsifier for the TabPFN comparison belong to the protocol ticket, #662, and its
 maintainer sign-off (`docs/agents/research-workflow.md`): an agent does not set them. The GLM hurdle rows are
 descriptive — no verdict is attached to them unless a ticket of their own asks for one.
 
