@@ -1,9 +1,10 @@
-"""The fine-tuning runs ledger (#665): what the evidence records, and what must not be smoothed.
+"""The runs ledger (#665, extended #668): what the evidence records, and what must not be smoothed.
 
 The traps are the tests. The ledger's whole value is that it reads the field that trained rather than
 the field that launched, keeps two measurements that look like a duplicate apart, and refuses an
 evidence tree the campaign index disagrees with — and each of those has a way of quietly returning a
-plausible answer instead.
+plausible answer instead. The regression half adds two more: a fold is part of the identity, and a
+blank metric is not a zero.
 """
 
 from __future__ import annotations
@@ -312,6 +313,9 @@ def test_the_summary_is_descriptive_only(load_script):
     summary = module.summarise(
         [
             {
+                "problem_type": "classification",
+                "experiment_family": "pilot2-phase2",
+                "task": "lapse",
                 "dataset": "uslapseagent",
                 "arm": "B_ft30",
                 "train_rows": "10000",
@@ -321,6 +325,9 @@ def test_the_summary_is_descriptive_only(load_script):
                 "pr_auc": "0.89",
             },
             {
+                "problem_type": "classification",
+                "experiment_family": "pilot2-phase2",
+                "task": "lapse",
                 "dataset": "uslapseagent",
                 "arm": "B_ft30",
                 "train_rows": "10000",
@@ -336,7 +343,18 @@ def test_the_summary_is_descriptive_only(load_script):
     entry = summary[0]
     assert entry["n"] == 2
     assert entry["roc_auc"] == {"mean": pytest.approx(0.95), "min": 0.94, "max": 0.96}
-    assert set(entry) == {"dataset", "arm", "train_rows", "n", "roc_auc", "brier", "pr_auc"}
+    assert set(entry) == {
+        "problem_type",
+        "family",
+        "task",
+        "dataset",
+        "arm",
+        "train_rows",
+        "n",
+        "roc_auc",
+        "brier",
+        "pr_auc",
+    }
 
 
 def test_a_single_run_prints_the_value_and_says_so(load_script):
@@ -437,3 +455,227 @@ def test_the_pilot_overlap_is_listed_and_the_aggregate_is_the_chosen_form(load_s
     # The pin: the ledger carries the aggregate's value, not the record's.
     assert rows[0].roc_auc == pytest.approx(aggregate_value)
     assert rows[0].source.endswith("pilot_metrics.parquet")
+
+
+# --- The cross-task half (#668) ---------------------------------------------------------------
+
+def _regression_row(module, **overrides):
+    """One regression row, with the classification block blank."""
+    values = {
+        "run_id": "20261112T164543Z",
+        "experiment_family": "fair-test-freq-sev",
+        "problem_type": "regression",
+        "task": "frequency",
+        "era": "v3_default",
+        "dataset": "freMTPL2freq",
+        "arm": "B_ft30",
+        "arm_kind": "fine-tuned",
+        "epochs": 30,
+        "seed": 0,
+        "fold": 0,
+        "train_rows": 10000,
+        "roc_auc": None,
+        "brier": None,
+        "pr_auc": None,
+        "rmse": 0.24,
+        "verdict_metric": "poisson_deviance",
+        "verdict_metric_value": 3200.0,
+        "status": "current",
+    }
+    values.update(overrides)
+    return module.LedgerRow(**values)
+
+
+def test_regression_rows_carry_five_folds_per_seed_and_the_verdict_metric(load_script):
+    """One row per run × arm × seed × fold: a five-fold cell is five measurements, not one."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    rows = [
+        row
+        for row in module.load_rows()
+        if row.problem_type == "regression"
+        and row.dataset == "freMTPL2freq"
+        and row.arm == "B_ft30"
+        and row.experiment_family == "fair-test-freq-sev"
+    ]
+
+    assert len(rows) == 15
+    assert {row.seed for row in rows} == {0, 1, 2}
+    assert {row.fold for row in rows} == {0, 1, 2, 3, 4}
+    assert {row.verdict_metric for row in rows} == {"poisson_deviance"}
+    assert all(row.rmse is not None and row.verdict_metric_value is not None for row in rows)
+    assert len({row.cell for row in rows}) == 15
+    assert {row.task for row in rows} == {"frequency"}
+
+
+def test_the_severity_verdict_metric_is_read_not_assumed(load_script):
+    """French severity records `rmse`; only Spanish severity carries the claim weight."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    rows = [row for row in module.load_rows() if row.problem_type == "regression"]
+
+    assert {row.verdict_metric for row in rows if row.dataset == "freMTPL2sev"} == {"rmse"}
+    assert {row.verdict_metric for row in rows if row.dataset == "spanish_motor_severity"} == {
+        "weighted_rmse"
+    }
+    assert {row.task for row in rows if row.dataset == "freMTPL2sev"} == {"severity"}
+
+
+def test_the_fold_key_keeps_a_fabricated_duplicate_apart(load_script):
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    first = _regression_row(module, fold=0)
+    second_fold = _regression_row(module, fold=1)
+
+    # Same run, arm, seed and budget — only the fold differs. Two rows, not a duplicate.
+    module.assert_seed_disjoint([first, second_fold])
+    assert len({first.cell, second_fold.cell}) == 2
+
+    duplicate = _regression_row(module, fold=0)
+    with pytest.raises(module.EvidenceError, match="repeats"):
+        module.assert_seed_disjoint([first, duplicate])
+
+
+def test_a_blank_metric_is_not_a_zero(load_script):
+    """A regression row's classification block is blank, and vice versa — never 0."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    rows = module.load_rows()
+    regression = next(row for row in rows if row.problem_type == "regression")
+    classification = next(
+        row
+        for row in rows
+        if row.problem_type == "classification" and row.roc_auc is not None
+    )
+
+    assert regression.roc_auc is None and regression.brier is None and regression.pr_auc is None
+    assert classification.rmse is None
+    assert classification.verdict_metric == "" and classification.verdict_metric_value is None
+
+    regression_csv = module.csv_row(regression)
+    classification_csv = module.csv_row(classification)
+    assert regression_csv["roc_auc"] == regression_csv["brier"] == regression_csv["pr_auc"] == ""
+    assert classification_csv["rmse"] == classification_csv["verdict_metric_value"] == ""
+    assert classification_csv["verdict_metric"] == ""
+
+    # The one legitimate zero is a recorded epoch count on a regression raw control.
+    assert regression_csv["epochs"] == "0"
+
+
+def test_classification_values_match_the_published_ledger(load_script):
+    """A handful of values pinned from `fd3a58f`'s CSV: the extension must not move them."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    rows = [row for row in module.load_rows() if row.problem_type == "classification"]
+    indexed = {
+        (row.run_id, row.dataset, row.arm, row.seed): row
+        for row in rows
+        if row.run_id
+    }
+
+    anchor = indexed[("20261031T021845Z", "uslapseagent", "B_ft10", 43)]
+    assert (anchor.roc_auc, anchor.brier, anchor.pr_auc) == pytest.approx(
+        (0.951097, 0.080458, 0.900992)
+    )
+    assert (anchor.epochs, anchor.train_rows, anchor.arm_kind) == (10, 10000, "fine-tuned")
+
+    coil = indexed[("coil2000_A_raw_seed42", "coil2000", "A_raw", 42)]
+    assert (coil.roc_auc, coil.brier, coil.pr_auc) == pytest.approx(
+        (0.767530, 0.050767, 0.187545), abs=1e-6
+    )
+    assert coil.status == "superseded"
+    assert coil.superseded_by_or_decision == "D21 (amended by D22)"
+
+    launch = indexed[("20260914T010247Z", "uslapseagent", "A_raw", 42)]
+    assert (launch.roc_auc, launch.brier, launch.pr_auc) == pytest.approx(
+        (0.945717, 0.083267, 0.885643), abs=1e-6
+    )
+    assert launch.status == "no-capture"
+
+    spanish = indexed[("spanish_motor_lapse_A_raw_seed42", "spanish_motor_lapse", "A_raw", 42)]
+    assert (spanish.roc_auc, spanish.brier, spanish.pr_auc) == pytest.approx(
+        (0.723295, 0.197776, 0.570771), abs=1e-6
+    )
+
+    breadth = [
+        row
+        for row in rows
+        if row.experiment_family == "pilot2-breadth-spanish" and row.arm == "A_raw"
+    ]
+    assert len(breadth) == 1
+    assert breadth[0].run_id == "" and breadth[0].seed is None
+    assert breadth[0].roc_auc is None and breadth[0].status == "no-capture"
+
+
+def test_classification_rows_keep_their_problem_type_and_task(load_script):
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    rows = [row for row in module.load_rows() if row.problem_type == "classification"]
+
+    assert {row.task for row in rows} == {"lapse"}
+    assert {row.fold for row in rows} == {None}
+    assert {row.era for row in rows} == {"auto"}
+
+
+def test_the_baseline_methods_are_comparators(load_script):
+    """The ticket names `E_glm` and `F_catboost`; the captures also carry `M_intercept`."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    rows = [
+        row
+        for row in module.load_rows()
+        if row.problem_type == "regression" and row.experiment_family.startswith("actuarial")
+    ]
+
+    assert module.arm_kind("M_intercept") == "comparator"
+    assert {row.arm for row in rows} == {"E_glm", "F_catboost", "M_intercept"}
+    assert {row.arm_kind for row in rows} == {"comparator"}
+    assert {row.verdict_metric for row in rows if row.dataset == "freMTPL2sev"} == {"rmse"}
+
+
+def test_the_summary_reports_each_tasks_own_block(load_script):
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    rows = [module.csv_row(row) for row in module.load_rows()]
+    summary = module.summarise(rows)
+
+    classification = [entry for entry in summary if entry["problem_type"] == "classification"]
+    regression = [entry for entry in summary if entry["problem_type"] == "regression"]
+    assert classification and regression
+
+    for entry in classification:
+        assert entry["task"] == "lapse"
+        assert "roc_auc" in entry and "brier" in entry and "pr_auc" in entry
+        assert "rmse" not in entry and "verdict_metric" not in entry
+
+    for entry in regression:
+        assert entry["task"] in {"frequency", "severity"}
+        assert "rmse" in entry and "verdict_metric_value" in entry
+        assert entry["verdict_metric"] in {"poisson_deviance", "rmse", "weighted_rmse"}
+        assert "roc_auc" not in entry and "brier" not in entry and "pr_auc" not in entry
+
+    # The two baseline budgets are separate lines even where the fit is the same one.
+    baselines = [
+        entry
+        for entry in regression
+        if entry["dataset"] == "spanish_motor_severity"
+        and entry["arm"] == "E_glm"
+    ]
+    assert {entry["family"] for entry in baselines} == {
+        "actuarial-baseline-full",
+        "actuarial-baseline-matched",
+    }
+    assert {entry["n"] for entry in baselines} == {15}
+
+
+def test_the_row_scale_runs_stay_out_of_scope(load_script):
+    """#572's row-scaling arms are the fair-test result's, not the ledger's (#668 scope)."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    run_ids = {row.run_id for row in module.load_rows()}
+
+    assert "20261113T003320Z" not in run_ids
+    assert "20261113T095502Z" not in run_ids
+    assert {"20261112T164543Z", "20261112T210029Z"} <= run_ids
+
+
+def test_regression_rows_carry_the_registered_era(load_script):
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    rows = [row for row in module.load_rows() if row.problem_type == "regression"]
+
+    assert {row.era for row in rows} == {"v3_default"}
+    assert {row.model_version for row in rows} == {""}
+    assert {row.checkpoint for row in rows if row.arm == "B_ft30"} == {
+        "tabpfn-v3-regressor-v3_default.ckpt"
+    }
