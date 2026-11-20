@@ -248,3 +248,41 @@ rather than independent evidence.
 
 Their records have no table yet. `export_records.py` **refuses** a diagnostic it has no table for and
 names the ones it supports, rather than writing an empty file under a name a reader would trust.
+
+## `finetuning_runs_ledger.csv`
+
+One row per fine-tuning run × arm × seed, read from the committed evidence rather than from any
+document: the arm × seed records under `results/`, the 2,000-row R1 pilot's
+`outputs/finetune/pilot/pilot_metrics.parquet`, the launch records under `outputs/gpu-pilot/runs/`
+that have no Capture, and one curated Spanish breadth cell that was never committed per seed. The
+rows and their counts are in
+[`FINETUNING_RUNS_LEDGER.md`](../../experiments/pilot2-phase2/FINETUNING_RUNS_LEDGER.md).
+Regenerate with:
+
+```
+python scripts/analyses/finetuning_runs_ledger.py
+```
+
+The generator writes this file **and** the tables of
+[`FINETUNING_RUNS_LEDGER.md`](../../experiments/pilot2-phase2/FINETUNING_RUNS_LEDGER.md) from the
+same rows, and renders the document by reading this file back — so a table in the document cannot
+disagree with a line here. Two runs on the same tree are byte-identical.
+
+| Column | Meaning |
+| --- | --- |
+| `run_id` | the Run's directory under `results/`, or the aggregate's synthetic id (`<dataset>_<arm>_seed<N>`), or the launch directory under `outputs/gpu-pilot/runs/`. **Two namespaces:** never join the sources on this column. Blank where no id was ever persisted |
+| `experiment_family` | which evidence family the row is from: `pilot2-phase2`, `r1-pilot`, `gpu-pilot`, `pilot2-breadth-spanish` |
+| `dataset`, `arm` | the dataset and the arm label as recorded |
+| `arm_kind` | `raw` (`A_raw`), `fine-tuned` (`B_ft*`, `B_in_domain`) or `comparator` (`E_glm`, `F_catboost` — Methods, not arms). **Derived**, not recorded |
+| `epochs` | the Arm × seed record's `effective_config.kwargs.epochs`, asserted against the `B_ftN` label. **Not** `config.epochs`, which reads `3` on every record. Blank where no epoch applies and where the source records none |
+| `seed`, `train_rows` | the seed and the training-row budget. Both are part of the row's identity |
+| `roc_auc`, `brier`, `pr_auc` | the three metrics the evidence records everywhere, rounded to six decimal places. Blank where the source records none — never backfilled |
+| `status` | `current`, `superseded` (withdrawn by a decision) or `no-capture` (a record that is not a Capture and cannot be cited as one) |
+| `superseded_by`, `superseded_reason` | the replacing run id (mechanical detection; zero rows on this evidence) or the decision that withdrew the row. `coil2000` cites D21 with D22 as its amendment |
+| `note` | what the row is, where its source needs saying — the pilot aggregate's missing epochs, a launch with no Capture, a curated cell |
+| `source` | the file the row's numbers came from: the per-seed `meta.json`, the aggregate, or the launch record |
+| `model_version`, `checkpoint`, `weights_sha256` | as recorded — `auto` wherever a record says `auto`, which names no version. The ledger never prints `v3` |
+
+**What this table is not.** It is the run inventory, not a verdict: no interval, no pooled estimate
+and no claim. A number quoted from here still belongs to the analysis that owns it, and a
+`no-capture` row cannot be cited as a Capture — the document says what to cite instead.
