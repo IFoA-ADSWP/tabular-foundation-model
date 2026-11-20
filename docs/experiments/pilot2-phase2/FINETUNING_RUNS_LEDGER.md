@@ -40,14 +40,16 @@ The families are read from four places, and they are read **separately**:
 - `gpu-pilot` — committed launch records under `outputs/gpu-pilot/runs/`, which have no
   `capture.json` and so cannot be cited as a Capture.
 - `pilot2-breadth-spanish` — one curated cell whose per-seed records were never committed. It is
-  listed so the absence is visible, with blank metrics rather than invented ones.
+  listed so the absence is visible, with blank metrics, epochs and training rows rather than
+  invented ones.
 
 ## The ledger
 
 One row per run × arm × seed. `epochs` is blank where no epoch applies (the raw control, and
 the comparator Methods) and where the source records no arm-level epoch count (the 2,000-row
-pilot). `train_rows` is part of the key: `uslapseagent` seed 42 exists at 2,000 and at 10,000
-rows, and they are two measurements, not a duplicate.
+pilot) or no record at all (the curated Spanish cell). `train_rows` is part of the key:
+`uslapseagent` seed 42 exists at 2,000 and at 10,000 rows, and they are two measurements, not a
+duplicate.
 
 | run id | family | dataset | arm | arm kind | epochs | seed | train rows | ROC AUC | Brier | PR-AUC | status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -651,26 +653,26 @@ rows, and they are two measurements, not a duplicate.
 | `20260914T010247Z` | gpu-pilot | uslapseagent | `B_ft3` | fine-tuned | 3 | 42 | 10000 | 0.947907 | 0.082211 | 0.890446 | no-capture |
 | `20260914T010247Z` | gpu-pilot | uslapseagent | `B_ft10` | fine-tuned | 10 | 42 | 10000 | 0.948269 | 0.081252 | 0.890664 | no-capture |
 | `20260914T010247Z` | gpu-pilot | uslapseagent | `B_ft30` | fine-tuned | 30 | 42 | 10000 | 0.949134 | 0.081390 | 0.892279 | no-capture |
-| — | pilot2-breadth-spanish | spanish_motor_lapse | `A_raw` | raw | — | — | 10000 | — | — | — | no-capture |
-| — | pilot2-breadth-spanish | spanish_motor_lapse | `B_ft30` | fine-tuned | 30 | — | 10000 | — | — | — | no-capture |
+| — | pilot2-breadth-spanish | spanish_motor_lapse | `A_raw` | raw | — | — | — | — | — | — | no-capture |
+| — | pilot2-breadth-spanish | spanish_motor_lapse | `B_ft30` | fine-tuned | — | — | — | — | — | — | no-capture |
 
 ## The rows that are not plainly current
 
 4 withdrawn and 6 without a Capture. Nothing was dropped: a
 row that is not evidence a claim may rest on is still a record of what ran.
 
-| run id | dataset | arm | seed | train rows | status | why |
-| --- | --- | --- | --- | --- | --- | --- |
-| `coil2000_A_raw_seed42` | coil2000 | `A_raw` | 42 | 2000 | superseded | D21 (amended by D22): coil2000 stopped on resolution — median half-width 0.0149 at the largest usable split against a 0.006 floor; D22 withdraws D21's seed-cost inference and leaves the stop resting on the P1 gate alone |
-| `coil2000_B_in_domain_seed42` | coil2000 | `B_in_domain` | 42 | 2000 | superseded | D21 (amended by D22): coil2000 stopped on resolution — median half-width 0.0149 at the largest usable split against a 0.006 floor; D22 withdraws D21's seed-cost inference and leaves the stop resting on the P1 gate alone |
-| `coil2000_E_glm_seed42` | coil2000 | `E_glm` | 42 | 2000 | superseded | D21 (amended by D22): coil2000 stopped on resolution — median half-width 0.0149 at the largest usable split against a 0.006 floor; D22 withdraws D21's seed-cost inference and leaves the stop resting on the P1 gate alone |
-| `coil2000_F_catboost_seed42` | coil2000 | `F_catboost` | 42 | 2000 | superseded | D21 (amended by D22): coil2000 stopped on resolution — median half-width 0.0149 at the largest usable split against a 0.006 floor; D22 withdraws D21's seed-cost inference and leaves the stop resting on the P1 gate alone |
-| `20260914T010247Z` | uslapseagent | `A_raw` | 42 | 10000 | no-capture | launch record with no capture.json — cite by description (outputs/gpu-pilot/runs/20260914T010247Z/uslapseagent/A_raw/meta.json), not a Capture |
-| `20260914T010247Z` | uslapseagent | `B_ft3` | 42 | 10000 | no-capture | launch record with no capture.json — cite by description (outputs/gpu-pilot/runs/20260914T010247Z/uslapseagent/B_ft3/meta.json), not a Capture |
-| `20260914T010247Z` | uslapseagent | `B_ft10` | 42 | 10000 | no-capture | launch record with no capture.json — cite by description (outputs/gpu-pilot/runs/20260914T010247Z/uslapseagent/B_ft10/meta.json), not a Capture |
-| `20260914T010247Z` | uslapseagent | `B_ft30` | 42 | 10000 | no-capture | launch record with no capture.json — cite by description (outputs/gpu-pilot/runs/20260914T010247Z/uslapseagent/B_ft30/meta.json), not a Capture |
-| — | spanish_motor_lapse | `A_raw` | — | 10000 | no-capture | breadth replication, seeds 341-356: no capture and no committed per-seed record — cite via finetuning_breadth_spanish_result.md, not a Capture |
-| — | spanish_motor_lapse | `B_ft30` | — | 10000 | no-capture | breadth replication, seeds 341-356: no capture and no committed per-seed record — cite via finetuning_breadth_spanish_result.md, not a Capture |
+| run id | dataset | arm | seed | train rows | status | withdrawn by | why |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `coil2000_A_raw_seed42` | coil2000 | `A_raw` | 42 | 2000 | superseded | D21 (amended by D22) | coil2000 stopped on resolution — median half-width 0.0149 at the largest usable split against a 0.006 floor; D22 withdraws D21's seed-cost inference and leaves the stop resting on the P1 gate alone |
+| `coil2000_B_in_domain_seed42` | coil2000 | `B_in_domain` | 42 | 2000 | superseded | D21 (amended by D22) | coil2000 stopped on resolution — median half-width 0.0149 at the largest usable split against a 0.006 floor; D22 withdraws D21's seed-cost inference and leaves the stop resting on the P1 gate alone |
+| `coil2000_E_glm_seed42` | coil2000 | `E_glm` | 42 | 2000 | superseded | D21 (amended by D22) | coil2000 stopped on resolution — median half-width 0.0149 at the largest usable split against a 0.006 floor; D22 withdraws D21's seed-cost inference and leaves the stop resting on the P1 gate alone |
+| `coil2000_F_catboost_seed42` | coil2000 | `F_catboost` | 42 | 2000 | superseded | D21 (amended by D22) | coil2000 stopped on resolution — median half-width 0.0149 at the largest usable split against a 0.006 floor; D22 withdraws D21's seed-cost inference and leaves the stop resting on the P1 gate alone |
+| `20260914T010247Z` | uslapseagent | `A_raw` | 42 | 10000 | no-capture | — | launch record with no capture.json — cite by description (outputs/gpu-pilot/runs/20260914T010247Z/uslapseagent/A_raw/meta.json), not a Capture |
+| `20260914T010247Z` | uslapseagent | `B_ft3` | 42 | 10000 | no-capture | — | launch record with no capture.json — cite by description (outputs/gpu-pilot/runs/20260914T010247Z/uslapseagent/B_ft3/meta.json), not a Capture |
+| `20260914T010247Z` | uslapseagent | `B_ft10` | 42 | 10000 | no-capture | — | launch record with no capture.json — cite by description (outputs/gpu-pilot/runs/20260914T010247Z/uslapseagent/B_ft10/meta.json), not a Capture |
+| `20260914T010247Z` | uslapseagent | `B_ft30` | 42 | 10000 | no-capture | — | launch record with no capture.json — cite by description (outputs/gpu-pilot/runs/20260914T010247Z/uslapseagent/B_ft30/meta.json), not a Capture |
+| — | spanish_motor_lapse | `A_raw` | — | — | no-capture | — | breadth replication, seeds 341-356: curated pointer, no capture and no committed per-seed record — the breadth result owns the 10,000-row, 30-epoch description, so the epoch and row fields are blank and the numbers are cited via finetuning_breadth_spanish_result.md, not a Capture |
+| — | spanish_motor_lapse | `B_ft30` | — | — | no-capture | — | breadth replication, seeds 341-356: curated pointer, no capture and no committed per-seed record — the breadth result owns the 10,000-row, 30-epoch description, so the epoch and row fields are blank and the numbers are cited via finetuning_breadth_spanish_result.md, not a Capture |
 
 The withdrawal is a **curated** list, not a diff of captures. The committed evidence is
 seed-disjoint by construction — three duplicate launches were discarded before commit and
@@ -685,35 +687,72 @@ D11 ("stop the fine-tuning line") is **not** applied to these rows: it is histor
 D15 and D16 reopened and published the line it stopped. A ledger that marked every `B_ft*` row
 withdrawn under D11 would contradict the campaign's own outcome.
 
+## The 2,000-row pilot, recorded twice
+
+12 of the aggregate's 16 cells are also committed as per-arm records under
+`outputs/gpu-pilot/<dataset>/<arm>/meta.json`.
+8 of them agree to six decimal places and 4 do not:
+
+| dataset | arm | metric | aggregate | record | device (aggregate → record) |
+| --- | --- | --- | --- | --- | --- |
+| coil2000 | `A_raw` | roc_auc | 0.767530 | 0.767902 | NVIDIA L40S → cpu |
+| coil2000 | `A_raw` | brier | 0.050767 | 0.050738 | NVIDIA L40S → cpu |
+| coil2000 | `A_raw` | pr_auc | 0.187545 | 0.188188 | NVIDIA L40S → cpu |
+| eudirectlapse | `A_raw` | roc_auc | 0.588090 | 0.587907 | NVIDIA L40S → cpu |
+| eudirectlapse | `A_raw` | brier | 0.113679 | 0.113686 | NVIDIA L40S → cpu |
+| eudirectlapse | `A_raw` | pr_auc | 0.194347 | 0.193911 | NVIDIA L40S → cpu |
+| spanish_motor_lapse | `A_raw` | roc_auc | 0.723295 | 0.723028 | NVIDIA L40S → cpu |
+| spanish_motor_lapse | `A_raw` | brier | 0.197776 | 0.197951 | NVIDIA L40S → cpu |
+| spanish_motor_lapse | `A_raw` | pr_auc | 0.570771 | 0.569868 | NVIDIA L40S → cpu |
+| uslapseagent | `A_raw` | roc_auc | 0.936312 | 0.936261 | NVIDIA L40S → NVIDIA RTX PRO 4000 Blackwell |
+| uslapseagent | `A_raw` | brier | 0.087321 | 0.086800 | NVIDIA L40S → NVIDIA RTX PRO 4000 Blackwell |
+| uslapseagent | `A_raw` | pr_auc | 0.834384 | 0.836706 | NVIDIA L40S → NVIDIA RTX PRO 4000 Blackwell |
+
+**Both forms are experiment output, and neither carries a `provenance` block.** The records
+are an older schema: `versions` and a weights block, which name libraries and bytes, not a
+capture. So `DOCUMENT_AUTHORITY.md`'s "a number resolves to the capture" chooses neither,
+and there is no Capture for these cells at all. **This ledger reads the aggregate for every
+cell.** It is the only form that covers all 16 — the 4 cells
+with no per-arm record exist nowhere else — and splitting one pilot's metrics across two
+files would leave no rule for which file wins. Every differing cell above is on arm
+`A_raw`, and the device column shows why: the aggregate holds a GPU re-run
+where the record may hold the CPU run. The R1 results report states that device variance
+itself (§4b) and warns that the aggregate mixes provenance; the ledger quotes the
+aggregate's device for every cell rather than switching sources cell by cell.
+
+This table is the one part of this document not rendered from the CSV: it compares the
+chosen form with the rejected one, so it reads both.
+
 ## Summary — dataset × arm × training rows
 
 `n`, mean and min–max across seeds (and instances, where a dataset has more than one Run).
 **Descriptive only: no interval and no verdict**, so the ledger cannot contradict an analysis
 that owns one. Current rows only — a withdrawn row would put a stopped cell inside a mean, and
-a `no-capture` row would put a launch with no Capture inside a mean over captured Runs. The
+a `no-capture` row would put a launch with no Capture inside a mean over captured Runs. A line
+with `n = 1` prints the value and `single run`: an absent range is not a zero-width one. The
 2,000-row and 10,000-row cells are separate lines for the same reason `train_rows` is part of
 the key.
 
 | dataset | arm | train rows | n | ROC AUC mean (min–max) | Brier mean (min–max) | PR-AUC mean (min–max) |
 | --- | --- | --- | --- | --- | --- | --- |
-| eudirectlapse | `A_raw` | 2,000 | 1 | 0.5881 | 0.1137 | 0.1943 |
+| eudirectlapse | `A_raw` | 2,000 | 1 | 0.5881 — single run | 0.1137 — single run | 0.1943 — single run |
 | eudirectlapse | `A_raw` | 10,000 | 238 | 0.6268 (0.5452–0.6984) | 0.1095 (0.1068–0.1128) | 0.2037 (0.1500–0.2745) |
 | eudirectlapse | `B_ft30` | 10,000 | 238 | 0.6275 (0.5440–0.6914) | 0.1095 (0.1068–0.1132) | 0.2010 (0.1516–0.2684) |
-| eudirectlapse | `B_in_domain` | 2,000 | 1 | 0.5976 | 0.1133 | 0.1982 |
-| eudirectlapse | `E_glm` | 2,000 | 1 | 0.5744 | 0.1163 | 0.1601 |
-| eudirectlapse | `F_catboost` | 2,000 | 1 | 0.5738 | 0.1151 | 0.1830 |
-| spanish_motor_lapse | `A_raw` | 2,000 | 1 | 0.7233 | 0.1978 | 0.5708 |
-| spanish_motor_lapse | `B_in_domain` | 2,000 | 1 | 0.7272 | 0.1967 | 0.5791 |
-| spanish_motor_lapse | `E_glm` | 2,000 | 1 | 0.6166 | 0.2222 | 0.4469 |
-| spanish_motor_lapse | `F_catboost` | 2,000 | 1 | 0.7114 | 0.2015 | 0.5412 |
-| uslapseagent | `A_raw` | 2,000 | 1 | 0.9363 | 0.0873 | 0.8344 |
+| eudirectlapse | `B_in_domain` | 2,000 | 1 | 0.5976 — single run | 0.1133 — single run | 0.1982 — single run |
+| eudirectlapse | `E_glm` | 2,000 | 1 | 0.5744 — single run | 0.1163 — single run | 0.1601 — single run |
+| eudirectlapse | `F_catboost` | 2,000 | 1 | 0.5738 — single run | 0.1151 — single run | 0.1830 — single run |
+| spanish_motor_lapse | `A_raw` | 2,000 | 1 | 0.7233 — single run | 0.1978 — single run | 0.5708 — single run |
+| spanish_motor_lapse | `B_in_domain` | 2,000 | 1 | 0.7272 — single run | 0.1967 — single run | 0.5791 — single run |
+| spanish_motor_lapse | `E_glm` | 2,000 | 1 | 0.6166 — single run | 0.2222 — single run | 0.4469 — single run |
+| spanish_motor_lapse | `F_catboost` | 2,000 | 1 | 0.7114 — single run | 0.2015 — single run | 0.5412 — single run |
+| uslapseagent | `A_raw` | 2,000 | 1 | 0.9363 — single run | 0.0873 — single run | 0.8344 — single run |
 | uslapseagent | `A_raw` | 10,000 | 40 | 0.9431 (0.9275–0.9591) | 0.0841 (0.0718–0.0975) | 0.8781 (0.8405–0.9143) |
 | uslapseagent | `B_ft3` | 10,000 | 12 | 0.9421 (0.9333–0.9499) | 0.0861 (0.0808–0.0934) | 0.8792 (0.8559–0.8990) |
 | uslapseagent | `B_ft10` | 10,000 | 12 | 0.9428 (0.9338–0.9511) | 0.0858 (0.0805–0.0930) | 0.8809 (0.8615–0.9021) |
 | uslapseagent | `B_ft30` | 10,000 | 40 | 0.9465 (0.9328–0.9606) | 0.0821 (0.0703–0.0939) | 0.8881 (0.8594–0.9188) |
-| uslapseagent | `B_in_domain` | 2,000 | 1 | 0.9355 | 0.0870 | 0.8375 |
-| uslapseagent | `E_glm` | 2,000 | 1 | 0.9271 | 0.0910 | 0.8172 |
-| uslapseagent | `F_catboost` | 2,000 | 1 | 0.9297 | 0.0934 | 0.8293 |
+| uslapseagent | `B_in_domain` | 2,000 | 1 | 0.9355 — single run | 0.0870 — single run | 0.8375 — single run |
+| uslapseagent | `E_glm` | 2,000 | 1 | 0.9271 — single run | 0.0910 — single run | 0.8172 — single run |
+| uslapseagent | `F_catboost` | 2,000 | 1 | 0.9297 — single run | 0.0934 — single run | 0.8293 — single run |
 
 ## How to read a row
 
@@ -727,7 +766,14 @@ reads `3` on every arm, including the 30-epoch one, so a generator reading eithe
 30-epoch arm a 3-epoch arm. The generator asserts the recorded count equals the number in the
 `B_ftN` label and fails on a disagreement rather than smoothing it. The 2,000-row pilot records
 no arm-level epoch count at all (`max_finetune_steps` is a different parameter, carried by the
-comparator rows too), so its `epochs` column is blank, not `3`.
+comparator rows too), so its `epochs` column is blank, not `3`. The curated Spanish cell is
+blank for a stronger reason: there is no record to read one from.
+
+**A superseded row names what withdrew it.** `superseded_by_or_decision` holds the replacing
+run id when a replacement was detected, or the decision that withdrew the row when one was
+curated; `superseded_reason` holds the prose. On this evidence replacement detection returns
+zero rows, so the four `coil2000` rows read `D21 (amended by D22)` and the column is not empty
+on any row whose status is `superseded`.
 
 **The model version is printed as recorded.** `model_version` reads `auto` wherever a record names one —
 a recorded value that names no version, so this ledger never prints `v3`. The checkpoint is
@@ -744,11 +790,14 @@ because `capture.json` holds hashes and the record holds the numbers; the Run id
 (`<dataset>_<arm>_seed<N>`) is **not** the Run id and is not used as one.
 
 **A `no-capture` row cannot be cited as a Capture.** The Spanish breadth cell's per-seed records
-were never committed, so its rows carry blank metrics and no seed at all — one row per arm,
-because a per-seed row would be an invention — and a pointer to
-[`finetuning_breadth_spanish_result.md`](finetuning_breadth_spanish_result.md) — cite the result,
-not a Capture. The `gpu-pilot` rows do carry metrics, from committed launch records that are
-not Captures; they are cited by description, the way `REPORT_REGISTRY.md` already handles them.
+were never committed, so its rows carry blank metrics, no seed and blank `epochs` /
+`train_rows` — one row per arm, because a per-seed row would be an invention — and a pointer to
+[`finetuning_breadth_spanish_result.md`](finetuning_breadth_spanish_result.md). The breadth
+result owns the design's 10,000-row, 30-epoch description; this row is a pointer to it, and a
+label-derived epoch in an `epochs` column would be presented as a recorded one. Cite the
+result, not a Capture. The `gpu-pilot` rows do carry metrics, from committed launch records
+that are not Captures; they are cited by description, the way `REPORT_REGISTRY.md` already
+handles them.
 
 ## Regenerating
 

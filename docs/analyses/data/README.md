@@ -254,8 +254,11 @@ names the ones it supports, rather than writing an empty file under a name a rea
 One row per fine-tuning run × arm × seed, read from the committed evidence rather than from any
 document: the arm × seed records under `results/`, the 2,000-row R1 pilot's
 `outputs/finetune/pilot/pilot_metrics.parquet`, the launch records under `outputs/gpu-pilot/runs/`
-that have no Capture, and one curated Spanish breadth cell that was never committed per seed. The
-rows and their counts are in
+that have no Capture, and one curated Spanish breadth cell that was never committed per seed. Twelve
+of the pilot's sixteen cells are also committed as per-arm records under
+`outputs/gpu-pilot/<dataset>/<arm>/`; neither form carries a provenance block, so the ledger reads the
+aggregate — the only form holding all sixteen — and the document lists the four cells where the two
+disagree, with both values. The rows and their counts are in
 [`FINETUNING_RUNS_LEDGER.md`](../../experiments/pilot2-phase2/FINETUNING_RUNS_LEDGER.md).
 Regenerate with:
 
@@ -274,11 +277,12 @@ disagree with a line here. Two runs on the same tree are byte-identical.
 | `experiment_family` | which evidence family the row is from: `pilot2-phase2`, `r1-pilot`, `gpu-pilot`, `pilot2-breadth-spanish` |
 | `dataset`, `arm` | the dataset and the arm label as recorded |
 | `arm_kind` | `raw` (`A_raw`), `fine-tuned` (`B_ft*`, `B_in_domain`) or `comparator` (`E_glm`, `F_catboost` — Methods, not arms). **Derived**, not recorded |
-| `epochs` | the Arm × seed record's `effective_config.kwargs.epochs`, asserted against the `B_ftN` label. **Not** `config.epochs`, which reads `3` on every record. Blank where no epoch applies and where the source records none |
-| `seed`, `train_rows` | the seed and the training-row budget. Both are part of the row's identity |
+| `epochs` | the Arm × seed record's `effective_config.kwargs.epochs`, asserted against the `B_ftN` label. **Not** `config.epochs`, which reads `3` on every record. Blank where no epoch applies, where the source records none, and on the curated Spanish cell, which has no record to read one from |
+| `seed`, `train_rows` | the seed and the training-row budget. Both are part of the row's identity; both are blank on the curated Spanish cell, whose row count the breadth result owns |
 | `roc_auc`, `brier`, `pr_auc` | the three metrics the evidence records everywhere, rounded to six decimal places. Blank where the source records none — never backfilled |
 | `status` | `current`, `superseded` (withdrawn by a decision) or `no-capture` (a record that is not a Capture and cannot be cited as one) |
-| `superseded_by`, `superseded_reason` | the replacing run id (mechanical detection; zero rows on this evidence) or the decision that withdrew the row. `coil2000` cites D21 with D22 as its amendment |
+| `superseded_by_or_decision` | the replacing run id (mechanical detection; zero rows on this evidence) or the decision that withdrew the row, and its amendment where it has one. `coil2000` reads `D21 (amended by D22)` |
+| `superseded_reason` | the prose behind the withdrawal, where the status is `superseded` |
 | `note` | what the row is, where its source needs saying — the pilot aggregate's missing epochs, a launch with no Capture, a curated cell |
 | `source` | the file the row's numbers came from: the per-seed `meta.json`, the aggregate, or the launch record |
 | `model_version`, `checkpoint`, `weights_sha256` | as recorded — `auto` wherever a record says `auto`, which names no version. The ledger never prints `v3` |

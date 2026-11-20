@@ -6,7 +6,8 @@
 
 One row per run × arm × seed, written twice: as a CSV under `docs/analyses/data/` and as the
 tables of `docs/experiments/pilot2-phase2/FINETUNING_RUNS_LEDGER.md`. The Markdown is rendered
-from the CSV it has just written, so the two forms cannot disagree.
+from the CSV it has just written, so the two forms cannot disagree. One table is the exception —
+it audits the rejected pilot form against the chosen one — and the document says so beside it.
 
 **The sources, and why they are read separately.**
 
@@ -15,12 +16,15 @@ from the CSV it has just written, so the two forms cannot disagree.
   same `A_raw` / `B_ft30` labels, and unrelated captures carry a null arm and a null dataset.
 - `outputs/finetune/pilot/pilot_metrics.parquet` for the 2,000-row R1 pilot's 16 rows only. It is an
   aggregate, not a Run: no epochs are recorded (`max_finetune_steps` is a different parameter and the
-  comparator rows carry it too), and no provenance.
+  comparator rows carry it too), and no provenance. Twelve of its cells are also recorded under
+  `outputs/gpu-pilot/<dataset>/<arm>/`, with no provenance block either; the document lists the four
+  cells where the two forms disagree and states that the aggregate is the chosen form.
 - `outputs/gpu-pilot/runs/` for launch records with no `capture.json` — these are Rows with status
   `no-capture`, not Captures.
 - One curated `no-capture` cell: the `spanish_motor_lapse` breadth replication, whose per-seed
-  records were never committed. It is listed so the cell is not silently missing, with blank metrics,
-  because inventing them would be worse than the absence.
+  records were never committed. It is listed so the cell is not silently missing, with blank metrics
+  *and blank epoch/row fields*, because inventing them would be worse than the absence — the breadth
+  result owns the design's row count and epoch budget.
 
 The two sources are never joined on `run_id`: the aggregate's ids are synthetic
 (`<dataset>_<arm>_seed<N>`) and Run ids are directory names.
@@ -36,6 +40,9 @@ The two sources are never joined on `run_id`: the aggregate's ids are synthetic
   Never `v3`: `auto` names no version.
 - A per-seed record's own `run_id` is `<dataset>_<arm>_seed<N>`, not the Run id; the Run id is the
   directory.
+- The 2,000-row pilot is committed in two forms and the per-arm records carry no `provenance` block,
+  so neither form outranks the other by evidence; the aggregate is chosen because it covers all
+  sixteen cells, and the four disagreements are printed with both values.
 
 Exit codes: 0 wrote both files · 1 the evidence disagrees with itself.
 """
@@ -58,6 +65,10 @@ RESULTS = _REPO / "results"
 CAMPAIGN_README = _REPO / "docs" / "experiments" / "pilot2-phase2" / "README.md"
 PILOT_AGGREGATE = _REPO / "outputs" / "finetune" / "pilot" / "pilot_metrics.parquet"
 GPU_PILOT_RUNS = _REPO / "outputs" / "gpu-pilot" / "runs"
+# The legacy per-arm records of the same 2,000-row pilot, one level above `runs/`. They are not read
+# into the ledger (the aggregate is the chosen form) but they are audited against it, so the choice is
+# visible rather than implicit.
+GPU_PILOT_RECORDS = _REPO / "outputs" / "gpu-pilot"
 
 CSV_PATH = _REPO / "docs" / "analyses" / "data" / "finetuning_runs_ledger.csv"
 DOC_PATH = _REPO / "docs" / "experiments" / "pilot2-phase2" / "FINETUNING_RUNS_LEDGER.md"
@@ -75,7 +86,7 @@ COLUMNS = (
     "brier",
     "pr_auc",
     "status",
-    "superseded_by",
+    "superseded_by_or_decision",
     "superseded_reason",
     "note",
     "source",
@@ -114,7 +125,8 @@ RUN_ID = re.compile(r"^20\d{6}T\d{6}Z$")
 # Curated withdrawals. Mechanical replacement detection returns zero on this evidence (the Runs are
 # seed-disjoint by construction; three duplicate launches were discarded before commit and their ids
 # are not in the tree), so supersession is a list with a decision beside it. D22 withdraws D21's
-# *reasoning*, not its stop, so the row cites both: D21 is the stop, D22 the amendment.
+# *reasoning*, not its stop, so the row names both: D21 is the stop, D22 the amendment. The label is
+# built from those two fields so the column cannot be filled with one and forget the other.
 WITHDRAWALS = (
     {
         "dataset": "coil2000",
@@ -129,20 +141,31 @@ WITHDRAWALS = (
     },
 )
 
-# One curated `no-capture` cell. The breadth replication ran 16 fresh seeds (341-356) on
-# `spanish_motor_lapse` at 10,000 rows; its records are runtime evidence on the launch machine and
-# were never committed, so no per-seed row can be built without inventing one. The cell is listed
-# with blank metrics and the document a reader should cite instead.
+
+def withdrawal_label(item: dict) -> str:
+    """The decision that withdrew a row, and its amendment when it has one."""
+    label = item["decision"]
+    if item.get("amendment"):
+        label += f" (amended by {item['amendment']})"
+    return label
+
+
+# One curated `no-capture` cell. The breadth replication ran 16 fresh seeds on `spanish_motor_lapse`
+# at 10,000 rows; its records are runtime evidence on the launch machine and were never committed, so
+# no per-seed row can be built without inventing one. The cell is listed with blank metrics, and with
+# its epoch and row fields blank too: they would be read off the arm label and the prose, not off a
+# record. The breadth result owns those numbers, and the note says so.
+BREADTH_SEEDS = "341-356"
 BREADTH_CELL = {
     "experiment_family": "pilot2-breadth-spanish",
     "dataset": "spanish_motor_lapse",
-    "train_rows": 10000,
-    "seed_range": "341-356",
-    "arms": (("A_raw", None), ("B_ft30", 30)),
+    "arms": ("A_raw", "B_ft30"),
     "source": "docs/experiments/pilot2-phase2/finetuning_breadth_spanish_result.md",
     "note": (
-        "breadth replication, seeds 341-356: no capture and no committed per-seed record — cite "
-        "via finetuning_breadth_spanish_result.md, not a Capture"
+        f"breadth replication, seeds {BREADTH_SEEDS}: curated pointer, no capture and no committed "
+        "per-seed record — the breadth result owns the 10,000-row, 30-epoch description, so the epoch "
+        "and row fields are blank and the numbers are cited via finetuning_breadth_spanish_result.md, "
+        "not a Capture"
     ),
 }
 
@@ -175,7 +198,7 @@ class LedgerRow:
     brier: float | None
     pr_auc: float | None
     status: str
-    superseded_by: str = ""
+    superseded_by_or_decision: str = ""
     superseded_reason: str = ""
     note: str = ""
     source: str = ""
@@ -284,6 +307,33 @@ def _cell_metrics(record: dict) -> dict[str, float]:
     return {metric: float(record[metric]) for metric in METRICS}
 
 
+def _record_fields(record: dict, arm: str) -> dict:
+    """What an arm × seed record contributes, with every trap handled once.
+
+    The epoch assertion lives here so a new reader of `meta.json` cannot skip it. `train_rows` is cast
+    because it is declared an int and sorts as one: a record that stored it as a string would otherwise
+    sort beside the numbers and print unrounded. The weights sha is taken from the provenance block
+    where there is one and from the record's own `weights` block otherwise — the launch records have no
+    provenance block and still name the bytes they ran.
+    """
+    epochs = epochs_from_record(record)
+    assert_epoch_agrees(arm, epochs)
+    metrics = _cell_metrics(record)
+    model = (record.get("provenance") or {}).get("model") or {}
+    checkpoints = record.get("checkpoints") or []
+    return {
+        "epochs": epochs,
+        "train_rows": None if record.get("train_rows") is None else int(record["train_rows"]),
+        "roc_auc": metrics["roc_auc"],
+        "brier": metrics["brier"],
+        "pr_auc": metrics["pr_auc"],
+        "model_version": model.get("version", ""),
+        "checkpoint": checkpoints[0] if checkpoints else "",
+        "weights_sha256": model.get("weights_sha256")
+        or (record.get("weights") or {}).get("sha256", ""),
+    }
+
+
 def capture_rows(results: Path = RESULTS, readme: Path = CAMPAIGN_README) -> list[LedgerRow]:
     """One row per captured arm × seed record, for the Runs the campaign names.
 
@@ -325,14 +375,8 @@ def capture_rows(results: Path = RESULTS, readme: Path = CAMPAIGN_README) -> lis
                     f"{run_id}: {entry['record']} is {record.get('status')!r}, not a success"
                 )
 
-            epochs = epochs_from_record(record)
-            assert_epoch_agrees(arm, epochs)
             seed = record.get("seed", entry.get("seed"))
-            metrics = _cell_metrics(record)
-            provenance = record.get("provenance") or {}
-            model = provenance.get("model") or {}
-            checkpoints = record.get("checkpoints") or []
-
+            fields = _record_fields(record, arm)
             rows.append(
                 LedgerRow(
                     run_id=run_id,
@@ -340,18 +384,13 @@ def capture_rows(results: Path = RESULTS, readme: Path = CAMPAIGN_README) -> lis
                     dataset=dataset,
                     arm=arm,
                     arm_kind=arm_kind(arm),
-                    epochs=epochs,
                     seed=None if seed is None else int(seed),
-                    train_rows=record.get("train_rows"),
-                    roc_auc=metrics["roc_auc"],
-                    brier=metrics["brier"],
-                    pr_auc=metrics["pr_auc"],
                     status="current",
                     source=_relative(record_path),
-                    model_version=model.get("version", ""),
-                    checkpoint=checkpoints[0] if checkpoints else "",
-                    weights_sha256=model.get("weights_sha256", ""),
-                    note="" if model.get("version") == "auto" else "model version not recorded",
+                    note=""
+                    if fields["model_version"] == "auto"
+                    else "model version not recorded",
+                    **fields,
                 )
             )
 
@@ -375,6 +414,10 @@ def pilot_rows(aggregate: Path = PILOT_AGGREGATE) -> list[LedgerRow]:
     carried by the comparator rows as well, so it cannot be read as an arm-level epoch count. There
     is no provenance block, so the model version and the weights sha stay blank rather than being
     borrowed from the captures.
+
+    Twelve of these cells are also committed as per-arm records under `outputs/gpu-pilot/`. The
+    aggregate is the chosen form — it is the only form covering all sixteen cells, so one pilot is not
+    read from two files — and `pilot_cell_overlaps` reports every cell where the two disagree.
     """
     import pandas as pd
 
@@ -411,12 +454,8 @@ def pilot_rows(aggregate: Path = PILOT_AGGREGATE) -> list[LedgerRow]:
                 brier=float(record["brier"]),
                 pr_auc=float(record["pr_auc"]),
                 status="superseded" if withdrawn else "current",
-                superseded_reason=(
-                    f"{withdrawn['decision']} (amended by {withdrawn['amendment']}): "
-                    f"{withdrawn['reason']}"
-                    if withdrawn
-                    else ""
-                ),
+                superseded_by_or_decision=withdrawal_label(withdrawn) if withdrawn else "",
+                superseded_reason=withdrawn["reason"] if withdrawn else "",
                 note="2,000-row pilot aggregate: epochs not recorded, no provenance block",
                 source=_relative(aggregate),
                 checkpoint=checkpoint,
@@ -431,6 +470,10 @@ def launch_rows(runs: Path = GPU_PILOT_RUNS) -> list[LedgerRow]:
 
     These carry real metrics and a real checkpoint, but no `capture.json`: they cannot be cited as a
     Capture. They are Rows with status `no-capture`, and their pointer is the record file.
+
+    A record with no arm fails the loader rather than being skipped: the document claims nothing was
+    dropped, and a silent `continue` would make that claim false while still printing a total. A
+    missing `runs/` directory is different — it is an absent source, and the family simply has no rows.
     """
     rows: list[LedgerRow] = []
     if not runs.is_dir():
@@ -440,11 +483,8 @@ def launch_rows(runs: Path = GPU_PILOT_RUNS) -> list[LedgerRow]:
             record = json.loads(record_path.read_text())
             arm = record.get("arm")
             if arm is None:
-                continue
-            epochs = epochs_from_record(record)
-            assert_epoch_agrees(arm, epochs)
-            checkpoints = record.get("checkpoints") or []
-            weights = record.get("weights") or {}
+                raise EvidenceError(f"{_relative(record_path)}: launch record names no arm")
+            fields = _record_fields(record, arm)
             rows.append(
                 LedgerRow(
                     run_id=run_dir.name,
@@ -452,30 +492,27 @@ def launch_rows(runs: Path = GPU_PILOT_RUNS) -> list[LedgerRow]:
                     dataset=record["dataset"],
                     arm=arm,
                     arm_kind=arm_kind(arm),
-                    epochs=epochs,
                     seed=int(record["seed"]),
-                    train_rows=record.get("train_rows"),
-                    roc_auc=float(record["roc_auc"]),
-                    brier=float(record["brier"]),
-                    pr_auc=float(record["pr_auc"]),
                     status="no-capture",
                     note=(
                         "launch record with no capture.json — cite by description "
                         f"({_relative(record_path)}), not a Capture"
                     ),
                     source=_relative(record_path),
-                    checkpoint=checkpoints[0] if checkpoints else "",
-                    weights_sha256=weights.get("sha256", ""),
-                    model_version=((record.get("provenance") or {}).get("model") or {}).get(
-                        "version", ""
-                    ),
+                    **fields,
                 )
             )
     return rows
 
 
 def breadth_rows(cell: dict = BREADTH_CELL) -> list[LedgerRow]:
-    """The one curated `no-capture` cell, with blank metrics and no invented seed rows."""
+    """The one curated `no-capture` cell, with blank metrics and no invented seed rows.
+
+    `epochs` and `train_rows` are blank on purpose. The arm label says `B_ft30` and the breadth result
+    says 10,000 training rows, but neither is a per-seed record: this row is a pointer to the result
+    that owns those numbers, not a measurement, and a label-derived epoch presented as a recorded one
+    is the trap this ledger exists to avoid.
+    """
     return [
         LedgerRow(
             run_id="",
@@ -483,9 +520,9 @@ def breadth_rows(cell: dict = BREADTH_CELL) -> list[LedgerRow]:
             dataset=cell["dataset"],
             arm=arm,
             arm_kind=arm_kind(arm),
-            epochs=epochs,
+            epochs=None,
             seed=None,
-            train_rows=cell["train_rows"],
+            train_rows=None,
             roc_auc=None,
             brier=None,
             pr_auc=None,
@@ -493,8 +530,79 @@ def breadth_rows(cell: dict = BREADTH_CELL) -> list[LedgerRow]:
             note=cell["note"],
             source=cell["source"],
         )
-        for arm, epochs in cell["arms"]
+        for arm in cell["arms"]
     ]
+
+
+def pilot_cell_overlaps(
+    aggregate: Path = PILOT_AGGREGATE, records: Path = GPU_PILOT_RECORDS
+) -> list[dict]:
+    """Every 2,000-row pilot cell recorded twice: aggregate rows beside the per-arm records.
+
+    Twelve of the aggregate's sixteen cells also exist as `outputs/gpu-pilot/<dataset>/<arm>/meta.json`.
+    Both forms are experiment output and neither carries a `provenance` block (the records are older
+    schema: `versions` and a weights block, but no `provenance`), so `DOCUMENT_AUTHORITY.md`'s "a number
+    resolves to the capture" chooses neither — and there is no Capture for these cells at all. The
+    ledger takes the aggregate and the document prints every cell where the two disagree, with both
+    values, so the choice is visible rather than implicit. `disagrees` compares at the six decimal
+    places the ledger prints.
+    """
+    import pandas as pd
+
+    if not aggregate.is_file():
+        raise EvidenceError(f"missing pilot aggregate: {_relative(aggregate)}")
+    frame = pd.read_parquet(aggregate)
+    indexed = {
+        (
+            record["dataset"],
+            record["arm"],
+            int(record["seed"]),
+            int(record["train_rows"]),
+        ): record
+        for record in frame.to_dict("records")
+    }
+
+    overlaps: list[dict] = []
+    for record_path in sorted(records.glob("*/*/meta.json")):
+        record = json.loads(record_path.read_text())
+        if record.get("train_rows") is None or record.get("seed") is None:
+            continue
+        key = (
+            record["dataset"],
+            record["arm"],
+            int(record["seed"]),
+            int(record["train_rows"]),
+        )
+        aggregate_row = indexed.get(key)
+        if aggregate_row is None:
+            continue
+        metrics = {
+            metric: (float(aggregate_row[metric]), float(record[metric]))
+            for metric in METRICS
+            if record.get(metric) is not None
+        }
+        overlaps.append(
+            {
+                "dataset": key[0],
+                "arm": key[1],
+                "seed": key[2],
+                "train_rows": key[3],
+                "metrics": metrics,
+                "disagrees": [
+                    metric
+                    for metric in METRICS
+                    if metric in metrics
+                    and round(metrics[metric][0], 6) != round(metrics[metric][1], 6)
+                ],
+                "device": (
+                    f"{aggregate_row.get('device_name') or '—'} → "
+                    f"{record.get('device_name') or '—'}"
+                ),
+                "record_source": _relative(record_path),
+                "record_has_provenance": bool(record.get("provenance")),
+            }
+        )
+    return overlaps
 
 
 def load_rows(
@@ -558,7 +666,7 @@ def csv_row(row: LedgerRow) -> dict[str, str]:
         "brier": _number(row.brier, 6),
         "pr_auc": _number(row.pr_auc, 6),
         "status": row.status,
-        "superseded_by": row.superseded_by,
+        "superseded_by_or_decision": row.superseded_by_or_decision,
         "superseded_reason": row.superseded_reason,
         "note": row.note,
         "source": row.source,
@@ -646,8 +754,14 @@ def _pin_line(csv_rows: list[dict[str, str]]) -> str:
     ]
 
 
-def render_document(csv_rows: list[dict[str, str]]) -> str:
-    """The campaign document, rendered from the CSV and nothing else."""
+def render_document(csv_rows: list[dict[str, str]], overlaps: list[dict] | None = None) -> str:
+    """The campaign document, rendered from the CSV — and its one audit table from the sources.
+
+    `overlaps` is the only content that does not come from the CSV: it compares the rejected form of the
+    2,000-row pilot with the one the ledger reads, and the document says so where it prints it.
+    """
+    if overlaps is None:
+        overlaps = pilot_cell_overlaps()
     summary = summarise(csv_rows)
     families = sorted(
         {row["experiment_family"] for row in csv_rows},
@@ -656,6 +770,8 @@ def render_document(csv_rows: list[dict[str, str]]) -> str:
     statuses = sorted({row["status"] for row in csv_rows})
     superseded = [row for row in csv_rows if row["status"] == "superseded"]
     no_capture = [row for row in csv_rows if row["status"] == "no-capture"]
+    differing_overlaps = [overlap for overlap in overlaps if overlap["disagrees"]]
+    pilot_count = sum(1 for row in csv_rows if row["experiment_family"] == "r1-pilot")
     by_family = {
         family: [row for row in csv_rows if row["experiment_family"] == family]
         for family in families
@@ -722,14 +838,16 @@ def render_document(csv_rows: list[dict[str, str]]) -> str:
         "- `gpu-pilot` — committed launch records under `outputs/gpu-pilot/runs/`, which have no",
         "  `capture.json` and so cannot be cited as a Capture.",
         "- `pilot2-breadth-spanish` — one curated cell whose per-seed records were never committed. It is",
-        "  listed so the absence is visible, with blank metrics rather than invented ones.",
+        "  listed so the absence is visible, with blank metrics, epochs and training rows rather than",
+        "  invented ones.",
         "",
         "## The ledger",
         "",
         "One row per run × arm × seed. `epochs` is blank where no epoch applies (the raw control, and",
         "the comparator Methods) and where the source records no arm-level epoch count (the 2,000-row",
-        "pilot). `train_rows` is part of the key: `uslapseagent` seed 42 exists at 2,000 and at 10,000",
-        "rows, and they are two measurements, not a duplicate.",
+        "pilot) or no record at all (the curated Spanish cell). `train_rows` is part of the key:",
+        "`uslapseagent` seed 42 exists at 2,000 and at 10,000 rows, and they are two measurements, not a",
+        "duplicate.",
         "",
     ]
 
@@ -779,7 +897,7 @@ def render_document(csv_rows: list[dict[str, str]]) -> str:
 
     flagged = superseded + no_capture
     lines += _table(
-        ["run id", "dataset", "arm", "seed", "train rows", "status", "why"],
+        ["run id", "dataset", "arm", "seed", "train rows", "status", "withdrawn by", "why"],
         [
             [
                 f"`{row['run_id']}`" if row["run_id"] else "—",
@@ -788,6 +906,7 @@ def render_document(csv_rows: list[dict[str, str]]) -> str:
                 row["seed"] or "—",
                 row["train_rows"] or "—",
                 row["status"],
+                row["superseded_by_or_decision"] or "—",
                 (row["superseded_reason"] or row["note"]),
             ]
             for row in flagged
@@ -808,12 +927,67 @@ def render_document(csv_rows: list[dict[str, str]]) -> str:
         "D15 and D16 reopened and published the line it stopped. A ledger that marked every `B_ft*` row",
         "withdrawn under D11 would contradict the campaign's own outcome.",
         "",
+    ]
+    if overlaps:
+        disagreeing_arms = ", ".join(
+            f"`{arm}`" for arm in sorted({overlap["arm"] for overlap in differing_overlaps})
+        )
+        unrecorded_cells = pilot_count - len(overlaps)
+        lines += [
+            "## The 2,000-row pilot, recorded twice",
+            "",
+            f"{len(overlaps)} of the aggregate's {pilot_count} cells are also committed as per-arm "
+            "records under",
+            "`outputs/gpu-pilot/<dataset>/<arm>/meta.json`.",
+            f"{len(overlaps) - len(differing_overlaps)} of them agree to six decimal places and "
+            f"{len(differing_overlaps)} do not:",
+            "",
+        ]
+        overlap_body = []
+        for overlap in differing_overlaps:
+            for metric in overlap["disagrees"]:
+                aggregate_value, record_value = overlap["metrics"][metric]
+                overlap_body.append(
+                    [
+                        overlap["dataset"],
+                        f"`{overlap['arm']}`",
+                        metric,
+                        f"{aggregate_value:.6f}",
+                        f"{record_value:.6f}",
+                        overlap["device"],
+                    ]
+                )
+        if overlap_body:
+            lines += _table(
+                ["dataset", "arm", "metric", "aggregate", "record", "device (aggregate → record)"],
+                overlap_body,
+            )
+        lines += [
+            "",
+            "**Both forms are experiment output, and neither carries a `provenance` block.** The records",
+            "are an older schema: `versions` and a weights block, which name libraries and bytes, not a",
+            "capture. So `DOCUMENT_AUTHORITY.md`'s \"a number resolves to the capture\" chooses neither,",
+            "and there is no Capture for these cells at all. **This ledger reads the aggregate for every",
+            f"cell.** It is the only form that covers all {pilot_count} — the {unrecorded_cells} cells",
+            "with no per-arm record exist nowhere else — and splitting one pilot's metrics across two",
+            "files would leave no rule for which file wins. Every differing cell above is on arm",
+            f"{disagreeing_arms}, and the device column shows why: the aggregate holds a GPU re-run",
+            "where the record may hold the CPU run. The R1 results report states that device variance",
+            "itself (§4b) and warns that the aggregate mixes provenance; the ledger quotes the",
+            "aggregate's device for every cell rather than switching sources cell by cell.",
+            "",
+            "This table is the one part of this document not rendered from the CSV: it compares the",
+            "chosen form with the rejected one, so it reads both.",
+            "",
+        ]
+    lines += [
         "## Summary — dataset × arm × training rows",
         "",
         "`n`, mean and min–max across seeds (and instances, where a dataset has more than one Run).",
         "**Descriptive only: no interval and no verdict**, so the ledger cannot contradict an analysis",
         "that owns one. Current rows only — a withdrawn row would put a stopped cell inside a mean, and",
-        "a `no-capture` row would put a launch with no Capture inside a mean over captured Runs. The",
+        "a `no-capture` row would put a launch with no Capture inside a mean over captured Runs. A line",
+        "with `n = 1` prints the value and `single run`: an absent range is not a zero-width one. The",
         "2,000-row and 10,000-row cells are separate lines for the same reason `train_rows` is part of",
         "the key.",
         "",
@@ -858,7 +1032,14 @@ def render_document(csv_rows: list[dict[str, str]]) -> str:
         "30-epoch arm a 3-epoch arm. The generator asserts the recorded count equals the number in the",
         "`B_ftN` label and fails on a disagreement rather than smoothing it. The 2,000-row pilot records",
         "no arm-level epoch count at all (`max_finetune_steps` is a different parameter, carried by the",
-        "comparator rows too), so its `epochs` column is blank, not `3`.",
+        "comparator rows too), so its `epochs` column is blank, not `3`. The curated Spanish cell is",
+        "blank for a stronger reason: there is no record to read one from.",
+        "",
+        "**A superseded row names what withdrew it.** `superseded_by_or_decision` holds the replacing",
+        "run id when a replacement was detected, or the decision that withdrew the row when one was",
+        "curated; `superseded_reason` holds the prose. On this evidence replacement detection returns",
+        "zero rows, so the four `coil2000` rows read `D21 (amended by D22)` and the column is not empty",
+        "on any row whose status is `superseded`.",
         "",
         *_pin_line(csv_rows),
         "",
@@ -873,11 +1054,14 @@ def render_document(csv_rows: list[dict[str, str]]) -> str:
         "(`<dataset>_<arm>_seed<N>`) is **not** the Run id and is not used as one.",
         "",
         "**A `no-capture` row cannot be cited as a Capture.** The Spanish breadth cell's per-seed records",
-        "were never committed, so its rows carry blank metrics and no seed at all — one row per arm,",
-        "because a per-seed row would be an invention — and a pointer to",
-        "[`finetuning_breadth_spanish_result.md`](finetuning_breadth_spanish_result.md) — cite the result,",
-        "not a Capture. The `gpu-pilot` rows do carry metrics, from committed launch records that are",
-        "not Captures; they are cited by description, the way `REPORT_REGISTRY.md` already handles them.",
+        "were never committed, so its rows carry blank metrics, no seed and blank `epochs` /",
+        "`train_rows` — one row per arm, because a per-seed row would be an invention — and a pointer to",
+        "[`finetuning_breadth_spanish_result.md`](finetuning_breadth_spanish_result.md). The breadth",
+        "result owns the design's 10,000-row, 30-epoch description; this row is a pointer to it, and a",
+        "label-derived epoch in an `epochs` column would be presented as a recorded one. Cite the",
+        "result, not a Capture. The `gpu-pilot` rows do carry metrics, from committed launch records",
+        "that are not Captures; they are cited by description, the way `REPORT_REGISTRY.md` already",
+        "handles them.",
         "",
         "## Regenerating",
         "",
@@ -898,7 +1082,8 @@ def _range(values: dict, places: int, n: int) -> str:
     if values["mean"] is None:
         return "—"
     if n == 1:
-        return f"{values['mean']:.{places}f}"
+        # An absent range must not read as a zero-width one.
+        return f"{values['mean']:.{places}f} — single run"
     return f"{values['mean']:.{places}f} ({values['min']:.{places}f}–{values['max']:.{places}f})"
 
 

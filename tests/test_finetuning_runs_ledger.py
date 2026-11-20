@@ -15,6 +15,8 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "analyses" / "finetuning_runs_ledger.py"
+COMMITTED_CSV = REPO / "docs" / "analyses" / "data" / "finetuning_runs_ledger.csv"
+COMMITTED_DOC = REPO / "docs" / "experiments" / "pilot2-phase2" / "FINETUNING_RUNS_LEDGER.md"
 
 
 def _row(module, **overrides):
@@ -82,6 +84,66 @@ def _campaign(readme: Path, run_ids) -> None:
     readme.write_text(f"# Campaign\n\n## Runs\n\nCommitted under `results/`:\n\n```\n{lines}\n```\n")
 
 
+def _launch_record(
+    runs: Path,
+    run_id: str,
+    dataset: str,
+    arm: str | None,
+    *,
+    seed: int = 42,
+    epochs: int | None = None,
+    train_rows: int = 10000,
+) -> Path:
+    """One committed launch record — real metrics, no capture.json, no provenance block."""
+    path = runs / run_id / dataset / (arm or "unlabelled") / "meta.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "run_id": f"{dataset}_{arm}_seed{seed}",
+        "dataset": dataset,
+        "seed": seed,
+        "train_rows": train_rows,
+        "status": "success",
+        "roc_auc": 0.9,
+        "brier": 0.1,
+        "pr_auc": 0.8,
+        "effective_config": {"kwargs": {} if epochs is None else {"epochs": epochs}},
+        "checkpoints": ["tabpfn-v3-classifier-v3_default.ckpt"],
+        "weights": {"sha256": "abc123"},
+        "provenance": None,
+    }
+    if arm is not None:
+        payload["arm"] = arm
+    path.write_text(json.dumps(payload))
+    return path
+
+
+def _pilot_cells() -> list[dict]:
+    """The 2,000-row pilot's shape: four datasets × four arms, seed 42."""
+    return [
+        {
+            "run_id": f"{dataset}_{arm}_seed42",
+            "dataset": dataset,
+            "arm": arm,
+            "seed": 42,
+            "train_rows": 2000,
+            "roc_auc": 0.7,
+            "brier": 0.1,
+            "pr_auc": 0.5,
+            "checkpoints": ["tabpfn-v3-classifier-v3_default.ckpt"],
+        }
+        for dataset in ("coil2000", "eudirectlapse", "spanish_motor_lapse", "uslapseagent")
+        for arm in ("A_raw", "B_in_domain", "E_glm", "F_catboost")
+    ]
+
+
+def _pilot_aggregate(path: Path, rows: list[dict] | None = None) -> Path:
+    import pandas as pd
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(rows if rows is not None else _pilot_cells()).to_parquet(path)
+    return path
+
+
 def test_two_runs_write_byte_identical_files(tmp_path, load_script):
     module = load_script("finetuning_runs_ledger", SCRIPT)
 
@@ -92,6 +154,21 @@ def test_two_runs_write_byte_identical_files(tmp_path, load_script):
 
     assert first_csv.read_bytes() == second_csv.read_bytes()
     assert first_doc.read_bytes() == second_doc.read_bytes()
+
+
+def test_the_committed_artefacts_are_byte_identical_to_a_fresh_render(tmp_path, load_script):
+    """A hand edit to the CSV or the rendered document would otherwise pass every check."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    out_csv, out_doc = tmp_path / "ledger.csv", tmp_path / "ledger.md"
+
+    module.main(["--out-csv", str(out_csv), "--out-doc", str(out_doc)])
+
+    assert out_csv.read_bytes() == COMMITTED_CSV.read_bytes(), (
+        "docs/analyses/data/finetuning_runs_ledger.csv is not what the generator writes"
+    )
+    assert out_doc.read_bytes() == COMMITTED_DOC.read_bytes(), (
+        "docs/experiments/pilot2-phase2/FINETUNING_RUNS_LEDGER.md is not what the generator writes"
+    )
 
 
 def test_the_markdown_ledger_is_rendered_from_the_csv(tmp_path, load_script):
@@ -167,18 +244,26 @@ def test_the_committed_evidence_is_seed_disjoint(load_script):
     module.assert_seed_disjoint(captures)
 
 
-def test_the_coil2000_pilot_rows_are_withdrawn_under_d21_and_d22(load_script):
+def test_the_coil2000_pilot_rows_name_the_decision_that_withdrew_them(load_script):
     module = load_script("finetuning_runs_ledger", SCRIPT)
     rows = [row for row in module.load_rows() if row.dataset == "coil2000"]
 
     assert len(rows) == 4
     assert {row.status for row in rows} == {"superseded"}
     for row in rows:
-        assert "D21" in row.superseded_reason
-        assert "D22" in row.superseded_reason
+        assert row.superseded_by_or_decision == "D21 (amended by D22)"
+        assert row.superseded_reason
 
 
-def test_the_spanish_breadth_rows_are_no_capture_and_carry_no_metric(load_script):
+def test_no_superseded_row_leaves_the_withdrawing_decision_blank(load_script):
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    superseded = [row for row in module.load_rows() if row.status == "superseded"]
+
+    assert superseded
+    assert [row for row in superseded if not row.superseded_by_or_decision] == []
+
+
+def test_the_spanish_breadth_rows_are_no_capture_and_invent_no_fields(load_script):
     module = load_script("finetuning_runs_ledger", SCRIPT)
     rows = [
         row
@@ -189,6 +274,9 @@ def test_the_spanish_breadth_rows_are_no_capture_and_carry_no_metric(load_script
     assert {row.arm for row in rows} == {"A_raw", "B_ft30"}
     for row in rows:
         assert row.roc_auc is None and row.brier is None and row.pr_auc is None
+        # A curated pointer, not a record: the breadth result owns the row count and epoch budget.
+        assert row.epochs is None and row.train_rows is None
+        assert "breadth result owns" in row.note
         assert "not a Capture" in row.note
 
 
@@ -249,3 +337,103 @@ def test_the_summary_is_descriptive_only(load_script):
     assert entry["n"] == 2
     assert entry["roc_auc"] == {"mean": pytest.approx(0.95), "min": 0.94, "max": 0.96}
     assert set(entry) == {"dataset", "arm", "train_rows", "n", "roc_auc", "brier", "pr_auc"}
+
+
+def test_a_single_run_prints_the_value_and_says_so(load_script):
+    """`n = 1` must not render as a mean with an absent range that reads like a zero-width one."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    one = {"mean": 0.95, "min": 0.95, "max": 0.95}
+    two = {"mean": 0.95, "min": 0.94, "max": 0.96}
+
+    assert module._range(one, 4, 1) == "0.9500 — single run"
+    assert module._range(two, 4, 2) == "0.9500 (0.9400–0.9600)"
+
+
+def test_the_pilot_loader_reads_sixteen_cells_from_an_injected_aggregate(
+    tmp_path, load_script
+):
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    with pytest.raises(module.EvidenceError, match="missing pilot aggregate"):
+        module.pilot_rows(tmp_path / "absent.parquet")
+
+    aggregate = _pilot_aggregate(tmp_path / "pilot_metrics.parquet")
+    rows = module.pilot_rows(aggregate)
+
+    assert len(rows) == 16
+    assert {row.experiment_family for row in rows} == {"r1-pilot"}
+    assert {row.seed for row in rows} == {42}
+    assert {row.train_rows for row in rows} == {2000}
+    assert all(row.epochs is None for row in rows)
+
+
+def test_the_launch_loader_reads_four_records_from_an_injected_tree(tmp_path, load_script):
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    runs = tmp_path / "runs"
+    for arm, epochs in (("A_raw", None), ("B_ft3", 3), ("B_ft10", 10), ("B_ft30", 30)):
+        _launch_record(runs, "20260914T010247Z", "uslapseagent", arm, epochs=epochs)
+
+    rows = module.launch_rows(runs)
+
+    assert len(rows) == 4
+    assert {row.run_id for row in rows} == {"20260914T010247Z"}
+    assert {row.status for row in rows} == {"no-capture"}
+    assert {row.arm_kind for row in rows} == {"raw", "fine-tuned"}
+    ft30 = next(row for row in rows if row.arm == "B_ft30")
+    assert ft30.epochs == 30
+    assert ft30.weights_sha256 == "abc123"
+    assert ft30.model_version == ""
+
+
+def test_the_launch_loader_treats_an_absent_tree_as_no_rows(tmp_path, load_script):
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+
+    assert module.launch_rows(tmp_path / "absent") == []
+
+
+def test_the_launch_loader_refuses_a_record_with_no_arm(tmp_path, load_script):
+    """A `continue` here would make the document's "nothing was dropped" false by construction."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    runs = tmp_path / "runs"
+    _launch_record(runs, "20260914T010247Z", "uslapseagent", "A_raw")
+    _launch_record(runs, "20260914T010247Z", "uslapseagent", None)
+
+    with pytest.raises(module.EvidenceError, match="names no arm"):
+        module.launch_rows(runs)
+
+
+def test_the_pilot_overlap_is_listed_and_the_aggregate_is_the_chosen_form(load_script):
+    """Twelve cells are recorded twice; the ledger takes the aggregate and says why."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    overlaps = module.pilot_cell_overlaps()
+
+    assert len(overlaps) == 12
+    # Neither form carries a provenance block, so neither outranks the other by evidence.
+    assert {overlap["record_has_provenance"] for overlap in overlaps} == {False}
+    differing = {
+        (overlap["dataset"], overlap["arm"]): overlap
+        for overlap in overlaps
+        if overlap["disagrees"]
+    }
+    assert set(differing) == {
+        ("coil2000", "A_raw"),
+        ("eudirectlapse", "A_raw"),
+        ("spanish_motor_lapse", "A_raw"),
+        ("uslapseagent", "A_raw"),
+    }
+    aggregate_value, record_value = differing[("spanish_motor_lapse", "A_raw")]["metrics"][
+        "roc_auc"
+    ]
+    assert aggregate_value == pytest.approx(0.723295)
+    assert record_value == pytest.approx(0.723028)
+
+    rows = [
+        row
+        for row in module.load_rows()
+        if row.experiment_family == "r1-pilot"
+        and row.dataset == "spanish_motor_lapse"
+        and row.arm == "A_raw"
+    ]
+    assert len(rows) == 1
+    # The pin: the ledger carries the aggregate's value, not the record's.
+    assert rows[0].roc_auc == pytest.approx(aggregate_value)
+    assert rows[0].source.endswith("pilot_metrics.parquet")
