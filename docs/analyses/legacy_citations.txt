@@ -23,3 +23,8 @@ arm × seed. See `docs/plans/run-capture-generator.md` and #360.
 20260912T201944Z
 20260913T225032Z
 20261029T142530Z
+
+# 20260914T010247Z — the 10,000-row `uslapseagent` launch under `outputs/gpu-pilot/runs/`. It has
+# per-arm records and no `capture.json`, and it never will: the arrays live in that launch tree, not
+# under `results/`. The fine-tuning runs ledger (#665) lists it as `no-capture`, citing the record.
+20260914T010247Z

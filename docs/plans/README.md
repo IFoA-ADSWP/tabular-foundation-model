@@ -17,7 +17,7 @@ since merged, and the pull request that merged it is the record of what happened
 the fact: a plan that says proposed stays that way unless its author amends it, because rewriting the status
 of a plan after the data would make the trail say something it did not.
 
-## Current, agreed or implemented — 72 plans
+## Current, agreed or implemented — 73 plans
 
 Newest first, by ticket number where the filename carries one.
 
@@ -108,6 +108,7 @@ Newest first, by ticket number where the filename carries one.
 | [`regressor-fair-test-runner.md`](regressor-fair-test-runner.md) | the regressor fair-test runner |
 | [`rescore-capture-discovery.md`](rescore-capture-discovery.md) | restore capture discovery in the alt-metrics rescore |
 | [`528-pinned-offer-cuda.md`](528-pinned-offer-cuda.md) | a pinned offer declares its CUDA, and the box kernel-tests torch |
+| [`665-finetuning-runs-ledger.md`](665-finetuning-runs-ledger.md) | one generated ledger of every committed fine-tuning run, arm and seed (#665) |
 
 ## Historical or unclassified — 2 plans
 

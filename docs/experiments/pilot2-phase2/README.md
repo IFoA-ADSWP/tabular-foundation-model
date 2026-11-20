@@ -4,7 +4,7 @@
 
 The fine-tuning programme: design, pre-registrations, the replication and breadth cells, the decision log and the Phase 2 outcome.
 
-**26 documents.** Read them in the order below; each declares its own status, and a document
+**27 documents.** Read them in the order below; each declares its own status, and a document
 marked reference or historical is kept for provenance rather than as the current answer.
 
 | Document | Status | What it holds |
@@ -21,6 +21,7 @@ marked reference or historical is kept for provenance rather than as the current
 | [`FINETUNING_PREREGISTRATION_2026-11.md`](FINETUNING_PREREGISTRATION_2026-11.md) | current — pre-registration, 2026-11-04 | Pre-registration — the fine-tuning replication (2026-11) |
 | [`FINETUNING_PREREGISTRATION_SPANISH_2026-11.md`](FINETUNING_PREREGISTRATION_SPANISH_2026-11.md) | current — pre-registration, 2026-11-05 | Pre-registration — the Spanish lapse cell (2026-11) |
 | [`FINETUNING_PREREQUISITES.md`](FINETUNING_PREREQUISITES.md) | current as of 2026-10-31 | Fine-Tuning — Prerequisites Checklist |
+| [`FINETUNING_RUNS_LEDGER.md`](FINETUNING_RUNS_LEDGER.md) | current — generated ledger, 2026-11-20 | Fine-tuning runs ledger — every committed run, arm and seed, with a descriptive summary |
 | [`FINETUNING_STATISTICAL_ANALYSIS_PLAN.md`](FINETUNING_STATISTICAL_ANALYSIS_PLAN.md) |  | Fine-Tuning — Statistical Analysis Plan |
 | [`FINETUNING_STATUS_BRIEF.md`](FINETUNING_STATUS_BRIEF.md) | current as of 2026-11-05 for the narra | Fine-Tuning Investigation — Status Brief |
 | [`PILOT_2_DECISION_GRAPH.md`](PILOT_2_DECISION_GRAPH.md) | current as of 2026-10-31 | Pilot 2 — the decision graph |
