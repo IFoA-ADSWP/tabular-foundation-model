@@ -47,6 +47,7 @@ number, and it can never settle a rule.
 | A measured result | the owning analysis: [replication](experiments/pilot2-phase2/finetuning_replication_result.md), [eudirectlapse](experiments/pilot2-phase2/finetuning_breadth_eudirectlapse_result.md), [spanish](experiments/pilot2-phase2/finetuning_breadth_spanish_result.md) | the claim test |
 | Model eras, and whether a number may be cited at all | [MODEL_VERSIONS.md](MODEL_VERSIONS.md) | per-artifact results |
 | The index of claims | [FINETUNING_FINDINGS.md](experiments/pilot2-phase2/FINETUNING_FINDINGS.md) | any number it links to |
+| The run inventory — model, dataset, epochs, seeds, training rows, arm kind | [FINETUNING_RUNS_LEDGER.md](experiments/pilot2-phase2/FINETUNING_RUNS_LEDGER.md) | the outcome metrics it lists; those stay with the owning analysis |
 | The closing statement of a phase | [FINETUNING_PHASE2_OUTCOME.md](experiments/pilot2-phase2/FINETUNING_PHASE2_OUTCOME.md) | the numbers it links to |
 
 ## The fourteen disagreements, and which document won
