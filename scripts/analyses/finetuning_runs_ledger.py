@@ -13,9 +13,10 @@ rejected pilot form against the chosen one — and the document says so beside i
 **The sources, and why they are read through a registry.**
 
 Each campaign is one entry in `CAMPAIGNS`: its problem type, dataset → task mapping, arm labels,
-identity key, metric block, era and record path shape. Selection is by campaign membership and
-dataset, never by "has an `ft` arm": the fair test, the actuarial baselines and the pilot all carry
-`A_raw` / `B_ft30`, and a label-based selector would merge three campaigns into one.
+era, record path shape and loader. The identity key and the two metric blocks are declared once for
+the whole ledger rather than per campaign. Selection is by campaign membership and dataset, never by
+"has an `ft` arm": the fair test, the actuarial baselines and the pilot all carry `A_raw` / `B_ft30`,
+and a label-based selector would merge three campaigns into one.
 
 - `pilot2-phase2` — the 23 Runs the campaign's own `## Runs` block names, one `capture.json` each.
 - `outputs/finetune/pilot/pilot_metrics.parquet` — the 2,000-row R1 pilot's 16 aggregate rows only.
@@ -117,10 +118,6 @@ COLUMNS = (
 # and a regression row's classification block is blank, because "not applicable" is not zero.
 CLASSIFICATION_METRICS = ("roc_auc", "brier", "pr_auc")
 REGRESSION_METRICS = ("rmse", "verdict_metric", "verdict_metric_value")
-METRICS_BY_PROBLEM = {
-    "classification": CLASSIFICATION_METRICS,
-    "regression": REGRESSION_METRICS,
-}
 # The summary's numeric columns per block. `verdict_metric` is a name, handled separately.
 SUMMARY_METRICS = {
     "classification": ("roc_auc", "brier", "pr_auc"),
@@ -128,8 +125,10 @@ SUMMARY_METRICS = {
 }
 REGRESSION_VERDICT_METRICS = {"poisson_deviance", "rmse", "weighted_rmse"}
 
-KEY_WITHOUT_FOLD = ("campaign", "dataset", "arm", "seed", "train_rows")
-KEY_WITH_FOLD = ("campaign", "dataset", "arm", "seed", "fold", "train_rows")
+# The identity key, declared once and read by `LedgerRow.cell`. `fold` is always in it: a
+# classification row writes a blank fold and a regression row a fold number, so one key serves both
+# blocks and a five-fold regression cell cannot collapse into one row.
+IDENTITY_KEY = ("experiment_family", "dataset", "arm", "seed", "fold", "train_rows")
 
 # `arm_kind` is derived, never recorded. A baseline is a Method in this repo's glossary, so the three
 # comparator labels are not Arms of one kind. `M_intercept` is the intercept-only anchor the
@@ -160,10 +159,11 @@ RUN_ID = re.compile(r"^20\d{6}T\d{6}Z$")
 
 @dataclass(frozen=True)
 class Campaign:
-    """One source of rows, and the rules that make its rows comparable and unique.
+    """One source of rows, and the rules that make its rows comparable.
 
-    `key_fields` names the identity columns: classification omits `fold` because its records are
-    `seed<N>_foldNone`; regression includes it because a five-fold cell is five measurements.
+    The identity key is not per campaign: it is `IDENTITY_KEY`, with `fold` in it for every row.
+    A classification row writes a blank `fold` and a regression row its fold number, so one key
+    covers both blocks.
     """
 
     campaign_id: str
@@ -171,8 +171,6 @@ class Campaign:
     tasks: dict[str, str]
     datasets: frozenset[str]
     arm_labels: tuple[str, ...]
-    key_fields: tuple[str, ...]
-    metrics: tuple[str, ...]
     era: str
     record_path: str
     what: str
@@ -180,9 +178,15 @@ class Campaign:
     run_ids: tuple[str, ...] = ()
     run_index: Path | None = None
 
-    def run_list(self) -> list[str]:
-        if self.run_index is not None:
-            return campaign_runs(self.run_index)
+    def run_list(self, readme: Path | None = None) -> list[str]:
+        """The Run ids this campaign reads: its index, else the ids the registry lists.
+
+        `readme` overrides the registry's index so a caller can point at a fixture tree; the
+        pipeline itself passes none and reads the index the registry names.
+        """
+        index = readme if readme is not None else self.run_index
+        if index is not None:
+            return campaign_runs(index)
         if not self.run_ids:
             raise EvidenceError(f"{self.campaign_id}: the registry names no Runs and no index")
         return list(self.run_ids)
@@ -210,8 +214,6 @@ CAMPAIGNS: tuple[Campaign, ...] = (
         tasks={"uslapseagent": "lapse", "eudirectlapse": "lapse"},
         datasets=frozenset({"uslapseagent", "eudirectlapse"}),
         arm_labels=("A_raw", "B_ft3", "B_ft10", "B_ft30"),
-        key_fields=KEY_WITHOUT_FOLD,
-        metrics=CLASSIFICATION_METRICS,
         era="auto",
         record_path="`results/<run>/<dataset>/<arm>/seed<N>_foldNone/meta.json`",
         what=(
@@ -226,8 +228,6 @@ CAMPAIGNS: tuple[Campaign, ...] = (
         tasks={dataset: "lapse" for dataset in sorted(CLASSIFICATION_DATASETS)},
         datasets=CLASSIFICATION_DATASETS,
         arm_labels=("A_raw", "B_in_domain", "E_glm", "F_catboost"),
-        key_fields=KEY_WITHOUT_FOLD,
-        metrics=CLASSIFICATION_METRICS,
         era="auto",
         record_path="`outputs/finetune/pilot/pilot_metrics.parquet`",
         what="the 2,000-row R1 pilot aggregate, one seed (42), no Capture",
@@ -239,8 +239,6 @@ CAMPAIGNS: tuple[Campaign, ...] = (
         tasks={"uslapseagent": "lapse"},
         datasets=frozenset({"uslapseagent"}),
         arm_labels=("A_raw", "B_ft3", "B_ft10", "B_ft30"),
-        key_fields=KEY_WITHOUT_FOLD,
-        metrics=CLASSIFICATION_METRICS,
         era="auto",
         record_path="`outputs/gpu-pilot/runs/<run>/<dataset>/<arm>/meta.json`",
         what="committed launch records with no `capture.json`",
@@ -252,8 +250,6 @@ CAMPAIGNS: tuple[Campaign, ...] = (
         tasks={"spanish_motor_lapse": "lapse"},
         datasets=frozenset({"spanish_motor_lapse"}),
         arm_labels=("A_raw", "B_ft30"),
-        key_fields=KEY_WITHOUT_FOLD,
-        metrics=CLASSIFICATION_METRICS,
         era="auto",
         record_path="`docs/experiments/pilot2-phase2/finetuning_breadth_spanish_result.md`",
         what="one curated cell whose per-seed records were never committed",
@@ -265,8 +261,6 @@ CAMPAIGNS: tuple[Campaign, ...] = (
         tasks=REGRESSION_TASKS,
         datasets=REGRESSION_DATASETS,
         arm_labels=("A_raw", "B_ft30"),
-        key_fields=KEY_WITH_FOLD,
-        metrics=REGRESSION_METRICS,
         era="v3_default",
         record_path="`results/<run>/<dataset>/<arm>/seed<N>_fold<K>/meta.json`",
         what=(
@@ -288,8 +282,6 @@ CAMPAIGNS: tuple[Campaign, ...] = (
         tasks=REGRESSION_TASKS,
         datasets=REGRESSION_DATASETS,
         arm_labels=("E_glm", "F_catboost", "M_intercept"),
-        key_fields=KEY_WITH_FOLD,
-        metrics=REGRESSION_METRICS,
         era="v3_default",
         record_path="`results/<run>/<dataset>/<arm>/seed<N>_fold<K>/meta.json`",
         what="the registered primary baseline arm, trained on the whole fold pool",
@@ -307,8 +299,6 @@ CAMPAIGNS: tuple[Campaign, ...] = (
         tasks=REGRESSION_TASKS,
         datasets=REGRESSION_DATASETS,
         arm_labels=("E_glm", "F_catboost", "M_intercept"),
-        key_fields=KEY_WITH_FOLD,
-        metrics=REGRESSION_METRICS,
         era="v3_default",
         record_path="`results/<run>/<dataset>/<arm>/seed<N>_fold<K>/meta.json`",
         what=(
@@ -403,8 +393,17 @@ class EvidenceError(SystemExit):
 
 @dataclass(frozen=True)
 class LedgerRow:
+    """One measurement. The three labels every row must state carry no default on purpose.
+
+    `problem_type`, `task` and `era` defaulting to the classification line's values would let a
+    regression row that forgot one be mislabelled rather than refused, so they are required.
+    """
+
     run_id: str
     experiment_family: str
+    problem_type: str
+    task: str
+    era: str
     dataset: str
     arm: str
     arm_kind: str
@@ -415,9 +414,6 @@ class LedgerRow:
     brier: float | None
     pr_auc: float | None
     status: str
-    problem_type: str = "classification"
-    task: str = "lapse"
-    era: str = "auto"
     fold: int | None = None
     rmse: float | None = None
     verdict_metric: str = ""
@@ -432,19 +428,12 @@ class LedgerRow:
 
     @property
     def cell(self) -> tuple:
-        """The identity of one measurement: campaign, cell, and fold where the evidence has folds.
+        """The identity of one measurement, read from `IDENTITY_KEY`.
 
         `train_rows` and `fold` are in the key on purpose: the first keeps two budgets apart, the
         second keeps a five-fold regression cell from collapsing into one row.
         """
-        return (
-            self.experiment_family,
-            self.dataset,
-            self.arm,
-            self.seed,
-            self.fold,
-            self.train_rows,
-        )
+        return tuple(getattr(self, field) for field in IDENTITY_KEY)
 
 
 def _relative(path: Path) -> str:
@@ -644,102 +633,15 @@ def _record_fields(record: dict, arm: str, campaign: Campaign) -> dict:
     }
 
 
-def capture_rows(
-    results: Path = RESULTS,
-    readme: Path = CAMPAIGN_README,
-    campaign: Campaign | None = None,
-) -> list[LedgerRow]:
-    """One row per captured arm × seed record, for the Runs the campaign names.
+def _capture_entries(campaign: Campaign, results: Path, readme: Path | None):
+    """Every record a campaign's Runs commit, read through their `capture.json`.
 
-    The Run id is the directory's, never the record's: a record's own `run_id` is
-    `<dataset>_<arm>_seed<N>`. The record itself lives at
-    `results/<run>/<dataset>/<arm>/<seed>_foldNone/`, because `capture.json`'s `record` omits the
-    dataset level.
+    Yields `(run_id, dataset, task, record_path, entry, record)`. Three ways a tree can disagree
+    with itself are refused here, so no capture-reading loader can skip one: a Run the registry
+    names with no Capture, a capture entry with no record, and a record present in the tree that
+    the Capture does not cover. Both readers below consume this fully, so the stray check runs.
     """
-    campaign = campaign or CAMPAIGN_BY_ID["pilot2-phase2"]
-    rows: list[LedgerRow] = []
-    run_ids = campaign_runs(readme) if campaign.run_index is not None else campaign.run_list()
-    for run_id in run_ids:
-        run_dir = results / run_id
-        capture_path = run_dir / "capture.json"
-        if not capture_path.is_file():
-            raise EvidenceError(
-                f"{run_id} is named by the campaign index but has no capture.json under results/"
-            )
-        capture = json.loads(capture_path.read_text())
-        dataset = capture.get("dataset")
-        if not dataset:
-            raise EvidenceError(f"{run_id}: capture.json names no dataset")
-        task = _task_for(campaign, run_id, dataset)
-
-        covered: set[Path] = set()
-        for entry in capture.get("captures", []):
-            record_path = run_dir / dataset / entry["record"]
-            if not record_path.is_file():
-                raise EvidenceError(f"{run_id}: capture entry {entry['record']} has no record")
-            covered.add(record_path.resolve())
-            record = json.loads(record_path.read_text())
-
-            arm = record.get("arm") or entry.get("arm")
-            if arm is None:
-                raise EvidenceError(f"{run_id}: {entry['record']} names no arm")
-            _assert_arm_known(campaign, run_id, arm)
-            if record.get("dataset") and record["dataset"] != dataset:
-                raise EvidenceError(
-                    f"{run_id}: {entry['record']} is {record['dataset']}, the capture is {dataset}"
-                )
-            if record.get("status") != "success":
-                raise EvidenceError(
-                    f"{run_id}: {entry['record']} is {record.get('status')!r}, not a success"
-                )
-
-            seed = record.get("seed", entry.get("seed"))
-            fields = _record_fields(record, arm, campaign)
-            rows.append(
-                LedgerRow(
-                    run_id=run_id,
-                    experiment_family=campaign.campaign_id,
-                    problem_type=campaign.problem_type,
-                    task=task,
-                    era=campaign.era,
-                    dataset=dataset,
-                    arm=arm,
-                    arm_kind=arm_kind(arm),
-                    seed=None if seed is None else int(seed),
-                    status="current",
-                    source=_relative(record_path),
-                    note=""
-                    if fields["model_version"] == "auto"
-                    else "model version not recorded",
-                    **fields,
-                )
-            )
-
-        stray = sorted(
-            path.resolve()
-            for path in run_dir.glob("*/*/seed*_fold*/meta.json")
-            if path.resolve() not in covered
-        )
-        if stray:
-            raise EvidenceError(
-                f"{run_id}: {len(stray)} record(s) are not covered by capture.json, e.g. "
-                f"{_relative(stray[0])}"
-            )
-    return rows
-
-
-def regression_rows(
-    campaign: Campaign, results: Path = RESULTS
-) -> list[LedgerRow]:
-    """One row per captured arm × seed × fold record, for a regression campaign's Runs.
-
-    The record names `task`, `fold`, `n_folds`, `train_rows`, `rmse` and the verdict metric; the
-    registry states the task the dataset serves and is asserted against it. The arm is the record's
-    `arm` where it has one and its `method` otherwise — the baseline records carry `arm: null` — and
-    the directory must agree with whichever field named it.
-    """
-    rows: list[LedgerRow] = []
-    for run_id in campaign.run_list():
+    for run_id in campaign.run_list(readme):
         run_dir = results / run_id
         capture_path = run_dir / "capture.json"
         if not capture_path.is_file():
@@ -758,66 +660,7 @@ def regression_rows(
             if not record_path.is_file():
                 raise EvidenceError(f"{run_id}: capture entry {entry['record']} has no record")
             covered.add(record_path.resolve())
-            record = json.loads(record_path.read_text())
-
-            arm = (
-                record.get("arm")
-                or entry.get("arm")
-                or record.get("method")
-                or entry.get("method")
-            )
-            if arm is None:
-                raise EvidenceError(f"{run_id}: {entry['record']} names no arm and no method")
-            _assert_arm_known(campaign, run_id, arm)
-            path_arm = record_path.parent.parent.name
-            if path_arm != arm:
-                raise EvidenceError(
-                    f"{_relative(record_path)}: the path names {path_arm!r}, the record {arm!r}"
-                )
-            if record.get("task") != task:
-                raise EvidenceError(
-                    f"{_relative(record_path)}: the record's task is {record.get('task')!r}, the "
-                    f"registry says {task!r} for {dataset}"
-                )
-            if record.get("status") not in (None, "success"):
-                raise EvidenceError(
-                    f"{_relative(record_path)}: status {record.get('status')!r}, not a success"
-                )
-            if record.get("n_folds") != 5:
-                raise EvidenceError(
-                    f"{_relative(record_path)}: n_folds is {record.get('n_folds')!r}, not 5"
-                )
-            fold = record.get("fold", entry.get("fold"))
-            if fold is None:
-                raise EvidenceError(
-                    f"{_relative(record_path)}: a regression record with no fold; the identity key "
-                    "needs one"
-                )
-
-            seed = record.get("seed", entry.get("seed"))
-            if seed is None:
-                raise EvidenceError(f"{_relative(record_path)}: no seed")
-            fields = _record_fields(record, arm, campaign)
-            if fields["fold"] != int(fold):
-                raise EvidenceError(
-                    f"{_relative(record_path)}: the fold disagrees with the capture entry"
-                )
-            rows.append(
-                LedgerRow(
-                    run_id=run_id,
-                    experiment_family=campaign.campaign_id,
-                    problem_type=campaign.problem_type,
-                    task=task,
-                    era=campaign.era,
-                    dataset=dataset,
-                    arm=arm,
-                    arm_kind=arm_kind(arm),
-                    seed=int(seed),
-                    status="current",
-                    source=_relative(record_path),
-                    **fields,
-                )
-            )
+            yield run_id, dataset, task, record_path, entry, json.loads(record_path.read_text())
 
         stray = sorted(
             path.resolve()
@@ -829,6 +672,130 @@ def regression_rows(
                 f"{run_id}: {len(stray)} record(s) are not covered by capture.json, e.g. "
                 f"{_relative(stray[0])}"
             )
+
+
+def capture_rows(
+    results: Path = RESULTS,
+    readme: Path | None = None,
+    campaign: Campaign | None = None,
+) -> list[LedgerRow]:
+    """One row per captured arm × seed record, for the Runs the campaign names.
+
+    The Run id is the directory's, never the record's: a record's own `run_id` is
+    `<dataset>_<arm>_seed<N>`. The record itself lives at
+    `results/<run>/<dataset>/<arm>/<seed>_foldNone/`, because `capture.json`'s `record` omits the
+    dataset level. `readme` overrides the campaign's own index, for a fixture tree.
+    """
+    campaign = campaign or CAMPAIGN_BY_ID["pilot2-phase2"]
+    rows: list[LedgerRow] = []
+    for run_id, dataset, task, record_path, entry, record in _capture_entries(
+        campaign, results, readme
+    ):
+        arm = record.get("arm") or entry.get("arm")
+        if arm is None:
+            raise EvidenceError(f"{run_id}: {entry['record']} names no arm")
+        _assert_arm_known(campaign, run_id, arm)
+        if record.get("dataset") and record["dataset"] != dataset:
+            raise EvidenceError(
+                f"{run_id}: {entry['record']} is {record['dataset']}, the capture is {dataset}"
+            )
+        if record.get("status") != "success":
+            raise EvidenceError(
+                f"{run_id}: {entry['record']} is {record.get('status')!r}, not a success"
+            )
+
+        seed = record.get("seed", entry.get("seed"))
+        fields = _record_fields(record, arm, campaign)
+        rows.append(
+            LedgerRow(
+                run_id=run_id,
+                experiment_family=campaign.campaign_id,
+                problem_type=campaign.problem_type,
+                task=task,
+                era=campaign.era,
+                dataset=dataset,
+                arm=arm,
+                arm_kind=arm_kind(arm),
+                seed=None if seed is None else int(seed),
+                status="current",
+                source=_relative(record_path),
+                note="" if fields["model_version"] == "auto" else "model version not recorded",
+                **fields,
+            )
+        )
+    return rows
+
+
+def regression_rows(campaign: Campaign, results: Path = RESULTS) -> list[LedgerRow]:
+    """One row per captured arm × seed × fold record, for a regression campaign's Runs.
+
+    The record names `task`, `fold`, `n_folds`, `train_rows`, `rmse` and the verdict metric; the
+    registry states the task the dataset serves and is asserted against it. The arm is the record's
+    `arm` where it has one and its `method` otherwise — the baseline records carry `arm: null` — and
+    the directory must agree with whichever field named it.
+    """
+    rows: list[LedgerRow] = []
+    for run_id, dataset, task, record_path, entry, record in _capture_entries(
+        campaign, results, None
+    ):
+        arm = (
+            record.get("arm")
+            or entry.get("arm")
+            or record.get("method")
+            or entry.get("method")
+        )
+        if arm is None:
+            raise EvidenceError(f"{run_id}: {entry['record']} names no arm and no method")
+        _assert_arm_known(campaign, run_id, arm)
+        path_arm = record_path.parent.parent.name
+        if path_arm != arm:
+            raise EvidenceError(
+                f"{_relative(record_path)}: the path names {path_arm!r}, the record {arm!r}"
+            )
+        if record.get("task") != task:
+            raise EvidenceError(
+                f"{_relative(record_path)}: the record's task is {record.get('task')!r}, the "
+                f"registry says {task!r} for {dataset}"
+            )
+        if record.get("status") not in (None, "success"):
+            raise EvidenceError(
+                f"{_relative(record_path)}: status {record.get('status')!r}, not a success"
+            )
+        if record.get("n_folds") != 5:
+            raise EvidenceError(
+                f"{_relative(record_path)}: n_folds is {record.get('n_folds')!r}, not 5"
+            )
+        fold = record.get("fold", entry.get("fold"))
+        if fold is None:
+            raise EvidenceError(
+                f"{_relative(record_path)}: a regression record with no fold; the identity key "
+                "needs one"
+            )
+
+        seed = record.get("seed", entry.get("seed"))
+        if seed is None:
+            raise EvidenceError(f"{_relative(record_path)}: no seed")
+        fields = _record_fields(record, arm, campaign)
+        if fields["fold"] != int(fold):
+            raise EvidenceError(
+                f"{_relative(record_path)}: the fold disagrees with the capture entry"
+            )
+        rows.append(
+            LedgerRow(
+                run_id=run_id,
+                experiment_family=campaign.campaign_id,
+                problem_type=campaign.problem_type,
+                task=task,
+                era=campaign.era,
+                dataset=dataset,
+                arm=arm,
+                arm_kind=arm_kind(arm),
+                seed=int(seed),
+                status="current",
+                source=_relative(record_path),
+                **fields,
+            )
+        )
     return rows
 
 
@@ -1072,27 +1039,46 @@ def pilot_cell_overlaps(
     return overlaps
 
 
+@dataclass(frozen=True)
+class Sources:
+    """Where every loader reads from, injected whole so one seam can point at a fixture tree."""
+
+    results: Path = RESULTS
+    readme: Path | None = None
+    aggregate: Path = PILOT_AGGREGATE
+    launches: Path = GPU_PILOT_RUNS
+
+
+# Loader dispatch, by name. Each campaign's `loader` is a key here, and the registry is checked
+# against the map at import, so a typo stops the generator before it reads a tree rather than after.
+LOADERS = {
+    "capture": lambda campaign, sources: capture_rows(
+        sources.results, sources.readme, campaign
+    ),
+    "aggregate": lambda campaign, sources: pilot_rows(sources.aggregate, campaign),
+    "launch": lambda campaign, sources: launch_rows(sources.launches, campaign),
+    "curated": lambda campaign, sources: breadth_rows(campaign=campaign),
+    "regression": lambda campaign, sources: regression_rows(campaign, sources.results),
+}
+
+_UNKNOWN_LOADERS = sorted({campaign.loader for campaign in CAMPAIGNS} - set(LOADERS))
+if _UNKNOWN_LOADERS:
+    raise RuntimeError(
+        f"the campaign registry names loader(s) the map does not define: {_UNKNOWN_LOADERS}"
+    )
+
+
 def load_rows(
     results: Path = RESULTS,
-    readme: Path = CAMPAIGN_README,
+    readme: Path | None = None,
     aggregate: Path = PILOT_AGGREGATE,
     launches: Path = GPU_PILOT_RUNS,
 ) -> list[LedgerRow]:
     """Every row, asserted, and in a total order so the same tree yields the same bytes."""
+    sources = Sources(results, readme, aggregate, launches)
     rows: list[LedgerRow] = []
     for campaign in CAMPAIGNS:
-        if campaign.loader == "capture":
-            rows += capture_rows(results, readme, campaign)
-        elif campaign.loader == "aggregate":
-            rows += pilot_rows(aggregate, campaign)
-        elif campaign.loader == "launch":
-            rows += launch_rows(launches, campaign)
-        elif campaign.loader == "curated":
-            rows += breadth_rows(campaign=campaign)
-        elif campaign.loader == "regression":
-            rows += regression_rows(campaign, results)
-        else:
-            raise EvidenceError(f"{campaign.campaign_id}: unknown loader {campaign.loader!r}")
+        rows += LOADERS[campaign.loader](campaign, sources)
     assert_seed_disjoint(rows)
     return sorted(rows, key=_sort_key)
 
@@ -1238,23 +1224,59 @@ def _table(headers: list[str], body: list[list[str]]) -> list[str]:
     return lines
 
 
-def _pin_lines(csv_rows: list[dict[str, str]]) -> list[str]:
-    """The model pins, per problem type, as the records state them.
+def _pin_sentence(problem_type: str, checkpoint: str, sha: str, members: list[dict]) -> str:
+    """One problem type's pin, in the words its own rows support."""
+    short = f"{sha[:8]}...{sha[-6:]}"
+    versions = sorted({row["model_version"] for row in members if row["model_version"]})
+    eras = sorted({row["era"] for row in members if row["era"]})
+    era = " or ".join(f"`{value}`" for value in eras) if eras else "blank"
+    if not versions:
+        return (
+            f"- {problem_type.capitalize()} rows record no `model_version`; their weights block "
+            f"names the checkpoint `{checkpoint}` and weights sha256 `{short}`, so `era` reads "
+            f"{era}."
+        )
+    recorded = ", ".join(f"`{value}`" for value in versions)
+    qualifier = " — a value that names no version — " if set(versions) == {"auto"} else " "
+    sentence = (
+        f"- {problem_type.capitalize()} rows that record a version name `model_version` "
+        f"{recorded}{qualifier}beside the checkpoint `{checkpoint}` and weights sha256 "
+        f"`{short}`; `era` reads {era}."
+    )
+    without = [row for row in members if not row["model_version"]]
+    if without:
+        families = ", ".join(
+            f"`{family}`" for family in sorted({row["experiment_family"] for row in without})
+        )
+        sentence += (
+            f" The other {len(without)} of the {len(members)} {problem_type} rows record none "
+            f"({families})."
+        )
+    return sentence
 
-    A classification record says `auto` — a value that names no version — beside the classifier
-    checkpoint and its weights sha. A regression record names no `model_version` at all; its weights
-    block names the regressor checkpoint, which is where `v3_default` comes from. Neither is
-    re-described as v3.5.
+
+def _pin_lines(csv_rows: list[dict[str, str]]) -> list[str]:
+    """The model pins, per problem type, as the rows state them.
+
+    Every claim here is read from the CSV: the checkpoint and sha from the two columns, and the
+    version and era from the same rows, so a campaign whose era changes cannot leave this prose
+    lying while the byte comparison still passes. A classification record says `auto` — a value that
+    names no version; a regression record names no `model_version` at all and its weights block names
+    the regressor checkpoint, which is where the era comes from.
     """
-    pins: dict[str, set[tuple[str, str]]] = {}
-    for row in csv_rows:
-        if row["checkpoint"] or row["weights_sha256"]:
-            pins.setdefault(row["problem_type"], set()).add(
-                (row["checkpoint"], row["weights_sha256"])
-            )
-    sentences = []
+    lines = [
+        "**The model is named by its record, and the version is never inferred.** No row here is",
+        "described as v3.5: a version is printed only where a record names one, and `auto` is never",
+        "re-described as a version. No table subtracts one era or one model family from another.",
+        "",
+    ]
     for problem_type in ("classification", "regression"):
-        pairs = pins.get(problem_type, set())
+        members = [row for row in csv_rows if row["problem_type"] == problem_type]
+        pairs = {
+            (row["checkpoint"], row["weights_sha256"])
+            for row in members
+            if row["checkpoint"] or row["weights_sha256"]
+        }
         if not pairs:
             continue
         if len(pairs) != 1:
@@ -1263,44 +1285,8 @@ def _pin_lines(csv_rows: list[dict[str, str]]) -> list[str]:
                 f"{sorted(pairs)}"
             )
         checkpoint, sha = next(iter(pairs))
-        short = f"{sha[:8]}...{sha[-6:]}"
-        versions = sorted(
-            {
-                row["model_version"]
-                for row in csv_rows
-                if row["problem_type"] == problem_type and row["model_version"]
-            }
-        )
-        if problem_type == "classification":
-            recorded = "`, `".join(versions)
-            if recorded:
-                sentences.append(
-                    f"- Classification rows that record a version name `model_version` "
-                    f"`{recorded}` — a value that names no version — beside the checkpoint "
-                    f"`{checkpoint}` and weights sha256 `{short}`; the pilot aggregate and the "
-                    f"launch records name none. `era` reads "
-                    f"`{CAMPAIGN_BY_ID['pilot2-phase2'].era}` for the line."
-                )
-            else:
-                sentences.append(
-                    f"- Classification rows record no `model_version`; the checkpoint "
-                    f"`{checkpoint}` names the line's weights, sha256 `{short}`. `era` reads "
-                    f"`{CAMPAIGN_BY_ID['pilot2-phase2'].era}`."
-                )
-        else:
-            sentences.append(
-                f"- Regression rows record no `model_version`; their weights block names the "
-                f"checkpoint `{checkpoint}` and weights sha256 `{short}`, so `era` reads "
-                f"`{CAMPAIGN_BY_ID['fair-test-freq-sev'].era}`."
-            )
-    return [
-        "**The model is named by its record, and the version is never inferred.** No row here is",
-        "v3.5: the classification records did not name a version and this ledger does not re-describe",
-        "their `auto` as v3.5, and the regression line ran the v3_default regressor checkpoint. No",
-        "table subtracts one era or one model family from another.",
-        "",
-        *sentences,
-    ]
+        lines.append(_pin_sentence(problem_type, checkpoint, sha, members))
+    return lines
 
 
 def render_document(csv_rows: list[dict[str, str]], overlaps: list[dict] | None = None) -> str:
@@ -1597,6 +1583,8 @@ def render_document(csv_rows: list[dict[str, str]], overlaps: list[dict] | None 
         classification_body.append(
             [
                 f"`{entry['family']}`",
+                entry["problem_type"],
+                entry["task"],
                 entry["dataset"],
                 f"`{entry['arm']}`",
                 f"{int(entry['train_rows']):,}",
@@ -1609,6 +1597,8 @@ def render_document(csv_rows: list[dict[str, str]], overlaps: list[dict] | None 
     lines += _table(
         [
             "family",
+            "type",
+            "task",
             "dataset",
             "arm",
             "train rows",
@@ -1635,6 +1625,8 @@ def render_document(csv_rows: list[dict[str, str]], overlaps: list[dict] | None 
         regression_body.append(
             [
                 f"`{entry['family']}`",
+                entry["problem_type"],
+                entry["task"],
                 entry["dataset"],
                 f"`{entry['arm']}`",
                 f"{int(entry['train_rows']):,}",
@@ -1647,6 +1639,8 @@ def render_document(csv_rows: list[dict[str, str]], overlaps: list[dict] | None 
     lines += _table(
         [
             "family",
+            "type",
+            "task",
             "dataset",
             "arm",
             "train rows",

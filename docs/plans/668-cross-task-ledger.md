@@ -35,11 +35,11 @@ document, a campaign registry, two metric blocks, and `fold` in the identity key
 ## Decisions
 
 1. **The campaign registry is the scope guard, and every entry is explicit.** Each entry carries a
-   campaign id, `problem_type`, the dataset → task mapping, the arm labels, the identity key (with
-   or without `fold`), the metric block, the era and the record path shape. Runs are selected by
-   campaign membership and dataset, never by "has an `ft` arm": six fair-test directories and the
-   baseline directories carry the same labels as the pilot, and a label-based selector would merge
-   three campaigns into one.
+   campaign id, `problem_type`, the dataset → task mapping, the arm labels, the era and the record
+   path shape; the identity key and the two metric blocks are declared once for the whole ledger
+   (decisions 2 and 4), not per campaign. Runs are selected by campaign membership and dataset,
+   never by "has an `ft` arm": six fair-test directories and the baseline directories carry the same
+   labels as the pilot, and a label-based selector would merge three campaigns into one.
 
    The regression sources are:
    - `fair-test-freq-sev` — `20261112T164543Z`, `20261112T184155Z`, `20261112T210029Z`,

@@ -1234,84 +1234,84 @@ lines for the same reason `train_rows` is part of the key.
 
 ### Classification — ROC AUC, Brier and PR-AUC
 
-| family | dataset | arm | train rows | n | ROC AUC mean (min–max) | Brier mean (min–max) | PR-AUC mean (min–max) |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `pilot2-phase2` | eudirectlapse | `A_raw` | 10,000 | 238 | 0.6268 (0.5452–0.6984) | 0.1095 (0.1068–0.1128) | 0.2037 (0.1500–0.2745) |
-| `pilot2-phase2` | eudirectlapse | `B_ft30` | 10,000 | 238 | 0.6275 (0.5440–0.6914) | 0.1095 (0.1068–0.1132) | 0.2010 (0.1516–0.2684) |
-| `pilot2-phase2` | uslapseagent | `A_raw` | 10,000 | 40 | 0.9431 (0.9275–0.9591) | 0.0841 (0.0718–0.0975) | 0.8781 (0.8405–0.9143) |
-| `pilot2-phase2` | uslapseagent | `B_ft3` | 10,000 | 12 | 0.9421 (0.9333–0.9499) | 0.0861 (0.0808–0.0934) | 0.8792 (0.8559–0.8990) |
-| `pilot2-phase2` | uslapseagent | `B_ft10` | 10,000 | 12 | 0.9428 (0.9338–0.9511) | 0.0858 (0.0805–0.0930) | 0.8809 (0.8615–0.9021) |
-| `pilot2-phase2` | uslapseagent | `B_ft30` | 10,000 | 40 | 0.9465 (0.9328–0.9606) | 0.0821 (0.0703–0.0939) | 0.8881 (0.8594–0.9188) |
-| `r1-pilot` | eudirectlapse | `A_raw` | 2,000 | 1 | 0.5881 — single run | 0.1137 — single run | 0.1943 — single run |
-| `r1-pilot` | eudirectlapse | `B_in_domain` | 2,000 | 1 | 0.5976 — single run | 0.1133 — single run | 0.1982 — single run |
-| `r1-pilot` | eudirectlapse | `E_glm` | 2,000 | 1 | 0.5744 — single run | 0.1163 — single run | 0.1601 — single run |
-| `r1-pilot` | eudirectlapse | `F_catboost` | 2,000 | 1 | 0.5738 — single run | 0.1151 — single run | 0.1830 — single run |
-| `r1-pilot` | spanish_motor_lapse | `A_raw` | 2,000 | 1 | 0.7233 — single run | 0.1978 — single run | 0.5708 — single run |
-| `r1-pilot` | spanish_motor_lapse | `B_in_domain` | 2,000 | 1 | 0.7272 — single run | 0.1967 — single run | 0.5791 — single run |
-| `r1-pilot` | spanish_motor_lapse | `E_glm` | 2,000 | 1 | 0.6166 — single run | 0.2222 — single run | 0.4469 — single run |
-| `r1-pilot` | spanish_motor_lapse | `F_catboost` | 2,000 | 1 | 0.7114 — single run | 0.2015 — single run | 0.5412 — single run |
-| `r1-pilot` | uslapseagent | `A_raw` | 2,000 | 1 | 0.9363 — single run | 0.0873 — single run | 0.8344 — single run |
-| `r1-pilot` | uslapseagent | `B_in_domain` | 2,000 | 1 | 0.9355 — single run | 0.0870 — single run | 0.8375 — single run |
-| `r1-pilot` | uslapseagent | `E_glm` | 2,000 | 1 | 0.9271 — single run | 0.0910 — single run | 0.8172 — single run |
-| `r1-pilot` | uslapseagent | `F_catboost` | 2,000 | 1 | 0.9297 — single run | 0.0934 — single run | 0.8293 — single run |
+| family | type | task | dataset | arm | train rows | n | ROC AUC mean (min–max) | Brier mean (min–max) | PR-AUC mean (min–max) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `pilot2-phase2` | classification | lapse | eudirectlapse | `A_raw` | 10,000 | 238 | 0.6268 (0.5452–0.6984) | 0.1095 (0.1068–0.1128) | 0.2037 (0.1500–0.2745) |
+| `pilot2-phase2` | classification | lapse | eudirectlapse | `B_ft30` | 10,000 | 238 | 0.6275 (0.5440–0.6914) | 0.1095 (0.1068–0.1132) | 0.2010 (0.1516–0.2684) |
+| `pilot2-phase2` | classification | lapse | uslapseagent | `A_raw` | 10,000 | 40 | 0.9431 (0.9275–0.9591) | 0.0841 (0.0718–0.0975) | 0.8781 (0.8405–0.9143) |
+| `pilot2-phase2` | classification | lapse | uslapseagent | `B_ft3` | 10,000 | 12 | 0.9421 (0.9333–0.9499) | 0.0861 (0.0808–0.0934) | 0.8792 (0.8559–0.8990) |
+| `pilot2-phase2` | classification | lapse | uslapseagent | `B_ft10` | 10,000 | 12 | 0.9428 (0.9338–0.9511) | 0.0858 (0.0805–0.0930) | 0.8809 (0.8615–0.9021) |
+| `pilot2-phase2` | classification | lapse | uslapseagent | `B_ft30` | 10,000 | 40 | 0.9465 (0.9328–0.9606) | 0.0821 (0.0703–0.0939) | 0.8881 (0.8594–0.9188) |
+| `r1-pilot` | classification | lapse | eudirectlapse | `A_raw` | 2,000 | 1 | 0.5881 — single run | 0.1137 — single run | 0.1943 — single run |
+| `r1-pilot` | classification | lapse | eudirectlapse | `B_in_domain` | 2,000 | 1 | 0.5976 — single run | 0.1133 — single run | 0.1982 — single run |
+| `r1-pilot` | classification | lapse | eudirectlapse | `E_glm` | 2,000 | 1 | 0.5744 — single run | 0.1163 — single run | 0.1601 — single run |
+| `r1-pilot` | classification | lapse | eudirectlapse | `F_catboost` | 2,000 | 1 | 0.5738 — single run | 0.1151 — single run | 0.1830 — single run |
+| `r1-pilot` | classification | lapse | spanish_motor_lapse | `A_raw` | 2,000 | 1 | 0.7233 — single run | 0.1978 — single run | 0.5708 — single run |
+| `r1-pilot` | classification | lapse | spanish_motor_lapse | `B_in_domain` | 2,000 | 1 | 0.7272 — single run | 0.1967 — single run | 0.5791 — single run |
+| `r1-pilot` | classification | lapse | spanish_motor_lapse | `E_glm` | 2,000 | 1 | 0.6166 — single run | 0.2222 — single run | 0.4469 — single run |
+| `r1-pilot` | classification | lapse | spanish_motor_lapse | `F_catboost` | 2,000 | 1 | 0.7114 — single run | 0.2015 — single run | 0.5412 — single run |
+| `r1-pilot` | classification | lapse | uslapseagent | `A_raw` | 2,000 | 1 | 0.9363 — single run | 0.0873 — single run | 0.8344 — single run |
+| `r1-pilot` | classification | lapse | uslapseagent | `B_in_domain` | 2,000 | 1 | 0.9355 — single run | 0.0870 — single run | 0.8375 — single run |
+| `r1-pilot` | classification | lapse | uslapseagent | `E_glm` | 2,000 | 1 | 0.9271 — single run | 0.0910 — single run | 0.8172 — single run |
+| `r1-pilot` | classification | lapse | uslapseagent | `F_catboost` | 2,000 | 1 | 0.9297 — single run | 0.0934 — single run | 0.8293 — single run |
 
 ### Regression — RMSE and the record's verdict metric
 
 The verdict metric is named per line because it is the record's, not a global choice: French
 severity records unweighted RMSE, Spanish severity the claim-weighted RMSE.
 
-| family | dataset | arm | train rows | n | RMSE mean (min–max) | verdict metric | verdict metric mean (min–max) |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `fair-test-freq-sev` | freMTPL2freq | `A_raw` | 10,000 | 15 | 0.2406 (0.2284–0.2561) | `poisson_deviance` | 3592.4045 (3265.8482–4040.8568) |
-| `fair-test-freq-sev` | freMTPL2freq | `B_ft30` | 10,000 | 15 | 0.2393 (0.2269–0.2544) | `poisson_deviance` | 3238.4301 (3029.0713–3576.0506) |
-| `fair-test-freq-sev` | freMTPL2sev | `A_raw` | 10,000 | 15 | 1.1201 (1.1001–1.1349) | `rmse` | 1.1201 (1.1001–1.1349) |
-| `fair-test-freq-sev` | freMTPL2sev | `B_ft30` | 10,000 | 15 | 1.1304 (1.1014–1.1533) | `rmse` | 1.1304 (1.1014–1.1533) |
-| `fair-test-freq-sev` | spanish_motor_freq | `A_raw` | 10,000 | 15 | 0.7700 (0.7184–0.8100) | `poisson_deviance` | 10019.0541 (9462.1871–10865.2618) |
-| `fair-test-freq-sev` | spanish_motor_freq | `B_ft30` | 10,000 | 15 | 0.7659 (0.7131–0.8094) | `poisson_deviance` | 9606.6579 (8819.0873–11171.8293) |
-| `fair-test-freq-sev` | spanish_motor_severity | `A_raw` | 4,760 | 15 | 0.4909 (0.4704–0.5067) | `weighted_rmse` | 0.6503 (0.6015–0.6971) |
-| `fair-test-freq-sev` | spanish_motor_severity | `B_ft30` | 4,760 | 15 | 0.4933 (0.4655–0.5625) | `weighted_rmse` | 0.6396 (0.5779–0.6864) |
-| `actuarial-baseline-full` | freMTPL2freq | `E_glm` | 542,410 | 9 | 0.2372 (0.2295–0.2467) | `poisson_deviance` | 3083.6375 (2978.8110–3173.3700) |
-| `actuarial-baseline-full` | freMTPL2freq | `E_glm` | 542,411 | 6 | 0.2394 (0.2261–0.2527) | `poisson_deviance` | 3149.3914 (2994.9154–3303.8673) |
-| `actuarial-baseline-full` | freMTPL2freq | `F_catboost` | 542,410 | 9 | 0.2354 (0.2277–0.2442) | `poisson_deviance` | 2967.5575 (2861.4167–3025.9377) |
-| `actuarial-baseline-full` | freMTPL2freq | `F_catboost` | 542,411 | 6 | 0.2376 (0.2244–0.2507) | `poisson_deviance` | 3050.3691 (2911.5554–3191.2633) |
-| `actuarial-baseline-full` | freMTPL2freq | `M_intercept` | 542,410 | 9 | 0.2388 (0.2307–0.2486) | `poisson_deviance` | 3245.8796 (3130.3972–3359.9258) |
-| `actuarial-baseline-full` | freMTPL2freq | `M_intercept` | 542,411 | 6 | 0.2416 (0.2286–0.2547) | `poisson_deviance` | 3327.1335 (3179.2578–3475.0092) |
-| `actuarial-baseline-full` | freMTPL2sev | `E_glm` | 21,131 | 3 | 1.1018 (1.1018–1.1018) | `rmse` | 1.1018 (1.1018–1.1018) |
-| `actuarial-baseline-full` | freMTPL2sev | `E_glm` | 21,143 | 3 | 1.1355 (1.1355–1.1355) | `rmse` | 1.1355 (1.1355–1.1355) |
-| `actuarial-baseline-full` | freMTPL2sev | `E_glm` | 21,157 | 3 | 1.1368 (1.1368–1.1368) | `rmse` | 1.1368 (1.1368–1.1368) |
-| `actuarial-baseline-full` | freMTPL2sev | `E_glm` | 21,168 | 3 | 1.1303 (1.1303–1.1303) | `rmse` | 1.1303 (1.1303–1.1303) |
-| `actuarial-baseline-full` | freMTPL2sev | `E_glm` | 21,177 | 3 | 1.1080 (1.1080–1.1080) | `rmse` | 1.1080 (1.1080–1.1080) |
-| `actuarial-baseline-full` | freMTPL2sev | `F_catboost` | 21,131 | 3 | 1.1034 (1.1028–1.1038) | `rmse` | 1.1034 (1.1028–1.1038) |
-| `actuarial-baseline-full` | freMTPL2sev | `F_catboost` | 21,143 | 3 | 1.1355 (1.1354–1.1355) | `rmse` | 1.1355 (1.1354–1.1355) |
-| `actuarial-baseline-full` | freMTPL2sev | `F_catboost` | 21,157 | 3 | 1.1354 (1.1351–1.1359) | `rmse` | 1.1354 (1.1351–1.1359) |
-| `actuarial-baseline-full` | freMTPL2sev | `F_catboost` | 21,168 | 3 | 1.1291 (1.1288–1.1294) | `rmse` | 1.1291 (1.1288–1.1294) |
-| `actuarial-baseline-full` | freMTPL2sev | `F_catboost` | 21,177 | 3 | 1.1046 (1.1041–1.1049) | `rmse` | 1.1046 (1.1041–1.1049) |
-| `actuarial-baseline-full` | freMTPL2sev | `M_intercept` | 21,131 | 3 | 1.1099 (1.1099–1.1099) | `rmse` | 1.1099 (1.1099–1.1099) |
-| `actuarial-baseline-full` | freMTPL2sev | `M_intercept` | 21,143 | 3 | 1.1438 (1.1438–1.1438) | `rmse` | 1.1438 (1.1438–1.1438) |
-| `actuarial-baseline-full` | freMTPL2sev | `M_intercept` | 21,157 | 3 | 1.1438 (1.1438–1.1438) | `rmse` | 1.1438 (1.1438–1.1438) |
-| `actuarial-baseline-full` | freMTPL2sev | `M_intercept` | 21,168 | 3 | 1.1393 (1.1393–1.1393) | `rmse` | 1.1393 (1.1393–1.1393) |
-| `actuarial-baseline-full` | freMTPL2sev | `M_intercept` | 21,177 | 3 | 1.1128 (1.1128–1.1128) | `rmse` | 1.1128 (1.1128–1.1128) |
-| `actuarial-baseline-full` | spanish_motor_freq | `E_glm` | 42,801 | 6 | 0.7799 (0.7066–0.8532) | `poisson_deviance` | 8700.2150 (8653.1172–8747.3129) |
-| `actuarial-baseline-full` | spanish_motor_freq | `E_glm` | 42,802 | 9 | 0.8170 (0.7803–0.8403) | `poisson_deviance` | 9014.7940 (8887.5146–9253.6962) |
-| `actuarial-baseline-full` | spanish_motor_freq | `F_catboost` | 42,801 | 6 | 0.7060 (0.6957–0.7147) | `poisson_deviance` | 8316.5841 (8246.6346–8379.3490) |
-| `actuarial-baseline-full` | spanish_motor_freq | `F_catboost` | 42,802 | 9 | 0.7552 (0.7410–0.7673) | `poisson_deviance` | 8541.1666 (8378.2665–8762.5891) |
-| `actuarial-baseline-full` | spanish_motor_freq | `M_intercept` | 42,801 | 6 | 0.7445 (0.7285–0.7605) | `poisson_deviance` | 9798.9001 (9688.5562–9909.2440) |
-| `actuarial-baseline-full` | spanish_motor_freq | `M_intercept` | 42,802 | 9 | 0.8073 (0.7840–0.8198) | `poisson_deviance` | 10398.8849 (10124.2015–10665.5122) |
-| `actuarial-baseline-full` | spanish_motor_severity | `E_glm` | 4,760 | 15 | 0.5846 (0.5676–0.6066) | `weighted_rmse` | 0.5932 (0.5601–0.6163) |
-| `actuarial-baseline-full` | spanish_motor_severity | `F_catboost` | 4,760 | 15 | 0.5396 (0.5191–0.5568) | `weighted_rmse` | 0.5807 (0.5376–0.6134) |
-| `actuarial-baseline-full` | spanish_motor_severity | `M_intercept` | 4,760 | 15 | 0.6559 (0.6477–0.6633) | `weighted_rmse` | 0.6905 (0.6482–0.7408) |
-| `actuarial-baseline-matched` | freMTPL2freq | `E_glm` | 10,000 | 15 | 0.2394 (0.2267–0.2543) | `poisson_deviance` | 3221.2200 (3033.7089–3539.5158) |
-| `actuarial-baseline-matched` | freMTPL2freq | `F_catboost` | 10,000 | 15 | 0.2407 (0.2282–0.2576) | `poisson_deviance` | 3204.1611 (3023.5408–3478.4872) |
-| `actuarial-baseline-matched` | freMTPL2freq | `M_intercept` | 10,000 | 15 | 0.2399 (0.2283–0.2547) | `poisson_deviance` | 3279.3311 (3129.0069–3477.4890) |
-| `actuarial-baseline-matched` | freMTPL2sev | `E_glm` | 10,000 | 15 | 1.1239 (1.1028–1.1387) | `rmse` | 1.1239 (1.1028–1.1387) |
-| `actuarial-baseline-matched` | freMTPL2sev | `F_catboost` | 10,000 | 15 | 1.1234 (1.1019–1.1387) | `rmse` | 1.1234 (1.1019–1.1387) |
-| `actuarial-baseline-matched` | freMTPL2sev | `M_intercept` | 10,000 | 15 | 1.1300 (1.1099–1.1442) | `rmse` | 1.1300 (1.1099–1.1442) |
-| `actuarial-baseline-matched` | spanish_motor_freq | `E_glm` | 10,000 | 15 | 0.8712 (0.7080–1.3227) | `poisson_deviance` | 8961.7789 (8699.2133–9281.1449) |
-| `actuarial-baseline-matched` | spanish_motor_freq | `F_catboost` | 10,000 | 15 | 0.7584 (0.7096–0.7977) | `poisson_deviance` | 8996.6512 (8725.6436–9495.6071) |
-| `actuarial-baseline-matched` | spanish_motor_freq | `M_intercept` | 10,000 | 15 | 0.7822 (0.7284–0.8200) | `poisson_deviance` | 10163.2811 (9684.3128–10682.5309) |
-| `actuarial-baseline-matched` | spanish_motor_severity | `E_glm` | 4,760 | 15 | 0.5846 (0.5676–0.6066) | `weighted_rmse` | 0.5932 (0.5601–0.6163) |
-| `actuarial-baseline-matched` | spanish_motor_severity | `F_catboost` | 4,760 | 15 | 0.5396 (0.5191–0.5568) | `weighted_rmse` | 0.5807 (0.5376–0.6134) |
-| `actuarial-baseline-matched` | spanish_motor_severity | `M_intercept` | 4,760 | 15 | 0.6559 (0.6477–0.6633) | `weighted_rmse` | 0.6905 (0.6482–0.7408) |
+| family | type | task | dataset | arm | train rows | n | RMSE mean (min–max) | verdict metric | verdict metric mean (min–max) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `fair-test-freq-sev` | regression | frequency | freMTPL2freq | `A_raw` | 10,000 | 15 | 0.2406 (0.2284–0.2561) | `poisson_deviance` | 3592.4045 (3265.8482–4040.8568) |
+| `fair-test-freq-sev` | regression | frequency | freMTPL2freq | `B_ft30` | 10,000 | 15 | 0.2393 (0.2269–0.2544) | `poisson_deviance` | 3238.4301 (3029.0713–3576.0506) |
+| `fair-test-freq-sev` | regression | severity | freMTPL2sev | `A_raw` | 10,000 | 15 | 1.1201 (1.1001–1.1349) | `rmse` | 1.1201 (1.1001–1.1349) |
+| `fair-test-freq-sev` | regression | severity | freMTPL2sev | `B_ft30` | 10,000 | 15 | 1.1304 (1.1014–1.1533) | `rmse` | 1.1304 (1.1014–1.1533) |
+| `fair-test-freq-sev` | regression | frequency | spanish_motor_freq | `A_raw` | 10,000 | 15 | 0.7700 (0.7184–0.8100) | `poisson_deviance` | 10019.0541 (9462.1871–10865.2618) |
+| `fair-test-freq-sev` | regression | frequency | spanish_motor_freq | `B_ft30` | 10,000 | 15 | 0.7659 (0.7131–0.8094) | `poisson_deviance` | 9606.6579 (8819.0873–11171.8293) |
+| `fair-test-freq-sev` | regression | severity | spanish_motor_severity | `A_raw` | 4,760 | 15 | 0.4909 (0.4704–0.5067) | `weighted_rmse` | 0.6503 (0.6015–0.6971) |
+| `fair-test-freq-sev` | regression | severity | spanish_motor_severity | `B_ft30` | 4,760 | 15 | 0.4933 (0.4655–0.5625) | `weighted_rmse` | 0.6396 (0.5779–0.6864) |
+| `actuarial-baseline-full` | regression | frequency | freMTPL2freq | `E_glm` | 542,410 | 9 | 0.2372 (0.2295–0.2467) | `poisson_deviance` | 3083.6375 (2978.8110–3173.3700) |
+| `actuarial-baseline-full` | regression | frequency | freMTPL2freq | `E_glm` | 542,411 | 6 | 0.2394 (0.2261–0.2527) | `poisson_deviance` | 3149.3914 (2994.9154–3303.8673) |
+| `actuarial-baseline-full` | regression | frequency | freMTPL2freq | `F_catboost` | 542,410 | 9 | 0.2354 (0.2277–0.2442) | `poisson_deviance` | 2967.5575 (2861.4167–3025.9377) |
+| `actuarial-baseline-full` | regression | frequency | freMTPL2freq | `F_catboost` | 542,411 | 6 | 0.2376 (0.2244–0.2507) | `poisson_deviance` | 3050.3691 (2911.5554–3191.2633) |
+| `actuarial-baseline-full` | regression | frequency | freMTPL2freq | `M_intercept` | 542,410 | 9 | 0.2388 (0.2307–0.2486) | `poisson_deviance` | 3245.8796 (3130.3972–3359.9258) |
+| `actuarial-baseline-full` | regression | frequency | freMTPL2freq | `M_intercept` | 542,411 | 6 | 0.2416 (0.2286–0.2547) | `poisson_deviance` | 3327.1335 (3179.2578–3475.0092) |
+| `actuarial-baseline-full` | regression | severity | freMTPL2sev | `E_glm` | 21,131 | 3 | 1.1018 (1.1018–1.1018) | `rmse` | 1.1018 (1.1018–1.1018) |
+| `actuarial-baseline-full` | regression | severity | freMTPL2sev | `E_glm` | 21,143 | 3 | 1.1355 (1.1355–1.1355) | `rmse` | 1.1355 (1.1355–1.1355) |
+| `actuarial-baseline-full` | regression | severity | freMTPL2sev | `E_glm` | 21,157 | 3 | 1.1368 (1.1368–1.1368) | `rmse` | 1.1368 (1.1368–1.1368) |
+| `actuarial-baseline-full` | regression | severity | freMTPL2sev | `E_glm` | 21,168 | 3 | 1.1303 (1.1303–1.1303) | `rmse` | 1.1303 (1.1303–1.1303) |
+| `actuarial-baseline-full` | regression | severity | freMTPL2sev | `E_glm` | 21,177 | 3 | 1.1080 (1.1080–1.1080) | `rmse` | 1.1080 (1.1080–1.1080) |
+| `actuarial-baseline-full` | regression | severity | freMTPL2sev | `F_catboost` | 21,131 | 3 | 1.1034 (1.1028–1.1038) | `rmse` | 1.1034 (1.1028–1.1038) |
+| `actuarial-baseline-full` | regression | severity | freMTPL2sev | `F_catboost` | 21,143 | 3 | 1.1355 (1.1354–1.1355) | `rmse` | 1.1355 (1.1354–1.1355) |
+| `actuarial-baseline-full` | regression | severity | freMTPL2sev | `F_catboost` | 21,157 | 3 | 1.1354 (1.1351–1.1359) | `rmse` | 1.1354 (1.1351–1.1359) |
+| `actuarial-baseline-full` | regression | severity | freMTPL2sev | `F_catboost` | 21,168 | 3 | 1.1291 (1.1288–1.1294) | `rmse` | 1.1291 (1.1288–1.1294) |
+| `actuarial-baseline-full` | regression | severity | freMTPL2sev | `F_catboost` | 21,177 | 3 | 1.1046 (1.1041–1.1049) | `rmse` | 1.1046 (1.1041–1.1049) |
+| `actuarial-baseline-full` | regression | severity | freMTPL2sev | `M_intercept` | 21,131 | 3 | 1.1099 (1.1099–1.1099) | `rmse` | 1.1099 (1.1099–1.1099) |
+| `actuarial-baseline-full` | regression | severity | freMTPL2sev | `M_intercept` | 21,143 | 3 | 1.1438 (1.1438–1.1438) | `rmse` | 1.1438 (1.1438–1.1438) |
+| `actuarial-baseline-full` | regression | severity | freMTPL2sev | `M_intercept` | 21,157 | 3 | 1.1438 (1.1438–1.1438) | `rmse` | 1.1438 (1.1438–1.1438) |
+| `actuarial-baseline-full` | regression | severity | freMTPL2sev | `M_intercept` | 21,168 | 3 | 1.1393 (1.1393–1.1393) | `rmse` | 1.1393 (1.1393–1.1393) |
+| `actuarial-baseline-full` | regression | severity | freMTPL2sev | `M_intercept` | 21,177 | 3 | 1.1128 (1.1128–1.1128) | `rmse` | 1.1128 (1.1128–1.1128) |
+| `actuarial-baseline-full` | regression | frequency | spanish_motor_freq | `E_glm` | 42,801 | 6 | 0.7799 (0.7066–0.8532) | `poisson_deviance` | 8700.2150 (8653.1172–8747.3129) |
+| `actuarial-baseline-full` | regression | frequency | spanish_motor_freq | `E_glm` | 42,802 | 9 | 0.8170 (0.7803–0.8403) | `poisson_deviance` | 9014.7940 (8887.5146–9253.6962) |
+| `actuarial-baseline-full` | regression | frequency | spanish_motor_freq | `F_catboost` | 42,801 | 6 | 0.7060 (0.6957–0.7147) | `poisson_deviance` | 8316.5841 (8246.6346–8379.3490) |
+| `actuarial-baseline-full` | regression | frequency | spanish_motor_freq | `F_catboost` | 42,802 | 9 | 0.7552 (0.7410–0.7673) | `poisson_deviance` | 8541.1666 (8378.2665–8762.5891) |
+| `actuarial-baseline-full` | regression | frequency | spanish_motor_freq | `M_intercept` | 42,801 | 6 | 0.7445 (0.7285–0.7605) | `poisson_deviance` | 9798.9001 (9688.5562–9909.2440) |
+| `actuarial-baseline-full` | regression | frequency | spanish_motor_freq | `M_intercept` | 42,802 | 9 | 0.8073 (0.7840–0.8198) | `poisson_deviance` | 10398.8849 (10124.2015–10665.5122) |
+| `actuarial-baseline-full` | regression | severity | spanish_motor_severity | `E_glm` | 4,760 | 15 | 0.5846 (0.5676–0.6066) | `weighted_rmse` | 0.5932 (0.5601–0.6163) |
+| `actuarial-baseline-full` | regression | severity | spanish_motor_severity | `F_catboost` | 4,760 | 15 | 0.5396 (0.5191–0.5568) | `weighted_rmse` | 0.5807 (0.5376–0.6134) |
+| `actuarial-baseline-full` | regression | severity | spanish_motor_severity | `M_intercept` | 4,760 | 15 | 0.6559 (0.6477–0.6633) | `weighted_rmse` | 0.6905 (0.6482–0.7408) |
+| `actuarial-baseline-matched` | regression | frequency | freMTPL2freq | `E_glm` | 10,000 | 15 | 0.2394 (0.2267–0.2543) | `poisson_deviance` | 3221.2200 (3033.7089–3539.5158) |
+| `actuarial-baseline-matched` | regression | frequency | freMTPL2freq | `F_catboost` | 10,000 | 15 | 0.2407 (0.2282–0.2576) | `poisson_deviance` | 3204.1611 (3023.5408–3478.4872) |
+| `actuarial-baseline-matched` | regression | frequency | freMTPL2freq | `M_intercept` | 10,000 | 15 | 0.2399 (0.2283–0.2547) | `poisson_deviance` | 3279.3311 (3129.0069–3477.4890) |
+| `actuarial-baseline-matched` | regression | severity | freMTPL2sev | `E_glm` | 10,000 | 15 | 1.1239 (1.1028–1.1387) | `rmse` | 1.1239 (1.1028–1.1387) |
+| `actuarial-baseline-matched` | regression | severity | freMTPL2sev | `F_catboost` | 10,000 | 15 | 1.1234 (1.1019–1.1387) | `rmse` | 1.1234 (1.1019–1.1387) |
+| `actuarial-baseline-matched` | regression | severity | freMTPL2sev | `M_intercept` | 10,000 | 15 | 1.1300 (1.1099–1.1442) | `rmse` | 1.1300 (1.1099–1.1442) |
+| `actuarial-baseline-matched` | regression | frequency | spanish_motor_freq | `E_glm` | 10,000 | 15 | 0.8712 (0.7080–1.3227) | `poisson_deviance` | 8961.7789 (8699.2133–9281.1449) |
+| `actuarial-baseline-matched` | regression | frequency | spanish_motor_freq | `F_catboost` | 10,000 | 15 | 0.7584 (0.7096–0.7977) | `poisson_deviance` | 8996.6512 (8725.6436–9495.6071) |
+| `actuarial-baseline-matched` | regression | frequency | spanish_motor_freq | `M_intercept` | 10,000 | 15 | 0.7822 (0.7284–0.8200) | `poisson_deviance` | 10163.2811 (9684.3128–10682.5309) |
+| `actuarial-baseline-matched` | regression | severity | spanish_motor_severity | `E_glm` | 4,760 | 15 | 0.5846 (0.5676–0.6066) | `weighted_rmse` | 0.5932 (0.5601–0.6163) |
+| `actuarial-baseline-matched` | regression | severity | spanish_motor_severity | `F_catboost` | 4,760 | 15 | 0.5396 (0.5191–0.5568) | `weighted_rmse` | 0.5807 (0.5376–0.6134) |
+| `actuarial-baseline-matched` | regression | severity | spanish_motor_severity | `M_intercept` | 4,760 | 15 | 0.6559 (0.6477–0.6633) | `weighted_rmse` | 0.6905 (0.6482–0.7408) |
 
 The campaign is in this key because it is in the ledger's identity key: the two baseline
 budgets capture one Spanish severity fit under two run ids, and merging them would count the
@@ -1351,11 +1351,10 @@ zero rows, so the four `coil2000` rows read `D21 (amended by D22)` and the colum
 on any row whose status is `superseded`.
 
 **The model is named by its record, and the version is never inferred.** No row here is
-v3.5: the classification records did not name a version and this ledger does not re-describe
-their `auto` as v3.5, and the regression line ran the v3_default regressor checkpoint. No
-table subtracts one era or one model family from another.
+described as v3.5: a version is printed only where a record names one, and `auto` is never
+re-described as a version. No table subtracts one era or one model family from another.
 
-- Classification rows that record a version name `model_version` `auto` — a value that names no version — beside the checkpoint `tabpfn-v3-classifier-v3_default.ckpt` and weights sha256 `d0d865d5...8f3988`; the pilot aggregate and the launch records name none. `era` reads `auto` for the line.
+- Classification rows that record a version name `model_version` `auto` — a value that names no version — beside the checkpoint `tabpfn-v3-classifier-v3_default.ckpt` and weights sha256 `d0d865d5...8f3988`; `era` reads `auto`. The other 22 of the 602 classification rows record none (`gpu-pilot`, `pilot2-breadth-spanish`, `r1-pilot`).
 - Regression rows record no `model_version`; their weights block names the checkpoint `tabpfn-v3-regressor-v3_default.ckpt` and weights sha256 `311ce18d...7a7301`, so `era` reads `v3_default`.
 
 **`source` is the pointer to the bytes.** For a capture row it is the per-`meta.json` record,

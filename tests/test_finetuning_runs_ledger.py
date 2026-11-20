@@ -9,6 +9,7 @@ blank metric is not a zero.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from pathlib import Path
 
@@ -24,6 +25,9 @@ def _row(module, **overrides):
     values = {
         "run_id": "20261104T122235Z",
         "experiment_family": "pilot2-phase2",
+        "problem_type": "classification",
+        "task": "lapse",
+        "era": "auto",
         "dataset": "uslapseagent",
         "arm": "A_raw",
         "arm_kind": "raw",
@@ -486,6 +490,74 @@ def _regression_row(module, **overrides):
     return module.LedgerRow(**values)
 
 
+FAIR_RUN = "20261112T164543Z"
+
+
+def _regression_run(
+    results: Path, run_id: str, slots, dataset: str = "freMTPL2freq"
+) -> None:
+    """A committed regression Run: `capture.json` plus one record per fold slot.
+
+    Each slot is the record's own fields. `path_arm` puts the record in a directory that disagrees
+    with its `arm`, and a field set to `None` — in the slot, in `record` or in `entry` — is absent
+    from the record or the capture entry, so a fixture can omit what a refusal is about.
+    """
+    run = results / run_id
+    entries = []
+    for slot in slots:
+        arm = slot["arm"]
+        path_arm = slot.get("path_arm", arm)
+        seed = slot.get("seed", 0)
+        fold = slot.get("fold", 0)
+        name = f"seed{seed}_fold{fold}"
+        payload = {
+            "schema_version": 5,
+            "run_id": f"{dataset}_{path_arm}_seed{seed}",
+            "dataset": dataset,
+            "arm": arm,
+            "seed": seed,
+            "fold": fold,
+            "n_folds": 5,
+            "task": "frequency",
+            "train_rows": 10000,
+            "status": "success",
+            "epochs": 30,
+            "rmse": 0.24,
+            "verdict_metric": "poisson_deviance",
+            "verdict_metric_value": 3200.0,
+            "weights": {
+                "path": "checkpoints/tabpfn-v3-regressor-v3_default.ckpt",
+                "sha256": "ab12cd34ef56",
+            },
+        }
+        payload.update(slot.get("record", {}))
+        payload = {key: value for key, value in payload.items() if value is not None}
+        record = run / dataset / path_arm / name / "meta.json"
+        record.parent.mkdir(parents=True, exist_ok=True)
+        record.write_text(json.dumps(payload))
+        entry = {
+            "arm": path_arm,
+            "seed": seed,
+            "fold": fold,
+            "record": f"{path_arm}/{name}/meta.json",
+        }
+        entry.update(slot.get("entry", {}))
+        entries.append({key: value for key, value in entry.items() if value is not None})
+    run.mkdir(parents=True, exist_ok=True)
+    (run / "capture.json").write_text(
+        json.dumps(
+            {"schema_version": 1, "run_id": run_id, "dataset": dataset, "captures": entries}
+        )
+    )
+
+
+def _regression_campaign(module, run_id: str = FAIR_RUN):
+    """The fair-test registry entry, narrowed to one Run so a fixture needs one capture."""
+    return dataclasses.replace(
+        module.CAMPAIGN_BY_ID["fair-test-freq-sev"], run_ids=(run_id,)
+    )
+
+
 def test_regression_rows_carry_five_folds_per_seed_and_the_verdict_metric(load_script):
     """One row per run × arm × seed × fold: a five-fold cell is five measurements, not one."""
     module = load_script("finetuning_runs_ledger", SCRIPT)
@@ -679,3 +751,189 @@ def test_regression_rows_carry_the_registered_era(load_script):
     assert {row.checkpoint for row in rows if row.arm == "B_ft30"} == {
         "tabpfn-v3-regressor-v3_default.ckpt"
     }
+
+
+# --- The loader seams, at the interface a caller uses -----------------------------------------
+
+def test_a_row_must_state_its_problem_type_task_and_era(load_script):
+    """A defaulted label would mislabel a row that forgot one instead of refusing it."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    values = {
+        "run_id": "20261112T164543Z",
+        "experiment_family": "fair-test-freq-sev",
+        "problem_type": "regression",
+        "task": "frequency",
+        "era": "v3_default",
+        "dataset": "freMTPL2freq",
+        "arm": "B_ft30",
+        "arm_kind": "fine-tuned",
+        "epochs": 30,
+        "seed": 0,
+        "train_rows": 10000,
+        "roc_auc": None,
+        "brier": None,
+        "pr_auc": None,
+        "status": "current",
+    }
+    module.LedgerRow(**values)
+
+    for missing in ("problem_type", "task", "era"):
+        with pytest.raises(TypeError):
+            module.LedgerRow(
+                **{key: value for key, value in values.items() if key != missing}
+            )
+
+
+def test_every_campaign_names_a_loader_in_the_dispatch_map(load_script):
+    """The map is checked against the registry at import; this pins that it stays a map."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+
+    assert {campaign.loader for campaign in module.CAMPAIGNS} <= set(module.LOADERS)
+
+
+def _read_regression(module, tmp_path, slots, dataset: str = "freMTPL2freq"):
+    results = tmp_path / "results"
+    _regression_run(results, FAIR_RUN, slots, dataset=dataset)
+    return module.regression_rows(_regression_campaign(module), results)
+
+
+def test_the_regression_loader_reads_an_injected_fixture_tree(tmp_path, load_script):
+    """The seam itself: a fixture tree, read through the campaign's own registry entry."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+
+    rows = _read_regression(
+        module,
+        tmp_path,
+        [{"arm": "B_ft30", "seed": 0, "fold": fold} for fold in range(5)],
+    )
+
+    assert len(rows) == 5
+    assert {row.fold for row in rows} == {0, 1, 2, 3, 4}
+    assert len({row.cell for row in rows}) == 5
+    assert {row.problem_type for row in rows} == {"regression"}
+    assert {row.task for row in rows} == {"frequency"}
+    assert {row.verdict_metric for row in rows} == {"poisson_deviance"}
+    assert {row.model_version for row in rows} == {""}
+    assert {row.checkpoint for row in rows} == {"tabpfn-v3-regressor-v3_default.ckpt"}
+
+
+def test_a_regression_run_without_a_capture_is_refused(tmp_path, load_script):
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    results = tmp_path / "results"
+    results.mkdir()
+
+    with pytest.raises(module.EvidenceError, match="no capture.json"):
+        module.regression_rows(_regression_campaign(module), results)
+
+
+def test_a_regression_record_must_sit_under_the_arm_it_names(tmp_path, load_script):
+    """The directory names the arm; a record that disagrees is a different measurement."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+
+    with pytest.raises(module.EvidenceError, match="the path names"):
+        _read_regression(module, tmp_path, [{"arm": "A_raw", "path_arm": "B_ft30"}])
+
+
+def test_a_regression_capture_must_name_a_registered_dataset(tmp_path, load_script):
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+
+    with pytest.raises(module.EvidenceError, match="does not list"):
+        _read_regression(module, tmp_path, [{"arm": "B_ft30"}], dataset="coil2000")
+
+
+def test_a_regression_record_must_serve_the_registrys_task(tmp_path, load_script):
+    """The registry maps the dataset to its task; the record is asserted against it."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+
+    with pytest.raises(module.EvidenceError, match="the registry says"):
+        _read_regression(
+            module, tmp_path, [{"arm": "B_ft30", "record": {"task": "severity"}}]
+        )
+
+
+def test_a_regression_record_must_have_five_folds(tmp_path, load_script):
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+
+    with pytest.raises(module.EvidenceError, match="not 5"):
+        _read_regression(module, tmp_path, [{"arm": "B_ft30", "record": {"n_folds": 10}}])
+
+
+def test_a_regression_record_with_no_fold_is_refused(tmp_path, load_script):
+    """The fold is in the identity key; a row without one would collapse five measurements."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+
+    with pytest.raises(module.EvidenceError, match="no fold"):
+        _read_regression(module, tmp_path, [{"arm": "B_ft30", "fold": None}])
+
+
+def test_a_regression_record_with_no_seed_is_refused(tmp_path, load_script):
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+
+    with pytest.raises(module.EvidenceError, match="no seed"):
+        _read_regression(
+            module,
+            tmp_path,
+            [{"arm": "B_ft30", "seed": None, "entry": {"seed": None}}],
+        )
+
+
+def test_an_unknown_verdict_metric_is_refused(tmp_path, load_script):
+    """The metric name is read, never assumed: an unrecognised one is not silently labelled."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+
+    with pytest.raises(module.EvidenceError, match="unknown verdict metric"):
+        _read_regression(
+            module, tmp_path, [{"arm": "B_ft30", "record": {"verdict_metric": "mae"}}]
+        )
+
+
+# --- The pin prose follows the rows -----------------------------------------------------------
+
+def _csv_record(module, **overrides):
+    """One regression CSV row, as `read_csv` would hand it to the renderer."""
+    values = dict.fromkeys(module.COLUMNS, "")
+    values.update(
+        {
+            "experiment_family": "fair-test-freq-sev",
+            "problem_type": "regression",
+            "task": "frequency",
+            "era": "fixture_era",
+            "dataset": "freMTPL2freq",
+            "arm": "B_ft30",
+            "epochs": "30",
+            "seed": "0",
+            "fold": "0",
+            "train_rows": "10000",
+            "rmse": "0.240000",
+            "verdict_metric": "poisson_deviance",
+            "verdict_metric_value": "3200.000000",
+            "status": "current",
+            "checkpoint": "fixture-regressor.ckpt",
+            "weights_sha256": "0123456789abcdef0123",
+        }
+    )
+    values.update(overrides)
+    return values
+
+
+def test_the_pin_sentence_is_read_from_the_rows(load_script):
+    """A changed campaign era must move the prose, not leave it lying behind a byte compare."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+
+    unrecorded = "\n".join(module._pin_lines([_csv_record(module)]))
+    assert "record no `model_version`" in unrecorded
+    assert "`fixture_era`" in unrecorded
+
+    recorded = "\n".join(
+        module._pin_lines([_csv_record(module, model_version="fixture_version")])
+    )
+    assert "record no `model_version`" not in recorded
+    assert "`fixture_version`" in recorded
+    assert "`fixture_era`" in recorded
+
+
+def test_the_pin_sentence_names_every_era_the_rows_record(load_script):
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    rows = [_csv_record(module), _csv_record(module, era="later_era")]
+
+    assert "`fixture_era` or `later_era`" in "\n".join(module._pin_lines(rows))
