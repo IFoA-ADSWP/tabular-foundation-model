@@ -2,6 +2,10 @@
 
 > Not a tiered report; a reading aid. It describes the trees that hold evidence and changes none of them.
 
+> 📦 **A frozen copy exists.** The trees below were snapshotted at `14bc10f` into
+> [`IFoA-ADSWP/tfm_benchmarking_finetuning`](https://github.com/IFoA-ADSWP/tfm_benchmarking_finetuning)
+> (`v1.0.0`) for the *British Actuarial Journal* paper. Cite the snapshot; this page describes the live tree.
+
 A claim in this repository ends in one of four places. This page says which, so a reader can choose how far
 to walk without opening a directory listing first.
 
