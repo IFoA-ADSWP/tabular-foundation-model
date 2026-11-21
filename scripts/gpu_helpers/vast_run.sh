@@ -250,6 +250,21 @@ if [ -n "$FAIRTEST" ]; then
         for _target_name in $TFM_FAIRTEST_TARGETS; do TARGET_COUNT=$(( TARGET_COUNT + 1 )); done
     fi
     REQUIRED_POLL_MINUTES=$(( 15 + 30 * TARGET_COUNT ))
+    # The 30 min/target ceiling above is measured for the primary pair on three seeds. A wider
+    # arm or seed list multiplies the fits, so the ceiling has to grow with it: the gate's 120
+    # fits took 58.9 min, i.e. about half a minute per fit, and this allows 2 min each.
+    ARMS_COUNT=2
+    if [ -n "${TFM_FAIRTEST_ARMS:-}" ]; then
+        ARMS_COUNT=$(( $(printf '%s' "$TFM_FAIRTEST_ARMS" | tr -cd ',' | wc -c) + 1 ))
+    fi
+    SEEDS_COUNT=3
+    if [ -n "${TFM_FAIRTEST_SEEDS:-}" ]; then
+        SEEDS_COUNT=$(( $(printf '%s' "$TFM_FAIRTEST_SEEDS" | tr -cd ',' | wc -c) + 1 ))
+    fi
+    COMBOS=$(( ARMS_COUNT * SEEDS_COUNT ))
+    if [ "$COMBOS" -gt 6 ]; then
+        REQUIRED_POLL_MINUTES=$(( REQUIRED_POLL_MINUTES + 2 * TARGET_COUNT * (COMBOS - 6) ))
+    fi
     # A raised row budget multiplies the fit time, so the ceiling scales with it: the measured
     # 10,000-row target takes ~15 min of fits, and cost is close to linear in rows (#572).
     if [ -n "${TFM_TRAIN_ROWS:-}" ] && [ "$TFM_TRAIN_ROWS" -gt 10000 ]; then
@@ -842,7 +857,7 @@ BOOTSTRAP_B64="$(gzip -9c "$REPO_DIR/scripts/gpu_helpers/bootstrap_pilot.sh" | b
     # no entry, because it reads like one.
     for _passthrough in TFM_EXPECT_CHECKPOINT TFM_DATA_REF TFM_DATA_REPO TFM_WEIGHTS_MANIFEST \
                        TFM_CHUNK_LINES TFM_CHUNK_PAUSE TFM_CHUNK_REPEAT TFM_CHUNK_PASSES TFM_TRAIN_ROWS \
-                       TFM_FAIRTEST_TARGETS \
+                       TFM_FAIRTEST_TARGETS TFM_FAIRTEST_ARMS TFM_FAIRTEST_SEEDS \
                        TABPFN_PIN SKLEARN_PIN PANDAS_PIN PYARROW_PIN CATBOOST_PIN; do
         if [ -n "${!_passthrough:-}" ]; then
             printf 'export %s=%q\n' "$_passthrough" "${!_passthrough}"
