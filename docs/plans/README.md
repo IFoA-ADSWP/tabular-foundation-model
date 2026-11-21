@@ -96,7 +96,7 @@ Newest first, by ticket number where the filename carries one.
 | [`416-ledger-migration.md`](416-ledger-migration.md) | the cost ledger migrates instead of quarantining (#416) |
 | [`docs-experiment-first.md`](docs-experiment-first.md) | group the documentation by experiment (#595) |
 
-## Proposed — 8 plans
+## Proposed — 11 plans
 
 | Plan | What it settles |
 | --- | --- |
@@ -109,6 +109,7 @@ Newest first, by ticket number where the filename carries one.
 | [`rescore-capture-discovery.md`](rescore-capture-discovery.md) | restore capture discovery in the alt-metrics rescore |
 | [`528-pinned-offer-cuda.md`](528-pinned-offer-cuda.md) | a pinned offer declares its CUDA, and the box kernel-tests torch |
 | [`668-cross-task-ledger.md`](668-cross-task-ledger.md) | the runs ledger covers regression as well as classification (#668) |
+| [`671-eligible-rows.md`](671-eligible-rows.md) | the runs ledger says how much data existed, not only how much was trained on (#671) |
 | [`665-finetuning-runs-ledger.md`](665-finetuning-runs-ledger.md) | one generated ledger of every committed fine-tuning run, arm and seed (#665) |
 
 ## Historical or unclassified — 2 plans
