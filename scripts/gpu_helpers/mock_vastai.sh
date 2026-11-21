@@ -156,6 +156,28 @@ JSON
       # -- which left the runner polling until its 60-minute ceiling.
       # The runner reads the LOG, not `execute`: `vastai execute` only runs
       # ls/rm/du, so it can neither launch a script nor read a file.
+      # The launch's checkout vanishing mid-run was real on 2026-11-21 (#701).
+      if [ -n "${MOCK_DELETE_ON_LOG:-}" ]; then
+          rm -f "$MOCK_DELETE_ON_LOG" 2>/dev/null || true
+      fi
+      # A box that hangs with no marker at all: the measured `git clone` stall (#701/#433).
+      if [ "${MOCK_CLONE_HANG:-0}" = "1" ]; then
+          echo "Cloning into '/workspace/tfm'..."
+          exit 0
+      fi
+      # A box whose log stops advancing AFTER its first marker (#433): the first call grows, the
+      # rest are byte-identical.
+      if [ "${MOCK_STALL:-0}" = "1" ]; then
+          if [ -f "$MOCK_STATE_DIR/stalled_once" ]; then
+              echo "########## FAIRTEST primary severity_french ##########"
+              echo "waiting..."
+              exit 0
+          fi
+          touch "$MOCK_STATE_DIR/stalled_once"
+          echo "########## FAIRTEST primary severity_french ##########"
+          echo "fitting..."
+          exit 0
+      fi
       echo "########## GPU check ##########"
       echo "  torch 2.7.0+cu128 | NVIDIA RTX A6000"
       echo "########## PREFLIGHT OK ##########"

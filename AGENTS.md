@@ -53,7 +53,10 @@ rather than skipping a check.
 
 `scripts/gpu_helpers/*.sh` is the **paid-run path** — it runs on rented boxes, mid-run, at
 cost. A syntax error there is expensive and happens away from your terminal. Run shellcheck
-before touching it.
+before touching it. To see what a running launch is doing, read it with
+`scripts/gpu_helpers/watch_run.sh` rather than polling by hand. A transfer that failed does not
+need a re-fit: `--fairtest reemit --instance ID` reboots the kept box and its onstart re-sends the
+sealed captures (`vastai execute` and SSH cannot do this).
 
 **Version pinning is load-bearing.** Legacy reports were produced against TabPFN v2 era;
 current verdicts are pinned to `v3_default` (tabpfn-client 0.3.3). `docs/MODEL_VERSIONS.md`
