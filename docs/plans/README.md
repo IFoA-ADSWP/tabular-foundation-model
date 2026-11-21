@@ -4,7 +4,7 @@ One file per task: `docs/plans/<task>.md`. Write it **before** non-trivial work,
 change. A plan outranks a fresh ticket — check this directory before speccing or building, because the ticket
 you are about to write may already be covered.
 
-**This index is the only map.** Of the 87 plans, 65 are linked from no other document and only
+**This index is the only map.** Of the 88 plans, 65 are linked from no other document and only
 17 are even mentioned anywhere else.
 
 Each row carries the plan's own first heading, so the index cannot drift from the file it points at. The
@@ -17,7 +17,7 @@ since merged, and the pull request that merged it is the record of what happened
 the fact: a plan that says proposed stays that way unless its author amends it, because rewriting the status
 of a plan after the data would make the trail say something it did not.
 
-## Current, agreed or implemented — 81 plans
+## Current, agreed or implemented — 82 plans
 
 Newest first, by ticket number where the filename carries one.
 
@@ -31,6 +31,7 @@ Newest first, by ticket number where the filename carries one.
 | [`684-cite-replication.md`](684-cite-replication.md) | cite the external replication in the regime note (#684) |
 | [`695-exposure-aware.md`](695-exposure-aware.md) | exposure-aware GLM follow-up (#695) |
 | [`631-conclusion-table.md`](631-conclusion-table.md) | generate the conclusion's table (#631) |
+| [`632-conclusion.md`](632-conclusion.md) | the technical conclusion and its companion (#632) |
 | [`697-row-curve.md`](697-row-curve.md) | row curve stage 1 (#697) |
 | [`568-reemit-captures.md`](568-reemit-captures.md) | a kept instance re-emits its captures without re-fitting (#568) |
 | [`analysis-review.md`](analysis-review.md) | Plan: `analysis-review` skill |
