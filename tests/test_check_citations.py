@@ -10,6 +10,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -93,6 +94,57 @@ def test_a_complete_capture_passes(tmp_path):
 
 def test_a_cited_run_with_no_capture_fails(tmp_path):
     root = make_repo(tmp_path, manifest=None)
+    assert run(root) == 1
+
+
+def _launch_tree(root: Path, run_id: str = RUN, **record) -> Path:
+    """One committed launch record, the shape `gpu-pilot` writes with no capture."""
+    payload = {
+        "dataset": "eudirectlapse",
+        "arm": "A_raw",
+        "seed": 1001,
+        "train_rows": 10000,
+        "status": "success",
+    }
+    payload.update(record)
+    path = (
+        root
+        / "outputs"
+        / "gpu-pilot"
+        / "runs"
+        / run_id
+        / "eudirectlapse"
+        / "A_raw"
+        / "seed1001_foldNone"
+        / "meta.json"
+    )
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(payload))
+    return path
+
+
+def test_a_cited_launch_with_committed_records_is_accepted(tmp_path):
+    """A launch never captured is still retained: the ledger cites its record by description."""
+    root = make_repo(tmp_path, manifest=None)
+    shutil.rmtree(root / "results")
+    _launch_tree(root)
+
+    assert run(root) == 0
+
+
+def test_a_launch_record_without_a_seed_is_refused(tmp_path):
+    root = make_repo(tmp_path, manifest=None)
+    shutil.rmtree(root / "results")
+    _launch_tree(root, seed=None)
+
+    assert run(root) == 1
+
+
+def test_a_capture_beside_a_launch_tree_is_still_checked(tmp_path):
+    """A broken capture is a failure, not a licence to read the record tree instead."""
+    root = make_repo(tmp_path, manifest=manifest())
+    _launch_tree(root)
+
     assert run(root) == 1
 
 

@@ -96,10 +96,11 @@ Newest first, by ticket number where the filename carries one.
 | [`416-ledger-migration.md`](416-ledger-migration.md) | the cost ledger migrates instead of quarantining (#416) |
 | [`docs-experiment-first.md`](docs-experiment-first.md) | group the documentation by experiment (#595) |
 
-## Proposed — 11 plans
+## Proposed — 12 plans
 
 | Plan | What it settles |
 | --- | --- |
+| [`679-launch-citation.md`](679-launch-citation.md) | the citation gate accepts a committed launch tree (#679) |
 | [`chunk-transport-under-stalls.md`](chunk-transport-under-stalls.md) | the chunked transport under a stalling poll (#566) |
 | [`fairtest-capture-transport.md`](fairtest-capture-transport.md) | the fair test ships its captures (#564) |
 | [`freq-sev-implementation.md`](freq-sev-implementation.md) | implementing the frequency/severity fair test |

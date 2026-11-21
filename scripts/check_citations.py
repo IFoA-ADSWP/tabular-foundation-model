@@ -3,7 +3,10 @@
 
 A **citation** is a bare run id (`YYYYMMDDTHHMMSSZ`) in any file under `docs/`. A cited run must
 have `results/<id>/capture.json` whose entries cover every method × arm × seed × fold present in
-the run with non-null hashes. A `schema_version: 2` capture also requires each record to name
+the run with non-null hashes, **or** — for a launch that was never captured — its committed
+launch tree at `outputs/gpu-pilot/runs/<id>/`, whose records must each name a seed. The ledger's
+`no-capture` rows cite those records by description and are never described as Captures. A
+`schema_version: 2` capture also requires each record to name
 `versions.tabpfn`, `versions.python` and `weights.path` or `weights.sha256`. A `schema_version: 4`
 capture additionally owes `weights_sha256` and `cluster_sha256` on every severity entry (#555), and
 is refused if a frequency entry carries them. A `schema_version: 5` capture adds the method axis
@@ -35,6 +38,8 @@ from typing import NamedTuple, Optional
 RUN_ID = re.compile(r"(?<![0-9A-Za-z])\d{8}T\d{6}Z(?![0-9A-Za-z-])")
 RULE_DATE = "20261031T000000Z"
 LEGACY = Path("docs/analyses/legacy_citations.txt")
+# A launch that was never captured keeps its per-arm × seed records here, under the run id.
+LAUNCH_TREE = Path("outputs") / "gpu-pilot" / "runs"
 SCANNED_SUFFIXES = {".md", ".csv", ".txt"}
 
 
@@ -327,9 +332,51 @@ def check_run_dir(run_dir: Path, run_id: str) -> list[str]:
     return problems
 
 
+def check_launch_tree(launch_dir: Path, run_id: str) -> list[str]:
+    """Every reason a committed launch tree cannot stand in for a capture. Empty means fine.
+
+    A launch that was never captured still retains its numbers: one `meta.json` per arm × seed
+    under `outputs/gpu-pilot/runs/<id>/`, the shape the 2026-09-14 launch and the 2026-11-21
+    ladder write. The runs ledger lists them as `no-capture` and cites the record by description,
+    never as a Capture. The tree is accepted only when it exists and every record names the seed
+    it was fitted with; coverage of the whole launch is the ledger's assertion, because one Run
+    here is a slice of a ladder rather than a complete campaign.
+    """
+    if not launch_dir.is_dir():
+        return [f"{run_id}: cited but no run directory under results/ and no launch tree"]
+    records = sorted(launch_dir.glob("**/meta.json"))
+    if not records:
+        return [f"{run_id}: launch tree has no meta.json records"]
+    problems: list[str] = []
+    for record_path in records:
+        try:
+            record = json.loads(record_path.read_text())
+        except json.JSONDecodeError as exc:
+            problems.append(f"{run_id}: {record_path} is not valid JSON ({exc})")
+            continue
+        if record.get("seed") is None:
+            problems.append(f"{run_id}: {record_path} names no seed")
+    return problems
+
+
 def check_run(root: Path, run_id: str) -> list[str]:
-    """The `results/<id>/` form of `check_run_dir`, for the repository-wide check."""
-    return check_run_dir(root / "results" / run_id, run_id)
+    """A cited run's evidence: its capture, else its committed launch tree.
+
+    A present `capture.json` is always checked and never falls back — a broken capture beside a
+    good record tree is a failure, not a licence to read the tree instead. With no capture at
+    all, the launch tree is the retained evidence the ledger's `no-capture` rows point at.
+    """
+    results_dir = root / "results" / run_id
+    if not (results_dir / "capture.json").is_file():
+        launch_dir = root / LAUNCH_TREE / run_id
+        launch_problems = check_launch_tree(launch_dir, run_id)
+        if not launch_problems:
+            return []
+        if not launch_dir.is_dir():
+            # Keep the capture-shaped wording when there is no launch tree to talk about.
+            return check_run_dir(results_dir, run_id)
+        return launch_problems
+    return check_run_dir(results_dir, run_id)
 
 
 def main(argv: list[str] | None = None) -> int:
