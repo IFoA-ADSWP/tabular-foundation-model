@@ -32,6 +32,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 GH = REPO_ROOT / "scripts" / "gpu_helpers"
 VAST_RUN = GH / "vast_run.sh"
 BOOTSTRAP = GH / "bootstrap_pilot.sh"
+# A second box-side reader of the launch environment (#568). Audited here too, because the seam
+# that drops a forwarded variable is silent: the script substitutes its own default.
+REEMIT_ON_BOX = GH / "reemit_on_box.sh"
 PILOT = REPO_ROOT / "scripts" / "run_pilot.py"
 MOCK = GH / "mock_vastai.sh"
 VERIFIER = GH / "verify_artifacts.py"
@@ -774,7 +777,7 @@ def test_every_variable_the_box_reads_is_forwarded_or_launcher_owned():
     launcher never forwarded it, so an operator who set it was overridden without a word -- which
     is why D18's "asserted before every launch" was an assertion of the default.
     """
-    reads = _env_reads(BOOTSTRAP) | _python_env_reads(PILOT)
+    reads = _env_reads(BOOTSTRAP) | _env_reads(REEMIT_ON_BOX) | _python_env_reads(PILOT)
     forwarded = _launcher_forwards()
 
     # Membership, not a name-prefix filter. The filter meant every allowlist entry whose name did
@@ -794,6 +797,6 @@ def test_every_variable_the_box_reads_is_forwarded_or_launcher_owned():
 
 def test_the_passthrough_list_has_no_dead_entries():
     """A forwarded name the box never reads is a comment pretending to be a control."""
-    reads = _env_reads(BOOTSTRAP) | _python_env_reads(PILOT)
+    reads = _env_reads(BOOTSTRAP) | _env_reads(REEMIT_ON_BOX) | _python_env_reads(PILOT)
     dead = {name for name in _launcher_forwards() if name not in reads}
     assert not dead, f"forwarded but never read by the box: {sorted(dead)}"

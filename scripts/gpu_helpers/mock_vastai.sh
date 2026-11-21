@@ -125,6 +125,14 @@ case "${1:-} ${2:-}" in
 JSON
       fi
       ;;
+  "reboot instance")
+      # The lifecycle channel #568 relies on: a restart re-runs the launch's onstart against the
+      # same disk. Recorded so a test can prove the re-emit path rebooted the KEPT box exactly once.
+      n=$(cat "$MOCK_STATE_DIR/reboot_attempts" 2>/dev/null || echo 0)
+      n=$(( n + 1 ))
+      printf '%s\n' "$n" > "$MOCK_STATE_DIR/reboot_attempts"
+      echo "Rebooting instance $3."
+      ;;
   "destroy instance")
       # MOCK_DESTROY_FAIL_ONCE makes the first destroy fail, so a test can prove the
       # failed path keeps the id and the next attempt can still succeed (#325).
@@ -166,7 +174,45 @@ JSON
       # validated once already.
       EMITTER="${MOCK_EMITTER:-scripts/gpu_helpers/emit_artifacts.sh}"
       TREE="${MOCK_OUTPUT_TREE:-$MOCK_STATE_DIR/finetune/pilot}"
-      if [ -f "$EMITTER" ]; then
+      reboots=$(cat "$MOCK_STATE_DIR/reboot_attempts" 2>/dev/null || echo 0)
+      # The bootstrap states, per sealed capture, that it has something to send (#568) -- and says
+      # how many it sealed, which is the count the re-emit driver hands to the verifier: A re-emit
+      # refuses without payload evidence, so the mock has to be able to produce the markers, to
+      # withhold them, and to produce them only AFTER the reboot (the tail of a real box's log is
+      # chunk lines with the markers long gone).
+      marker_mode="${MOCK_EMIT_MARKERS:-0}"
+      if [ "${MOCK_MARKERS_AFTER_REBOOT:-0}" = "1" ]; then
+          [ "$reboots" -ge 1 ] && marker_mode=1
+      fi
+      if [ "$marker_mode" = "1" ]; then
+          # A boot marker with a strictly increasing stamp, so the driver can tell this boot's
+          # PARTIAL from a previous boot's that is still in the accumulated log.
+          calls=$(cat "$MOCK_STATE_DIR/check_calls" 2>/dev/null || echo 0)
+          printf '%s\n' "$(( calls + 1 ))" > "$MOCK_STATE_DIR/check_calls"
+          echo "########## REEMIT CHECK $(( $(date -u +%s) + calls )) ${MOCK_RUN_STAMP:-mock} ##########"
+          marker_count=0
+          for marker_tree in "$TREE"/*/; do
+              [ -d "$marker_tree" ] || continue
+              marker_count=$(( marker_count + 1 ))
+              echo "########## EMIT $(basename "$marker_tree") ($(basename "$marker_tree")) ##########"
+          done
+          if [ "${MOCK_FITTING:-0}" != "1" ]; then
+              echo "########## REEMIT: $marker_count sealed capture(s) for launch ${MOCK_RUN_STAMP:-mock} -- no fit ##########"
+          fi
+      fi
+      # A PARTIAL line from BEFORE the reboot: the accumulated log keeps it, and treating it as
+      # this boot's answer would destroy a box that is re-emitting correctly.
+      if [ "${MOCK_STALE_PARTIAL:-0}" = "1" ] && [ "$reboots" -eq 0 ]; then
+          echo "########## PARTIAL: 3 of 4 capture(s) sealed for this launch ##########"
+      fi
+      if [ "${MOCK_FITTING:-0}" = "1" ]; then
+          # The shape of an old box (or a partly-sealed one) taking the normal path after a restart.
+          echo "--- installing deps (stub pins) ---"
+      fi
+      if [ -f "$EMITTER" ] && [ "${MOCK_NO_PAYLOAD:-0}" = "1" ]; then
+          # A launch whose fits failed emitted nothing: the log carries no payload at all.
+          :
+      elif [ -f "$EMITTER" ]; then
           if [ "${MOCK_PER_TARGET:-0}" = "1" ]; then
               # The primary fair test emits ONE payload per target, chunked (#564). Mirror the
               # real bootstrap: one emit per subdirectory, each naming its own payload, so a

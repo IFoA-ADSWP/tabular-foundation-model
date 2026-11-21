@@ -17,13 +17,14 @@ since merged, and the pull request that merged it is the record of what happened
 the fact: a plan that says proposed stays that way unless its author amends it, because rewriting the status
 of a plan after the data would make the trail say something it did not.
 
-## Current, agreed or implemented — 73 plans
+## Current, agreed or implemented — 74 plans
 
 Newest first, by ticket number where the filename carries one.
 
 | Plan | What it settles |
 | --- | --- |
 | [`678-launch-seed-layout.md`](678-launch-seed-layout.md) | the runs ledger reads both launch-record layouts (#678) |
+| [`568-reemit-captures.md`](568-reemit-captures.md) | a kept instance re-emits its captures without re-fitting (#568) |
 | [`analysis-review.md`](analysis-review.md) | Plan: `analysis-review` skill |
 | [`anchor-checkpoint-assertion.md`](anchor-checkpoint-assertion.md) | refuse a launch whose weights are not the anchor's line |
 | [`citation-check.md`](citation-check.md) | a cited run must have a capture (#364) |
