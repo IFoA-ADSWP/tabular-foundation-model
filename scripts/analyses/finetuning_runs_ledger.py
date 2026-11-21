@@ -60,6 +60,9 @@ are synthetic (`<dataset>_<arm>_seed<N>`) and Run ids are directory names.
   with no curated size fails the renderer rather than printing a blank.
 - A per-seed record's own `run_id` is `<dataset>_<arm>_seed<N>`, not the Run id; the Run id is the
   directory.
+- A launch record is either `<arm>/meta.json` (the 2026-09-14 launch) or
+  `<arm>/seed<N>_foldNone/meta.json` (the 2026-11-21 ladder). The dataset and arm are the path's,
+  the seed is the record's, and the seed directory is asserted against it.
 
 Exit codes: 0 wrote both files · 1 the evidence disagrees with itself.
 """
@@ -243,12 +246,19 @@ CAMPAIGNS: tuple[Campaign, ...] = (
     Campaign(
         campaign_id="gpu-pilot",
         problem_type="classification",
-        tasks={"uslapseagent": "lapse"},
-        datasets=frozenset({"uslapseagent"}),
+        tasks={"uslapseagent": "lapse", "eudirectlapse": "lapse"},
+        datasets=frozenset({"uslapseagent", "eudirectlapse"}),
         arm_labels=("A_raw", "B_ft3", "B_ft10", "B_ft30"),
         era="auto",
-        record_path="`outputs/gpu-pilot/runs/<run>/<dataset>/<arm>/meta.json`",
-        what="committed launch records with no `capture.json`",
+        record_path=(
+            "`outputs/gpu-pilot/runs/<run>/<dataset>/<arm>/meta.json`, and "
+            "`outputs/gpu-pilot/runs/<run>/<dataset>/<arm>/seed<N>_foldNone/meta.json`"
+        ),
+        what=(
+            "committed launch records with no `capture.json`, in the flat arm directory the "
+            "2026-09-14 launch wrote or the per-seed `seed<N>_foldNone/` subdirectory the "
+            "2026-11-21 ladder runs write"
+        ),
         loader="launch",
     ),
     Campaign(
@@ -989,10 +999,56 @@ def pilot_rows(
     return rows
 
 
+# A launch record sits either directly under its arm directory (the 2026-09-14 launch) or one level
+# deeper in a `seed<N>_foldNone/` subdirectory of it (the 2026-11-21 ladder). The dataset and arm are
+# read from the path because the path is what selects the record; the seed is read from the record,
+# and a seed directory must name the same one — a mismatch is two different claims about one file.
+LAUNCH_SEED_DIR = re.compile(r"^seed(?P<seed>\d+)_fold[^/]+$")
+
+
+def _launch_record_layout(record_path: Path, run_dir: Path) -> tuple[str, str, int | None]:
+    """`(dataset, arm, directory seed)` for a launch record path under `run_dir`.
+
+    `directory seed` is `None` for the flat layout, whose path names no seed. Anything that is
+    neither layout is refused rather than guessed: filing a record under a directory name that is
+    a seed would put one measurement in another measurement's cell.
+    """
+    parts = record_path.relative_to(run_dir).parts
+    if len(parts) == 3:
+        dataset, arm, _name = parts
+        return dataset, arm, None
+    if len(parts) == 4:
+        dataset, arm, seed_dir, _name = parts
+        match = LAUNCH_SEED_DIR.fullmatch(seed_dir)
+        if match is None:
+            raise EvidenceError(
+                f"{_relative(record_path)}: {seed_dir!r} is not a `seed<N>_fold<F>` directory"
+            )
+        return dataset, arm, int(match.group("seed"))
+    raise EvidenceError(
+        f"{_relative(record_path)}: neither `<run>/<dataset>/<arm>/meta.json` nor "
+        "`<run>/<dataset>/<arm>/seed<N>_fold<F>/meta.json`"
+    )
+
+
+def _launch_record_paths(run_dir: Path) -> list[Path]:
+    """Both layouts' records under one Run directory, in one sorted order."""
+    return sorted(
+        path
+        for pattern in ("*/*/meta.json", "*/*/seed*_fold*/meta.json")
+        for path in run_dir.glob(pattern)
+    )
+
+
 def launch_rows(
     runs: Path = GPU_PILOT_RUNS, campaign: Campaign | None = None
 ) -> list[LedgerRow]:
-    """Records committed under `outputs/gpu-pilot/runs/<run>/<dataset>/<arm>/` — no Capture.
+    """Records committed under `outputs/gpu-pilot/runs/` — no Capture.
+
+    Two record layouts are read, because the launcher changed: the 2026-09-14 launch writes
+    `<run>/<dataset>/<arm>/meta.json`, and the 2026-11-21 ladder writes
+    `<run>/<dataset>/<arm>/seed<N>_foldNone/meta.json`. The dataset and arm are the path's; the seed
+    is the record's, and the seed directory must agree with it.
 
     These carry real metrics and a real checkpoint, but no `capture.json`: they cannot be cited as a
     Capture. They are Rows with status `no-capture`, and their pointer is the record file.
@@ -1006,13 +1062,32 @@ def launch_rows(
     if not runs.is_dir():
         return rows
     for run_dir in sorted(path for path in runs.iterdir() if path.is_dir()):
-        for record_path in sorted(run_dir.glob("*/*/meta.json")):
+        for record_path in _launch_record_paths(run_dir):
             record = json.loads(record_path.read_text())
+            dataset, path_arm, directory_seed = _launch_record_layout(record_path, run_dir)
             arm = record.get("arm")
             if arm is None:
                 raise EvidenceError(f"{_relative(record_path)}: launch record names no arm")
+            if path_arm != arm:
+                raise EvidenceError(
+                    f"{_relative(record_path)}: the path names {path_arm!r}, the record {arm!r}"
+                )
             _assert_arm_known(campaign, run_dir.name, arm)
-            task = _task_for(campaign, run_dir.name, record["dataset"])
+            record_dataset = record.get("dataset")
+            if record_dataset is not None and record_dataset != dataset:
+                raise EvidenceError(
+                    f"{_relative(record_path)}: the path names {dataset!r}, the record "
+                    f"{record_dataset!r}"
+                )
+            task = _task_for(campaign, run_dir.name, dataset)
+            seed = record.get("seed")
+            if seed is None:
+                raise EvidenceError(f"{_relative(record_path)}: launch record names no seed")
+            if directory_seed is not None and int(seed) != directory_seed:
+                raise EvidenceError(
+                    f"{_relative(record_path)}: the directory names seed {directory_seed}, the "
+                    f"record {int(seed)}"
+                )
             fields = _record_fields(record, arm, campaign)
             rows.append(
                 LedgerRow(
@@ -1021,10 +1096,10 @@ def launch_rows(
                     problem_type=campaign.problem_type,
                     task=task,
                     era=campaign.era,
-                    dataset=record["dataset"],
+                    dataset=dataset,
                     arm=arm,
                     arm_kind=arm_kind(arm),
-                    seed=int(record["seed"]),
+                    seed=int(seed),
                     status="no-capture",
                     note=(
                         "launch record with no capture.json — cite by description "

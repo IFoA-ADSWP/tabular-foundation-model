@@ -23,6 +23,7 @@ Newest first, by ticket number where the filename carries one.
 
 | Plan | What it settles |
 | --- | --- |
+| [`678-launch-seed-layout.md`](678-launch-seed-layout.md) | the runs ledger reads both launch-record layouts (#678) |
 | [`analysis-review.md`](analysis-review.md) | Plan: `analysis-review` skill |
 | [`anchor-checkpoint-assertion.md`](anchor-checkpoint-assertion.md) | refuse a launch whose weights are not the anchor's line |
 | [`citation-check.md`](citation-check.md) | a cited run must have a capture (#364) |
