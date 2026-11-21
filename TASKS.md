@@ -1,7 +1,7 @@
 # Task List
 
 A **curated subset** of GitHub issues — these 27 rows, not the full backlog (the tracker holds 355).
-Reconciled against the tracker on **2026-11-15**; update a row when its issue changes state.
+Reconciled against the tracker on **2026-11-21**; update a row when its issue changes state.
 
 | Status | # | Title | Assignee |
 |--------|---|-------|----------|
@@ -15,7 +15,7 @@ Reconciled against the tracker on **2026-11-15**; update a row when its issue ch
 | ✅ | #— | Repository migrated to IFoA-ADSWP/tabular-foundation-model — full history, 123 issues+PRs (numbering preserved), wiki, collaborator access; open PR recreated as #124; old fork retained as read-only archive | scotthawes |
 | ✅ | #123 | Add insurance-native alternative metrics (Gamma/Tweedie deviance, MAE) with fold-level SEs to regression benchmarks | Mako-120 |
 | ✅ | #122 | Persist per-fold test predictions for retrospective re-scoring (`--save-predictions`) — PR #149 | — |
-| 🔲 | #57 | Clean up main junk commits (f0bf230, 5264ec1) — blocked (needs main force-push decision) | — |
+| ✅ | #57 | Clean up main junk commits (f0bf230, 5264ec1) — **closed as not planned**: both are content-neutral ancestors of `main`, so removing them needs a force-push, which branch protection, the no-force-push rule and the history-preserving migration all rule out; "leave in place, documented" is the option taken | — |
 | ✅ | #56 | Merge PR #51 + post-merge verification — merged 2026-08-04 (31d40a5); registry check clean | — |
 | ✅ | #55 | Version-drift re-test policy for the benchmark verdict — PR #62 | — |
 | ✅ | #54 | TabPFN levers in the parsimony framework — fine-tuning, HPO, ensembling — assessment shipped (PR #63) | — |
