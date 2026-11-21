@@ -17,13 +17,14 @@ since merged, and the pull request that merged it is the record of what happened
 the fact: a plan that says proposed stays that way unless its author amends it, because rewriting the status
 of a plan after the data would make the trail say something it did not.
 
-## Current, agreed or implemented — 80 plans
+## Current, agreed or implemented — 81 plans
 
 Newest first, by ticket number where the filename carries one.
 
 | Plan | What it settles |
 | --- | --- |
 | [`701-paid-run-ceilings.md`](701-paid-run-ceilings.md) | the paid-run path measures its own ceilings (#701, #433) |
+| [`423-yes-leak-preflight.md`](423-yes-leak-preflight.md) | `--yes` answers the leak preflight (#423) |
 | [`678-launch-seed-layout.md`](678-launch-seed-layout.md) | the runs ledger reads both launch-record layouts (#678) |
 | [`685-access-recheck.md`](685-access-recheck.md) | refresh the model-access scoping note (#685) |
 | [`687-tabicl-probe.md`](687-tabicl-probe.md) | TabICL v2 CPU timing probe (#687) |

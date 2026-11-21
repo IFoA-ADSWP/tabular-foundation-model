@@ -721,12 +721,19 @@ for i in insts:
                                                   i.get('gpu_name'), i.get('dph_total')))
 " 2>/dev/null)"
 if [ -n "$LEAKS" ]; then
-    echo "WARNING: 'tabpfn-pilot' instances from an earlier run still exist and are BILLING:" >&2
+    echo "WARNING: 'tabpfn-pilot' instances already exist and are BILLING:" >&2
     echo "$LEAKS" >&2
     echo "         destroy with:  vastai destroy instance <id> -y" >&2
-    printf 'Continue anyway? [y/N] '
-    read -r _leak_reply
-    case "$_leak_reply" in [yY]*) ;; *) echo "aborted"; exit 2 ;; esac
+    # A concurrent launch is the documented case (#423): its siblings carry the same label, and
+    # refusing here made parallel batches impossible without piping 'y' into a prompt whose job is
+    # to catch money leaking. --yes already means "do not ask", so it answers this one too.
+    if [ "$ASSUME_YES" -eq 1 ]; then
+        echo "         --yes: continuing (a concurrent launch is expected to see its siblings)." >&2
+    else
+        printf 'Continue anyway? [y/N] '
+        read -r _leak_reply
+        case "$_leak_reply" in [yY]*) ;; *) echo "aborted"; exit 2 ;; esac
+    fi
 fi
 
 # ---- 2. Select an offer (restricted to usable architectures) ----
