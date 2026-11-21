@@ -28,6 +28,12 @@ if [ -z "$stamp" ] || [ -z "$targets" ]; then
     exit 1
 fi
 
+# A boot marker carrying this boot's clock. The container log ACCUMULATES across restarts, so a
+# `PARTIAL` or dependency-install line from an earlier boot can still be in a tail and would stop a
+# recovery that is going fine. The driver acts only on text after the newest marker whose timestamp
+# is later than the one it read before rebooting, which is monotonic within the box's own clock.
+echo "########## REEMIT CHECK $(date -u +%s) $stamp ##########"
+
 count=0
 for _target in $targets; do count=$(( count + 1 )); done
 

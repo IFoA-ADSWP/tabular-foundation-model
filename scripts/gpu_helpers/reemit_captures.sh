@@ -218,14 +218,22 @@ if ! grep -aqE '^__ART__|^__ART_CHUNK__|^__ARTIFACTS_(INFO|END)__|^########## EM
         echo "REFUSING: the box has nothing to re-emit."
         echo "  Looked for: a payload line in the last $POLL_TAIL lines of"
         echo "              \`vastai logs $INSTANCE --tail $POLL_TAIL\` -- __ART__, __ART_CHUNK__,"
-        echo "              __ARTIFACTS_INFO__/__ARTIFACTS_END__, or an '########## EMIT' marker --"
-        echo "              and for this launch's results/<run id>/capture.json on the box."
+        echo "              __ARTIFACTS_INFO__/__ARTIFACTS_END__, or an '########## EMIT' marker. The"
+        echo "              launch's results/<run id>/capture.json is what would be sent, but this"
+        echo "              driver has no way to read the box's disk (no exec channel)."
         echo "  Nothing was rebooted and nothing was spent. A launch that never emitted a capture"
         echo "  has to be fitted again; that is a new launch, not a re-emit."
     } >&2
     exit 2
 fi
 echo "    the tail carries payload evidence -- there is something to resend"
+
+# The newest boot marker in a log. The container log accumulates across restarts, so this is how
+# the driver tells "this boot says PARTIAL" from "the previous boot said it".
+box_check_ts() {
+    sed -n 's/^########## REEMIT CHECK \([0-9][0-9]*\).*/\1/p' "$1" 2>/dev/null | tail -1
+}
+PRE_CHECK="$(box_check_ts "$PRE")"
 
 # ---- 2. Reboot: re-runs the launch's onstart, which takes the re-emit path on this disk ----
 echo "=== 2/4 rebooting $INSTANCE (the onstart re-runs; nothing is fitted) ==="
@@ -257,21 +265,29 @@ while [ "$(date -u +%s)" -lt "$DEADLINE" ]; do
             cp "$WINDOW" "$LOG_FILE" 2>/dev/null || true
             EMPTY_STREAK=0
 
-            # The box says what it is doing, and either answer can be final. The count comes from
-            # the box, not the local target list, because a canary launch is one target.
-            if grep -aq '^########## PARTIAL:' "$WINDOW"; then
-                fit_started "the box is only PARTLY sealed, so it is fitting the launch again.
-          That is a paid re-fit, not a re-emit; this script does not wait it out."
+            # Only text from THIS boot counts. The log accumulates, so a stale PARTIAL or
+            # dependency-install line would otherwise stop a recovery that is going fine.
+            NOW_CHECK="$(box_check_ts "$WINDOW")"
+            THIS_BOOT=0
+            if [ -n "$NOW_CHECK" ] && { [ -z "$PRE_CHECK" ] || [ "$NOW_CHECK" -gt "$PRE_CHECK" ]; }; then
+                THIS_BOOT=1
             fi
-            if grep -aq '^--- installing deps' "$WINDOW"; then
-                fit_started "the box started its dependency install, so its onstart predates the
-          re-emit path and it is running a full launch. Nothing was recovered."
+            CURRENT=""
+            if [ "$THIS_BOOT" -eq 1 ]; then
+                CURRENT="$(awk '/^########## REEMIT CHECK /{buf=""} {buf=buf $0 "\n"} END{printf "%s", buf}' "$WINDOW")"
             fi
-            if grep -aq '^########## REEMIT INCOMPLETE' "$WINDOW"; then
-                keep_and_die "the box could not re-emit a capture it has. Retrying the same box
-          would fail the same way; inspect the window above before destroying it."
-            fi
-            BOX_SEALED="$(sed -n 's/^########## REEMIT: \([0-9][0-9]*\) sealed.*/\1/p' "$WINDOW" | tail -1)"
+            case "$CURRENT" in
+                *"########## PARTIAL:"*)
+                    fit_started "the box is only PARTLY sealed, so it is fitting the launch again.
+          That is a paid re-fit, not a re-emit; this script does not wait it out." ;;
+                *"--- installing deps"*)
+                    fit_started "the box started its dependency install, so its onstart predates the
+          re-emit path and it is running a full launch. Nothing was recovered." ;;
+                *"########## REEMIT INCOMPLETE"*)
+                    keep_and_die "the box could not re-emit a capture it has. Retrying the same box
+          would fail the same way; inspect the window above before destroying it." ;;
+            esac
+            BOX_SEALED="$(printf '%s' "$CURRENT" | sed -n 's/^########## REEMIT: \([0-9][0-9]*\) sealed.*/\1/p' | tail -1)"
             [ -n "$BOX_SEALED" ] && EXPECTED="$BOX_SEALED"
 
             python3 "$SCRIPT_DIR/collect_chunks.py" merge --window "$WINDOW" --state "$CHUNKS" >/dev/null 2>&1 || true
@@ -315,6 +331,11 @@ for _dir in "$RESTORE"/*/; do
     }
     RESTORED="$RESTORED $_id"
 done
+# The verifier said success; if it wrote nothing, that is a contradiction to stop on, not a reason
+# to delete the chunks and the box.
+if [ -z "$RESTORED" ]; then
+    keep_and_die "the verifier reported success but no capture reached results/. Nothing was moved."
+fi
 rm -rf "$CHUNKS"
 
 echo "=== 4/4 verified -- captures restored into $REPO_DIR/results ==="

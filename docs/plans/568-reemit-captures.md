@@ -86,6 +86,11 @@ environment (the token included), so nothing has to be re-supplied.
 - **No `execute` pre-flight.** The CLI cannot print a successful execute result, so a pre-flight
   would have to reach around it to the API. The log gives the same answer through a channel the
   launcher already depends on.
+- **Only text from the current boot is trusted.** The container log accumulates across restarts, so
+  a `PARTIAL` or dependency-install line from an earlier boot can still be in the tail. The box
+  writes a `REEMIT CHECK <epoch>` boot marker and the driver acts only on text after the newest
+  marker whose stamp is later than the one it read before rebooting — monotonic within the box's
+  own clock, so no comparison across two machines is needed.
 - **Verification is retried, not assumed**, but it restores into a scratch tree: a partial or
   refused restore must not write into the tracked `results/` that `check.sh evidence` compares.
 

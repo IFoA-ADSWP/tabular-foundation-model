@@ -104,6 +104,97 @@ def test_reemit_refuses_before_rebooting_when_the_box_sealed_nothing(tmp_path):
     assert not (state / "destroyed.txt").exists(), "the refusal destroyed the instance"
 
 
+def test_reemit_proceeds_when_the_tail_has_chunks_but_no_emit_marker(tmp_path):
+    """The tail of a real emission is chunk lines; the markers left the window long ago.
+
+    The first cut required an `EMIT` marker and would have refused on exactly the box it exists
+    for. This mock emits the payload from the start and adds the markers only after the reboot, so
+    the pre-flight sees a chunk-only tail.
+    """
+    tree, ids = _target_tree(tmp_path)
+
+    state, result = _launch(
+        tmp_path,
+        "--fairtest", "reemit",
+        "--instance", "55500011",
+        "--poll-minutes", "1",
+        extra_env={
+            "MOCK_OUTPUT_TREE": str(tree),
+            "MOCK_PER_TARGET": "1",
+            "MOCK_MARKERS_AFTER_REBOOT": "1",
+            "TFM_CHUNK_LINES": "3",
+            "TFM_CHUNK_PAUSE": "0",
+            "TFM_CHUNK_REPEAT": "1",
+            "TFM_CHUNK_PASSES": "1",
+            "REEMIT_POLL_SECONDS": "0",
+        },
+    )
+    combined = result.stdout + result.stderr
+
+    assert result.returncode == 0, combined
+    results = tmp_path / "repo" / "results"
+    assert sorted(path.name for path in results.iterdir()) == sorted(ids), combined
+    assert (state / "destroyed.txt").read_text().strip() == "55500011", combined
+
+
+def test_reemit_sizes_its_ceiling_from_the_target_count(tmp_path):
+    """The default must cover the transfer: ~18 min per target, and the first cut counted polls."""
+    tree, _ = _target_tree(tmp_path)
+
+    _, result = _launch(
+        tmp_path,
+        "--fairtest", "reemit",
+        "--instance", "55500011",
+        extra_env={
+            "MOCK_OUTPUT_TREE": str(tree),
+            "MOCK_PER_TARGET": "1",
+            "MOCK_EMIT_MARKERS": "1",
+            "TFM_CHUNK_LINES": "3",
+            "TFM_CHUNK_PAUSE": "0",
+            "TFM_CHUNK_REPEAT": "1",
+            "TFM_CHUNK_PASSES": "1",
+            "REEMIT_POLL_SECONDS": "0",
+        },
+    )
+    combined = result.stdout + result.stderr
+
+    assert result.returncode == 0, combined
+    # 15 + 30 * 4 targets, from the driver's own rule -- not the launcher's 40-minute launch default.
+    assert "ceiling 135 min" in combined, combined
+
+
+def test_a_stale_partial_line_does_not_destroy_a_box_that_is_reemitting(tmp_path):
+    """The log accumulates across restarts, so an earlier boot's PARTIAL can still be in the tail.
+
+    Destroying on it would kill the box mid-re-emit over a line from before the reboot.
+    """
+    tree, ids = _target_tree(tmp_path)
+
+    state, result = _launch(
+        tmp_path,
+        "--fairtest", "reemit",
+        "--instance", "55500011",
+        "--poll-minutes", "1",
+        extra_env={
+            "MOCK_OUTPUT_TREE": str(tree),
+            "MOCK_PER_TARGET": "1",
+            "MOCK_EMIT_MARKERS": "1",
+            "MOCK_STALE_PARTIAL": "1",
+            "TFM_CHUNK_LINES": "3",
+            "TFM_CHUNK_PAUSE": "0",
+            "TFM_CHUNK_REPEAT": "1",
+            "TFM_CHUNK_PASSES": "1",
+            "REEMIT_POLL_SECONDS": "0",
+        },
+    )
+    combined = result.stdout + result.stderr
+
+    assert result.returncode == 0, combined
+    assert "Destroying the box" not in combined, combined
+    results = tmp_path / "repo" / "results"
+    assert sorted(path.name for path in results.iterdir()) == sorted(ids), combined
+
+
 def test_reemit_requires_an_instance_and_yes(tmp_path):
     """`--fairtest reemit` without `--instance` is a mistake, not a request for a new box."""
     state, result = _launch(tmp_path, "--fairtest", "reemit", "--poll-minutes", "1")
@@ -208,7 +299,12 @@ STUB_GIT = (
     "exit 0\n"
 )
 
-STUB_EMITTER = "#!/bin/bash\necho \"__ARTIFACTS_INFO__ bytes=0 sha256=- lines=0 files=0\"\necho EMITTED \"$1\"\n"
+STUB_EMITTER = (
+    "#!/bin/bash\n"
+    'echo "__ARTIFACTS_INFO__ bytes=0 sha256=- lines=0 files=0"\n'
+    'echo EMITTED "$1"\n'
+    'exit "${MOCK_EMITTER_EXIT:-0}"\n'
+)
 
 
 def _stub_box(tmp_path, sealed_count, unrelated=0):
@@ -355,11 +451,12 @@ def test_reemit_stops_when_the_box_starts_fitting_again(tmp_path):
     assert (state / "destroyed.txt").read_text().strip() == "55500011", combined
 
 
-def _run_on_box(tmp_path, sealed_count, unrelated=0):
+def _run_on_box(tmp_path, sealed_count, unrelated=0, emitter_exit=0):
     """Run the on-box script exactly as the bootstrap does: cwd is the clone."""
     box = tmp_path / "box"
     (box / "scripts" / "gpu_helpers").mkdir(parents=True)
     (box / "scripts" / "gpu_helpers" / "emit_artifacts.sh").write_text(STUB_EMITTER)
+    (box / "scripts" / "gpu_helpers" / "emit_artifacts.sh").chmod(0o755)
     for helper in ("reemit_on_box.sh", "fairtest_run_ids.py"):
         (box / "scripts" / "gpu_helpers" / helper).write_text((GH / helper).read_text())
     for index in range(sealed_count):
@@ -372,6 +469,7 @@ def _run_on_box(tmp_path, sealed_count, unrelated=0):
         (run / "capture.json").write_text("{}")
     env = {
         **os.environ,
+        "MOCK_EMITTER_EXIT": str(emitter_exit),
         "TFM_CHUNK_LINES": "0",
         "TFM_RUN_STAMP": "20261112T090000Z",
         "TFM_FAIRTEST_TARGETS": "frequency_french frequency_spanish severity_french severity_spanish",
@@ -398,14 +496,22 @@ def test_the_on_box_check_emits_every_sealed_capture(tmp_path):
 def test_the_on_box_check_ignores_captures_from_another_stamp(tmp_path):
     result = _run_on_box(tmp_path, sealed_count=0, unrelated=37)
     assert result.returncode == 1, result.stdout + result.stderr
-    assert "EMIT" not in result.stdout, result.stdout
+    assert "########## EMIT " not in result.stdout, result.stdout
+
+
+def test_the_on_box_check_reports_an_emit_failure_distinctly(tmp_path):
+    """Exit 2 is "do not fit": the box has the captures, so a re-fit would pay twice."""
+    box_result = _run_on_box(tmp_path, sealed_count=4, emitter_exit=1)
+
+    assert box_result.returncode == 2, box_result.stdout + box_result.stderr
+    assert "REEMIT INCOMPLETE" in box_result.stderr, box_result.stderr
 
 
 def test_the_on_box_check_declines_an_empty_or_partial_box(tmp_path):
     """Exit 1 is the contract the bootstrap branches on: 'do not skip the fit'."""
     empty = _run_on_box(tmp_path / "empty", sealed_count=0)
     assert empty.returncode == 1, empty.stdout + empty.stderr
-    assert "EMIT" not in empty.stdout, empty.stdout
+    assert "########## EMIT " not in empty.stdout, empty.stdout
     assert "PARTIAL" not in empty.stdout, "a first boot is not a partial launch"
 
     partial = _run_on_box(tmp_path / "partial", sealed_count=3)
