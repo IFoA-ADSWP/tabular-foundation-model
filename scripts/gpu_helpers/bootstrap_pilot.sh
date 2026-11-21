@@ -436,9 +436,10 @@ if [ "$FAIRTEST" = "primary" ]; then
         # One process per target, so the captures of the finished targets are already on the wire
         # when a later one fails. The offset keeps the runner's own id scheme: `_run_ids` would
         # have named them <stamp>+0..3 seconds inside a single process.
-        python3 scripts/run_fair_test.py --targets "$target" --arms A_raw,B_ft30 \
+        python3 scripts/run_fair_test.py --targets "$target" --arms "${TFM_FAIRTEST_ARMS:-A_raw,B_ft30}" \
             --out-root results --run-id "$FT_STAMP" --run-id-offset "$index" \
-            ${TFM_TRAIN_ROWS:+--train-rows "$TFM_TRAIN_ROWS"}
+            ${TFM_TRAIN_ROWS:+--train-rows "$TFM_TRAIN_ROWS"} \
+            ${TFM_FAIRTEST_SEEDS:+--seeds "$TFM_FAIRTEST_SEEDS"}
         rc=$?
         run_id="$(python3 -c 'import sys
 from datetime import datetime, timedelta
