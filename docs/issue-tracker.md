@@ -125,7 +125,15 @@ issue's state is unknown, it is `needs-triage`.
 | --- | --- | --- |
 | `priority: now` | priority | None. It still needs a state label; this only says "before the rest". |
 | `priority: backlog` | **parking** | Parked on purpose. Remove `ready-to-build` / `needs-decision` when applying it. |
-| `blocked` | **parking** | Waiting on something outside this repo (#22 GPU access, #57 a decision). Not actionable until the blocker clears; do not also carry a `ready-to-build` label. |
+| `blocked` | **parking** | Waiting on something outside this repo. Not actionable until the blocker clears; do not also carry a `ready-to-build` label. |
+
+### Disposition
+
+| Label | Means |
+| --- | --- |
+| `superseded` | Applied when an issue is closed because later work replaced it, not because the work was rejected. It pairs with the `not planned` close reason and does not route anything; `wontfix` still means a decision was taken against the work. |
+
+Closing a superseded issue names the replacement — the issue, document or campaign that now owns the question — so the trail does not dead-end at a label.
 
 ### Work type
 
