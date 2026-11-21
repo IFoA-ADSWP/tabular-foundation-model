@@ -13,13 +13,36 @@ TabArena benchmarks 38 method families. Here's what we can practically use.
 | **TabPFN-3** | ✅ pip + hosted API | `tabpfn-client` — Prior Labs cloud. 50M tokens/day. Only FM with a real API. |
 | **TabPFN-2.6 / v2** | ✅ pip + hosted API | Same client, older versions. |
 | **TabFM** | ✅ pip, self-host only | `pip install tabfm[pytorch]`. No API. Non-commercial license. Needs GPU for practical use. |
-| **TabICL / TabICLv2** | ❌ | No pip package, no API. GPU required. |
-| **TabDPT / TabDPT-Turbo** | ❌ | GPU required. |
-| **iLTM, LimiX, TabSwift, TabSTAR** | ❌ | GPU required. |
+| **TabICL / TabICLv2** | ✅ pip, `tabicl` | CPU supported: `device=None` "auto-selects CUDA → XPU → MPS → CPU", with CPU and disk offloading for large sets. "For larger datasets, we recommend a GPU." Corrected 2026-11-21 — see the re-check below. |
+| **TabDPT / TabDPT-Turbo** | ✅ pip, `tabdpt` | README states no device; neither a CPU claim nor a GPU requirement. Corrected 2026-11-21. |
+| **iLTM, LimiX, TabSwift** | ❌ | GPU required. LimiX v2 is source-only and wants a CUDA-matched `torch` plus a `flash-attn` wheel. |
+| **TabSTAR** | ✅ pip, `tabstar` | README states no device; the 2026-08 "GPU required" is unverified either way. Corrected 2026-11-21. |
 | **SAP-RPT-OSS, Mitra, BetaTabPFN** | ❌ | GPU required. |
 | **Nori, OrionMSP, TabFlex** | ❌ | GPU required. |
 
 **TabPFN Client is the only FM with a hosted API.**
+
+### Access re-check (2026-11-21)
+
+Read from the PyPI JSON API and each project's README on 2026-11-21. Installability changed; fit
+time at our sizes did not become known, and that is the number that matters here.
+
+| package | latest | released | CPU, as stated by the project |
+|---|---:|---|---|
+| `tabicl` (TabICL v2) | 2.2.0 | 2026-09-02 | `device=None` auto-selects CUDA → XPU → MPS → CPU; CPU and disk offloading; GPU "recommended" for large datasets |
+| `tabdpt` (TabDPT) | 1.3.2 | 2026-11-02 | not stated |
+| `tabstar` (TabSTAR) | 1.2.2 | 2026-10-16 | not stated |
+| `tabfm` | 1.0.1 | 2026-07-21 | unchanged: self-host, needs GPU for practical use |
+| LimiX v2 | not on PyPI | — | source install; CUDA-matched `torch` + `flash-attn`; `--device cpu` exists, "cuda recommended" |
+
+The package versions of TabPFN itself have also moved well past this repository's pin: `tabpfn`
+is at 10.2.0 (2026-11-17) and `tabpfn-client` at 0.10.1 (2026-11-20), against `tabpfn==8.5.0` and
+`tabpfn-client==0.3.3` here.
+
+**Installable is not practical.** No project states a CPU fit time at 163k–678k rows; TabICL
+quotes only an H100 figure. The probe in #687 measures one fold on CPU and reports nothing about
+accuracy. Until it lands, the "wide model line" option is available in principle and unmeasured in
+practice.
 
 ## GBDTs (6 families — all CPU-friendly, all pip installable)
 
@@ -61,4 +84,4 @@ RandomForest, ExtraTrees, KNN, Linear (Ridge/Logistic) — all via `pip install 
 
 ## Bottom line
 
-Only **TabPFN** has a hosted API. But we can pip install and run most of TabArena's top methods locally on CPU — CatBoost, XGBoost, LightGBM, EBM, TorchMLP, FastaiMLP, and sklearn baselines. That's already most of the leaderboard.
+Only **TabPFN** has a hosted API (not re-checked on 2026-11-21; the other rows were). But we can pip install and run most of TabArena's top methods locally on CPU — CatBoost, XGBoost, LightGBM, EBM, TorchMLP, FastaiMLP, and sklearn baselines. That's already most of the leaderboard.
