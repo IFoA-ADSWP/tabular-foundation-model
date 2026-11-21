@@ -92,14 +92,14 @@ def test_reemit_refuses_before_rebooting_when_the_box_sealed_nothing(tmp_path):
         "--fairtest", "reemit",
         "--instance", "55500011",
         "--poll-minutes", "1",
-        extra_env={"MOCK_OUTPUT_TREE": str(tree), "MOCK_PER_TARGET": "1"},
+        extra_env={"MOCK_OUTPUT_TREE": str(tree), "MOCK_PER_TARGET": "1", "MOCK_NO_PAYLOAD": "1"},
     )
     combined = result.stdout + result.stderr
 
     assert result.returncode == 2, combined
     assert "REFUSING" in combined, combined
-    assert "results/*/capture.json" in combined, combined
-    assert "EMIT" in combined, combined
+    assert "results/<run id>/capture.json" in combined, combined
+    assert "__ART__" in combined, combined
     assert not (state / "reboot_attempts").exists(), "the box was rebooted before the refusal"
     assert not (state / "destroyed.txt").exists(), "the refusal destroyed the instance"
 
@@ -133,7 +133,45 @@ def test_the_onstart_payload_keeps_its_headroom_under_the_api_ceiling(tmp_path):
 
 
 # --------------------------------------------------------------------------
-# The box side: the bootstrap's sealed-capture fast path
+# The naming rule the launch, the box-side check and the driver share
+# --------------------------------------------------------------------------
+def test_run_ids_follow_the_launchs_own_offset_rule(tmp_path):
+    """`<stamp> + i seconds`, which is what `run_fair_test.py --run-id-offset` writes.
+
+    If this drifts, a sealed capture stops being recognised and the recovery silently refits.
+    """
+    sys.path.insert(0, str(GH))
+    from fairtest_run_ids import run_ids
+
+    assert run_ids("20261121T120000Z", 4) == [
+        "20261121T120000Z",
+        "20261121T120001Z",
+        "20261121T120002Z",
+        "20261121T120003Z",
+    ]
+    # Across a minute boundary, because an offset is seconds, not a decimal digit.
+    assert run_ids("20261121T120058Z", 3)[-1] == "20261121T120100Z"
+
+
+def test_the_run_id_cli_prints_one_id_per_line_and_one_for_an_offset(tmp_path):
+    script = GH / "fairtest_run_ids.py"
+    every = subprocess.run(
+        [sys.executable, str(script), "--stamp", "20261121T120000Z", "--count", "3"],
+        capture_output=True, text=True, check=True,
+    )
+    assert every.stdout.split() == [
+        "20261121T120000Z", "20261121T120001Z", "20261121T120002Z",
+    ]
+
+    one = subprocess.run(
+        [sys.executable, str(script), "--stamp", "20261121T120000Z", "--offset", "2"],
+        capture_output=True, text=True, check=True,
+    )
+    assert one.stdout.strip() == "20261121T120002Z"
+
+
+# --------------------------------------------------------------------------
+# The box side: the bootstrap's sealed-capture guard
 # --------------------------------------------------------------------------
 STUB_NVIDIA_SMI = "#!/bin/bash\necho 'NVIDIA RTX A6000, 49140 MiB, 550.54'\n"
 
@@ -148,6 +186,9 @@ STUB_PYTHON3 = (
     '    *) exit 0 ;;\n'
     "  esac\n"
     "fi\n"
+    'case "${1:-}" in\n'
+    '  *fairtest_run_ids.py) exec __PYTHON__ "$@" ;;\n'
+    "esac\n"
     'for a in "$@"; do\n'
     '  case "$a" in\n'
     '    *run_fair_test.py*) printf "%s\\n" "$*" >> "$TFM_TEST_ARGV" ;;\n'
@@ -170,8 +211,12 @@ STUB_GIT = (
 STUB_EMITTER = "#!/bin/bash\necho \"__ARTIFACTS_INFO__ bytes=0 sha256=- lines=0 files=0\"\necho EMITTED \"$1\"\n"
 
 
-def _stub_box(tmp_path, sealed_count):
-    """A fake box whose clone already holds `sealed_count` sealed captures."""
+def _stub_box(tmp_path, sealed_count, unrelated=0):
+    """A fake box whose clone holds `sealed_count` sealed captures for the launch's stamp.
+
+    `unrelated` adds captures named by a DIFFERENT stamp -- the repository's own committed
+    `results/` tree, which a fresh clone carries. They must never satisfy a launch.
+    """
     stubs = tmp_path / "stubs"
     stubs.mkdir()
     for name, body in (
@@ -187,12 +232,15 @@ def _stub_box(tmp_path, sealed_count):
     (tree / "scripts" / "run_fair_test.py").write_text("# stub\n")
     (tree / "scripts" / "gpu_helpers" / "fetch_weights.py").write_text("# stub\n")
     (tree / "scripts" / "gpu_helpers" / "emit_artifacts.sh").write_text(STUB_EMITTER)
-    # The real on-box re-emit logic: a copy, so the test exercises the file the box would run.
-    (tree / "scripts" / "gpu_helpers" / "reemit_on_box.sh").write_text(
-        (GH / "reemit_on_box.sh").read_text()
-    )
+    # The real box-side files: a copy, so the test exercises what the box would run.
+    for helper in ("reemit_on_box.sh", "fairtest_run_ids.py"):
+        (tree / "scripts" / "gpu_helpers" / helper).write_text((GH / helper).read_text())
     for index in range(sealed_count):
         run = tree / "results" / f"20261112T09000{index}Z"
+        run.mkdir(parents=True)
+        (run / "capture.json").write_text("{}")
+    for index in range(unrelated):
+        run = tree / "results" / f"20251101T12{index:04d}Z"
         run.mkdir(parents=True)
         (run / "capture.json").write_text("{}")
 
@@ -201,8 +249,8 @@ def _stub_box(tmp_path, sealed_count):
     return stubs, tree, record
 
 
-def _run_bootstrap(tmp_path, sealed_count):
-    stubs, tree, record = _stub_box(tmp_path, sealed_count)
+def _run_bootstrap(tmp_path, sealed_count, unrelated=0):
+    stubs, tree, record = _stub_box(tmp_path, sealed_count, unrelated=unrelated)
     env = {
         "PATH": f"{stubs}:/usr/bin:/bin:/usr/sbin:/sbin",
         "HOME": str(tmp_path / "home"),
@@ -210,6 +258,7 @@ def _run_bootstrap(tmp_path, sealed_count):
         "WORKDIR": str(tmp_path / "workspace" / "tfm"),
         "FAIRTEST": "primary",
         "TFM_RUN_STAMP": "20261112T090000Z",
+        "TFM_FAIRTEST_TARGETS": "frequency_french frequency_spanish severity_french severity_spanish",
         "TFM_TEST_TREE": str(tree),
         "TFM_TEST_ARGV": str(record),
         "TFM_CHUNK_LINES": "0",
@@ -239,6 +288,21 @@ def test_a_fully_sealed_box_reemits_and_never_fits(tmp_path):
     assert "PREFLIGHT" not in combined, "the fast path reached the paid work"
     assert "########## FAIRTEST primary" not in combined, combined
     assert record.read_text() == "", f"a fit was invoked on a sealed box: {record.read_text()}"
+
+
+def test_the_repositorys_own_captures_never_count_as_this_launchs(tmp_path):
+    """The blocking defect the first cut shipped: a fresh clone carries 37 committed captures.
+
+    Counting `results/*/capture.json` found a full set on a box that had fitted nothing, so every
+    primary launch skipped its fit and returned someone else's captures. The launch's ids are its
+    stamp plus one second per target; anything else is not this launch.
+    """
+    result, record = _run_bootstrap(tmp_path, sealed_count=0, unrelated=37)
+    combined = result.stdout + result.stderr
+
+    assert "REEMIT:" not in combined, combined
+    assert "########## EMIT " not in combined, combined
+    assert len(record.read_text().splitlines()) == 4, "the launch did not fit its own targets"
 
 
 def test_a_partial_seal_declines_and_falls_through_to_the_normal_path(tmp_path):
@@ -285,22 +349,35 @@ def test_reemit_stops_when_the_box_starts_fitting_again(tmp_path):
 
     assert result.returncode == 1, combined
     assert "started its dependency install" in combined or "PARTLY sealed" in combined, combined
-    assert "KEPT" in combined, combined
-    assert not (state / "destroyed.txt").exists(), "the refusal destroyed the box"
+    # The default is to stop the paid re-fit, not to walk away from it: leaving the box running
+    # would bill for a second full launch while the operator reads a "kept" message.
+    assert "Destroying the box" in combined, combined
+    assert (state / "destroyed.txt").read_text().strip() == "55500011", combined
 
 
-def _run_on_box(tmp_path, sealed_count):
+def _run_on_box(tmp_path, sealed_count, unrelated=0):
     """Run the on-box script exactly as the bootstrap does: cwd is the clone."""
     box = tmp_path / "box"
     (box / "scripts" / "gpu_helpers").mkdir(parents=True)
     (box / "scripts" / "gpu_helpers" / "emit_artifacts.sh").write_text(STUB_EMITTER)
+    for helper in ("reemit_on_box.sh", "fairtest_run_ids.py"):
+        (box / "scripts" / "gpu_helpers" / helper).write_text((GH / helper).read_text())
     for index in range(sealed_count):
         run = box / "results" / f"20261112T09000{index}Z"
         run.mkdir(parents=True)
         (run / "capture.json").write_text("{}")
-    env = {**os.environ, "TFM_CHUNK_LINES": "0"}
+    for index in range(unrelated):
+        run = box / "results" / f"20251101T12{index:04d}Z"
+        run.mkdir(parents=True)
+        (run / "capture.json").write_text("{}")
+    env = {
+        **os.environ,
+        "TFM_CHUNK_LINES": "0",
+        "TFM_RUN_STAMP": "20261112T090000Z",
+        "TFM_FAIRTEST_TARGETS": "frequency_french frequency_spanish severity_french severity_spanish",
+    }
     return subprocess.run(
-        ["bash", str(GH / "reemit_on_box.sh")],
+        ["bash", "scripts/gpu_helpers/reemit_on_box.sh"],
         env=env,
         cwd=str(box),
         capture_output=True,
@@ -318,11 +395,18 @@ def test_the_on_box_check_emits_every_sealed_capture(tmp_path):
     assert combined.count("EMITTED ") == 4, combined
 
 
+def test_the_on_box_check_ignores_captures_from_another_stamp(tmp_path):
+    result = _run_on_box(tmp_path, sealed_count=0, unrelated=37)
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "EMIT" not in result.stdout, result.stdout
+
+
 def test_the_on_box_check_declines_an_empty_or_partial_box(tmp_path):
     """Exit 1 is the contract the bootstrap branches on: 'do not skip the fit'."""
     empty = _run_on_box(tmp_path / "empty", sealed_count=0)
     assert empty.returncode == 1, empty.stdout + empty.stderr
     assert "EMIT" not in empty.stdout, empty.stdout
+    assert "PARTIAL" not in empty.stdout, "a first boot is not a partial launch"
 
     partial = _run_on_box(tmp_path / "partial", sealed_count=3)
     assert partial.returncode == 1, partial.stdout + partial.stderr

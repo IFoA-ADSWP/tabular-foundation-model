@@ -193,7 +193,10 @@ JSON
           # The shape of an old box (or a partly-sealed one) taking the normal path after a restart.
           echo "--- installing deps (stub pins) ---"
       fi
-      if [ -f "$EMITTER" ]; then
+      if [ -f "$EMITTER" ] && [ "${MOCK_NO_PAYLOAD:-0}" = "1" ]; then
+          # A launch whose fits failed emitted nothing: the log carries no payload at all.
+          :
+      elif [ -f "$EMITTER" ]; then
           if [ "${MOCK_PER_TARGET:-0}" = "1" ]; then
               # The primary fair test emits ONE payload per target, chunked (#564). Mirror the
               # real bootstrap: one emit per subdirectory, each naming its own payload, so a

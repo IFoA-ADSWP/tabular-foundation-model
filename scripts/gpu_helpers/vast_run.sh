@@ -26,10 +26,14 @@
 #                    (10,000 rows x 30 epochs) and returns its record (#528)
 #   --fairtest MODE  run a fair-test step instead of arms; `gate` runs the resolution gate,
 #                    `primary` runs the registered pair WITH its captures (chunked transfer, #564)
-#                    and returns the per-target MDE summary (#555)
+#                    and returns the per-target MDE summary (#555); `reemit` attaches to a KEPT
+#                    instance (`--instance ID`) and re-sends its captures without re-fitting (#568)
+#   --instance ID    the kept instance `--fairtest reemit` attaches to; ignored elsewhere
 #   --image NAME     override the docker image
 #   --transport T    execute | ssh                   (default: execute)
 #   --keep           do NOT destroy on exit
+#   --keep-fitting   with --fairtest reemit: if the box starts fitting instead of re-emitting,
+#                    leave it running (default: destroy it, so a paid re-fit does not bill on)
 #   --yes            skip the confirmation prompt
 #
 # WHY `execute` AND NOT SSH: this account is in a TEAM context, and Vast
@@ -117,6 +121,7 @@ FAIRTEST="${FAIRTEST:-}"
 IMAGE=""
 TRANSPORT="onstart"
 KEEP=0
+KEEP_FITTING=0
 ASSUME_YES=0
 # The kept instance a `--fairtest reemit` iteration attaches to (#568). Empty for every launch;
 # re-emit creates nothing, so it is the one mode that has no offer and no lease.
@@ -133,6 +138,7 @@ MAX_ATTEMPTS="${MAX_ATTEMPTS:-2}"
 # which the box emits only at the end -- was never shipped. A thirty-seed batch took 46 min
 # against a 40 min ceiling and lost $0.21 and 46 minutes of compute (2026-11-04).
 POLL_MINUTES="${POLL_MINUTES:-40}"
+POLL_MINUTES_GIVEN=0
 POLL_TIMEOUT="${POLL_TIMEOUT:-45}"
 # How many log lines one poll asks for. MEASURED 2026-11-12 on a ~45,000-line log: `--tail 8000`
 # answers in 4 s and `--tail 10000` in 5 s, while 12000, 16000 and the old default 20000 all fail
@@ -184,11 +190,12 @@ while [ $# -gt 0 ]; do
         --image)     IMAGE="$2"; shift 2 ;;
         --transport) TRANSPORT="$2"; shift 2 ;;
         --max-attempts) MAX_ATTEMPTS="$2"; shift 2 ;;
-        --poll-minutes) POLL_MINUTES="$2"; shift 2 ;;
+        --poll-minutes) POLL_MINUTES="$2"; POLL_MINUTES_GIVEN=1; shift 2 ;;
         --estimate-sec-per-seed) EST_SEC_PER_SEED="$2"; shift 2 ;;
         --keep)      KEEP=1; shift ;;
+        --keep-fitting) KEEP_FITTING=1; shift ;;
         --yes)       ASSUME_YES=1; shift ;;
-        -h|--help)   sed -n '2,31p' "$0"; exit 0 ;;
+        -h|--help)   sed -n '2,33p' "$0"; exit 0 ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
 done
@@ -211,9 +218,24 @@ if [ "$FAIRTEST" = "reemit" ]; then
         echo "FATAL: --fairtest reemit needs --instance ID (the instance the launch kept)." >&2
         exit 2
     fi
-    REEMIT_ARGS=(--instance "$INSTANCE_ARG" --poll-minutes "$POLL_MINUTES" --yes)
+    # Frame-owning options describe a launch to fit. `reemit` fits nothing, so they are refused
+    # rather than ignored -- the seam this launcher keeps closing (#450).
+    if [ -n "$EXPERIMENT$ARMS$DATASET$TRAIN_SIZE$TEST_SIZE$BENCHMARK" ]; then
+        echo "FATAL: --fairtest reemit launches nothing; drop --experiment/--arms/--dataset/" >&2
+        echo "       --train-size/--test-size/--benchmark. The box's own launch owns the frame." >&2
+        exit 2
+    fi
+    # Provisioning options are meaningless here (no offer is selected, nothing is created). Say so
+    # rather than silently dropping them; the tests pass --offer-id through the shared helper.
+    [ -n "$OFFER_ID" ] && echo "note: --offer-id is ignored; reemit creates nothing."
+    [ "$TRANSPORT" = "ssh" ] && echo "note: --transport is ignored; reemit reads the container log."
+    REEMIT_ARGS=(--instance "$INSTANCE_ARG" --yes)
+    # Only forward a ceiling the operator chose: the driver sizes its own from the target count,
+    # and the launcher's 40-minute default is a launch ceiling, not a transfer one.
+    [ "${POLL_MINUTES_GIVEN:-0}" -eq 1 ] && REEMIT_ARGS+=(--poll-minutes "$POLL_MINUTES")
     [ -n "$SEEDS" ] && REEMIT_ARGS+=(--seeds "$SEEDS")
     [ "$KEEP" -eq 1 ] && REEMIT_ARGS+=(--keep)
+    [ "$KEEP_FITTING" -eq 1 ] && REEMIT_ARGS+=(--keep-fitting)
     exec bash "$REPO_DIR/scripts/gpu_helpers/reemit_captures.sh" "${REEMIT_ARGS[@]}"
 fi
 
