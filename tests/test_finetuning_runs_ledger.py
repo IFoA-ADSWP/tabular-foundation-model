@@ -98,9 +98,20 @@ def _launch_record(
     seed: int = 42,
     epochs: int | None = None,
     train_rows: int = 10000,
+    seed_dir: bool = False,
+    dir_seed: int | None = None,
 ) -> Path:
-    """One committed launch record — real metrics, no capture.json, no provenance block."""
-    path = runs / run_id / dataset / (arm or "unlabelled") / "meta.json"
+    """One committed launch record — real metrics, no capture.json, no provenance block.
+
+    `seed_dir` writes the 2026-11-21 ladder layout, `<arm>/seed<N>_foldNone/meta.json`; `dir_seed`
+    puts a different N in the directory than in the record, so a caller can prove the loader
+    refuses the disagreement.
+    """
+    arm_dir = runs / run_id / dataset / (arm or "unlabelled")
+    directory = (
+        arm_dir / f"seed{seed if dir_seed is None else dir_seed}_foldNone" if seed_dir else arm_dir
+    )
+    path = directory / "meta.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "run_id": f"{dataset}_{arm}_seed{seed}",
@@ -421,6 +432,114 @@ def test_the_launch_loader_refuses_a_record_with_no_arm(tmp_path, load_script):
 
     with pytest.raises(module.EvidenceError, match="names no arm"):
         module.launch_rows(runs)
+
+
+def test_the_launch_loader_reads_the_seed_directory_layout(tmp_path, load_script):
+    """The 2026-11-21 ladder writes `<arm>/seed<N>_foldNone/meta.json` (#678)."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    runs = tmp_path / "runs"
+    _launch_record(
+        runs, "20261121T015805Z", "uslapseagent", "A_raw", seed=55, seed_dir=True
+    )
+    _launch_record(
+        runs,
+        "20261121T015805Z",
+        "uslapseagent",
+        "B_ft30",
+        seed=55,
+        epochs=30,
+        seed_dir=True,
+    )
+
+    rows = module.launch_rows(runs)
+
+    assert len(rows) == 2
+    assert {(row.dataset, row.arm, row.seed) for row in rows} == {
+        ("uslapseagent", "A_raw", 55),
+        ("uslapseagent", "B_ft30", 55),
+    }
+    assert {row.run_id for row in rows} == {"20261121T015805Z"}
+    assert {row.status for row in rows} == {"no-capture"}
+    assert {row.train_rows for row in rows} == {10000}
+    ft30 = next(row for row in rows if row.arm == "B_ft30")
+    assert ft30.epochs == 30
+    assert ft30.source.endswith("seed55_foldNone/meta.json")
+
+
+def test_the_launch_loader_reads_both_layouts_from_one_tree(tmp_path, load_script):
+    """The older flat launch is still read, beside a ladder Run, with no rows lost."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    runs = tmp_path / "runs"
+    for arm, epochs in (("A_raw", None), ("B_ft3", 3), ("B_ft10", 10), ("B_ft30", 30)):
+        _launch_record(runs, "20260914T010247Z", "uslapseagent", arm, epochs=epochs)
+    _launch_record(
+        runs, "20261121T015805Z", "eudirectlapse", "A_raw", seed=1001, seed_dir=True
+    )
+
+    rows = module.launch_rows(runs)
+
+    assert len(rows) == 5
+    assert {row.run_id for row in rows} == {"20260914T010247Z", "20261121T015805Z"}
+    assert {row.dataset for row in rows} == {"uslapseagent", "eudirectlapse"}
+
+
+def test_the_launch_loader_refuses_a_directory_seed_that_disagrees(tmp_path, load_script):
+    """Two claims about one file: the directory says seed 56, the record seed 55."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    runs = tmp_path / "runs"
+    _launch_record(
+        runs,
+        "20261121T015805Z",
+        "uslapseagent",
+        "A_raw",
+        seed=55,
+        seed_dir=True,
+        dir_seed=56,
+    )
+
+    with pytest.raises(module.EvidenceError, match="directory names seed 56, the record 55"):
+        module.launch_rows(runs)
+
+
+def test_the_ladder_launch_records_reach_the_ledger(load_script):
+    """The committed 2026-11-21 ladder: 112 uslapseagent rows and 80 eudirectlapse rows (#678)."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    rows = [row for row in module.load_rows() if row.experiment_family == "gpu-pilot"]
+
+    ladder = [row for row in rows if row.run_id.startswith("20261121")]
+    us = [row for row in ladder if row.dataset == "uslapseagent"]
+    eu = [row for row in ladder if row.dataset == "eudirectlapse"]
+
+    assert len(ladder) == 192
+    assert len(us) == 112
+    assert len(eu) == 80
+    assert {row.train_rows for row in us} == {2000, 5000}
+    assert {row.train_rows for row in eu} == {10000}
+    assert {row.seed for row in us} == set(range(55, 83))
+    assert {row.seed for row in eu} == set(range(1001, 1021))
+    assert {row.arm for row in us} == {"A_raw", "B_ft30"}
+    assert {row.arm for row in eu} == {"A_raw", "B_ft3", "B_ft10", "B_ft30"}
+    assert {row.status for row in ladder} == {"no-capture"}
+    assert {row.task for row in ladder} == {"lapse"}
+    assert {row.problem_type for row in ladder} == {"classification"}
+
+    # The older flat launch is still read unchanged, beside the ladder.
+    old = [row for row in rows if row.run_id == "20260914T010247Z"]
+    assert len(old) == 4
+    assert len(rows) == 196
+
+
+def test_the_ladder_rows_stay_out_of_the_summary(load_script):
+    """`no-capture` rows carry metrics but cannot sit inside a mean over captured Runs."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    csv_rows = [module.csv_row(row) for row in module.load_rows()]
+
+    summary = module.summarise(csv_rows)
+
+    assert [entry for entry in summary if entry["family"] == "gpu-pilot"] == []
+    ladder = [row for row in csv_rows if row["run_id"].startswith("20261121")]
+    assert ladder and {row["status"] for row in ladder} == {"no-capture"}
+    assert all(row["roc_auc"] for row in ladder)
 
 
 def test_the_pilot_overlap_is_listed_and_the_aggregate_is_the_chosen_form(load_script):
