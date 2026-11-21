@@ -197,6 +197,8 @@ if [ -n "${TFM_FAIRTEST_TARGETS:-}" ]; then
     TARGET_COUNT=0
     for _t in $TFM_FAIRTEST_TARGETS; do TARGET_COUNT=$(( TARGET_COUNT + 1 )); done
 fi
+POLL_GIVEN=0
+[ -n "$POLL_MINUTES" ] && POLL_GIVEN=1
 if [ -z "$POLL_MINUTES" ]; then
     POLL_MINUTES=$(( 15 + 30 * TARGET_COUNT ))
 fi
@@ -289,6 +291,29 @@ while [ "$(date -u +%s)" -lt "$DEADLINE" ]; do
             esac
             BOX_SEALED="$(printf '%s' "$CURRENT" | sed -n 's/^########## REEMIT: \([0-9][0-9]*\) sealed.*/\1/p' | tail -1)"
             [ -n "$BOX_SEALED" ] && EXPECTED="$BOX_SEALED"
+            # The transfer is paced, so its time follows the chunk count the box declares (#701).
+            # Without this the ceiling was sized from the target count: 45 minutes for a capture
+            # measured at 182 chunks and ~2 hours for its first pass.
+            DECLARED_CHUNKS="$(printf '%s' "$WINDOW" | grep -ao 'chunks=[0-9][0-9]*' | head -1 | cut -d= -f2)"
+            if [ -n "$DECLARED_CHUNKS" ] && [ "$POLL_GIVEN" -eq 0 ]; then
+                # The re-emit stops at the FIRST complete pass, so --passes 1: every chunk has
+                # arrived once and the verifier is satisfied. A launch waits for all passes; a
+                # recovery does not, which is half the transfer time.
+                PER_CAPTURE="$(python3 "$SCRIPT_DIR/transfer_minutes.py" --chunks "$DECLARED_CHUNKS" \
+                    --pause "${TFM_CHUNK_PAUSE:-20}" --repeat "${TFM_CHUNK_REPEAT:-2}" \
+                    --passes 1 2>/dev/null)"
+                CAPTURES="$EXPECTED"
+                [ "$CAPTURES" -lt 1 ] && CAPTURES=1
+                if [ -n "$PER_CAPTURE" ]; then
+                    IMPLIED=$(( PER_CAPTURE * CAPTURES ))
+                fi
+                if [ -n "$IMPLIED" ] && [ "$(( IMPLIED + 15 ))" -gt "$POLL_MINUTES" ]; then
+                    POLL_MINUTES=$(( IMPLIED + 15 ))
+                    DEADLINE=$(( T_START + POLL_MINUTES * 60 ))
+                    echo "  $CAPTURES capture(s) of $DECLARED_CHUNKS chunks: ~${IMPLIED} min for a first pass" >&2
+                    echo "  at the shipped pacing; ceiling extended to ${POLL_MINUTES} min" >&2
+                fi
+            fi
 
             python3 "$SCRIPT_DIR/collect_chunks.py" merge --window "$WINDOW" --state "$CHUNKS" >/dev/null 2>&1 || true
             if [ "$EXPECTED" -gt 0 ] && python3 "$SCRIPT_DIR/collect_chunks.py" assemble --state "$CHUNKS" --out "$RAW" >/dev/null 2>&1; then

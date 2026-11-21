@@ -9,7 +9,10 @@
 #   --query 'Q'      extra offer search filters
 #   --pick HOW       value | cheapest | fastest      (default: value = dlperf/$)
 #   --max-dph N      hard price ceiling in $/hr      (default 0.60)
-#   --poll-minutes N how long to wait for the box to finish (default 40)
+#   --poll-minutes N how long to wait for the box to finish (default 40); a DURATION, not a poll
+#                    count, and for --fairtest primary the frame estimate refuses a short one
+#   --stall-minutes N release a box that stops working after its first marker (default 15; 0 off)
+#   --boot-minutes N release a box with no bootstrap marker at all (default 30; 0 off)
 #   --estimate-sec-per-seed N
 #                    the per-seed runtime used by the pre-flight check (default 90)
 #   --min-vram N     minimum VRAM in GB              (default 23)
@@ -191,11 +194,13 @@ while [ $# -gt 0 ]; do
         --transport) TRANSPORT="$2"; shift 2 ;;
         --max-attempts) MAX_ATTEMPTS="$2"; shift 2 ;;
         --poll-minutes) POLL_MINUTES="$2"; POLL_MINUTES_GIVEN=1; shift 2 ;;
+        --stall-minutes) STALL_MINUTES="$2"; shift 2 ;;
+        --boot-minutes) BOOT_MINUTES="$2"; shift 2 ;;
         --estimate-sec-per-seed) EST_SEC_PER_SEED="$2"; shift 2 ;;
         --keep)      KEEP=1; shift ;;
         --keep-fitting) KEEP_FITTING=1; shift ;;
         --yes)       ASSUME_YES=1; shift ;;
-        -h|--help)   sed -n '2,33p' "$0"; exit 0 ;;
+        -h|--help)   sed -n '2,36p' "$0"; exit 0 ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
 done
@@ -282,19 +287,17 @@ if [ -n "$FAIRTEST" ]; then
         echo "       Wire the ssh pull to results/ before using it, or drop --transport ssh." >&2
         exit 2
     fi
-    # The ceiling follows the number of targets: one target is ~15 min of fits plus two transfer
-    # passes, not the four-target figure the first version hardcoded and then refused a legitimate
-    # single-target launch with (#570). Counted here rather than read from EXPECT_CAPTURES: this
-    # check runs before the mode block that computes it.
+    # THE FIT COUNT IS THE FRAME (#701). This model used to count `arms x seeds` and call the
+    # result a ceiling. The runner fits `folds x seeds x arms`, and each fit is three estimator
+    # passes (finetune, validation, final inference). Measured 2026-11-21 on severity_french:
+    # 5 folds x 20 seeds x 4 arms = 400 fits took 4 h 26 m on an A100 with 10,000 rows, i.e. about
+    # 40 s per fit -- and the old model predicted 2.2 h for it. Folds default to the runner's 5
+    # because the bootstrap never passes --folds.
     TARGET_COUNT=4
     if [ -n "${TFM_FAIRTEST_TARGETS:-}" ]; then
         TARGET_COUNT=0
         for _target_name in $TFM_FAIRTEST_TARGETS; do TARGET_COUNT=$(( TARGET_COUNT + 1 )); done
     fi
-    REQUIRED_POLL_MINUTES=$(( 15 + 30 * TARGET_COUNT ))
-    # The 30 min/target ceiling above is measured for the primary pair on three seeds. A wider
-    # arm or seed list multiplies the fits, so the ceiling has to grow with it: the gate's 120
-    # fits took 58.9 min, i.e. about half a minute per fit, and this allows 2 min each.
     ARMS_COUNT=2
     if [ -n "${TFM_FAIRTEST_ARMS:-}" ]; then
         ARMS_COUNT=$(( $(printf '%s' "$TFM_FAIRTEST_ARMS" | tr -cd ',' | wc -c) + 1 ))
@@ -303,14 +306,29 @@ if [ -n "$FAIRTEST" ]; then
     if [ -n "${TFM_FAIRTEST_SEEDS:-}" ]; then
         SEEDS_COUNT=$(( $(printf '%s' "$TFM_FAIRTEST_SEEDS" | tr -cd ',' | wc -c) + 1 ))
     fi
-    COMBOS=$(( ARMS_COUNT * SEEDS_COUNT ))
-    if [ "$COMBOS" -gt 6 ]; then
-        REQUIRED_POLL_MINUTES=$(( REQUIRED_POLL_MINUTES + 2 * TARGET_COUNT * (COMBOS - 6) ))
-    fi
+    # The runner's default, and the bootstrap never passes --folds: a knob here would change the
+    # estimate and not the run, which is the seam rule this repo keeps closing.
+    FOLDS_COUNT=5
+    FITS=$(( TARGET_COUNT * ARMS_COUNT * SEEDS_COUNT * FOLDS_COUNT ))
+    SEC_PER_FIT="${TFM_SEC_PER_FIT:-45}"
+    FIT_MINUTES=$(( (FITS * SEC_PER_FIT + 59) / 60 ))
+    # The transfer is paced, not bandwidth-bound, so it is counted in CHUNKS. Measured
+    # 2026-11-21: 400 fits produced a 182-chunk capture, i.e. about one chunk per two fits, and
+    # one pass took ~2 h at the shipped pacing. Both passes must land before BOOTSTRAP FINISHED.
+    EXPECTED_CHUNKS=$(( (FITS + 1) / 2 ))
+    TRANSFER_MINUTES="${TFM_TRANSFER_MINUTES:-$(python3 "$REPO_DIR/scripts/gpu_helpers/transfer_minutes.py" \
+        --chunks "$EXPECTED_CHUNKS" --pause "${TFM_CHUNK_PAUSE:-20}" \
+        --repeat "${TFM_CHUNK_REPEAT:-2}" --passes "${TFM_CHUNK_PASSES:-2}")}"
+    REQUIRED_POLL_MINUTES=$(( 15 + FIT_MINUTES + TRANSFER_MINUTES ))
+    echo "  frame: $TARGET_COUNT target(s) x $ARMS_COUNT arm(s) x $SEEDS_COUNT seed(s) x $FOLDS_COUNT fold(s) = $FITS fits"
+    echo "         ~$FIT_MINUTES min of fits (${SEC_PER_FIT}s each) + ~$TRANSFER_MINUTES min of transfer"
     # A raised row budget multiplies the fit time, so the ceiling scales with it: the measured
     # 10,000-row target takes ~15 min of fits, and cost is close to linear in rows (#572).
     if [ -n "${TFM_TRAIN_ROWS:-}" ] && [ "$TFM_TRAIN_ROWS" -gt 10000 ]; then
         REQUIRED_POLL_MINUTES=$(( REQUIRED_POLL_MINUTES + 20 * TARGET_COUNT * (TFM_TRAIN_ROWS / 10000 - 1) ))
+    fi
+    if [ "$FAIRTEST" = "primary" ]; then
+        echo "         -> ceiling $REQUIRED_POLL_MINUTES min (refused below this)"
     fi
     if [ "$FAIRTEST" = "primary" ] && [ "$POLL_MINUTES" -lt "$REQUIRED_POLL_MINUTES" ]; then
         # The ceiling must cover ~60 min of fits plus ~40 min of paced transfer plus cold start.
@@ -541,6 +559,7 @@ rec = {
     "wall_minutes": round(wall_s / 60.0, 2),
     "est_cost_usd": round(wall_s / 3600.0 * float("$DPH" or 0), 4),
     "bootstrap_rc": "$BOOTSTRAP_RC",
+    "abort_reason": "$ABORT_REASON",
 }
 
 with open(os.path.join(outdir, f"run_{stamp}.json"), "w") as f:
@@ -1057,7 +1076,64 @@ else
     EMPTY_STREAK=0
     LAST_ITER=""
     SUSPEND_GAPS=0
-    for i in $(seq 1 $(( POLL_MINUTES * 3 ))); do   # 20s per poll
+    # The ceiling is a DURATION, not a poll count (#701). The loop used to run
+    # `POLL_MINUTES * 3` iterations, and a real iteration takes ~13.5 s (a poll plus its sleep),
+    # so `--poll-minutes 210` ended after 142 minutes. On 2026-11-21 that cut the window while
+    # the fits were still running: the box was kept (correct) and the capture had to be recovered
+    # by re-emit. `TFM_POLL_DEADLINE_SECS` overrides the duration for tests and canaries.
+    POLL_DEADLINE_SECS="${TFM_POLL_DEADLINE_SECS:-$(( POLL_MINUTES * 60 ))}"
+    POLL_SECONDS="${TFM_POLL_SECONDS:-10}"
+    POLL_DEADLINE=$(( $(date -u +%s) + POLL_DEADLINE_SECS ))
+    echo "  ceiling: ${POLL_DEADLINE_SECS}s of wall clock (${POLL_MINUTES} min)"
+    # #433: a box that stops advancing must not bill to the ceiling. Two bounds, because the two
+    # measured failures are different: a clone that hung for 28 minutes before the first marker,
+    # and a run that stalls after it. 0 disables either.
+    STALL_MINUTES="${STALL_MINUTES:-15}"
+    BOOT_MINUTES="${BOOT_MINUTES:-30}"
+    # Seconds, so a test can watch the bound fire without waiting fifteen minutes.
+    STALL_SECONDS="${STALL_SECONDS:-$(( STALL_MINUTES * 60 ))}"
+    BOOT_SECONDS="${BOOT_SECONDS:-$(( BOOT_MINUTES * 60 ))}"
+    STALL_LABEL="${STALL_MINUTES} min"
+    [ "$STALL_SECONDS" -lt 60 ] && STALL_LABEL="${STALL_SECONDS}s"
+    BOOT_LABEL="${BOOT_MINUTES} min"
+    [ "$BOOT_SECONDS" -lt 60 ] && BOOT_LABEL="${BOOT_SECONDS}s"
+    LOG_SIZE=-1
+    STALL_SINCE=""
+    SAW_MARKER=0
+    MARKER_SEEN_AT=""
+    GPU_BUSY=0
+    ABORT_RELEASE=0
+    ABORT_REASON=""
+    # #433: abort on a box that is not working. The release decision is separate from the abort:
+    # a capture already emitted is paid work, and --fairtest reemit can bring it back, so that box
+    # is KEPT. A box with no capture is released, because keeping it buys nothing.
+    stall_abort() {
+        ABORT_REASON="$1"
+        RUN_RC=1
+        echo "WARNING: $1" >&2
+        if grep -aqE '^########## EMIT |^__ARTIFACTS_INFO__' "$RUN_OUT" 2>/dev/null; then
+            KEEP=1
+            ABORT_RELEASE=0
+            echo "         A capture is on the box (an EMIT/ARTIFACTS marker is in the log), so it is" >&2
+            echo "         KEPT for --fairtest reemit. It BILLS until destroyed." >&2
+        else
+            ABORT_RELEASE=1
+            echo "         No capture had been emitted, so the box is released (#433)." >&2
+        fi
+    }
+    i=0
+    while [ "$(date -u +%s)" -lt "$POLL_DEADLINE" ]; do
+        i=$(( i + 1 ))
+        # The launch's own checkout can disappear mid-run (it did on 2026-11-21 when a worktree
+        # was pruned): every merge then failed with "No such file" for ten minutes while the box
+        # billed. Refuse before the next merge instead of polling on.
+        if [ ! -f "$REPO_DIR/scripts/gpu_helpers/collect_chunks.py" ]; then
+            echo "FATAL: the launch's checkout at $REPO_DIR is gone; it cannot merge or verify the" >&2
+            echo "       payload. The box is released. Re-run from a clone that nothing prunes." >&2
+            ABORT_RELEASE=1
+            RUN_RC=1
+            break
+        fi
         NOW_S="$(date -u +%s)"
         if [ -n "$LAST_ITER" ]; then
             GAP_S=$(( NOW_S - LAST_ITER ))
@@ -1112,6 +1188,45 @@ else
                 echo "  WARNING: log capture empty 3x -- $(printf '%s' "$ERR" | cut -c1-80)" >&2
             fi
         fi
+        # #433: what counts as progress. The runner prints NOTHING while it fits -- measured
+        # 14.7 min per target for the gate's frame and 300 min for the 400-fit one -- so log bytes
+        # alone would call a healthy fit a stall and destroy the box minutes into its first target.
+        # A busy GPU is progress too. Measured 2026-11-21: a hung `git clone` shows neither a new
+        # line nor a busy GPU.
+        NEW_SIZE=$(wc -c < "$RUN_OUT" 2>/dev/null || echo 0)
+        GPU_UTIL="$(vastai show instance "$INSTANCE_ID" --raw 2>/dev/null | python3 -c '
+import json, sys
+try:
+    print(int(float(json.load(sys.stdin).get("gpu_util") or 0)))
+except Exception:
+    print(0)' 2>/dev/null)"
+        case "$GPU_UTIL" in ''|*[!0-9]*) GPU_UTIL=0 ;; esac
+        [ "$GPU_UTIL" -ge 5 ] && GPU_BUSY=1
+        if [ "$NEW_SIZE" != "$LOG_SIZE" ] || [ "$GPU_BUSY" -eq 1 ]; then
+            LOG_SIZE=$NEW_SIZE
+            GPU_BUSY=0
+            STALL_SINCE=""
+        elif [ -z "$STALL_SINCE" ]; then
+            STALL_SINCE=$(date -u +%s)
+        fi
+        grep -aq '^##########' "$RUN_OUT" 2>/dev/null && SAW_MARKER=1
+        if [ "$SAW_MARKER" -eq 1 ] && [ -z "$MARKER_SEEN_AT" ]; then
+            # The stall window starts AT the first marker, as #433 specifies. A quiet bootstrap
+            # before it is the bootstrap bound's business, not the stall bound's.
+            MARKER_SEEN_AT=$(date -u +%s)
+            STALL_SINCE=""
+        fi
+        NOW_S=$(date -u +%s)
+        if [ "$SAW_MARKER" -eq 1 ] && [ "$STALL_SECONDS" -gt 0 ] && [ -n "$STALL_SINCE" ] \
+           && [ $(( NOW_S - STALL_SINCE )) -ge "$STALL_SECONDS" ]; then
+            stall_abort "the box has written nothing and its GPU has been idle for >= ${STALL_LABEL} after its first marker"
+            break
+        fi
+        if [ "$SAW_MARKER" -eq 0 ] && [ "$BOOT_SECONDS" -gt 0 ] \
+           && [ $(( NOW_S - T_RUNNING )) -ge "$BOOT_SECONDS" ]; then
+            stall_abort "no bootstrap marker within ${BOOT_LABEL} of the container starting (a hung clone or image step)"
+            break
+        fi
         if grep -q "BOOTSTRAP FINISHED" $RUN_OUT 2>/dev/null; then
             BOOTSTRAP_DONE=1
             break
@@ -1121,9 +1236,9 @@ else
         [ -n "$PROG" ] && echo "  [$i] $PROG"
         # Shorter than the old 20s because each poll now answers in ~5s: a chunk stays inside an
         # 8,000-line window for about five chunk-blocks, and more polls per window is free.
-        sleep 10
+        sleep "$POLL_SECONDS"
     done
-    if [ "$BOOTSTRAP_DONE" != "1" ]; then
+    if [ "$BOOTSTRAP_DONE" != "1" ] && [ "$ABORT_RELEASE" -ne 1 ]; then
         echo "WARNING: bootstrap did not report BOOTSTRAP FINISHED within ${POLL_MINUTES} min." >&2
         echo "         The instance is about to be destroyed and the box ships its payload only on" >&2
         echo "         completion, so this batch's compute is being discarded. Re-run with fewer" >&2
@@ -1245,10 +1360,16 @@ case "$ART_RC" in
 esac
 # A fair-test capture is an hour of paid fits, so a refused transfer keeps the instance rather
 # than destroying the evidence with the fault (#564).
-if [ "$PRIMARY_MODE" = 1 ] && [ "$ART_RC" -ne 0 ]; then
+if [ "$PRIMARY_MODE" = 1 ] && [ "$ART_RC" -ne 0 ] && [ "$ABORT_RELEASE" -ne 1 ]; then
     KEEP=1
     echo "KEEPING the instance ($INSTANCE_ID): the fits are still on the box, and the transfer" >&2
     echo "can be retried with --keep and a bigger --poll-minutes. It BILLS until destroyed." >&2
+fi
+if [ "$ABORT_RELEASE" -eq 1 ] && [ "$KEEP" -eq 1 ]; then
+    echo "--keep: NOT destroying $INSTANCE_ID despite the abort; it BILLS until destroyed." >&2
+elif [ "$ABORT_RELEASE" -eq 1 ]; then
+    echo "RELEASING the instance ($INSTANCE_ID): this launch was aborted for lack of progress and" >&2
+    echo "no capture had been emitted. See #433." >&2
 fi
 # A benchmark or fair-test launch exists to return its payload, so EVERY non-zero verification
 # outcome means the run produced nothing usable -- including an incomplete payload (4) and a

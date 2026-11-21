@@ -214,7 +214,7 @@ def test_the_onstart_payload_keeps_its_headroom_under_the_api_ceiling(tmp_path):
     worth a launch that cannot start, so the headroom is a test, not a comment.
     """
     payload = _payload_after_launch(
-        tmp_path, "--fairtest", "primary", "--poll-minutes", "180"
+        tmp_path, "--fairtest", "primary", "--poll-minutes", "240"
     ).encode()
 
     assert len(payload) < 16000, (
