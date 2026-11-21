@@ -4,7 +4,7 @@ One file per task: `docs/plans/<task>.md`. Write it **before** non-trivial work,
 change. A plan outranks a fresh ticket — check this directory before speccing or building, because the ticket
 you are about to write may already be covered.
 
-**This index is the only map.** Of the 83 plans, 65 are linked from no other document and only
+**This index is the only map.** Of the 84 plans, 65 are linked from no other document and only
 17 are even mentioned anywhere else.
 
 Each row carries the plan's own first heading, so the index cannot drift from the file it points at. The
@@ -17,7 +17,7 @@ since merged, and the pull request that merged it is the record of what happened
 the fact: a plan that says proposed stays that way unless its author amends it, because rewriting the status
 of a plan after the data would make the trail say something it did not.
 
-## Current, agreed or implemented — 75 plans
+## Current, agreed or implemented — 76 plans
 
 Newest first, by ticket number where the filename carries one.
 
@@ -25,6 +25,7 @@ Newest first, by ticket number where the filename carries one.
 | --- | --- |
 | [`678-launch-seed-layout.md`](678-launch-seed-layout.md) | the runs ledger reads both launch-record layouts (#678) |
 | [`685-access-recheck.md`](685-access-recheck.md) | refresh the model-access scoping note (#685) |
+| [`687-tabicl-probe.md`](687-tabicl-probe.md) | TabICL v2 CPU timing probe (#687) |
 | [`568-reemit-captures.md`](568-reemit-captures.md) | a kept instance re-emits its captures without re-fitting (#568) |
 | [`analysis-review.md`](analysis-review.md) | Plan: `analysis-review` skill |
 | [`anchor-checkpoint-assertion.md`](anchor-checkpoint-assertion.md) | refuse a launch whose weights are not the anchor's line |
