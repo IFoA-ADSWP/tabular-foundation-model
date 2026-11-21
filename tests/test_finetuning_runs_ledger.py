@@ -937,3 +937,66 @@ def test_the_pin_sentence_names_every_era_the_rows_record(load_script):
     rows = [_csv_record(module), _csv_record(module, era="later_era")]
 
     assert "`fixture_era` or `later_era`" in "\n".join(module._pin_lines(rows))
+
+
+# --- Eligible rows and the share trained on (#671) --------------------------------------------
+
+def test_every_ledger_dataset_has_a_curated_size(load_script):
+    """A new dataset must not render a blank `eligible_rows`: it has no sourced size."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+
+    datasets = {row.dataset for row in module.load_rows()}
+    assert datasets <= set(module.DATASET_SIZES)
+
+    with pytest.raises(module.EvidenceError, match="no curated DATASET_SIZES"):
+        module.csv_row(_row(module, dataset="a_dataset_nobody_sized"))
+
+
+def test_the_known_shares_are_pinned(load_script):
+    """The ticket's three: 10,000 and the full pool on French frequency, and Spanish severity."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    rows = [module.csv_row(row) for row in module.load_rows() if row.dataset == "freMTPL2freq"]
+
+    at_ten_thousand = {
+        row["share_of_eligible"] for row in rows if row["train_rows"] == "10000"
+    }
+    assert at_ten_thousand == {"0.0147"}
+
+    full_pool = {row["share_of_eligible"] for row in rows if int(row["train_rows"]) > 500_000}
+    assert full_pool == {"0.8000"}
+
+    severity = {
+        module.share_of_eligible(row)
+        for row in module.load_rows()
+        if row.dataset == "spanish_motor_severity" and row.train_rows == 4760
+    }
+    assert severity == {"0.8000"}
+
+
+def test_the_share_is_computed_not_stored(load_script):
+    """Two fabricated budgets on one dataset must yield two different shares."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    small = _row(module, dataset="freMTPL2freq", train_rows=10000)
+    large = _row(module, dataset="freMTPL2freq", train_rows=20000)
+
+    assert module.csv_row(small)["share_of_eligible"] == "0.0147"
+    assert module.csv_row(large)["share_of_eligible"] == "0.0295"
+    assert module.csv_row(small)["share_of_eligible"] != module.csv_row(large)[
+        "share_of_eligible"
+    ]
+
+
+def test_a_blank_numerator_gives_a_blank_share_but_keeps_the_eligible_count(load_script):
+    """The curated Spanish cell: no recorded training budget, but the dataset still has a size."""
+    module = load_script("finetuning_runs_ledger", SCRIPT)
+    rows = [
+        module.csv_row(row)
+        for row in module.load_rows()
+        if row.status == "no-capture" and row.train_rows is None
+    ]
+
+    assert rows
+    for row in rows:
+        assert row["share_of_eligible"] == ""
+        assert row["eligible_rows"] == "53502"
+

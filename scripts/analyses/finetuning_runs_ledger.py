@@ -53,6 +53,11 @@ are synthetic (`<dataset>_<arm>_seed<N>`) and Run ids are directory names.
   Never `v3`: `auto` names no version.
 - A blank metric means "not applicable", never zero. The only legitimate zero is `epochs = 0` on a
   regression raw control, which is a recorded epoch count.
+- `eligible_rows` is **curated from the pre-registrations' own dataset tables**, never derived from
+  a capture: a capture covers the arms that ran, not the prepared dataset. `share_of_eligible` is
+  computed per row as `train_rows / eligible_rows`, because one dataset carries a 10,000-row arm and
+  a 542,410-row full-pool arm, and a per-dataset share would be wrong for one of them. A dataset
+  with no curated size fails the renderer rather than printing a blank.
 - A per-seed record's own `run_id` is `<dataset>_<arm>_seed<N>`, not the Run id; the Run id is the
   directory.
 
@@ -98,6 +103,8 @@ COLUMNS = (
     "seed",
     "fold",
     "train_rows",
+    "eligible_rows",
+    "share_of_eligible",
     "roc_auc",
     "brier",
     "pr_auc",
@@ -338,6 +345,105 @@ DATASET_NOTES = {
         "(`Cost_claims_year / N_claims_year`, log scale)"
     ),
 }
+
+
+@dataclass(frozen=True)
+class DatasetSize:
+    """A dataset's prepared size, the unit it is counted in, and where the figure was sourced.
+
+    `detail` carries the second unit where a dataset has one (French severity's policies, Spanish
+    severity's claim-equivalents), so the document can show both without a second map.
+    """
+
+    eligible_rows: int
+    unit: str
+    source: str
+    detail: str = ""
+
+
+# The prepared size of each dataset, curated from the pre-registrations' own dataset tables — **not**
+# derived from a capture (a capture covers the arms that ran, not the dataset that existed) and not
+# from a count of the committed records. `unit` is the unit the ledger's `train_rows` is counted in:
+# a claim count beside a policy-row numerator would make the share meaningless, so the French severity
+# entry is 26,444 claims (not the 24,944 policies carrying them) and the Spanish severity entry is
+# 5,950 claiming policies (not the 11,167 claim-equivalents the weighted fit counts).
+DATASET_SIZES = {
+    "coil2000": DatasetSize(
+        9822,
+        "policy",
+        "docs/experiments/pilot2-phase2/FINETUNING_EXPERIMENT_REFERENCE.md",
+    ),
+    "uslapseagent": DatasetSize(
+        29317,
+        "policy",
+        "docs/experiments/pilot2-phase2/FINETUNING_EXPERIMENT_REFERENCE.md",
+    ),
+    "eudirectlapse": DatasetSize(
+        23060,
+        "policy",
+        "docs/experiments/pilot2-phase2/FINETUNING_EXPERIMENT_REFERENCE.md",
+    ),
+    "spanish_motor_lapse": DatasetSize(
+        53502,
+        "policy",
+        "docs/experiments/frontier-benchmark/regime_characterization.md",
+    ),
+    "freMTPL2freq": DatasetSize(
+        678013,
+        "policy",
+        "docs/experiments/fair-test-freq-sev/REGRESSOR_FINETUNING_PREREGISTRATION_FREQ_SEV_2026-11.md",
+    ),
+    "spanish_motor_freq": DatasetSize(
+        53502,
+        "policy",
+        "docs/experiments/fair-test-freq-sev/REGRESSOR_FINETUNING_PREREGISTRATION_FREQ_SEV_2026-11.md",
+    ),
+    "freMTPL2sev": DatasetSize(
+        26444,
+        "claim",
+        "docs/experiments/fair-test-freq-sev/REGRESSOR_FINETUNING_PREREGISTRATION_FREQ_SEV_2026-11.md",
+        "the 26,444 claims sit on 24,944 policies",
+    ),
+    "spanish_motor_severity": DatasetSize(
+        5950,
+        "claiming policy",
+        "docs/experiments/fair-test-freq-sev/REGRESSOR_FINETUNING_PREREGISTRATION_FREQ_SEV_2026-11.md",
+        "11,167 claim-equivalents carry the claim weight",
+    ),
+}
+
+# The share is a fraction of eligible rows, printed to four decimal places so two runs on the same
+# tree write the same bytes.
+SHARE_PLACES = 4
+
+
+def dataset_size(dataset: str) -> DatasetSize:
+    """The curated size of a dataset, or a refusal.
+
+    A dataset with no entry would otherwise render an empty `eligible_rows` and an empty share, which
+    reads as "the dataset has no size" rather than "nobody sourced one". Adding a campaign to the
+    registry without a sourced size must fail here instead.
+    """
+    size = DATASET_SIZES.get(dataset)
+    if size is None:
+        raise EvidenceError(
+            f"{dataset!r} has no curated DATASET_SIZES entry: add its prepared row count, unit and "
+            "source pointer rather than letting the ledger render blank"
+        )
+    return size
+
+
+def share_of_eligible(row: LedgerRow) -> str:
+    """`train_rows / eligible_rows`, or blank when the row records no training budget.
+
+    Computed per row, never stored: the same dataset has a 10,000-row arm and a full-pool baseline.
+    A blank numerator gives a blank share — the Spanish `no-capture` rows — while `eligible_rows`
+    stays populated, because the dataset's size does not depend on whether a capture exists.
+    """
+    if row.train_rows is None:
+        return ""
+    return f"{row.train_rows / dataset_size(row.dataset).eligible_rows:.{SHARE_PLACES}f}"
+
 
 # Curated withdrawals. Mechanical replacement detection returns zero on this evidence (the Runs are
 # seed-disjoint by construction; three duplicate launches were discarded before commit and their ids
@@ -1119,6 +1225,8 @@ def csv_row(row: LedgerRow) -> dict[str, str]:
         "seed": _integer(row.seed),
         "fold": _integer(row.fold),
         "train_rows": _integer(row.train_rows),
+        "eligible_rows": _integer(dataset_size(row.dataset).eligible_rows),
+        "share_of_eligible": share_of_eligible(row),
         "roc_auc": _number(row.roc_auc, 6),
         "brier": _number(row.brier, 6),
         "pr_auc": _number(row.pr_auc, 6),
@@ -1392,19 +1500,43 @@ def render_document(csv_rows: list[dict[str, str]], overlaps: list[dict] | None 
             f"`{family}`" for family in families
             if any(row["experiment_family"] == family for row in members)
         )
+        size = dataset_size(dataset)
+        unit = size.unit if not size.detail else f"{size.unit} — {size.detail}"
         dataset_rows.append(
             [
                 dataset,
                 members[0]["task"],
                 members[0]["problem_type"],
+                f"{int(members[0]['eligible_rows']):,}",
+                unit,
                 DATASET_NOTES.get(dataset, "—"),
                 campaigns,
             ]
         )
     lines += _table(
-        ["dataset", "task", "problem type", "what it is", "campaigns"], dataset_rows
+        [
+            "dataset",
+            "task",
+            "problem type",
+            "eligible rows",
+            "unit",
+            "what it is",
+            "campaigns",
+        ],
+        dataset_rows,
     )
     lines += [
+        "",
+        "**The eligible-row count is curated from the pre-registrations' own dataset tables**, not",
+        "derived from the captures: a capture covers the arms that ran, not the prepared dataset that",
+        "existed. Each count's source is the dataset table in",
+        "`FINETUNING_EXPERIMENT_REFERENCE.md` (the lapse datasets), `regime_characterization.md`",
+        "(Spanish motor) or",
+        "`REGRESSOR_FINETUNING_PREREGISTRATION_FREQ_SEV_2026-11.md` (frequency and severity), and the",
+        "unit is the one the ledger's `train_rows` is counted in. The share is **per row**, not per",
+        "dataset: `train_rows / eligible_rows`, because `freMTPL2freq` carries a 10,000-row TabPFN line",
+        "and a 542,410-row full-pool baseline, and one share for the dataset would be wrong for one of",
+        "them.",
         "",
         "## The ledger",
         "",
@@ -1413,7 +1545,11 @@ def render_document(csv_rows: list[dict[str, str]], overlaps: list[dict] | None 
         "no arm-level epoch count (the 2,000-row pilot) or no record at all (the curated Spanish cell);",
         "`epochs = 0` on a regression raw control is a recorded count, not a blank. `train_rows` and",
         "`fold` are part of the key: `uslapseagent` seed 42 exists at 2,000 and at 10,000 rows, and a",
-        "five-fold regression cell is five measurements.",
+        "five-fold regression cell is five measurements. `eligible_rows` is the dataset's curated",
+        "prepared size in the row's own unit, and `share_of_eligible` is `train_rows / eligible_rows`,",
+        "computed per row. A blank `train_rows` gives a blank share — the curated Spanish `no-capture`",
+        "cell — while its `eligible_rows` still states the dataset's size, which does not depend on",
+        "whether a capture exists.",
         "",
     ]
 
@@ -1432,7 +1568,9 @@ def render_document(csv_rows: list[dict[str, str]], overlaps: list[dict] | None 
                 row["epochs"] or "—",
                 row["seed"] or "—",
                 row["fold"] or "—",
-                row["train_rows"] or "—",
+                f"{int(row['train_rows']):,}" if row["train_rows"] else "—",
+                f"{int(row['eligible_rows']):,}" if row["eligible_rows"] else "—",
+                row["share_of_eligible"] or "—",
                 row["roc_auc"] or "—",
                 row["brier"] or "—",
                 row["pr_auc"] or "—",
@@ -1456,6 +1594,8 @@ def render_document(csv_rows: list[dict[str, str]], overlaps: list[dict] | None 
             "seed",
             "fold",
             "train rows",
+            "eligible rows",
+            "share of eligible",
             "ROC AUC",
             "Brier",
             "PR-AUC",
