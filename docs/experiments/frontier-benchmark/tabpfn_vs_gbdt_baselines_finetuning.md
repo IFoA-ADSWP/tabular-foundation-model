@@ -2224,8 +2224,10 @@ The **published v3** loses to the same GLM on every seed — log loss +0.0019 an
 p=0.078 / 0.037 / 0.21); PR-AUC −0.0012 to −0.0015 (p=0.049 / 0.056 / 0.043). So
 §14.11–§14.13's "TabPFN AUC #1 on all six classification datasets" does not hold on
 `norauto` once the linear baseline treats exposure correctly. This is a property of the
-baselines, not of the version change, and is outside #186: it is flagged for a separate
-follow-up that re-tests all six datasets against exposure-aware GLMs. For contrast, on
+baselines, not of the version change, and is outside #186. The follow-up ran on 2026-11-21
+(#695): the exposure-aware GLM overtakes TabPFN on `norauto` **only**; the four other
+datasets that carry an exposure column keep the lead, and `coil2000` carries none. See
+[`exposure_aware_glm_followup.md`](exposure_aware_glm_followup.md). For contrast, on
 `ausprivauto0405` v3 keeps its AUC lead over the same specification (+0.0021, p=0.027,
 5/5 on seed 42; +0.0016, p=0.031, 5/5 on seed 7; +0.0011, p=0.15 on seed 123).
 
