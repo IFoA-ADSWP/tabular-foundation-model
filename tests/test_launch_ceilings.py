@@ -69,9 +69,10 @@ def test_the_spend_gate_counts_folds_and_refuses_a_short_ceiling(tmp_path):
 
     assert result.returncode == 2, combined
     assert "= 400 fits" in combined, combined
-    # 400 fits at 45 s is 300 min, plus 30 min of paced transfer and 15 of cold start.
-    assert "ceiling 345 min" in combined, combined
-    assert "below the 345 min" in combined, combined
+    # 400 fits at 45 s is 300 min; 200 expected chunks at 20 s x 2 copies x 2 passes is 267 min;
+    # plus 15 of cold start.
+    assert "ceiling 582 min" in combined, combined
+    assert "below the 582 min" in combined, combined
 
 
 def test_a_box_whose_log_stops_advancing_is_released(tmp_path):
@@ -85,9 +86,28 @@ def test_a_box_whose_log_stops_advancing_is_released(tmp_path):
     combined = result.stdout + result.stderr
 
     assert result.returncode == 1, combined
-    assert "has not advanced" in combined, combined
+    assert "has written nothing" in combined, combined
     assert "RELEASING the instance" in combined, combined
     assert (state / "destroyed.txt").exists(), "a stalled box must not be kept"
+
+
+def test_a_healthy_fit_phase_is_not_a_stall(tmp_path):
+    """The runner prints NOTHING while it fits -- 14.7 min per target in the gate's own frame.
+
+    A log-only watchdog released every healthy box minutes into its first target. A busy GPU is
+    progress, so the same silent window with the GPU working must not abort.
+    """
+    state, result = _launch(
+        tmp_path,
+        *PRIMARY,
+        "--poll-minutes", "240",
+        extra_env=_fast(tmp_path, MOCK_STALL="1", MOCK_GPU_UTIL="90", BOOT_SECONDS="0",
+                        TFM_POLL_DEADLINE_SECS="10"),
+    )
+    combined = result.stdout + result.stderr
+
+    assert "has written nothing" not in combined, combined
+    assert "RELEASING the instance" not in combined, combined
 
 
 def test_a_hung_bootstrap_is_released_before_the_ceiling(tmp_path):
@@ -127,9 +147,10 @@ def test_transfer_minutes_follows_the_pacing_not_the_bandwidth():
     sys.path.insert(0, str(GH))
     from transfer_minutes import minutes_to_complete
 
-    assert minutes_to_complete(182, 20, 2, 2) == 122
+    # One pass is the measured ~2 h; a launch waits for both passes and the box reports
+    # BOOTSTRAP FINISHED only after the last one.
+    assert minutes_to_complete(182, 20, 2, 1) == 122
+    assert minutes_to_complete(182, 20, 2, 2) == 243
     assert minutes_to_complete(1, 20, 1, 1) == 1
-    # The first pass already carries every chunk, so `passes` does not multiply the estimate.
-    assert minutes_to_complete(182, 20, 2, 1) == minutes_to_complete(182, 20, 2, 4)
     with pytest.raises(ValueError):
         minutes_to_complete(0, 20, 2, 2)

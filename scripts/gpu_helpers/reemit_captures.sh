@@ -296,14 +296,22 @@ while [ "$(date -u +%s)" -lt "$DEADLINE" ]; do
             # measured at 182 chunks and ~2 hours for its first pass.
             DECLARED_CHUNKS="$(printf '%s' "$WINDOW" | grep -ao 'chunks=[0-9][0-9]*' | head -1 | cut -d= -f2)"
             if [ -n "$DECLARED_CHUNKS" ] && [ "$POLL_GIVEN" -eq 0 ]; then
-                IMPLIED="$(python3 "$SCRIPT_DIR/transfer_minutes.py" --chunks "$DECLARED_CHUNKS" \
+                # The re-emit stops at the FIRST complete pass, so --passes 1: every chunk has
+                # arrived once and the verifier is satisfied. A launch waits for all passes; a
+                # recovery does not, which is half the transfer time.
+                PER_CAPTURE="$(python3 "$SCRIPT_DIR/transfer_minutes.py" --chunks "$DECLARED_CHUNKS" \
                     --pause "${TFM_CHUNK_PAUSE:-20}" --repeat "${TFM_CHUNK_REPEAT:-2}" \
-                    --passes "${TFM_CHUNK_PASSES:-2}" 2>/dev/null)"
+                    --passes 1 2>/dev/null)"
+                CAPTURES="$EXPECTED"
+                [ "$CAPTURES" -lt 1 ] && CAPTURES=1
+                if [ -n "$PER_CAPTURE" ]; then
+                    IMPLIED=$(( PER_CAPTURE * CAPTURES ))
+                fi
                 if [ -n "$IMPLIED" ] && [ "$(( IMPLIED + 15 ))" -gt "$POLL_MINUTES" ]; then
                     POLL_MINUTES=$(( IMPLIED + 15 ))
                     DEADLINE=$(( T_START + POLL_MINUTES * 60 ))
-                    echo "  the box declares $DECLARED_CHUNKS chunks: ~${IMPLIED} min to send them" >&2
-                    echo "  once at the shipped pacing; ceiling extended to ${POLL_MINUTES} min" >&2
+                    echo "  $CAPTURES capture(s) of $DECLARED_CHUNKS chunks: ~${IMPLIED} min for a first pass" >&2
+                    echo "  at the shipped pacing; ceiling extended to ${POLL_MINUTES} min" >&2
                 fi
             fi
 

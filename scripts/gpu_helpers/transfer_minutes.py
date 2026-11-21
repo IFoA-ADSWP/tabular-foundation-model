@@ -5,9 +5,10 @@ The container log is the transport, and its cost is the PACING, not the bandwidt
 to complete is set by the chunk count.
 
 Measured 2026-11-21 on the French severity capture: `__ARTIFACTS_INFO__ ... chunks=182`, sent at
-20 s x 2 copies, took ~2 h to complete its first pass. A ceiling sized from the target count
-(15 + 30 per target = 45 min) could not cover that; this function is what the re-emit driver uses
-instead, once the box declares how many chunks it has.
+20 s x 2 copies, took ~2 h to complete its first pass and ~4 h to finish both. The launcher needs
+the full figure (the box reports BOOTSTRAP FINISHED only after the last pass); a re-emit needs the
+first-pass figure, because the verifier is satisfied as soon as every chunk has arrived once. Pass
+`--passes 1` for the latter.
 
     python3 scripts/gpu_helpers/transfer_minutes.py --chunks 182 --pause 20 --repeat 2 --passes 2
 
@@ -24,11 +25,10 @@ import math
 def minutes_to_complete(
     chunks: int, pause: float, repeat: int = 1, passes: int = 1, slack: float = 1.0
 ) -> int:
-    """Minutes until every chunk has been sent at least once.
+    """Minutes until the emitter has finished `passes` full sends of every chunk.
 
-    `passes` is accepted but does not multiply the answer: a pass repeats the whole payload, and
-    the first pass already carries every chunk. It is validated so a caller cannot pass a value
-    that would make the estimate quietly wrong.
+    Pass 1 alone is the completion time for a reader that needs the payload once (a re-emit);
+    a launch waits for every pass, because the box reports completion only after the last one.
     """
     if chunks < 1:
         raise ValueError("chunks must be positive")
@@ -38,7 +38,7 @@ def minutes_to_complete(
         raise ValueError("repeat must be at least 1")
     if passes < 1:
         raise ValueError("passes must be at least 1")
-    seconds = chunks * pause * repeat * slack
+    seconds = chunks * pause * repeat * passes * slack
     return math.ceil(seconds / 60.0)
 
 

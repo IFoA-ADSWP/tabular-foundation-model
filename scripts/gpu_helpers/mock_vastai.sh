@@ -89,7 +89,7 @@ case "${1:-} ${2:-}" in
           [ "$idx" -ge "${#SEQ[@]}" ] && idx=$(( ${#SEQ[@]} - 1 ))
           st="${SEQ[$idx]}"
           echo $(( n + 1 )) > "$CNT_F"
-          echo "{\"actual_status\": \"$st\", \"ssh_host\": \"203.0.113.9\", \"ssh_port\": 41234, \"gpu_name\": \"RTX A6000\", \"dph_total\": 0.469, \"gpu_ram\": 49140, \"cpu_ram\": 128000, \"reliability\": 0.9951, \"cuda_max_good\": 13.0, \"intended_status\": \"running\", \"machine_id\": ${MOCK_MACHINE_ID:-424242}, \"host_id\": 909090}"
+          echo "{\"actual_status\": \"$st\", \"ssh_host\": \"203.0.113.9\", \"ssh_port\": 41234, \"gpu_name\": \"RTX A6000\", \"dph_total\": 0.469, \"gpu_ram\": 49140, \"cpu_ram\": 128000, \"reliability\": 0.9951, \"cuda_max_good\": 13.0, \"intended_status\": \"running\", \"machine_id\": ${MOCK_MACHINE_ID:-424242}, \"host_id\": 909090, \"gpu_util\": ${MOCK_GPU_UTIL:-0}}"
       elif [ -n "${MOCK_STATUS:-}" ]; then
           # ONE LINE, deliberately. This was previously split across three
           # adjacent double-quoted strings, which bash does NOT concatenate: the
@@ -115,13 +115,13 @@ case "${1:-} ${2:-}" in
               IFS=',' read -ra SINTENDED <<< "$MOCK_INTENDED_SEQ"
               show_intended="${SINTENDED[$((show_attempt - 1))]:-$show_intended}"
           fi
-          echo "{\"actual_status\": \"$show_status\", \"gpu_name\": \"RTX A6000\", \"dph_total\": 0.469, \"gpu_ram\": 49140, \"cpu_ram\": 128000, \"reliability\": 0.9951, \"cuda_max_good\": 13.0, \"intended_status\": \"$show_intended\", \"machine_id\": ${MOCK_MACHINE_ID:-424242}, \"host_id\": 909090}"
+          echo "{\"actual_status\": \"$show_status\", \"gpu_name\": \"RTX A6000\", \"dph_total\": 0.469, \"gpu_ram\": 49140, \"cpu_ram\": 128000, \"reliability\": 0.9951, \"cuda_max_good\": 13.0, \"intended_status\": \"$show_intended\", \"machine_id\": ${MOCK_MACHINE_ID:-424242}, \"host_id\": 909090, \"gpu_util\": ${MOCK_GPU_UTIL:-0}}"
       else
           cat <<'JSON'
 {"actual_status": "running", "ssh_host": "203.0.113.9", "ssh_port": 41234,
  "gpu_name": "RTX A6000", "dph_total": 0.469, "gpu_ram": 49140,
  "cpu_ram": 128000, "reliability": 0.9951, "cuda_max_good": 13.0,
- "intended_status": "running", "machine_id": 424242, "host_id": 909090}
+ "intended_status": "running", "machine_id": 424242, "host_id": 909090, "gpu_util": ${MOCK_GPU_UTIL:-0}}
 JSON
       fi
       ;;
@@ -242,8 +242,8 @@ JSON
               for target_tree in "$TREE"/*/; do
                   [ -d "$target_tree" ] || continue
                   PAYLOAD_ID="$(basename "$target_tree")" \
-                      TFM_CHUNK_LINES="${TFM_CHUNK_LINES:-4500}" \
-                      TFM_CHUNK_PAUSE="${TFM_CHUNK_PAUSE:-45}" \
+                      TFM_CHUNK_LINES="${TFM_CHUNK_LINES:-1500}" \
+                      TFM_CHUNK_PAUSE="${TFM_CHUNK_PAUSE:-20}" \
                       bash "$EMITTER" "$target_tree"
               done
           else

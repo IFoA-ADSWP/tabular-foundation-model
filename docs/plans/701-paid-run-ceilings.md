@@ -26,11 +26,14 @@ billed.
   `targets × arms × seeds × folds = N fits`, projects `N × 45 s` of fits and a transfer term, and
   refuses a ceiling below the total. Folds default to the runner's 5 because the bootstrap never
   passes `--folds`. The 45 s constant is measured: 400 fits in 4 h 26 m.
-- **#433: a box that stops advancing is released.** Two bounds, because the failures differ: the
-  bootstrap bound (no marker within `BOOT_MINUTES`, default 30) covers a hung clone, and the stall
-  bound (no new log bytes for `STALL_MINUTES`, default 15, measured from the first marker) covers a
-  run that stops. Both release rather than keep, because there is no capture to keep; the log and
-  reason are recorded.
+- **#433: a box that stops working is released.** Progress is **log growth or a busy GPU**, because
+  the runner prints nothing while it fits: measured 14.7 min per target in the gate's frame and
+  300 min for the 400-fit one, so a bytes-only watchdog would kill every healthy launch minutes into
+  its first target. Two bounds: the stall (`--stall-minutes`, default 15, armed at the first marker
+  so a quiet bootstrap is the other bound's business) and the bootstrap (`--boot-minutes`, default
+  30, covering the 28-minute clone hang that has no marker at all). The reason goes into the run
+  record. A box with a sealed capture (`EMIT`/`ARTIFACTS` in the log) is **kept** for re-emit; a box
+  without one is released.
 - **A vanished checkout refuses.** Before each merge the launcher checks that its own helper
   scripts still exist. A launch whose checkout is pruned now stops loudly instead of polling on.
 - **The re-emit sizes its own ceiling** from `chunks=N` in the box's `__ARTIFACTS_INFO__` line,
@@ -38,17 +41,22 @@ billed.
 
 ## Decisions
 
-- **Release, do not keep, an aborted launch.** A stalled or hung box has no capture; keeping it
-  bills for nothing. This is the opposite of the verification-failure path, which keeps the box
-  because the fits are on it.
+- **Release only a box with nothing to recover.** A stalled box that has already emitted a capture
+  is kept — that is paid work `--fairtest reemit` can bring back — and one that has not is released.
+  A stall during the fit phase is caught by the GPU signal, not by trusting silence to mean death.
 - **The bootstrap bound exists because #433 excludes bootstrapping.** #433 measures idleness from
   the first arm marker so a slow image pull is not a stall. That leaves a clone that hangs with no
   marker at all — the failure measured here — so a separate bound covers the window before the
-  first marker.
+  first marker. The stall timer is reset when the first marker arrives, so quiet time before it
+  cannot count against the run.
 - **A measured constant, not a guess.** 45 s per fit comes from 400 fits in 4 h 26 m on an A100 at
   10,000 rows. It is a starting point for the gate, not a promise; `TFM_SEC_PER_FIT` overrides it.
 - **The transfer is paced, so it is counted in chunks.** `transfer_minutes.py` is the single
-  definition, used by the re-emit driver and tested directly.
+  definition, used by the gate (all passes must land) and the re-emit (the first pass is enough to
+  verify). Chunks are estimated from the fit count at the measured rate: 400 fits produced 182
+  chunks.
+- **The fold count is the runner's 5, hard-coded.** The bootstrap never passes `--folds`, so a
+  launcher-side knob would change the estimate and not the run.
 
 ## Not in scope
 
