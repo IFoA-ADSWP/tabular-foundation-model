@@ -15,6 +15,7 @@ marked reference or historical is kept for provenance rather than as the current
 | [`frontier_auc_brier_rescore_spec.md`](frontier_auc_brier_rescore_spec.md) |  | Frontier AUC/Brier Re-score — Design Spec |
 | [`insurance_frontier_benchmark_spec.md`](insurance_frontier_benchmark_spec.md) |  | Insurance Frontier Benchmark — Design Spec |
 | [`prediction_capture_rescore_spec.md`](prediction_capture_rescore_spec.md) |  | Prediction Capture for Retrospective Re-scoring — Design Spec |
+| [`exposure_aware_glm_followup.md`](exposure_aware_glm_followup.md) | current as of 2026-11-21 — the AUC claim against exposure-aware GLMs | Exposure-aware GLM follow-up (#695) |
 | [`regime_characterization.md`](regime_characterization.md) | current as of 2026-11-13 — the adoptio | Regime Characterization — When Default TabPFN Wins (Issue #53) |
 | [`tabpfn_vs_gbdt_baselines_finetuning.md`](tabpfn_vs_gbdt_baselines_finetuning.md) | current as of 2026-11-13 — the master  | TabPFN vs GBDT Baselines on Insurance Datasets, and Domain Fine-Tuning Effectiveness |
 
