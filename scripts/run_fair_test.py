@@ -113,7 +113,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help=(
             "resolution gate: A_raw on the five folds of every selected target, then the "
-            "fold-level SD and the 80%-power MDE; writes resolution_gate_<run id>.json"
+            "fold-level SD and the 80 percent-power MDE; writes resolution_gate_<run id>.json"
         ),
     )
     args = parser.parse_args(argv)
