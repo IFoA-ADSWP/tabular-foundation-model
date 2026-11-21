@@ -22,6 +22,15 @@ if [ -z "$root" ]; then
 fi
 cd "$root" || exit 2
 
+# The repo's environment is .venv: AGENTS.md names .venv/bin/pytest as the canonical
+# test command. Put it first so ruff, pytest and python3 resolve to the pinned
+# versions; a bare PATH lookup finds the system interpreter and reports the tool
+# missing, which blocks the pre-commit hook even though the venv is right there.
+if [ -d "$root/.venv/bin" ]; then
+  PATH="$root/.venv/bin:$PATH"
+  export PATH
+fi
+
 # Deliberately pinned, and cited rather than silent. The GPU helpers carry four
 # pre-existing SC2012/SC2016 findings that are intentional (arm names expanded
 # into fixed glob paths, and a bootstrap decoded on the far side of a pipe).
@@ -31,7 +40,11 @@ SHELLCHECK_SEVERITY="warning"
 
 need() { # need <binary> <install hint>
   if ! command -v "$1" >/dev/null 2>&1; then
-    echo "check.sh: required tool '$1' is not installed — $2" >&2
+    local hint="$2"
+    if [ ! -d "$root/.venv/bin" ]; then
+      hint="./scripts/bootstrap_dev.sh builds the venv; or $hint"
+    fi
+    echo "check.sh: required tool '$1' is not installed — $hint" >&2
     exit 3
   fi
 }
