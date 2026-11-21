@@ -36,7 +36,14 @@ MOCK_STATE_DIR="${MOCK_STATE_DIR:-/tmp/mockstate}"
 
 case "${1:-} ${2:-}" in
   "show user")        echo "{\"credit\": ${MOCK_CREDIT:-10.0}, \"balance\": 0, \"total_spend\": 0.0}" ;;
-  "show instances")   echo '[]' ;;
+  "show instances")
+      # A sibling from a concurrent launch (#423): the label the leak preflight looks for.
+      if [ "${MOCK_SIBLINGS:-0}" = "1" ]; then
+          echo '[{"id": 59177811, "label": "tabpfn-pilot-sibling", "actual_status": "running", "gpu_name": "RTX 4090", "dph_total": 0.44}]'
+      else
+          echo '[]'
+      fi
+      ;;
   "show ssh-keys")    echo '[]' ;;
   "search offers")    cat "$MOCK_OFFERS_FILE" 2>/dev/null || echo '[]' ;;
   "create ssh-key")   echo "Failed with error 400: Team SSH keys are not supported." ;;

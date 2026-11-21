@@ -203,10 +203,12 @@ practice and name the ticket that will enforce it.
    returned from the box and nothing failed. `watch_run.sh --plan` (#432) derives banked and
    missing from the run directories for exactly this reason.
 
-8. **`--yes` does not cover the leak preflight (#423).** The prompt that lists still-billing
-   `tabpfn-pilot` instances is unconditional, so a second concurrent launcher — which
-   correctly sees the first launcher's live instance — aborts there. Pipe a `y` until #423
-   fixes it, and do not read that abort as a third failure and retry into it.
+8. **`--yes` covers the leak preflight, from #423's fix.** The prompt that lists still-billing
+   `tabpfn-pilot` instances used to be unconditional, so a second concurrent launcher — which
+   correctly sees the first launcher's live instance — aborted there, and the workaround was to
+   pipe a `y`. `--yes` now answers it and says so; without `--yes` the prompt and the abort are
+   unchanged. Two concurrent launches still share one `run_ledger.csv` if they run from the same
+   checkout: give each its own clone or `VAST_OUTDIR`.
 
 9. **When a symptom contradicts the model, reproduce under the mock before blaming an
    external service.** Two symptoms on this campaign — "verified but nothing on disk" and

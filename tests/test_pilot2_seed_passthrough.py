@@ -87,7 +87,7 @@ def _launcher_repo(tmp_path):
     return repo
 
 
-def _launch(tmp_path, *launcher_args, extra_env=None):
+def _launch(tmp_path, *launcher_args, extra_env=None, assume_yes=True):
     """Run the real launcher against the mock; return (state dir, completed process).
 
     Nothing is provisioned: `vastai` here is the mock, so a run either refuses for free or
@@ -155,11 +155,12 @@ def _launch(tmp_path, *launcher_args, extra_env=None):
             "bash",
             str(repo / "scripts" / "gpu_helpers" / "vast_run.sh"),
             "--offer-id", "99001122",
-            "--yes",
+            *(["--yes"] if assume_yes else []),
             "--max-attempts", "1",
             *launcher_args,
         ],
         env=env,
+        stdin=subprocess.DEVNULL,   # a prompt must abort, not hang the suite
         capture_output=True,
         text=True,
         timeout=300,
