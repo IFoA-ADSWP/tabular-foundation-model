@@ -118,6 +118,9 @@ IMAGE=""
 TRANSPORT="onstart"
 KEEP=0
 ASSUME_YES=0
+# The kept instance a `--fairtest reemit` iteration attaches to (#568). Empty for every launch;
+# re-emit creates nothing, so it is the one mode that has no offer and no lease.
+INSTANCE_ARG=""
 # Bounded retry across hosts. Provisioning failures are HOST-specific (one came up
 # with intended_status=stopped; another's image pull never advanced), and the offer
 # ranking is stable -- so without an exclusion list a retry lands on the same broken
@@ -177,6 +180,7 @@ while [ $# -gt 0 ]; do
         --seeds)      SEEDS="$2"; SEEDS_GIVEN=1; shift 2 ;;
         --benchmark)  BENCHMARK="$2"; shift 2 ;;
         --fairtest)   FAIRTEST="$2"; shift 2 ;;
+        --instance)   INSTANCE_ARG="$2"; shift 2 ;;
         --image)     IMAGE="$2"; shift 2 ;;
         --transport) TRANSPORT="$2"; shift 2 ;;
         --max-attempts) MAX_ATTEMPTS="$2"; shift 2 ;;
@@ -195,6 +199,22 @@ done
 if [ "$SEEDS_GIVEN" = 1 ] && [ -z "$SEEDS" ]; then
     echo "FATAL: --seeds was given an empty value; give a comma-separated list (e.g. 43,44)." >&2
     exit 2
+fi
+
+# ---- 5a-reemit. `--fairtest reemit`: ask a KEPT instance to send its captures again (#568) ----
+# Not a launch. Nothing is selected, created or leased, so this is delegated before every
+# provisioning check and before the commit guard: the code that runs is the box's own checkout,
+# not this one. `reemit_captures.sh` owns the refusal (it reads the box's EMIT markers first) and
+# the reboot, and it is the only place that needs to know the lifecycle channel.
+if [ "$FAIRTEST" = "reemit" ]; then
+    if [ -z "$INSTANCE_ARG" ]; then
+        echo "FATAL: --fairtest reemit needs --instance ID (the instance the launch kept)." >&2
+        exit 2
+    fi
+    REEMIT_ARGS=(--instance "$INSTANCE_ARG" --poll-minutes "$POLL_MINUTES" --yes)
+    [ -n "$SEEDS" ] && REEMIT_ARGS+=(--seeds "$SEEDS")
+    [ "$KEEP" -eq 1 ] && REEMIT_ARGS+=(--keep)
+    exec bash "$REPO_DIR/scripts/gpu_helpers/reemit_captures.sh" "${REEMIT_ARGS[@]}"
 fi
 
 # The benchmark mode owns the frame: it runs ONE fit of a fixed shape, and a dataset, row cap,

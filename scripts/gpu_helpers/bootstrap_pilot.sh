@@ -148,6 +148,13 @@ fi
 fi
 cd "$WORKDIR" || exit 2
 
+# ---- 2b. Already sealed: re-emit, never re-fit (#568) ----
+# A restart re-runs this script on the same disk, so a launch whose captures are all sealed lost
+# only the TRANSFER. The work lives in reemit_on_box.sh: this payload has a 16 KB ceiling.
+if [ "$FAIRTEST" = "primary" ] && [ -f scripts/gpu_helpers/reemit_on_box.sh ]; then
+    if bash scripts/gpu_helpers/reemit_on_box.sh; then finish; exit 0; fi
+fi
+
 # ---- 3. Dependencies ----
 # torch is NOT listed: the PyTorch image ships a CUDA build and reinstalling
 # risks swapping it for a CPU wheel.

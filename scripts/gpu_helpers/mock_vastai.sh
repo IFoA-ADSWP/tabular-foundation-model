@@ -125,6 +125,14 @@ case "${1:-} ${2:-}" in
 JSON
       fi
       ;;
+  "reboot instance")
+      # The lifecycle channel #568 relies on: a restart re-runs the launch's onstart against the
+      # same disk. Recorded so a test can prove the re-emit path rebooted the KEPT box exactly once.
+      n=$(cat "$MOCK_STATE_DIR/reboot_attempts" 2>/dev/null || echo 0)
+      n=$(( n + 1 ))
+      printf '%s\n' "$n" > "$MOCK_STATE_DIR/reboot_attempts"
+      echo "Rebooting instance $3."
+      ;;
   "destroy instance")
       # MOCK_DESTROY_FAIL_ONCE makes the first destroy fail, so a test can prove the
       # failed path keeps the id and the next attempt can still succeed (#325).
@@ -166,6 +174,25 @@ JSON
       # validated once already.
       EMITTER="${MOCK_EMITTER:-scripts/gpu_helpers/emit_artifacts.sh}"
       TREE="${MOCK_OUTPUT_TREE:-$MOCK_STATE_DIR/finetune/pilot}"
+      # The bootstrap states, per sealed capture, that it has something to send (#568) -- and says
+      # how many it sealed, which is the count the re-emit driver hands to the verifier. A re-emit
+      # refuses without the markers, so the mock has to be able to produce them, and to withhold
+      # them, which is the refusal test.
+      if [ "${MOCK_EMIT_MARKERS:-0}" = "1" ]; then
+          marker_count=0
+          for marker_tree in "$TREE"/*/; do
+              [ -d "$marker_tree" ] || continue
+              marker_count=$(( marker_count + 1 ))
+              echo "########## EMIT $(basename "$marker_tree") ($(basename "$marker_tree")) ##########"
+          done
+          if [ "${MOCK_FITTING:-0}" != "1" ]; then
+              echo "########## REEMIT: $marker_count sealed capture(s) already on the box -- no fit ##########"
+          fi
+      fi
+      if [ "${MOCK_FITTING:-0}" = "1" ]; then
+          # The shape of an old box (or a partly-sealed one) taking the normal path after a restart.
+          echo "--- installing deps (stub pins) ---"
+      fi
       if [ -f "$EMITTER" ]; then
           if [ "${MOCK_PER_TARGET:-0}" = "1" ]; then
               # The primary fair test emits ONE payload per target, chunked (#564). Mirror the
