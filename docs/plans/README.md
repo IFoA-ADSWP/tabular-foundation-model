@@ -30,6 +30,7 @@ Newest first, by ticket number where the filename carries one.
 | [`687-tabicl-probe.md`](687-tabicl-probe.md) | TabICL v2 CPU timing probe (#687) |
 | [`684-cite-replication.md`](684-cite-replication.md) | cite the external replication in the regime note (#684) |
 | [`695-exposure-aware.md`](695-exposure-aware.md) | exposure-aware GLM follow-up (#695) |
+| [`631-conclusion-table.md`](631-conclusion-table.md) | generate the conclusion's table (#631) |
 | [`697-row-curve.md`](697-row-curve.md) | row curve stage 1 (#697) |
 | [`568-reemit-captures.md`](568-reemit-captures.md) | a kept instance re-emits its captures without re-fitting (#568) |
 | [`analysis-review.md`](analysis-review.md) | Plan: `analysis-review` skill |
