@@ -211,3 +211,7 @@ It prints the tables above — including each row-scaling arm's per-fold ratios 
 the same as data. `--row-scale-french` and `--row-scale-frequency` keep each arm out of its task
 mean, so the four registered rows are byte-for-byte what was published on 2026-11-12.
 `./scripts/check.sh citation` proves each cited id has the capture it claims.
+
+---
+
+**Dose ladder, 2026-11-22.** The severity sign flip recorded above is now confirmed and tightened by the epoch ladder: `severity_french` REFUTED (worse at every rung), `severity_spanish` CONFIRMED at 30 epochs (30 − raw −1.29 %, CI [−2.08 %, −0.50 %]) with its monotone clause failing. See [`EPOCH_LADDER_RESULT.md`](../pilot2-phase2/EPOCH_LADDER_RESULT.md).
