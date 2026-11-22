@@ -73,18 +73,17 @@ def table1() -> str:
 
 
 def table2() -> str:
-    lines = ["| check | dataset | contrast | metric | Δ | interval | decision | source |",
-             "|---|---|---|---|---:|---|---|---|"]
+    lines = ["| check | dataset | seed | model version | contrast | metric | Δ | interval | decision | source |",
+             "|---|---|---:|---|---|---|---:|---|---|---|"]
     exp = FRONTIER / "exposure_aware_glm_followup.csv"
     if exp.exists():
         with exp.open() as f:
             for r in csv.DictReader(f):
-                if r["seed"] != "42":
-                    continue
                 d = float(r["delta_log_loss"])
                 verdict = "model ahead" if d < 0 else "GLM ahead"
-                lines.append(f"| exposure-aware GLM | `{r['dataset']}` | one-hot LR + log(exposure) | "
-                             f"log loss | {d:+.5f} | p={float(r['p_log_loss']):.3f} | {verdict} | "
+                lines.append(f"| exposure-aware GLM | `{r['dataset']}` | {r['seed']} | `{r['model_version']}` | "
+                             f"one-hot LR + log(exposure) | log loss | {d:+.5f} | "
+                             f"p={float(r['p_log_loss']):.3f} | {verdict} | "
                              f"`exposure_aware_glm_followup.csv` |")
     curve = REPO / "scripts/analyses/row_curve_stage1.csv"
     if curve.exists():
@@ -96,7 +95,7 @@ def table2() -> str:
             b, s = grp[0], grp[1]
             delta = float(s["mean"]) - float(b["mean"])
             ok = delta > float(b["mde"])
-            lines.append(f"| row curve | `{ds}` @ {budget} | `{s['method']}` | {b['metric']} | "
+            lines.append(f"| row curve | `{ds}` @ {budget} | — | baseline | `{s['method']}` | {b['metric']} | "
                          f"{delta:.5f} vs `{b['method']}` | MDE {float(b['mde']):.5f} | "
                          f"{'resolvable' if ok else 'Inconclusive'} | `row_curve_stage1.csv` |")
     return "\n".join(lines)
@@ -111,8 +110,12 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out")
     ap.add_argument("--check")
+    ap.add_argument("--block", action="store_true", help="print only the marked block, for embedding")
     a = ap.parse_args()
     generated = block()
+    if a.block:
+        print(generated[generated.index(BEGIN):].strip())
+        return 0
     if a.out:
         Path(a.out).write_text(generated)
         print(f"wrote {a.out} ({len(generated.splitlines())} lines)")
@@ -122,7 +125,8 @@ def main() -> int:
         if BEGIN not in text or END not in text:
             print(f"{a.check}: no generated-table markers", file=sys.stderr)
             return 1
-        if text.strip() != generated.strip():
+        embedded = text[text.index(BEGIN):text.index(END) + len(END)]
+        if embedded.strip() != generated[generated.index(BEGIN):].strip():
             print(f"{a.check}: the table has drifted from its generator", file=sys.stderr)
             return 1
         print(f"{a.check}: table matches the generator")
