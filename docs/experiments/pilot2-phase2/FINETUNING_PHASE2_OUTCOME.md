@@ -34,7 +34,10 @@ analysis, because its records live in the paid-run tree and no capture was commi
 for that reason.
 `coil2000` carries no interval at all: its best attainable half-width at 4,000 test rows is ±0.0149 against
 the design's 0.006 floor, so no seed count closes it. A filled marker is computed from committed evidence, a
-hollow one quoted — the figure states the difference rather than leaving it to the caption. Regenerate with
+hollow one quoted — the figure states the difference rather than leaving it to the caption. The measure
+drawn here is **ROC AUC**, and the statistical analysis plan's primary estimand — the paired difference in
+log loss — was not computed for Phase 2, so this figure tests the secondary measure (see *A missing
+estimand is not a null* below). Regenerate with
 `.venv/bin/python scripts/infra/verdict_figures.py --only phase2`; vector PDF at
 [`figures/finetuning_phase2_forest.pdf`](../../figures/finetuning_phase2_forest.pdf).
 
