@@ -39,12 +39,12 @@ count. **A missing citation below means the search did not find it, not that the
 
 | Family | Published position, 2024–26 | What this repository has settled | What is still open |
 |---|---|---|---|
-| Fine-tuning and adaptation | Full fine-tuning helps most on IID data; it does not rescue gradual temporal drift | Classifier: one small gain in four; regressor: frequency Go, severity No-go | Adaptation to grouped/insurance data at 10k–678k rows; thinking-mode and distillation |
+| Fine-tuning and adaptation | Full fine-tuning helps most on IID data; it does not rescue gradual temporal drift | Classifier: one small gain in four; regressor: frequency Go, severity heterogeneous (French No-go) | Adaptation to grouped/insurance data at 10k–678k rows; thinking-mode and distillation |
 | Calibration and distributional output | TFMs emit full predictive distributions; rankings depend on the scoring rule; the joint is not coherent | Classification calibration is a tie-to-win; regression quantiles degrade under fine-tuning | Proper-scoring comparison against GLM/GBDT on insurance targets; joint multi-target |
 | Exposure and offsets | No native offset or sample weight; exposure-as-feature is the published workaround | The exposure-aware GLM contrast is measured on five datasets; `norauto` is the exception | A method that imposes proportionality; extrapolation beyond the observed exposure range |
 | Ensembles and hybrids with GBDTs | Cross-model ensembles advance the general SOTA; TabPFN is not the only strong family | Only the estimator-count and context levers are closed; no TabPFN+GBDT hybrid run | Any insurance hybrid, and whether it survives the weight licence |
 | Interpretability | SHAP/LOCO/SAGE adaptations, transparent GAM and kernel heads, zero-shot attributions | Permutation importance exists for one diagnostic; parsimony is a parameter-count proxy | Explanation stability and actuarial/regulatory acceptance |
-| Loss reserving | Micro-level and ensemble distributional reserving; **no TFM evaluation at all** | No reserve arm; a severity proxy only | The entire family: triangles, development factors, IBNR |
+| Loss reserving | Micro-level and ensemble distributional reserving; **no TFM evaluation found in this search** | No reserve arm; a severity proxy only | The entire family: triangles, development factors, IBNR |
 
 ---
 
@@ -56,8 +56,9 @@ training rows rather than teaching a new function. On IID academic splits this r
 state-of-the-art; on datasets with **gradual temporal shifts and rich feature sets, TabPFNv2 is less
 stable and prior methods remain better** ([arXiv:2506.08982](https://arxiv.org/abs/2506.08982),
 Rubachev et al., 2025). Earlier work had already found fine-tuned in-context transformers to be strong
-tabular classifiers ([arXiv:2405.13396](https://arxiv.org/abs/2405.13396), Feuer et al., 2024), which
-is why the 2025 paper re-ran the question rather than trusting the earlier result.
+tabular classifiers ([arXiv:2405.13396](https://arxiv.org/abs/2405.13396), Feuer et al., 2024). The
+2025 paper re-ran the question on two stated grounds — inconsistent findings across that earlier work,
+and the changed TabPFNv2 architecture — rather than because it distrusted the earlier result.
 
 The vendor's own line has moved from "fine-tune the weights" to "spend inference compute": TabPFN-3
 introduces test-time compute scaling, and TabPFN-3.5-Thinking is claimed up to 12× faster than the
@@ -104,7 +105,8 @@ results qualify how far that can be trusted.
 2. **Data-scarce uncertainty favours Gaussian processes.** Against TabPFN v2.5 on regression problems,
    GPs "often provide superior predictive accuracy and UQ in data-scarce settings", while TabPFN is
    competitive on complex, high-dimensional problems with sufficient data
-   ([DOI 10.1109/mcse.2026.3701626](https://doi.org/10.1109/mcse.2026.3701626), Johnson et al., 2026).
+   ([DOI 10.1109/mcse.2026.3701626](https://doi.org/10.1109/mcse.2026.3701626);
+   [arXiv:2606.01427](https://arxiv.org/abs/2606.01427), Johnson et al., 2026).
 3. **Prediction regions need post-hoc repair.** TFM regression regions can under- or over-cover even
    when point predictions are accurate; highest-density split conformal restores marginal coverage and
    reduces group-coverage error, at the cost of calibration rows
@@ -120,9 +122,9 @@ admission that the default distribution is not calibrated by construction.
 
 **What this repository has established.**
 
-- **Classification calibration is at worst a narrow, seed-specific loss and at best a paired win**, on
-  the canonical suite and on the three Tier 3 datasets, with two named v3-era exceptions that the v3.5
-  re-test reverses. Owner:
+- **Classification calibration is at worst a narrow, seed-stable loss and at best a paired win**, on
+  the canonical suite and on the three Tier 3 datasets, with three named v3-era calibration losses —
+  `ausprivauto0405`, `norauto` and `bemtl97` — that the v3.5 re-test reverses. Owner:
   [tabpfn_vs_gbdt_baselines_finetuning.md](../experiments/frontier-benchmark/tabpfn_vs_gbdt_baselines_finetuning.md)
   §11.5, §14.11–§14.13, §18–§20.
 - **The regression distribution is measured, and it does not inherit the point gain** — coverage is
@@ -171,9 +173,11 @@ Henckaerts, 2025).
   (#695), summarised in
   [CONCLUSION.md](../experiments/baseline-conclusion-2026-11/CONCLUSION.md) §3.
 - **The count verdict is already a count-with-exposure-feature verdict on `freMTPL2freq`** — that
-  target is scored on Poisson deviance with log-exposure as a feature, and it is off the frontier by
-  +0.0966; both frequency regressions and the severity regression are off the frontier. Owner:
-  [CONCLUSION.md](../experiments/baseline-conclusion-2026-11/CONCLUSION.md) §3, table 1.
+  target is scored on Poisson deviance with log-exposure as a feature, and on `v3_default` it is off
+  the frontier by +0.0966; on `v3.5_default` the gap closes to +0.0101 and it is **still off the
+  frontier**, while `spanish_motor_freq` moves onto it. Owner:
+  [CONCLUSION.md](../experiments/baseline-conclusion-2026-11/CONCLUSION.md) §3, table 1 (v3 rows);
+  the v3.5 pair is master report §16.3.
 
 **Still open.** No published or internal work tests whether TabPFN extrapolates sensibly when a
 policy's exposure lies outside the training range, which is the operational case the feature workaround
@@ -204,16 +208,21 @@ family ([DOI 10.52202/085713-0535](https://doi.org/10.52202/085713-0535)).
 
 - **Only the cheap levers are closed, and neither is a hybrid** — `n_estimators=8` equals the server
   default and 1 is worse; context-window ensembling is already exercised by the full-size hosted runs.
-  Owner: [levers_assessment.md](levers_assessment.md) (§13, §14.2, §12.1).
+  Owner: [levers_assessment.md](levers_assessment.md) — its "HPO'd TabPFN" and "Context-window
+  ensembling" rows, which cite master report §13, §14.2 and §12.1; the assessment has no sections of
+  its own.
 - **No TabPFN+GBDT stack, no blend and no distillation arm has been run here** — distillation is its
   own map (#368), and the model-line feasibility work covers TabICL v2 on CPU only. Owner:
   [cpu_model_feasibility.md](../experiments/tabarena/cpu_model_feasibility.md);
   [CONCLUSION.md](../experiments/baseline-conclusion-2026-11/CONCLUSION.md) §4.
 
 **Still open.** No published study stacks a TFM with a GBDT on insurance data, so the general TabArena
-result has not been transferred to this domain. The deployment path interacts with the weight licence:
-TabPFN's weights are non-commercial, and adapted or distilled derivatives remain non-commercial
-([tabular_foundation_models_catalog.md](tabular_foundation_models_catalog.md); Deprez et al. §2), so a
+result has not been transferred to this domain. The deployment path interacts with the weight licence,
+and that licence is version-split: TabPFNv2 weights carry the Prior Labs License (Apache 2.0 plus an
+attribution requirement), while the v2.5, v2.6, v3 and v3.5 weights are non-commercial, and adapted or
+distilled derivatives remain non-commercial
+([Model License](https://docs.priorlabs.ai/models#tabpfn-model-license), *first-party*;
+[tabular_foundation_models_catalog.md](tabular_foundation_models_catalog.md); Deprez et al. §2), so a
 hybrid that wins on accuracy may still be undeliverable. **Named silence:** the accuracy/licence
 frontier of an insurance TFM+GBDT hybrid.
 
@@ -259,8 +268,9 @@ validation of TFM explanations.
 
 ## 6. Loss reserving
 
-**Published.** Reserving has a live methodological literature and **no TFM evaluation**. The 2024–26
-state of the art is micro-level and distributional: multinomial multi-state reserving for IBNR and RBNS
+**Published.** Reserving has a live methodological literature and **no TFM evaluation found in this
+search**. The 2024–26 state of the art is micro-level and distributional: multinomial multi-state
+reserving for IBNR and RBNS
 ([DOI 10.3934/jimo.2026097](https://doi.org/10.3934/jimo.2026097), Menvouta et al., 2026); a
 restructured chain-ladder that projects latest observations to ultimate through multi-period factors,
 with a neural-network individual-claims application
@@ -268,8 +278,8 @@ with a neural-network individual-claims application
 forecasting that combines stochastic reserving models on their full distributions
 ([DOI 10.1080/03461238.2024.2365392](https://doi.org/10.1080/03461238.2024.2365392), Avanzi et al.,
 2024); and hybrid neural individual-development models
-([DOI 10.1111/jori.12501](https://doi.org/10.1111/jori.12501), 2024). A 2026 review names reserving as a
-plausible TFM use — "loss reserving with run-off triangles" — without evaluating one
+([DOI 10.1111/jori.12501](https://doi.org/10.1111/jori.12501), 2024). A 2026 review names reserving
+with run-off triangles as a plausible TFM use without evaluating one
 ([arXiv:2609.14576](https://arxiv.org/abs/2609.14576), Blier-Wong, 2026). Deprez et al. name the same
 gap in their conclusion.
 
@@ -285,7 +295,8 @@ gap in their conclusion.
 **Still open.** The whole family. There is also no published benchmark protocol for a TFM on a
 triangle: rows are development periods, the grouped/time structure is exactly the regime where
 independent benchmarks find trees strongest (counter-evidence item 2 below), and the target is a sum of
-correlated cells rather than an i.i.d. row. **Named silence:** TFM loss reserving, in every part.
+correlated cells rather than an i.i.d. row. **Named silence:** TFM loss reserving — none found in this
+search.
 
 ---
 
@@ -300,8 +311,8 @@ general claim in five ways, ordered by how directly they bear on a candidate her
    GLM and XGBoost: the GLM has the best Poisson deviance on both datasets; TabPFN-v3 is close on RMSE
    on the French data (0.490 vs 0.487) but clearly worse on deviance (0.343 vs 0.296), and the paper
    concludes it "is not yet ready to replace established actuarial methods for claim frequency". It is
-   competitive on severity, where data are scarce. Inference reaches minutes at the capacity limit,
-   against seconds for GLM/XGBoost, and the weights are non-commercial
+   competitive on severity, where data are scarce. Inference reaches minutes at the capacity limit, and
+   the weights are non-commercial
    ([arXiv:2605.22892](https://arxiv.org/abs/2605.22892), Deprez, Verbeke & Verdonck, 2026). **This is
    the strongest counter-evidence in the search, and it is not news to this repository**: the
    same ordering was ingested on 2026-11-21 (#684) into
@@ -314,7 +325,8 @@ general claim in five ways, ordered by how directly they bear on a candidate her
    142 datasets, IID/temporal/grouped tasks — finds open-source TFMs competitive or better only up to
    about 100k rows, while "traditional tree-based and deep learning models still dominate on grouped or
    large data", and argues standard benchmarks are biased toward tasks where TFMs already excel
-   ([arXiv:2606.30410](https://arxiv.org/abs/2606.30410), Purucker et al., 2026). This repository knows
+   ([arXiv:2606.30410](https://arxiv.org/abs/2606.30410), Purucker et al., 2026; accepted at NeurIPS
+   2026, Datasets and Benchmarks Track). This repository knows
    the BeyondArena suite exists and has called it "directly relevant to actuarial forecasting use cases
    we haven't tested yet" ([tabarena_reference.md](../experiments/tabarena/tabarena_reference.md)), but
    the *finding* — trees win on grouped/large — is the part that bears on the fair test's policy-grouped
@@ -333,7 +345,8 @@ general claim in five ways, ordered by how directly they bear on a candidate her
 5. **The distribution is not a joint, and the metric picks the winner.** All tested TFMs violate
    marginalization and factorization consistency ([arXiv:2608.06004](https://arxiv.org/abs/2608.06004)),
    GPs beat TabPFN on accuracy and UQ when data are scarce
-   ([DOI 10.1109/mcse.2026.3701626](https://doi.org/10.1109/mcse.2026.3701626)), and rankings shift
+   ([DOI 10.1109/mcse.2026.3701626](https://doi.org/10.1109/mcse.2026.3701626);
+   [arXiv:2606.01427](https://arxiv.org/abs/2606.01427)), and rankings shift
    between point and proper scoring rules ([arXiv:2603.29928](https://arxiv.org/abs/2603.29928)). Any
    verdict stated in one metric, on marginal predictions, is a partial verdict.
 
@@ -367,7 +380,7 @@ evaluation of 3.5 on grouped insurance folds was found. The repo's policy-groupe
 | Is TabPFN the only frontier TFM? | No; TabICLv2 and Mitra are independent, competitive alternatives | [arXiv:2602.11139](https://arxiv.org/abs/2602.11139); [DOI 10.52202/085713-0535](https://doi.org/10.52202/085713-0535) |
 | Is RMSE an adequate evaluation of a distributional model? | No; use proper scoring rules and interval coverage | [arXiv:2603.29928](https://arxiv.org/abs/2603.29928) |
 | Does TabPFN need hand preprocessing of categoricals and missing values? | No; raw frames are accepted by design | [Nature](https://doi.org/10.1038/s41586-024-08328-6); [quickstart](https://docs.priorlabs.ai/quickstart) *(first-party)* |
-| Are TabPFN's weights usable in commercial production without a licence? | No; non-commercial, and derivatives inherit it | [arXiv:2605.22892](https://arxiv.org/abs/2605.22892); [catalog](tabular_foundation_models_catalog.md) |
+| Are TabPFN's weights usable in commercial production without a licence? | No for the current line; v2.5/v2.6/v3/v3.5 weights are non-commercial and derivatives inherit that, while v2 weights are Apache 2.0 plus attribution | [Model License](https://docs.priorlabs.ai/models#tabpfn-model-license) *(first-party)*; [arXiv:2605.22892](https://arxiv.org/abs/2605.22892); [catalog](tabular_foundation_models_catalog.md) |
 
 Two questions often assumed settled are **not**: whether a two-stage/hurdle formulation beats a
 single-stage regressor on zero-inflated targets (the vendor cookbook finds the single-stage log-target
@@ -399,6 +412,19 @@ A peer-reviewed TFM reserving evaluation; an independent TabPFN-3.5 grouped-data
 proper-scoring insurance comparison; a first-party weights/offset API; or an insurance-pricing paper
 that reverses Deprez et al. on frequency with a matched tuning budget. None was found by 2026-11-22.
 
+## Limits of this note
+
+- **Quoted external numbers were not recomputed.** Every figure attributed to a paper is the paper's
+  own, read in its text; none was re-derived from its data, and none is a measurement by this
+  repository.
+- **Abstract-level verification cannot confirm a body-text number.** A ledger status of
+  *verified (abstract)* attests the identifier, title and headline claim; it does not attest a
+  specific table cell in a section this note did not read.
+- **Vendor claims are unreplicated first-party claims.** Every *(first-party)* citation records what
+  Prior Labs says about its own models. Nothing here independently reproduces one.
+- **The search was not systematic.** No protocol, screening log or PRISMA count stands behind the
+  coverage, so absence in this note is absence from this search.
+
 ## Identifier ledger
 
 | Source | Id | Type | Status |
@@ -412,11 +438,11 @@ that reverses Deprez et al. on frequency with a matched tuning budget. None was 
 | TabICL | [arXiv:2502.05564](https://arxiv.org/abs/2502.05564) | ICML paper | verified (abstract) |
 | TabICLv2 | [arXiv:2602.11139](https://arxiv.org/abs/2602.11139) | preprint | verified (abstract) |
 | TabArena | [10.52202/085713-0519](https://doi.org/10.52202/085713-0519) | proceedings paper | verified (abstract) |
-| BeyondArena | [arXiv:2606.30410](https://arxiv.org/abs/2606.30410) | preprint | verified (abstract) |
+| BeyondArena | [arXiv:2606.30410](https://arxiv.org/abs/2606.30410) | NeurIPS 2026 Datasets & Benchmarks (accepted) | verified (abstract) |
 | ScoringBench | [arXiv:2603.29928](https://arxiv.org/abs/2603.29928) | preprint | verified (abstract) |
 | TFM consistency | [arXiv:2608.06004](https://arxiv.org/abs/2608.06004) | preprint | verified (abstract) |
 | Conformal coverage | [arXiv:2609.34887](https://arxiv.org/abs/2609.34887) | preprint | verified (abstract) |
-| UQ of TFMs vs GPs | [10.1109/mcse.2026.3701626](https://doi.org/10.1109/mcse.2026.3701626) | journal article | verified (abstract) |
+| UQ of TFMs vs GPs | [10.1109/mcse.2026.3701626](https://doi.org/10.1109/mcse.2026.3701626); [arXiv:2606.01427](https://arxiv.org/abs/2606.01427) | journal article | verified (abstract) |
 | Rundel et al., interpretability | [arXiv:2403.10923](https://arxiv.org/abs/2403.10923) | conference paper | verified (full text) |
 | GAMformer | [arXiv:2410.04560](https://arxiv.org/abs/2410.04560) | preprint | verified (abstract) |
 | KernelICL | [arXiv:2602.02162](https://arxiv.org/abs/2602.02162) | preprint | verified (abstract) |
