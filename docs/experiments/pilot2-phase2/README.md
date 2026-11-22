@@ -21,7 +21,7 @@ marked reference or historical is kept for provenance rather than as the current
 | [`FINETUNING_PREREGISTRATION_2026-11.md`](FINETUNING_PREREGISTRATION_2026-11.md) | current — pre-registration, 2026-11-04 | Pre-registration — the fine-tuning replication (2026-11) |
 | [`FINETUNING_PREREGISTRATION_SPANISH_2026-11.md`](FINETUNING_PREREGISTRATION_SPANISH_2026-11.md) | current — pre-registration, 2026-11-05 | Pre-registration — the Spanish lapse cell (2026-11) |
 | [`FINETUNING_PREREQUISITES.md`](FINETUNING_PREREQUISITES.md) | current as of 2026-10-31 | Fine-Tuning — Prerequisites Checklist |
-| [`FINETUNING_RUNS_LEDGER.md`](FINETUNING_RUNS_LEDGER.md) | current — generated ledger, 2026-11-20 | Cross-task runs ledger — every committed fine-tuning and fair-test run, arm, seed and fold, with a descriptive summary |
+| [`FINETUNING_RUNS_LEDGER.md`](FINETUNING_RUNS_LEDGER.md) | current — generated ledger, 2026-11-20; scope note added 2026-11-22 | Cross-task runs ledger — the committed fine-tuning and fair-test runs it covers, arm, seed and fold, with a descriptive summary |
 | [`FINETUNING_STATISTICAL_ANALYSIS_PLAN.md`](FINETUNING_STATISTICAL_ANALYSIS_PLAN.md) |  | Fine-Tuning — Statistical Analysis Plan |
 | [`EPOCH_LADDER_DESIGN.md`](EPOCH_LADDER_DESIGN.md) |  | Epoch ladder — the design's resolution, and why each factor is what it is |
 | [`EPOCH_LADDER_RESULT.md`](EPOCH_LADDER_RESULT.md) |  | Epoch ladder — result: the sign of fine-tuning flips between severity targets |

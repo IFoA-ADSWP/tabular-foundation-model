@@ -11,7 +11,7 @@ marked reference or historical is kept for provenance rather than as the current
 | --- | --- | --- |
 | [`REGRESSOR_FINETUNING_PREREGISTRATION_2026-11.md`](REGRESSOR_FINETUNING_PREREGISTRATION_2026-11.md) | superseded (2026-11-11) — replaced by | Pre-registration — the regressor fair test (2026-11) |
 | [`REGRESSOR_FINETUNING_PREREGISTRATION_FREQ_SEV_2026-11.md`](REGRESSOR_FINETUNING_PREREGISTRATION_FREQ_SEV_2026-11.md) | proposed — pre-registration, 2026-11-1 | Pre-registration — the frequency/severity fair test (2026-11) |
-| [`freq_sev_fair_test_result.md`](freq_sev_fair_test_result.md) | current — verdict recorded 2026-11-12; | Frequency/severity fair test — result |
+| [`freq_sev_fair_test_result.md`](freq_sev_fair_test_result.md) | current — verdict recorded 2026-11-12; severity amended by #729, 2026-11-22 | Frequency/severity fair test — result |
 | [`freq_sev_power.md`](freq_sev_power.md) | proposed — power analysis for #552, 20 | Frequency/severity power — what the new targets can resolve, and what must be measured |
 | [`baseline_method_specification.md`](baseline_method_specification.md) | proposed — research only, no runs | Baseline method specification — `E_glm` and `F_catboost` on these folds |
 | [`ACTUARIAL_BASELINE_PREREGISTRATION_2026-11.md`](ACTUARIAL_BASELINE_PREREGISTRATION_2026-11.md) | proposed — pre-registration, 2026-11-13 | Pre-registration — the actuarial baseline (2026-11) |
