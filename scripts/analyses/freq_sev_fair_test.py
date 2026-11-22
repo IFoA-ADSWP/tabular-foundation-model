@@ -22,8 +22,9 @@ The decision rule is the one in the pre-registration, not a reading of the numbe
     Inconclusive  CI covers both zero and the floor, or a target is underpowered
 
 Floors: frequency task 2% (pooled); Spanish frequency 4% per target and it does not decide the
-task; severity task 2%. If the two portfolios of a task disagree in sign the task is heterogenous
-and no task-level gain is claimed.
+task; severity task 2%. The frequency task is heterogenous when its two portfolios disagree in sign,
+and no task-level gain is then claimed. The severity task row carries no verdict (#729): its two
+targets sit on different estimands, so it is descriptive and labelled `No claim`.
 
 `--row-scale-french <run id>` and `--row-scale-frequency <run id>` add the #572 row-scaling arms on
 `severity_french` and `frequency_french`. Each is reported beside the registered targets and **not**
@@ -195,13 +196,22 @@ def build_summary(
         signs = {math.copysign(1, _mean(p.values())) for p in portfolios}
         mean, low, high = task_interval(portfolios, reps)
         heterogeneous = len(signs) > 1
+        # #729: the two severity targets sit on different estimands (per claim vs claim-weighted
+        # per policy), so their average is descriptive and carries no verdict. The row stays for
+        # completeness; the label says what it is.
+        if task == "severity":
+            decision = "No claim"
+        elif heterogeneous:
+            decision = "Heterogeneous"
+        else:
+            decision = decide(mean, low, high, floor)
         summary["tasks"][task] = {
             "members": members,
             "mean": mean,
             "ci": [low, high],
             "floor": floor,
             "heterogeneous": heterogeneous,
-            "decision": "Heterogeneous" if heterogeneous else decide(mean, low, high, floor),
+            "decision": decision,
         }
 
     # Each row-scaling arm is reported beside the registered targets and never folded into a task
