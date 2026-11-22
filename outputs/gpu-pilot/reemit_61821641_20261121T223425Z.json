@@ -1,0 +1,10 @@
+{
+  "instance_id": 61821641,
+  "label": "tabpfn-pilot-20261121T152515Z-255a28",
+  "dph_total": 0.41666666666666663,
+  "wall_minutes": 119.11,
+  "est_cost_usd": 0.8272,
+  "restored": [
+    "20261121T153848Z"
+  ]
+}
