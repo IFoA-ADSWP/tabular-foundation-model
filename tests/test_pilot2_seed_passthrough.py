@@ -140,6 +140,11 @@ def _launch(tmp_path, *launcher_args, extra_env=None, assume_yes=True):
         "MOCK_STATUS": "running",
         "MOCK_OUTPUT_TREE": str(tree),
         "MOCK_EMITTER": str(GH / "emit_artifacts.sh"),
+        # The mock suite paces transfers at zero delay to stay fast. That is a simulation
+        # decision, and the launcher's pacing guard (#708) must be told so explicitly -- the
+        # guard exists for real launches, where a short pause loses chunks.
+        "TFM_ALLOW_FAST_CHUNKS": "1",
+        "TFM_ALLOW_SINGLE_PASS": "1",
         "MOCK_OFFERS": str(offers),
         "VAST_OUTDIR": str(tmp_path / "returned"),
         "TMPDIR": str(tmp_path / "tmp"),

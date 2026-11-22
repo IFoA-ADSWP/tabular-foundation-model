@@ -162,7 +162,11 @@ def test_chunk_pacing_that_outruns_the_reader_is_refused(tmp_path):
         tmp_path,
         *PRIMARY,
         "--poll-minutes", "240",
-        extra_env={"TFM_CHUNK_PAUSE": "5", "TFM_CHUNK_REPEAT": "2", "TFM_CHUNK_PASSES": "1"},
+        extra_env={
+            "TFM_CHUNK_PAUSE": "5", "TFM_CHUNK_REPEAT": "2", "TFM_CHUNK_PASSES": "1",
+            # Opt OUT of the harness's blanket override: this test is the refusal itself.
+            "TFM_ALLOW_FAST_CHUNKS": "0", "TFM_ALLOW_SINGLE_PASS": "0",
+        },
     )
     combined = result.stdout + result.stderr
 
