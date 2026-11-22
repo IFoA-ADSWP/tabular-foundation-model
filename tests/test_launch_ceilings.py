@@ -154,3 +154,54 @@ def test_transfer_minutes_follows_the_pacing_not_the_bandwidth():
     assert minutes_to_complete(1, 20, 1, 1) == 1
     with pytest.raises(ValueError):
         minutes_to_complete(0, 20, 2, 2)
+
+
+def test_chunk_pacing_that_outruns_the_reader_is_refused(tmp_path):
+    """Measured 2026-11-22: pause 5 x 2 copies x one pass lost 5 of 48 chunks."""
+    _, result = _launch(
+        tmp_path,
+        *PRIMARY,
+        "--poll-minutes", "240",
+        extra_env={"TFM_CHUNK_PAUSE": "5", "TFM_CHUNK_REPEAT": "2", "TFM_CHUNK_PASSES": "1"},
+    )
+    combined = result.stdout + result.stderr
+
+    assert result.returncode == 2, combined
+    assert "of visibility" in combined, combined
+
+
+def test_the_overrides_allow_fast_pacing_deliberately(tmp_path):
+    state, result = _launch(
+        tmp_path,
+        *PRIMARY,
+        "--poll-minutes", "240",
+        extra_env={
+            "TFM_CHUNK_PAUSE": "5", "TFM_CHUNK_REPEAT": "2", "TFM_CHUNK_PASSES": "1",
+            "TFM_ALLOW_FAST_CHUNKS": "1", "TFM_ALLOW_SINGLE_PASS": "1",
+        },
+    )
+    combined = result.stdout + result.stderr
+
+    # The guard is what this tests: the launch reached provisioning. The mock's transfer under
+    # fast pacing is not the subject (and one pass with a tiny payload may not verify).
+    assert "FATAL: chunk pacing" not in combined, combined
+    assert (state / "created.txt").exists(), combined
+
+
+def test_a_frame_that_costs_more_than_the_credit_warns(tmp_path):
+    """A 582-minute frame with $3.70 of credit cannot finish; say so before provisioning."""
+    seeds = ",".join(str(seed) for seed in range(1001, 1021))
+    _, result = _launch(
+        tmp_path,
+        *PRIMARY,
+        "--poll-minutes", "600",
+        extra_env={
+            "TFM_FAIRTEST_TARGETS": "severity_french",
+            "TFM_FAIRTEST_ARMS": "A_raw,B_ft3,B_ft10,B_ft30",
+            "TFM_FAIRTEST_SEEDS": seeds,
+            "MOCK_CREDIT": "1.5",
+        },
+    )
+    combined = result.stdout + result.stderr
+
+    assert "above the $1.5000 credit" in combined, combined

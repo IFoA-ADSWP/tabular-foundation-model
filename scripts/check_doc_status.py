@@ -46,6 +46,7 @@ MARKER = re.compile(
 # per-directory status check. A missing registry is a failure, never a skip: a check that passes
 # because its subject moved is worse than no check at all.
 CLAIM_REGISTRY = pathlib.Path("docs/experiments/pilot2-phase2/FINETUNING_FINDINGS.md")
+REPORT_REGISTRY = pathlib.Path("docs/REPORT_REGISTRY.md")
 ROW_REF = re.compile(r"\b[FL]\d+\b")
 ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 ANY_DIGIT = re.compile(r"\d")
@@ -174,6 +175,42 @@ def unlabelled(root: pathlib.Path) -> tuple[list[str], int]:
     return missing, total
 
 
+# A note that cites a run is evidence, and evidence needs two things this repo has already paid for:
+# the model version it was measured on (docs/MODEL_VERSIONS.md: a number without one is meaningless)
+# and a row in the report registry, so a reader can find it from the index rather than the tree.
+# Measured 2026-11-22: the epoch-ladder result note shipped with neither, and both were review
+# findings rather than red checks.
+CURRENT_RE = re.compile(r"\*\*Status:\*\*[^\n]*\bcurrent\b", re.IGNORECASE)
+RUN_CITE_RE = re.compile(
+    r"results/\d{8}T\d{6}Z|outputs/gpu-pilot/runs/\d{8}T\d{6}Z|\b2\d{7}T\d{6}Z\b"
+)
+VERSION_RE = re.compile(r"v3_default|v3\.5|v2\.5|tabpfn[ =]+\d|tabpfn-v\d|tabpfn==\d")
+
+
+def evidence_note_problems(root: pathlib.Path = pathlib.Path(".")) -> tuple[list[str], int]:
+    """Return (problems, notes checked) for current notes that cite run evidence."""
+    registry_path = root / REPORT_REGISTRY
+    registry = registry_path.read_text(errors="replace") if registry_path.exists() else ""
+    problems: list[str] = []
+    checked = 0
+    for path in (root / "docs" / "experiments").rglob("*.md"):
+        if path.name == "README.md":
+            continue
+        head = "\n".join(path.read_text(errors="replace").splitlines()[:WINDOW])
+        if not CURRENT_RE.search(head):
+            continue
+        text = path.read_text(errors="replace")
+        if not RUN_CITE_RE.search(text):
+            continue
+        checked += 1
+        rel = path.relative_to(root).as_posix()
+        if not VERSION_RE.search(text):
+            problems.append(f"{rel}: cites run evidence but names no model version (docs/MODEL_VERSIONS.md)")
+        if rel not in registry and path.name not in registry:
+            problems.append(f"{rel}: cites run evidence but has no {REPORT_REGISTRY.as_posix()} row")
+    return problems, checked
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -212,6 +249,13 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  {problem}")
         else:
             print("  indexes: every plan and campaign document is listed, and the campaign counts agree")
+        notes, checked_notes = evidence_note_problems()
+        if notes:
+            for problem in notes:
+                print(f"  {problem}")
+        else:
+            print(f"  evidence notes: {checked_notes} current note(s) cite a run, each names its version and its registry row")
+        indexes = indexes + notes
         registry = registry_problems(CLAIM_REGISTRY)
         if registry:
             for problem in registry:
@@ -219,13 +263,18 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print("  claim registry: every claim names its owner and carries no number")
 
-    if (missing or registry or indexes) and not args.warn:
+    notes: list[str] = []
+    if args.dir is None:
+        notes, _ = evidence_note_problems()
+    if (missing or registry or indexes or notes) and not args.warn:
         if missing:
             print("  FAIL: a report that does not say what it is cannot be trusted to be current")
         if registry:
             print("  FAIL: a registry row that restates a number goes stale without anyone noticing")
         if indexes:
             print("  FAIL: an index that does not list its directory is a map with a hole in it")
+        if notes:
+            print("  FAIL: a note that cites a run without its version or its registry row is evidence a reader cannot place")
         return 1
     return 0
 
