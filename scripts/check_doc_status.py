@@ -14,6 +14,9 @@ A report satisfies the check if one of its first WINDOW lines is a bolded status
     > **Historical document.** Superseded by ...
 Prose that merely contains the word "current" does not pass: the marker has to lead a line.
 
+It also holds each campaign README's own document count to its directory, so the header and the table
+cannot drift apart the way frontier-benchmark's did (#733).
+
 The same script enforces the claim registry's shape. `docs/experiments/pilot2-phase2/FINETUNING_FINDINGS.md` is a pointer,
 not a store: a row that restates a number its owning document owns goes stale silently, which is how two
 rows kept asserting what their owners had contradicted. Each row must be Claim | Status | Owner, and no
@@ -163,6 +166,44 @@ def experiment_count_problems(root: pathlib.Path = pathlib.Path(".")) -> list[st
     return problems
 
 
+# A campaign README's own header states how many documents that campaign holds, and the table beneath
+# it lists them. The EXPERIMENTS row above records the same fact one level up; this is the campaign
+# checking itself. It drifted on frontier-benchmark (8 over a table of ten) because nothing compared
+# the two, and #727 corrected that instance by hand.
+CAMPAIGN_HEADER = re.compile(r"^\*\*(\d+) documents?\.\*\*", re.MULTILINE)
+CAMPAIGN_ROW_LINK = re.compile(r"^\|\s*\[`([^`]+)`\]\(([^)#]+)(?:#[^)]*)?\)", re.MULTILINE)
+
+
+def campaign_readme_problems(root: pathlib.Path = pathlib.Path(".")) -> list[str]:
+    """Return one line per campaign README whose own count or listing disagrees with its directory."""
+    problems: list[str] = []
+    for readme in sorted((root / "docs" / "experiments").glob("*/README.md")):
+        documents = {path.name for path in readme.parent.glob("*.md") if path.name != "README.md"}
+        if not documents:
+            # A README with no documents of its own is a pointer, not an index: lapse-students holds
+            # one row to a plan, and "0 documents" would say less than saying nothing.
+            continue
+        text = readme.read_text(errors="replace")
+        listed = {
+            target.removeprefix("./")
+            for _title, target in CAMPAIGN_ROW_LINK.findall(text)
+            if "/" not in target and target.endswith(".md")
+        }
+        where = readme.relative_to(root).as_posix()
+        for name in sorted(documents - listed):
+            problems.append(f"{where}: {name} is in the directory but has no row")
+        for name in sorted(listed - documents):
+            problems.append(f"{where}: lists {name}, which is not in the directory")
+        header = CAMPAIGN_HEADER.search(text)
+        if not header:
+            problems.append(f"{where}: no '**N documents.**' line")
+        elif int(header.group(1)) != len(documents):
+            problems.append(
+                f"{where}: says {header.group(1)} documents, the directory has {len(documents)}"
+            )
+    return problems
+
+
 def unlabelled(root: pathlib.Path) -> tuple[list[str], int]:
     """Return (names of reports with no status marker, total reports)."""
     missing, total = [], 0
@@ -206,7 +247,7 @@ def main(argv: list[str] | None = None) -> int:
     registry: list[str] = []
     indexes: list[str] = []
     if args.dir is None:
-        indexes = index_problems() + experiment_count_problems()
+        indexes = index_problems() + experiment_count_problems() + campaign_readme_problems()
         if indexes:
             for problem in indexes:
                 print(f"  {problem}")
