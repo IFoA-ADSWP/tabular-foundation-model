@@ -4,7 +4,7 @@
 
 The 2026-07→08 frontier suite: the benchmark that produced master report §14, its re-scores, and the v3.5 re-test.
 
-**8 documents.** Read them in the order below; each declares its own status, and a document
+**10 documents.** Read them in the order below; each declares its own status, and a document
 marked reference or historical is kept for provenance rather than as the current answer.
 
 | Document | Status | What it holds |
