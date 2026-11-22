@@ -24,6 +24,7 @@ marked reference or historical is kept for provenance rather than as the current
 | [`FINETUNING_RUNS_LEDGER.md`](FINETUNING_RUNS_LEDGER.md) | current — generated ledger, 2026-11-20 | Cross-task runs ledger — every committed fine-tuning and fair-test run, arm, seed and fold, with a descriptive summary |
 | [`FINETUNING_STATISTICAL_ANALYSIS_PLAN.md`](FINETUNING_STATISTICAL_ANALYSIS_PLAN.md) |  | Fine-Tuning — Statistical Analysis Plan |
 | [`EPOCH_LADDER_DESIGN.md`](EPOCH_LADDER_DESIGN.md) |  | Epoch ladder — the design's resolution, and why each factor is what it is |
+| [`EPOCH_LADDER_RESULT.md`](EPOCH_LADDER_RESULT.md) |  | Epoch ladder — result: the sign of fine-tuning flips between severity targets |
 | [`FINETUNING_STATUS_BRIEF.md`](FINETUNING_STATUS_BRIEF.md) | current as of 2026-11-05 for the narra | Fine-Tuning Investigation — Status Brief |
 | [`PILOT_2_DECISION_GRAPH.md`](PILOT_2_DECISION_GRAPH.md) | current as of 2026-10-31 | Pilot 2 — the decision graph |
 | [`PILOT_2_DESIGN.md`](PILOT_2_DESIGN.md) | current as of 2026-10-31 | Pilot 2 — Design for a Fair Test of Fine-Tuning |

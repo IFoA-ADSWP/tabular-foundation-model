@@ -22,17 +22,24 @@ this resolution", and nothing in the tree said which.
 ## The resolution arithmetic
 
 The paired spread is measurable from the first verdict. `eudirectlapse`, 30−raw = **+0.0021 AUC**
-with **t = 0.65** over **n = 20** paired seeds gives a per-seed SD of the difference of about
-**0.0144**. At 80 % power and α = 0.05 (two-sided):
+with **t = 0.63** over **n = 20** paired seeds gives a per-seed SD of the difference of about
+**0.0145**. At 80 % power and α = 0.05 (two-sided):
 
 | Seeds | Smallest detectable 30−raw difference |
 | --- | --- |
-| 20 (as run) | `2.8 × 0.0144 / √20` ≈ **0.009 AUC** |
-| 10 | `2.8 × 0.0144 / √10` ≈ **0.013 AUC** |
-| 40 | ≈ **0.006 AUC** |
+| 20 (as run) | `2.8 × 0.0145 / √20` ≈ **0.009 AUROC points** |
+| 10 | `2.8 × 0.0145 / √10` ≈ **0.013 AUROC points** |
+| 40 | ≈ **0.006 AUROC points** |
 
-So the design resolves effects of about **0.9 AUC points** on a classification target, and the
+So the design's observed resolution is about **0.9 AUROC points** on a classification target, and the
 `eudirectlapse` result (interval covering zero, effects of ~0.2 points) is **inside** that floor.
+
+**Corrected 2026-11-22.** The t and SD above are the recomputed values (0.63 and 0.0145); the first
+version quoted 0.65 and 0.0144 from the earlier ticket comment. The **registered** floor is a
+different number and was not met: #672 froze an MDE of 0.0021 AUROC (SD 0.0034), while the observed
+paired SD is 0.0145, so the run's half-width is ~0.0068 — about 4× the registered MDE. UNRESOLVED
+remains the right verdict, but it is a statement at the observed resolution, not at the registered
+one.
 For the severity targets the metric is a relative weighted RMSE, whose paired SD has not been
 measured; its resolution is of a similar order and should be read from the intervals the run
 produces, not assumed.
