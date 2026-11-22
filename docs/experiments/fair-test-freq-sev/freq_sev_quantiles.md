@@ -96,3 +96,5 @@ Nothing in the verdict's decision, which was registered on point metrics. It cha
 that may accompany it: **fine-tuning improves how often we expect claims, not how uncertain that
 expectation is** — and for two of the four targets the uncertainty got slightly worse. Any downstream
 use that consumes intervals rather than means should not inherit the frequency Go.
+
+**Model:** `v3_default` — tabpfn 8.5.0 (`tabpfn-v3-classifier-v3_default.ckpt`), as each capture's `meta.json` records.

@@ -510,6 +510,21 @@ if [ "$PRIMARY_MODE" = 1 ]; then
     : "${TFM_CHUNK_REPEAT:=2}"
     : "${TFM_CHUNK_PASSES:=2}"
     export TFM_CHUNK_LINES TFM_CHUNK_PAUSE TFM_CHUNK_REPEAT TFM_CHUNK_PASSES
+    # A chunk is visible to the reader for about pause x repeat seconds, and the reader polls every
+    # ~10-15 s. Measured 2026-11-22: pause 5 x repeat 2 x one pass lost 5 of 48 chunks and needed a
+    # recovery, because a single missed poll is fatal when nothing is sent twice.
+    if [ $(( TFM_CHUNK_PAUSE * TFM_CHUNK_REPEAT )) -lt 20 ] \
+       && [ "${TFM_ALLOW_FAST_CHUNKS:-0}" != "1" ]; then
+        echo "FATAL: chunk pacing $TFM_CHUNK_PAUSE s x $TFM_CHUNK_REPEAT copies = $(( TFM_CHUNK_PAUSE * TFM_CHUNK_REPEAT )) s" >&2
+        echo "       of visibility, under the ~20 s the poller needs. Measured 2026-11-22: pause 5 x 2" >&2
+        echo "       lost 5 of 48 chunks. Use the defaults, or set TFM_ALLOW_FAST_CHUNKS=1 deliberately." >&2
+        exit 2
+    fi
+    if [ "$TFM_CHUNK_PASSES" -lt 2 ] && [ "${TFM_ALLOW_SINGLE_PASS:-0}" != "1" ]; then
+        echo "FATAL: one chunk pass has no second chance for a dropped poll, which is why the pass" >&2
+        echo "       exists. Set TFM_ALLOW_SINGLE_PASS=1 to accept a possible recovery." >&2
+        exit 2
+    fi
 fi
 cleanup_launch_tmp() { [ -n "${LAUNCH_TMP:-}" ] && rm -rf "$LAUNCH_TMP"; }
 
@@ -702,6 +717,17 @@ else
     fi
     if python3 -c "import sys; sys.exit(0 if float('$CREDIT_USD') < float('$WARN_CREDIT_USD') else 1)"; then
         echo "WARNING: \$$CREDIT_USD credit is below the \$$WARN_CREDIT_USD warning threshold." >&2
+    fi
+    # The floor above asks "is there money now?"; this asks "is there enough for the frame?". On
+    # 2026-11-21 a launch projected 582 minutes with $3.70 of credit, and the balance emptied
+    # before the transfer finished. The projection is the ceiling times the price ceiling.
+    if [ "$FAIRTEST" = "primary" ] && [ -n "${REQUIRED_POLL_MINUTES:-}" ]; then
+        PROJECTED_USD="$(python3 -c "print(round($REQUIRED_POLL_MINUTES / 60.0 * $MAX_DPH, 2))" 2>/dev/null)"
+        if [ -n "$PROJECTED_USD" ] && python3 -c "import sys; sys.exit(0 if float('$CREDIT_USD') < float('$PROJECTED_USD') else 1)"; then
+            echo "WARNING: this frame projects ~$REQUIRED_POLL_MINUTES min at up to \$$MAX_DPH/hr = ~\$$PROJECTED_USD," >&2
+            echo "         above the \$$CREDIT_USD credit. The run can stop mid-transfer when the balance" >&2
+            echo "         empties; top up first, or shorten the frame." >&2
+        fi
     fi
 fi
 
