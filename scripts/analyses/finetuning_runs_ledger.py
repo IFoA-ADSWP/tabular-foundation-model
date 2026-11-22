@@ -61,7 +61,7 @@ are synthetic (`<dataset>_<arm>_seed<N>`) and Run ids are directory names.
 - A per-seed record's own `run_id` is `<dataset>_<arm>_seed<N>`, not the Run id; the Run id is the
   directory.
 - A launch record is either `<arm>/meta.json` (the 2026-09-14 launch) or
-  `<arm>/seed<N>_foldNone/meta.json` (the 2026-11-21 ladder). The dataset and arm are the path's,
+  `<arm>/seed<N>_foldNone/meta.json` (the 2026-11-21 eudirectlapse ladder). The dataset and arm are the path's,
   the seed is the record's, and the seed directory is asserted against it.
 
 Exit codes: 0 wrote both files · 1 the evidence disagrees with itself.
@@ -257,7 +257,7 @@ CAMPAIGNS: tuple[Campaign, ...] = (
         what=(
             "committed launch records with no `capture.json`, in the flat arm directory the "
             "2026-09-14 launch wrote or the per-seed `seed<N>_foldNone/` subdirectory the "
-            "2026-11-21 ladder runs write"
+            "2026-11-21 eudirectlapse ladder runs write"
         ),
         loader="launch",
     ),
@@ -1000,7 +1000,7 @@ def pilot_rows(
 
 
 # A launch record sits either directly under its arm directory (the 2026-09-14 launch) or one level
-# deeper in a `seed<N>_foldNone/` subdirectory of it (the 2026-11-21 ladder). The dataset and arm are
+# deeper in a `seed<N>_foldNone/` subdirectory of it (the 2026-11-21 eudirectlapse ladder). The dataset and arm are
 # read from the path because the path is what selects the record; the seed is read from the record,
 # and a seed directory must name the same one — a mismatch is two different claims about one file.
 LAUNCH_SEED_DIR = re.compile(r"^seed(?P<seed>\d+)_fold[^/]+$")
@@ -1046,7 +1046,7 @@ def launch_rows(
     """Records committed under `outputs/gpu-pilot/runs/` — no Capture.
 
     Two record layouts are read, because the launcher changed: the 2026-09-14 launch writes
-    `<run>/<dataset>/<arm>/meta.json`, and the 2026-11-21 ladder writes
+    `<run>/<dataset>/<arm>/meta.json`, and the 2026-11-21 eudirectlapse ladder writes
     `<run>/<dataset>/<arm>/seed<N>_foldNone/meta.json`. The dataset and arm are the path's; the seed
     is the record's, and the seed directory must agree with it.
 
@@ -1504,9 +1504,10 @@ def render_document(csv_rows: list[dict[str, str]], overlaps: list[dict] | None 
     )
 
     lines = [
-        "# Runs ledger — every committed fine-tuning and fair-test run, classification and regression",
+        "# Runs ledger — the committed fine-tuning and fair-test runs this ledger covers",
         "",
-        "> **Status:** current — generated ledger, 2026-11-20. **Generated, not written:** rebuild it",
+        "> **Status:** current — generated ledger, 2026-11-20; the scope note was added 2026-11-22.",
+        "> **Generated, not written:** rebuild it",
         "> with `python scripts/analyses/finetuning_runs_ledger.py`; a hand edit is overwritten and a",
         "> number typed here is a number with no evidence behind it.",
         "",
@@ -1514,6 +1515,12 @@ def render_document(csv_rows: list[dict[str, str]], overlaps: list[dict] | None 
         "for frequency/severity regression? One row per run × arm × seed (classification) or",
         "run × arm × seed × fold (regression), and a descriptive summary per task underneath. This is a",
         "reference, not a new verdict: it re-runs nothing, adds no interval, and changes no claim.",
+        "",
+        "**Scope.** Not exhaustive. The seven families below are what it covers; two committed sets are",
+        "reported by their own notes and are not rows here — the #572 row-scaling runs",
+        "(`20261113T003320Z`, `20261113T095502Z`) and the two severity ladder captures",
+        "(`20261121T153848Z`, `20261121T232424Z`). The separate `eudirectlapse` ladder launch records",
+        "are classification rows and are included.",
         "",
         "**Provenance.** Built for the map's ledger tickets (#663 → #665 → #668). The classification",
         "fields and traps are the research note's (#664); the regression records add `task`, `fold`,",

@@ -1,6 +1,7 @@
-# Runs ledger — every committed fine-tuning and fair-test run, classification and regression
+# Runs ledger — the committed fine-tuning and fair-test runs this ledger covers
 
-> **Status:** current — generated ledger, 2026-11-20. **Generated, not written:** rebuild it
+> **Status:** current — generated ledger, 2026-11-20; the scope note was added 2026-11-22.
+> **Generated, not written:** rebuild it
 > with `python scripts/analyses/finetuning_runs_ledger.py`; a hand edit is overwritten and a
 > number typed here is a number with no evidence behind it.
 
@@ -8,6 +9,12 @@
 for frequency/severity regression? One row per run × arm × seed (classification) or
 run × arm × seed × fold (regression), and a descriptive summary per task underneath. This is a
 reference, not a new verdict: it re-runs nothing, adds no interval, and changes no claim.
+
+**Scope.** Not exhaustive. The seven families below are what it covers; two committed sets are
+reported by their own notes and are not rows here — the #572 row-scaling runs
+(`20261113T003320Z`, `20261113T095502Z`) and the two severity ladder captures
+(`20261121T153848Z`, `20261121T232424Z`). The separate `eudirectlapse` ladder launch records
+are classification rows and are included.
 
 **Provenance.** Built for the map's ledger tickets (#663 → #665 → #668). The classification
 fields and traps are the research note's (#664); the regression records add `task`, `fold`,
@@ -38,7 +45,7 @@ the same `A_raw` / `B_ft30` labels. In short:
 
 - `pilot2-phase2` — the Run directories this campaign's own `Runs` block names, each with a `capture.json`.
 - `r1-pilot` — the 2,000-row R1 pilot aggregate, one seed (42), no Capture.
-- `gpu-pilot` — committed launch records with no `capture.json`, in the flat arm directory the 2026-09-14 launch wrote or the per-seed `seed<N>_foldNone/` subdirectory the 2026-11-21 ladder runs write.
+- `gpu-pilot` — committed launch records with no `capture.json`, in the flat arm directory the 2026-09-14 launch wrote or the per-seed `seed<N>_foldNone/` subdirectory the 2026-11-21 eudirectlapse ladder runs write.
 - `pilot2-breadth-spanish` — one curated cell whose per-seed records were never committed.
 - `fair-test-freq-sev` — the four registered fair-test targets, policy-grouped folds; the #572 row-scaling runs `20261113T003320Z` and `20261113T095502Z` belong to the same campaign and are reported by the fair-test result, not this ledger.
 - `actuarial-baseline-full` — the registered primary baseline arm, trained on the whole fold pool.

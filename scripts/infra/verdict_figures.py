@@ -99,6 +99,7 @@ DECISION_COLOR = {
     "Inconclusive": OKABE_ITO["blue"],
     "equivalence": OKABE_ITO["sky_blue"],
     "Heterogeneous": OKABE_ITO["orange"],
+    "No claim": NEUTRAL["muted"],
     "stopped": NEUTRAL["muted"],
 }
 

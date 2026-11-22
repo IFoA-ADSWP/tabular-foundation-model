@@ -37,12 +37,12 @@ So the design's observed resolution is about **0.9 AUROC points** on a classific
 **Corrected 2026-11-22.** The t and SD above are the recomputed values (0.63 and 0.0145); the first
 version quoted 0.65 and 0.0144 from the earlier ticket comment. The **registered** floor is a
 different number and was not met: #672 froze an MDE of 0.0021 AUROC (SD 0.0034), while the observed
-paired SD is 0.0145, so the run's half-width is ~0.0068 — about 4× the registered MDE. UNRESOLVED
-remains the right verdict, but it is a statement at the observed resolution, not at the registered
-one.
-For the severity targets the metric is a relative weighted RMSE, whose paired SD has not been
-measured; its resolution is of a similar order and should be read from the intervals the run
-produces, not assumed.
+paired SD is 0.0145, so the run's half-width is ~0.0068 — about 3.2× the registered MDE, with the
+observed SD 4.3× the frozen one. UNRESOLVED remains the right verdict, but it is a statement at the
+observed resolution, not at the registered one.
+For the severity targets the metric is a relative RMSE (per claim in French, claim-weighted per
+policy in Spanish), whose paired SD has not been measured; its resolution is of a similar order and
+should be read from the intervals the run produces, not assumed.
 
 ## What this means for reading a verdict
 

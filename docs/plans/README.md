@@ -4,8 +4,8 @@ One file per task: `docs/plans/<task>.md`. Write it **before** non-trivial work,
 change. A plan outranks a fresh ticket — check this directory before speccing or building, because the ticket
 you are about to write may already be covered.
 
-**This index is the only map.** Of the 89 plans, 65 are linked from no other document and only
-17 are even mentioned anywhere else.
+**This index is the only map.** Of the 99 plans, 97 are linked from no other document; a handful are
+mentioned elsewhere.
 
 Each row carries the plan's own first heading, so the index cannot drift from the file it points at. The
 group is the **first word of that plan's own `Status:` line** — the plans use *current*, *agreed*,
@@ -17,12 +17,13 @@ since merged, and the pull request that merged it is the record of what happened
 the fact: a plan that says proposed stays that way unless its author amends it, because rewriting the status
 of a plan after the data would make the trail say something it did not.
 
-## Current, agreed or implemented — 83 plans
+## Current, agreed or implemented — 85 plans
 
 Newest first, by ticket number where the filename carries one.
 
 | Plan | What it settles |
 | --- | --- |
+| [`729-severity-estimand.md`](729-severity-estimand.md) | the severity estimand decision (#729) |
 | [`701-paid-run-ceilings.md`](701-paid-run-ceilings.md) | the paid-run path measures its own ceilings (#701, #433) |
 | [`423-yes-leak-preflight.md`](423-yes-leak-preflight.md) | `--yes` answers the leak preflight (#423) |
 | [`678-launch-seed-layout.md`](678-launch-seed-layout.md) | the runs ledger reads both launch-record layouts (#678) |

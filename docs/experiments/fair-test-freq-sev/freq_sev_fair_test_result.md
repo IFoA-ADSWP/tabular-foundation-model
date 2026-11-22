@@ -1,16 +1,19 @@
 # Frequency/severity fair test — result
 
 > **Status:** current — verdict recorded 2026-11-12; both halves of the row-scaling arm (#572) added
-> 2026-11-13 and do not change the verdict. Supersedes the gate's preview
+> 2026-11-13 and do not change the verdict; the severity estimand decision (#729) amended the
+> severity claim on 2026-11-22 and recalculates no number. Supersedes the gate's preview
 > (`freq_sev_power.md`), which said in advance that it was not a verdict.
-> **Question:** does fine-tuning TabPFN beat using it untouched, on claim frequency and per-claim
-> severity, across a French and a Spanish portfolio?
+> **Question:** does fine-tuning TabPFN beat using it untouched, on claim frequency and severity —
+> per claim in the French portfolio, per claiming policy in the Spanish one — across the two
+> portfolios?
 > **Answer:** yes for claim frequency (pooled **+6.85%**, CI [+2.65%, +10.36%], **Go** against the
-> 2% floor); no for severity (pooled **+0.36%**, CI [−0.99%, +2.06%], **heterogeneous** — the two
-> portfolios disagree in sign, so no task-level gain is claimed).
-> **At scale:** both targets were then re-tested at the largest training budget their data allows
-> (#572). Severity stayed **No-go** at 2.1× the cap; frequency stayed **Go** at 4×, on a larger point
-> estimate. Neither moves the verdict above.
+> 2% floor). Severity is **not a task-level claim**: the two portfolios sit on different estimands and
+> are reported separately — French per-claim severity **No-go** (−0.92%), Spanish claim-weighted
+> per-policy severity **Inconclusive** (+1.64%). No pooled severity number carries a verdict.
+> **At scale:** both French targets were then re-tested at the largest training budget their data
+> allows (#572). French per-claim severity stayed **No-go** at 2.1× the cap; frequency stayed **Go**
+> at 4×, on a larger point estimate. Neither moves the verdict above.
 
 ## Design, as registered
 
@@ -23,9 +26,10 @@ statistic is the per-fold, per-seed relative improvement
 r_{t,f,s} = (M(A_raw) - M(B_ft30)) / M(A_raw)
 ```
 
-`M` is the target's verdict metric: **Poisson deviance** for the two frequency targets and
-**weighted RMSE** for the two severity targets, so a positive `r` means fine-tuning improved the
-metric. `r` is averaged over seeds inside each fold. Target intervals are paired t over five folds (4 df); task
+`M` is the target's verdict metric: **Poisson deviance** for the two frequency targets, **per-claim
+RMSE** for French severity (one weight per claim, so weighted and unweighted coincide), and
+**claim-weighted per-policy RMSE** for Spanish severity, so a positive `r` means fine-tuning improved
+the metric. `r` is averaged over seeds inside each fold. Target intervals are paired t over five folds (4 df); task
 intervals are the registered two-way bootstrap (portfolios × folds, 10,000 draws, indicative
 because two portfolios is a thin resample).
 
@@ -56,24 +60,32 @@ registered on — `20261113T003320Z` (v4, `freMTPL2sev`) and `20261113T095502Z` 
 | severity_french | **−0.92%** | [−1.16%, −0.68%] | 0.24% | 2% | **No-go** |
 | severity_spanish | **+1.64%** | [+0.24%, +3.05%] | 1.42% | 2% | **Inconclusive** |
 | **Task: frequency** | **+6.85%** | [+2.65%, +10.36%] | — | 2% | **Go** |
-| **Task: severity** | **+0.36%** | [−0.99%, +2.06%] | — | 2% | **Heterogeneous** |
+| **Task: severity** | **+0.36%** | [−0.99%, +2.06%] | — | 2% | **No claim** |
 
 Decision rule, from the pre-registration: **Go** when the CI excludes zero and the point estimate is
 at or above the floor; **No-go** when the CI upper bound is below the floor; **Inconclusive** when
 the CI covers both zero and the floor, or the target is underpowered. Task floors are 2%; Spanish
-frequency carries its own 4% per-target floor and does not decide the frequency task.
+frequency carries its own 4% per-target floor and does not decide the frequency task. **No claim** is
+not a rule outcome: it marks the severity task row as descriptive (#729, 2026-11-22).
+
+**The `Task: severity` row carries no verdict (#729, 2026-11-22).** It is the registered analysis's
+summary and is shown for completeness only: it averages a per-claim effect with a claim-weighted
+per-policy effect, which are different quantities. Every severity number in this report is read on
+its target's own unit and weighting, and the task row is never read as one.
 
 ![The fair-test verdict as a forest plot](../../figures/freq_sev_forest.png)
 
 *Figure 1 — frequency clears its floor; severity does not.* Positive `r` means fine-tuning improved
 the target's metric. One row per pooled task, with its two portfolios beneath it; the line is the
 95% interval, the dashed tick below it the row's registered floor, and the word at the right the
-decision the rule returned. French frequency clears its 2% floor; French severity is a small but
-real harm; both Spanish cells are inconclusive against their floors; and the pooled severity task is
-heterogeneous because the two portfolios disagree in sign. Every value is computed from the four
-committed captures by `freq_sev_fair_test.build_summary()` — the function that prints the table
-above — so the figure cannot disagree with it. The 2.1× and 4× row-scaling arms ([below](#the-row-
-scaling-arm-572)) are robustness checks on this verdict, not a second verdict, and are not drawn.
+rule's decision (or **No claim** for the descriptive severity task row, #729). French frequency
+clears its 2% floor; French per-claim severity is a small but real harm; the Spanish cell is
+inconclusive on the claim-weighted per-policy metric; the severity task row is drawn for completeness
+only, because it averages two estimands and carries no verdict. Every value is computed from the
+four committed captures by `freq_sev_fair_test.build_summary()` — the function that prints the table
+above — so the figure cannot disagree with it. The 2.1× and 4× row-scaling arms
+([below](#the-row-scaling-arm-572)) are robustness checks on this verdict, not a second verdict, and
+are not drawn.
 **Both arms are TabPFN**: this says fine-tuning beats not fine-tuning, not that either beats a GLM or
 CatBoost — the actuarial baseline answers that ([its own page](actuarial_baseline_summary.md)). Regenerate
 with `.venv/bin/python scripts/infra/verdict_figures.py --only fair-test`; vector PDF at
@@ -86,12 +98,13 @@ entirely above its floor, four times its own MDE. Spanish frequency is direction
 (+4.00%) but its interval includes zero, so on its own it is inconclusive — the pooled task interval
 is what carries the decision, exactly as registered.
 
-**Severity: fine-tuning does not help, and on the French claims it slightly hurts.** The French
-effect is small but real — the CI excludes zero and lies entirely below it, so "no effect" is
-*excluded*: fine-tuning made per-claim severity worse by about 0.9%. Spanish severity is positive
+**Severity: two targets, two estimands, no task-level claim.** On French claims the effect is small
+but real — the CI excludes zero and lies entirely below it, so "no effect" is *excluded*: fine-tuning
+made per-claim severity worse by about 0.9%, and the unit is one claim. Spanish severity is positive
 (CI [+0.24%, +3.05%], excludes zero) but below the 2% floor and covers it, so it is inconclusive
-rather than a win. Because the two portfolios disagree in sign, the task is **heterogeneous** and no
-task-level severity gain is claimed, per the pre-registration.
+rather than a win; its unit is a claiming policy, weighted by claim count. The two are not put on one
+scale: no task-level severity gain is claimed, and the pooled severity number carries no claim
+(#729, 2026-11-22).
 
 **The gate's preview held.** Measured against the gate's point estimates (+9.42% / +4.49% / −0.92% /
 +1.63%), the fair test returned +9.69% / +4.00% / −0.92% / +1.64% — same seeds, same folds, so this
@@ -140,9 +153,9 @@ whole claim pool is 21,131–21,177, so the arm ran at the largest budget this d
 at the 4× it named, and the gap is the data's rather than the design's.
 
 **The reading is the target's, not the task's.** The No-go above applies the registered rule to
-`severity_french`'s own interval. The task verdict is not recomputed at the raised budget, because
-Spanish severity was not re-run: severity still reads **Heterogeneous** from the four registered
-captures, and no task-level number moves.
+`severity_french`'s own interval. The task row is descriptive and carries no verdict (#729), so
+there is no task-level reading to recompute at the raised budget; the four registered target rows
+stand, and no per-target number moves.
 
 The per-fold pattern says the same without the average: four of five folds are negative (−0.29%,
 −1.19%, −1.17%, −1.33%) and the fifth is +0.02%.
@@ -186,8 +199,10 @@ not; the v3/v4 split is the writer's rule, not a difference in what was captured
   not in this run. This measures the value of fine-tuning, not the value of TabPFN. The missing
   comparison has since run on these same folds and test rows: see
   `actuarial_baseline_result.md` (2026-11-14).
-- **The epoch ladder was not run.** `B_ft10` and `B_ft3` are a follow-up; no floor is registered for
-  them, so they could not have moved these decisions.
+- **The epoch ladder was not part of this run's registration.** `B_ft10` and `B_ft3` were a
+  follow-up; the ladder ran on 2026-11-21/22 and is recorded in
+  [`EPOCH_LADDER_RESULT.md`](../pilot2-phase2/EPOCH_LADDER_RESULT.md). It adds the dose axis and
+  changes none of these decisions.
 - **The row cap is settled at the budgets this data allows.** French severity was repeated on each
   fold's whole claim pool (21,131–21,177 rows, 2.1× the cap) and stayed No-go; French frequency was
   repeated at the full 40,000 rows (4× the cap) and stayed Go, with a larger point estimate. Neither
@@ -195,10 +210,12 @@ not; the v3/v4 split is the writer's rule, not a difference in what was captured
 - **Spanish frequency is underpowered at its floor.** Its MDE (4.69%) is above the 4% bar, so a true
   effect of 4% would be missed roughly half the time. More folds would fix it; the pre-registration
   fixes five, so that is a new registration.
-- **Severity's Spanish interval is clustered by policy** as registered; the French severity point
-  estimate is one small negative number and should not be read as a magnitude worth acting on.
-- **Quantiles were captured but are not analysed here.** The verdict uses the recorded deviance /
-  weighted RMSE per slot; calibration and interval work is a separate question.
+- **Spanish severity's interval is clustered by policy** as registered, and its unit is the claiming
+  policy weighted by claim count; the French per-claim point estimate is one small negative number
+  and should not be read as a magnitude worth acting on.
+- **Quantiles were captured but are not analysed here.** The verdict uses the recorded Poisson
+  deviance, and per-claim or claim-weighted RMSE, per slot; calibration and interval work is a
+  separate question.
 
 ## Reproduce
 
@@ -216,4 +233,10 @@ mean, so the four registered rows are byte-for-byte what was published on 2026-1
 
 ---
 
-**Dose ladder, 2026-11-22.** The severity sign flip recorded above is now confirmed and tightened by the epoch ladder: `severity_french` REFUTED (worse at every rung), `severity_spanish` CONFIRMED at 30 epochs (30 − raw −1.29 %, CI [−2.08 %, −0.50 %]) with its monotone clause failing. See [`EPOCH_LADDER_RESULT.md`](../pilot2-phase2/EPOCH_LADDER_RESULT.md).
+**Dose ladder, 2026-11-22.** The per-target severity record is confirmed and tightened by the epoch
+ladder: `severity_french` REFUTED on per-claim RMSE (worse at every rung), `severity_spanish`
+CONFIRMED at 30 epochs on the claim-weighted per-policy metric (a 1.29 % improvement; the ladder
+publishes the same contrast as 30 − raw −1.29 %, CI [−2.08 %, −0.50 %], because its sign is
+worse-positive) with its monotone clause failing. The ladder adds the dose axis; it does not make a
+task-level severity claim, because the two targets are on different estimands (#729). See
+[`EPOCH_LADDER_RESULT.md`](../pilot2-phase2/EPOCH_LADDER_RESULT.md).

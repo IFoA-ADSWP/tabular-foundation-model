@@ -91,7 +91,7 @@ def test_the_fair_test_figure_reproduces_the_verdict_table(figures):
 
     severity_task = _by_label(rows, "Task: severity")
     assert severity_task.value == pytest.approx(0.0036, abs=1e-4)
-    assert severity_task.decision == "Heterogeneous"
+    assert severity_task.decision == "No claim"
 
 
 def test_every_row_states_where_its_number_came_from(figures):

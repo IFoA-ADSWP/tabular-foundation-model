@@ -39,7 +39,7 @@ count. **A missing citation below means the search did not find it, not that the
 
 | Family | Published position, 2024–26 | What this repository has settled | What is still open |
 |---|---|---|---|
-| Fine-tuning and adaptation | Full fine-tuning helps most on IID data; it does not rescue gradual temporal drift | Classifier: one small gain in four; regressor: frequency Go, severity heterogeneous (French No-go) | Adaptation to grouped/insurance data at 10k–678k rows; thinking-mode and distillation |
+| Fine-tuning and adaptation | Full fine-tuning helps most on IID data; it does not rescue gradual temporal drift | Classifier: one small gain in four; regressor: frequency Go, severity reported per target (French per-claim No-go, Spanish below the fair-test floor at the registered rung and ladder-CONFIRMED at 30 epochs) | Adaptation to grouped/insurance data at 10k–678k rows; thinking-mode and distillation |
 | Calibration and distributional output | TFMs emit full predictive distributions; rankings depend on the scoring rule; the joint is not coherent | Classification calibration is a tie-to-win; regression quantiles degrade under fine-tuning | Proper-scoring comparison against GLM/GBDT on insurance targets; joint multi-target |
 | Exposure and offsets | No native offset or sample weight; exposure-as-feature is the published workaround | The exposure-aware GLM contrast is measured on five datasets; `norauto` is the exception | A method that imposes proportionality; extrapolation beyond the observed exposure range |
 | Ensembles and hybrids with GBDTs | Cross-model ensembles advance the general SOTA; TabPFN is not the only strong family | Only the estimator-count and context levers are closed; no TabPFN+GBDT hybrid run | Any insurance hybrid, and whether it survives the weight licence |
@@ -73,8 +73,11 @@ guidance, DDP support and the commercial-vs-research distinction live in the ven
   `uslapseagent`, equivalence on two cells, `coil2000` unmeasurable at design precision. Owner:
   [FINETUNING_PHASE2_OUTCOME.md](../experiments/pilot2-phase2/FINETUNING_PHASE2_OUTCOME.md).
 - **Regressor fine-tuning separates by target** — frequency pooled +6.85% against a 2% floor (Go);
-  severity pooled +0.36%, heterogeneous — no task-level gain. Owner:
-  [freq_sev_fair_test_result.md](../experiments/fair-test-freq-sev/freq_sev_fair_test_result.md).
+  severity is reported per target, not as a task: French per-claim severity is No-go at the
+  registered rung, and Spanish claim-weighted per-policy severity is Inconclusive at that rung but
+  CONFIRMED at 30 epochs in the ladder. No task-level severity claim (#729). Owner:
+  [freq_sev_fair_test_result.md](../experiments/fair-test-freq-sev/freq_sev_fair_test_result.md),
+  [EPOCH_LADDER_RESULT.md](../experiments/pilot2-phase2/EPOCH_LADDER_RESULT.md).
 - **Fine-tuning moves the conditional mean and not the uncertainty** — pinball loss is unchanged on
   two targets and significantly worse on the other two, and the count quantile head is unusable as
   configured. Owner:
