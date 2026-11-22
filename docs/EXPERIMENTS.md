@@ -14,7 +14,7 @@ each document declares in its first lines says what it is worth now.
 | [`baseline-conclusion-2026-11`](experiments/baseline-conclusion-2026-11/README.md) | 1 live, 0 archived | 0 | The phase's closing distribution: the generated verdict table, and from #632 the technical conclusion and its plain-language companion. |
 | [`frontier-benchmark`](experiments/frontier-benchmark/README.md) | 10 live, 8 archived | 4 | The 2026-07→08 frontier suite: the benchmark that produced master report §14, its re-scores, and the v3.5 re-test. |
 | [`lapse-students`](experiments/lapse-students/README.md) | 0 live, 0 archived | 1 | Measuring the lapse GBDTs on the teacher's own folds instead of estimating them (#377). |
-| [`pilot2-phase2`](experiments/pilot2-phase2/README.md) | 29 live, 9 archived | 23 | The fine-tuning programme: design, pre-registrations, the replication and breadth cells, the decision log and the Phase 2 outcome. |
+| [`pilot2-phase2`](experiments/pilot2-phase2/README.md) | 30 live, 9 archived | 23 | The fine-tuning programme: design, pre-registrations, the replication and breadth cells, the decision log and the Phase 2 outcome. |
 | [`probe`](experiments/probe/README.md) | 3 live, 0 archived | 0 | The 2026-09 budget probe: whether the paid path could measure anything at the smaller budget. |
 | [`r1-pilot`](experiments/r1-pilot/README.md) | 1 live, 2 archived | 0 | The first fine-tuning pilot, 2026-09. |
 | [`tabarena`](experiments/tabarena/README.md) | 4 live, 0 archived | 0 | The external TabArena harness: what it is, what was learned from it, and what runs without a GPU. |
