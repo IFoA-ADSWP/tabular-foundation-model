@@ -49,6 +49,7 @@ number, and it can never settle a rule.
 | The index of claims | [FINETUNING_FINDINGS.md](experiments/pilot2-phase2/FINETUNING_FINDINGS.md) | any number it links to |
 | The run inventory — problem type, task, dataset, epochs, seeds, folds, training rows, arm kind | [FINETUNING_RUNS_LEDGER.md](experiments/pilot2-phase2/FINETUNING_RUNS_LEDGER.md) | the outcome metrics it lists; those stay with the owning analysis |
 | The closing statement of a phase | [FINETUNING_PHASE2_OUTCOME.md](experiments/pilot2-phase2/FINETUNING_PHASE2_OUTCOME.md) | the numbers it links to |
+| The headline table of the baseline phase, and its plain-language restatement | [CONCLUSION.md](experiments/baseline-conclusion-2026-11/CONCLUSION.md) | the per-dataset numbers it restates; the adoption rule; any verdict it did not generate |
 
 ## The fourteen disagreements, and which document won
 
