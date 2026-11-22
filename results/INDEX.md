@@ -41,5 +41,20 @@ reader gets from an id to the experiment it served.
 | [`20261113T003320Z`](20261113T003320Z/) | [`fair-test-freq-sev`](../docs/experiments/fair-test-freq-sev/README.md) | freMTPL2sev | 2026-11-13 | A_raw, B_ft30 | 30 |
 | [`20261113T095502Z`](20261113T095502Z/) | [`fair-test-freq-sev`](../docs/experiments/fair-test-freq-sev/README.md) | freMTPL2freq | 2026-11-13 | A_raw, B_ft30 | 30 |
 
-**34 runs, every one assigned to a campaign.** A run with no campaign would be evidence nobody owns.
+| [`20261121T184658Z`](20261121T184658Z/) | [`frontier-benchmark`](../docs/experiments/frontier-benchmark/README.md) | freMTPL2freq | 2026-11-21 | — | 45 |
+| [`20261121T184659Z`](20261121T184659Z/) | [`frontier-benchmark`](../docs/experiments/frontier-benchmark/README.md) | spanish_motor_freq | 2026-11-21 | — | 45 |
+| [`20261121T184700Z`](20261121T184700Z/) | [`frontier-benchmark`](../docs/experiments/frontier-benchmark/README.md) | freMTPL2sev | 2026-11-21 | — | 45 |
+| [`20261121T184701Z`](20261121T184701Z/) | [`frontier-benchmark`](../docs/experiments/frontier-benchmark/README.md) | spanish_motor_severity | 2026-11-21 | — | 45 |
+| [`20261121T184951Z`](20261121T184951Z/) | [`frontier-benchmark`](../docs/experiments/frontier-benchmark/README.md) | freMTPL2freq | 2026-11-21 | — | 45 |
+| [`20261121T184952Z`](20261121T184952Z/) | [`frontier-benchmark`](../docs/experiments/frontier-benchmark/README.md) | spanish_motor_freq | 2026-11-21 | — | 45 |
+| [`20261121T184953Z`](20261121T184953Z/) | [`frontier-benchmark`](../docs/experiments/frontier-benchmark/README.md) | freMTPL2sev | 2026-11-21 | — | 45 |
+| [`20261121T184954Z`](20261121T184954Z/) | [`frontier-benchmark`](../docs/experiments/frontier-benchmark/README.md) | spanish_motor_severity | 2026-11-21 | — | 45 |
+| [`20261121T185335Z`](20261121T185335Z/) | [`frontier-benchmark`](../docs/experiments/frontier-benchmark/README.md) | freMTPL2freq | 2026-11-21 | — | 45 |
+| [`20261121T185336Z`](20261121T185336Z/) | [`frontier-benchmark`](../docs/experiments/frontier-benchmark/README.md) | spanish_motor_freq | 2026-11-21 | — | 45 |
+| [`20261121T185337Z`](20261121T185337Z/) | [`frontier-benchmark`](../docs/experiments/frontier-benchmark/README.md) | freMTPL2sev | 2026-11-21 | — | 45 |
+| [`20261121T185338Z`](20261121T185338Z/) | [`frontier-benchmark`](../docs/experiments/frontier-benchmark/README.md) | spanish_motor_severity | 2026-11-21 | — | 45 |
+
+| [`20261121T153848Z`](20261121T153848Z/) | [`pilot2-phase2`](../docs/experiments/pilot2-phase2/README.md) | freMTPL2sev | 2026-11-21 | A_raw, B_ft3, B_ft10, B_ft30 | 2801 |
+
+**47 runs, every one assigned to a campaign.** A run with no campaign would be evidence nobody owns.
 

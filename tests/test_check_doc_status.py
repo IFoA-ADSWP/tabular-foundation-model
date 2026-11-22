@@ -6,6 +6,7 @@ import pathlib
 from scripts.check_doc_status import (
     CLAIM_REGISTRY,
     DEFAULT_DIRS,
+    campaign_readme_problems,
     experiment_count_problems,
     index_problems,
     main,
@@ -194,3 +195,60 @@ def test_a_campaign_with_no_row_is_reported(tmp_path: pathlib.Path) -> None:
     problems = experiment_count_problems(tmp_path)
 
     assert any("orphan" in p and "no row" in p for p in problems)
+
+
+def _campaign_readme(tmp_path: pathlib.Path, *, header: str | None, rows: tuple[str, ...], documents: tuple[str, ...]) -> None:
+    """A campaign directory with the documents it holds and the README that should list them."""
+    directory = tmp_path / "docs" / "experiments" / "demo"
+    directory.mkdir(parents=True)
+    for name in documents:
+        (directory / name).write_text("> **Status:** current\n")
+    table = "\n".join(f"| [`{name}`]({name}) | current | what it is |" for name in rows)
+    (directory / "README.md").write_text(
+        "# Demo\n\n> **Status:** index.\n\n"
+        + (f"{header}\nRead them below.\n\n" if header else "")
+        + "| Document | Status | What |\n|---|---|---|\n"
+        + table
+        + "\n"
+    )
+
+
+def test_a_campaign_readme_that_agrees_with_its_directory_is_not_reported(tmp_path: pathlib.Path) -> None:
+    _campaign_readme(tmp_path, header="**2 documents.**", rows=("a.md", "b.md"), documents=("a.md", "b.md"))
+    assert campaign_readme_problems(tmp_path) == []
+
+
+def test_a_campaign_header_that_undercounts_is_reported(tmp_path: pathlib.Path) -> None:
+    # The frontier-benchmark failure: ten rows, a header saying eight.
+    _campaign_readme(tmp_path, header="**2 documents.**", rows=("a.md", "b.md", "c.md"),
+              documents=("a.md", "b.md", "c.md"))
+    problems = campaign_readme_problems(tmp_path)
+    assert any("says 2 documents, the directory has 3" in problem for problem in problems)
+
+
+def test_a_document_with_no_row_is_reported_even_when_the_count_matches(tmp_path: pathlib.Path) -> None:
+    # The stronger half: a count decremented in step with a deleted row still hides a document.
+    _campaign_readme(tmp_path, header="**2 documents.**", rows=("a.md", "b.md"), documents=("a.md", "b.md", "c.md"))
+    assert any("c.md is in the directory but has no row" in problem for problem in campaign_readme_problems(tmp_path))
+
+
+def test_a_row_naming_a_missing_file_is_reported(tmp_path: pathlib.Path) -> None:
+    _campaign_readme(tmp_path, header="**2 documents.**", rows=("a.md", "ghost.md"), documents=("a.md", "b.md"))
+    assert any("lists ghost.md, which is not in the directory" in problem for problem in campaign_readme_problems(tmp_path))
+
+
+def test_a_campaign_without_documents_is_exempt(tmp_path: pathlib.Path) -> None:
+    # lapse-students is a pointer to a plan: one row, no documents of its own, no count to check.
+    _campaign_readme(tmp_path, header=None, rows=(), documents=())
+    readme = tmp_path / "docs" / "experiments" / "demo" / "README.md"
+    readme.write_text(
+        "# Demo\n\n> **Status:** index.\n\n"
+        "| Document | What it is |\n|---|---|\n"
+        "| [`377-plan.md`](../../plans/377-plan.md) | the plan |\n"
+    )
+    assert campaign_readme_problems(tmp_path) == []
+
+
+def test_a_campaign_with_documents_and_no_header_is_reported(tmp_path: pathlib.Path) -> None:
+    _campaign_readme(tmp_path, header=None, rows=("a.md",), documents=("a.md",))
+    assert any("no '**N documents.**' line" in problem for problem in campaign_readme_problems(tmp_path))

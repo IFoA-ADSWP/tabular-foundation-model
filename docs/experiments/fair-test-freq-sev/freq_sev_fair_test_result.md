@@ -74,7 +74,9 @@ heterogeneous because the two portfolios disagree in sign. Every value is comput
 committed captures by `freq_sev_fair_test.build_summary()` — the function that prints the table
 above — so the figure cannot disagree with it. The 2.1× and 4× row-scaling arms ([below](#the-row-
 scaling-arm-572)) are robustness checks on this verdict, not a second verdict, and are not drawn.
-Regenerate with `.venv/bin/python scripts/infra/verdict_figures.py --only fair-test`; vector PDF at
+**Both arms are TabPFN**: this says fine-tuning beats not fine-tuning, not that either beats a GLM or
+CatBoost — the actuarial baseline answers that ([its own page](actuarial_baseline_summary.md)). Regenerate
+with `.venv/bin/python scripts/infra/verdict_figures.py --only fair-test`; vector PDF at
 [`figures/freq_sev_forest.pdf`](../../figures/freq_sev_forest.pdf).
 
 ## What the numbers say, and what they do not
@@ -211,3 +213,7 @@ It prints the tables above — including each row-scaling arm's per-fold ratios 
 the same as data. `--row-scale-french` and `--row-scale-frequency` keep each arm out of its task
 mean, so the four registered rows are byte-for-byte what was published on 2026-11-12.
 `./scripts/check.sh citation` proves each cited id has the capture it claims.
+
+---
+
+**Dose ladder, 2026-11-22.** The severity sign flip recorded above is now confirmed and tightened by the epoch ladder: `severity_french` REFUTED (worse at every rung), `severity_spanish` CONFIRMED at 30 epochs (30 − raw −1.29 %, CI [−2.08 %, −0.50 %]) with its monotone clause failing. See [`EPOCH_LADDER_RESULT.md`](../pilot2-phase2/EPOCH_LADDER_RESULT.md).

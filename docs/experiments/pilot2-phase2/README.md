@@ -4,7 +4,7 @@
 
 The fine-tuning programme: design, pre-registrations, the replication and breadth cells, the decision log and the Phase 2 outcome.
 
-**26 documents.** Read them in the order below; each declares its own status, and a document
+**30 documents.** Read them in the order below; each declares its own status, and a document
 marked reference or historical is kept for provenance rather than as the current answer.
 
 | Document | Status | What it holds |
@@ -21,7 +21,11 @@ marked reference or historical is kept for provenance rather than as the current
 | [`FINETUNING_PREREGISTRATION_2026-11.md`](FINETUNING_PREREGISTRATION_2026-11.md) | current — pre-registration, 2026-11-04 | Pre-registration — the fine-tuning replication (2026-11) |
 | [`FINETUNING_PREREGISTRATION_SPANISH_2026-11.md`](FINETUNING_PREREGISTRATION_SPANISH_2026-11.md) | current — pre-registration, 2026-11-05 | Pre-registration — the Spanish lapse cell (2026-11) |
 | [`FINETUNING_PREREQUISITES.md`](FINETUNING_PREREQUISITES.md) | current as of 2026-10-31 | Fine-Tuning — Prerequisites Checklist |
+| [`FINETUNING_RUNS_LEDGER.md`](FINETUNING_RUNS_LEDGER.md) | current — generated ledger, 2026-11-20 | Cross-task runs ledger — every committed fine-tuning and fair-test run, arm, seed and fold, with a descriptive summary |
 | [`FINETUNING_STATISTICAL_ANALYSIS_PLAN.md`](FINETUNING_STATISTICAL_ANALYSIS_PLAN.md) |  | Fine-Tuning — Statistical Analysis Plan |
+| [`EPOCH_LADDER_DESIGN.md`](EPOCH_LADDER_DESIGN.md) |  | Epoch ladder — the design's resolution, and why each factor is what it is |
+| [`EPOCH_LADDER_RESULT.md`](EPOCH_LADDER_RESULT.md) |  | Epoch ladder — result: the sign of fine-tuning flips between severity targets |
+| [`EPOCH_LADDER_ESTIMAND_DIAGNOSTIC.md`](EPOCH_LADDER_ESTIMAND_DIAGNOSTIC.md) | current — post-hoc exploratory diagnostic, 2026-11-22 | Epoch ladder — how much of the severity sign flip is the estimand |
 | [`FINETUNING_STATUS_BRIEF.md`](FINETUNING_STATUS_BRIEF.md) | current as of 2026-11-05 for the narra | Fine-Tuning Investigation — Status Brief |
 | [`PILOT_2_DECISION_GRAPH.md`](PILOT_2_DECISION_GRAPH.md) | current as of 2026-10-31 | Pilot 2 — the decision graph |
 | [`PILOT_2_DESIGN.md`](PILOT_2_DESIGN.md) | current as of 2026-10-31 | Pilot 2 — Design for a Fair Test of Fine-Tuning |

@@ -1,6 +1,6 @@
 # Regime Characterization — When Default TabPFN Wins (Issue #53)
 
-> **Status:** current as of 2026-11-13 — the adoption rule it states has not been revised.
+> **Status:** current as of 2026-11-21 — the adoption rule it states has not been revised.
 
 Analysis note feeding the adoption guidance (one-pager `../../archive/frontier-benchmark/TABPFN_BENCHMARK_SUMMARY.md`).
 Answers: what distinguishes the datasets where default TabPFN wins from those where it is
@@ -165,6 +165,22 @@ extracts the signal that linear models miss, at parity or better with the trees:
   §14.14): "tree-only" holds on the **count axis** — the same Spanish motor target
   reframed as claim/no-claim classification puts TabPFN at AUC rank #1,
   paired-significant at both seeds (p=0.0010/0.0020).
+
+> **External corroboration (2026-11-21, #684).** Deprez, Verbeke and Verdonck benchmark
+> TabPFN-v2.6 and v3 against a Poisson/gamma GLM and XGBoost on the same two datasets —
+> `freMTPL2` and `beMTPL97`, 5-fold — and report the same ordering: TabPFN "falls behind the
+> GLM on claim frequency… but it is competitive on claim severity, where data are scarcer".
+> Exposure-weighted Poisson deviance, their Table 1: GLM 0.296 / 0.551, XGBoost 0.344 / 0.583,
+> TabPFN-v3 at the full fold 0.343 / 0.626. Two limits on how this may be cited: it tests
+> **v2.6 and v3, not v3.5**, and its deviance is on claim **rates** while ours is on counts, so
+> the levels are not comparable — their GLM reads 0.296 where this note records 0.32109 for a
+> Poisson GLM. Only the ordering carries, and **no verdict in this note changes**.
+>
+> The paper also names what a single-stage TFM cannot do here — "exposure, sparse claim counts,
+> heterogeneous conditional variance, and distribution-specific loss functions" — and that it
+> "supports neither an offset nor observation weights". Our harness already does the only
+> substitution available: `log(Exposure)` as a feature, with the count as target. Source and
+> digest: [fm4sd, `tabpfn-insurance-pricing`](https://github.com/IFoA-ADSWP/fm4sd/blob/main/references/summaries/tabpfn-insurance-pricing.md).
 
 Consistency check with the size axis: all five off-frontier frontier datasets are ≥53.5K
 rows (money chart docstring), but ≥53.5K is the *onset* zone, not a death zone — bemtl16

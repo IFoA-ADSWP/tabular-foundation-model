@@ -4,7 +4,7 @@ One file per task: `docs/plans/<task>.md`. Write it **before** non-trivial work,
 change. A plan outranks a fresh ticket — check this directory before speccing or building, because the ticket
 you are about to write may already be covered.
 
-**This index is the only map.** Of the 84 plans, 65 are linked from no other document and only
+**This index is the only map.** Of the 91 plans, 65 are linked from no other document and only
 17 are even mentioned anywhere else.
 
 Each row carries the plan's own first heading, so the index cannot drift from the file it points at. The
@@ -17,12 +17,24 @@ since merged, and the pull request that merged it is the record of what happened
 the fact: a plan that says proposed stays that way unless its author amends it, because rewriting the status
 of a plan after the data would make the trail say something it did not.
 
-## Current, agreed or implemented — 74 plans
+## Current, agreed or implemented — 85 plans
 
 Newest first, by ticket number where the filename carries one.
 
 | Plan | What it settles |
 | --- | --- |
+| [`701-paid-run-ceilings.md`](701-paid-run-ceilings.md) | the paid-run path measures its own ceilings (#701, #433) |
+| [`423-yes-leak-preflight.md`](423-yes-leak-preflight.md) | `--yes` answers the leak preflight (#423) |
+| [`678-launch-seed-layout.md`](678-launch-seed-layout.md) | the runs ledger reads both launch-record layouts (#678) |
+| [`685-access-recheck.md`](685-access-recheck.md) | refresh the model-access scoping note (#685) |
+| [`687-tabicl-probe.md`](687-tabicl-probe.md) | TabICL v2 CPU timing probe (#687) |
+| [`684-cite-replication.md`](684-cite-replication.md) | cite the external replication in the regime note (#684) |
+| [`695-exposure-aware.md`](695-exposure-aware.md) | exposure-aware GLM follow-up (#695) |
+| [`631-conclusion-table.md`](631-conclusion-table.md) | generate the conclusion's table (#631) |
+| [`632-conclusion.md`](632-conclusion.md) | the technical conclusion and its companion (#632) |
+| [`633-register.md`](633-register.md) | register the conclusion, and gate it (#633) |
+| [`697-row-curve.md`](697-row-curve.md) | row curve stage 1 (#697) |
+| [`568-reemit-captures.md`](568-reemit-captures.md) | a kept instance re-emits its captures without re-fitting (#568) |
 | [`analysis-review.md`](analysis-review.md) | Plan: `analysis-review` skill |
 | [`anchor-checkpoint-assertion.md`](anchor-checkpoint-assertion.md) | refuse a launch whose weights are not the anchor's line |
 | [`citation-check.md`](citation-check.md) | a cited run must have a capture (#364) |
@@ -98,10 +110,11 @@ Newest first, by ticket number where the filename carries one.
 | [`416-ledger-migration.md`](416-ledger-migration.md) | the cost ledger migrates instead of quarantining (#416) |
 | [`docs-experiment-first.md`](docs-experiment-first.md) | group the documentation by experiment (#595) |
 
-## Proposed — 8 plans
+## Proposed — 12 plans
 
 | Plan | What it settles |
 | --- | --- |
+| [`679-launch-citation.md`](679-launch-citation.md) | the citation gate accepts a committed launch tree (#679) |
 | [`chunk-transport-under-stalls.md`](chunk-transport-under-stalls.md) | the chunked transport under a stalling poll (#566) |
 | [`fairtest-capture-transport.md`](fairtest-capture-transport.md) | the fair test ships its captures (#564) |
 | [`freq-sev-implementation.md`](freq-sev-implementation.md) | implementing the frequency/severity fair test |
@@ -110,6 +123,9 @@ Newest first, by ticket number where the filename carries one.
 | [`regressor-fair-test-runner.md`](regressor-fair-test-runner.md) | the regressor fair-test runner |
 | [`rescore-capture-discovery.md`](rescore-capture-discovery.md) | restore capture discovery in the alt-metrics rescore |
 | [`528-pinned-offer-cuda.md`](528-pinned-offer-cuda.md) | a pinned offer declares its CUDA, and the box kernel-tests torch |
+| [`668-cross-task-ledger.md`](668-cross-task-ledger.md) | the runs ledger covers regression as well as classification (#668) |
+| [`671-eligible-rows.md`](671-eligible-rows.md) | the runs ledger says how much data existed, not only how much was trained on (#671) |
+| [`665-finetuning-runs-ledger.md`](665-finetuning-runs-ledger.md) | one generated ledger of every committed fine-tuning run, arm and seed (#665) |
 
 ## Historical or unclassified — 2 plans
 

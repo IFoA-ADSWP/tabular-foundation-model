@@ -42,3 +42,8 @@ Committed under `results/`, cited by the documents above:
 20261114T003002Z
 20261114T003003Z
 ```
+
+The fair-test and baseline regression rows are also in the
+[cross-task runs ledger](../pilot2-phase2/FINETUNING_RUNS_LEDGER.md), one row
+per run × arm × seed × fold with the recorded RMSE and verdict metric. The ledger is a reference; the
+numbers stay owned by the results above.

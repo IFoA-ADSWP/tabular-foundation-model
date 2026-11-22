@@ -4,7 +4,7 @@
 
 The 2026-07→08 frontier suite: the benchmark that produced master report §14, its re-scores, and the v3.5 re-test.
 
-**8 documents.** Read them in the order below; each declares its own status, and a document
+**10 documents.** Read them in the order below; each declares its own status, and a document
 marked reference or historical is kept for provenance rather than as the current answer.
 
 | Document | Status | What it holds |
@@ -15,6 +15,8 @@ marked reference or historical is kept for provenance rather than as the current
 | [`frontier_auc_brier_rescore_spec.md`](frontier_auc_brier_rescore_spec.md) |  | Frontier AUC/Brier Re-score — Design Spec |
 | [`insurance_frontier_benchmark_spec.md`](insurance_frontier_benchmark_spec.md) |  | Insurance Frontier Benchmark — Design Spec |
 | [`prediction_capture_rescore_spec.md`](prediction_capture_rescore_spec.md) |  | Prediction Capture for Retrospective Re-scoring — Design Spec |
+| [`row_curve_stage1.md`](row_curve_stage1.md) | current as of 2026-11-21 — baselines at 1k/2k/5k rows | Row curve, stage 1 (#697) |
+| [`exposure_aware_glm_followup.md`](exposure_aware_glm_followup.md) | current as of 2026-11-21 — the AUC claim against exposure-aware GLMs | Exposure-aware GLM follow-up (#695) |
 | [`regime_characterization.md`](regime_characterization.md) | current as of 2026-11-13 — the adoptio | Regime Characterization — When Default TabPFN Wins (Issue #53) |
 | [`tabpfn_vs_gbdt_baselines_finetuning.md`](tabpfn_vs_gbdt_baselines_finetuning.md) | current as of 2026-11-13 — the master  | TabPFN vs GBDT Baselines on Insurance Datasets, and Domain Fine-Tuning Effectiveness |
 

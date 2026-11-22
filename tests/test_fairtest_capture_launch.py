@@ -30,7 +30,7 @@ def test_primary_below_the_poll_ceiling_is_refused_before_provisioning(tmp_path)
 def test_primary_is_refused_on_the_ssh_transport_it_cannot_use(tmp_path):
     """The ssh pull copies into the run tree; a capture has to land in results/."""
     state, result = _launch(
-        tmp_path, "--fairtest", "primary", "--poll-minutes", "180", "--transport", "ssh"
+        tmp_path, "--fairtest", "primary", "--poll-minutes", "240", "--transport", "ssh"
     )
     combined = result.stdout + result.stderr
 
@@ -53,7 +53,7 @@ def test_a_payload_that_is_not_four_captures_is_refused_and_the_instance_is_kept
     state, result = _launch(
         tmp_path,
         "--fairtest", "primary",
-        "--poll-minutes", "180",
+        "--poll-minutes", "240",
         extra_env={"MOCK_OUTPUT_TREE": str(tree)},
     )
     combined = result.stdout + result.stderr
@@ -96,7 +96,7 @@ def test_a_primary_launch_restores_four_captures_into_results(tmp_path):
     state, result = _launch(
         tmp_path,
         "--fairtest", "primary",
-        "--poll-minutes", "180",
+        "--poll-minutes", "240",
         extra_env={
             "MOCK_OUTPUT_TREE": str(tree),
             "MOCK_PER_TARGET": "1",
@@ -126,7 +126,7 @@ def test_a_canary_launch_restores_one_capture_for_one_target(tmp_path):
     state, result = _launch(
         tmp_path,
         "--fairtest", "primary",
-        "--poll-minutes", "180",
+        "--poll-minutes", "240",
         extra_env={
             "MOCK_OUTPUT_TREE": str(tree),
             "MOCK_PER_TARGET": "1",

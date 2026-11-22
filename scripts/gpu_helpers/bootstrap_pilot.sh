@@ -148,6 +148,15 @@ fi
 fi
 cd "$WORKDIR" || exit 2
 
+# ---- 2b. Already sealed: re-emit, never re-fit (#568). Work is in reemit_on_box.sh (16 KB ceiling).
+# 0 = this launch is fully sealed and now on the wire; 1 = not sealed (fit as usual); 2 = the
+# emission failed, and fitting would pay twice for what the box already has.
+if [ "$FAIRTEST" = "primary" ] && [ -f scripts/gpu_helpers/reemit_on_box.sh ]; then
+    bash scripts/gpu_helpers/reemit_on_box.sh; _reemit=$?
+    [ "$_reemit" -eq 0 ] && { finish; exit 0; }
+    [ "$_reemit" -eq 2 ] && { finish; exit 1; }
+fi
+
 # ---- 3. Dependencies ----
 # torch is NOT listed: the PyTorch image ships a CUDA build and reinstalling
 # risks swapping it for a CPU wheel.
@@ -436,14 +445,14 @@ if [ "$FAIRTEST" = "primary" ]; then
         # One process per target, so the captures of the finished targets are already on the wire
         # when a later one fails. The offset keeps the runner's own id scheme: `_run_ids` would
         # have named them <stamp>+0..3 seconds inside a single process.
-        python3 scripts/run_fair_test.py --targets "$target" --arms A_raw,B_ft30 \
+        python3 scripts/run_fair_test.py --targets "$target" --arms "${TFM_FAIRTEST_ARMS:-A_raw,B_ft30}" \
             --out-root results --run-id "$FT_STAMP" --run-id-offset "$index" \
-            ${TFM_TRAIN_ROWS:+--train-rows "$TFM_TRAIN_ROWS"}
+            ${TFM_TRAIN_ROWS:+--train-rows "$TFM_TRAIN_ROWS"} \
+            ${TFM_FAIRTEST_SEEDS:+--seeds "$TFM_FAIRTEST_SEEDS"}
         rc=$?
-        run_id="$(python3 -c 'import sys
-from datetime import datetime, timedelta
-print((datetime.strptime(sys.argv[1], "%Y%m%dT%H%M%SZ") + timedelta(seconds=int(sys.argv[2]))).strftime("%Y%m%dT%H%M%SZ"))' \
-            "$FT_STAMP" "$index")"
+        # Named by the same rule the re-emit check uses, so a sealed capture is always recognised.
+        run_id="$(python3 scripts/gpu_helpers/fairtest_run_ids.py --stamp "$FT_STAMP" \
+            --offset "$index")"
         if [ "$rc" -ne 0 ] || [ ! -f "results/$run_id/capture.json" ]; then
             echo "########## FAIRTEST EXITED rc=$rc ($target wrote no capture) ##########" >&2
             FAILED_TARGETS="$FAILED_TARGETS $target"
