@@ -5,6 +5,8 @@
 The phase's closing distribution: one technical conclusion, one plain-language companion, and the
 generated table they both quote.
 
+**2 documents.** Read them in the order below; each declares its own status.
+
 ## Documents
 
 | Document | What it is |
