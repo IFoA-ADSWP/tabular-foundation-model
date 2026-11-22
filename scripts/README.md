@@ -37,7 +37,7 @@ route. This page is the index of the tree itself.
 
 | Directory | Files | What lives there |
 | --- | --- | --- |
-| `eval/` | 106 | The benchmark suites: `insurance_benchmark_v1/` (frontier D1–D5), `lapse_benchmark_v1/`, `insurance_imbalance_pilot/`, `smoke_test/`. Each holds committed result CSVs and logs beside its runners. Hosted client, `tabpfn-client 0.3.3`. |
+| `eval/` | 106 | The benchmark suites: `insurance_benchmark_v1/` (frontier D1–D5), `lapse_benchmark_v1/`, `insurance_imbalance_pilot/`, `smoke_test/`, `zero_inflation/` (#159, v3.5). Each holds committed result CSVs and logs beside its runners. Hosted client, `tabpfn-client 0.3.3`. |
 | `gpu_helpers/` | 18 | **The paid-run path.** `vast_run.sh` rents, bootstraps, polls, pulls and destroys; `bootstrap_pilot.sh` is the on-box installer; `verify_artifacts.py` refuses a run that measured nothing. Shell-checked at `warning` in CI because a syntax error here costs money. |
 | `legacy_finetuning/` | 17 | The v2-era fine-tuning line, 2026-04. **Provenance, not canonical**: these do not run on `tabpfn 8.5.0`, whose `finetune_utils` and `get_preprocessed_datasets` were removed. |
 | `benchmarks/` | 8 | TabArena-harness runners: the 7-dataset insurance benchmark, the lapse and imbalance pilots, the home-turf size sweep, the regressor-fit measurement. |
@@ -59,6 +59,47 @@ route. This page is the index of the tree itself.
 | `benchmarks/finish_home_turf_sweep_v2.py` | Revised sweep assembly — drops n_estimators=1, adds n_estimators=8 per cell, retries errored rows, 35-min wall budget (supersedes `finish_home_turf_sweep.py`) |
 | `eval/insurance_benchmark_v1/run_frontier_benchmark.py` | Pareto frontier benchmark (power vs parsimony, D1–D5) — log loss / RMSE / Poisson deviance vs n_params, `--regression` mode, 11 datasets; generic CSV mode `--data <csv> --target <col> [--drop a,b]` (issue #46) |
 | `eval/insurance_benchmark_v1/rescore_focused_imbalance_logloss.py` | Re-score cached pilot probas on log loss / Brier (post-run only — needs `scripts/experiments/` caches) |
+
+## Zero-inflation study (issue #159)
+
+Synthetic zero-inflated counts, TabPFN `v3.5_default` vs Poisson/ZIP/ZINB GLMs. Report:
+[`docs/experiments/zero-inflation/ZERO_INFLATION_TABPFN.md`](../docs/experiments/zero-inflation/ZERO_INFLATION_TABPFN.md).
+
+**Environment.** The sweep was measured with `tabpfn-client 0.5.3` (for `v3.5_default`) and needs `statsmodels`
+for the ZIP/ZINB GLMs; `requirements.lock` pins `tabpfn-client 0.3.3` and has no `statsmodels`, so re-running
+`run_sweep.py` takes its own venv, as the other v3.5 re-tests did. `analyze.py` and `make_report_charts.py`
+read only the committed CSVs and run in `.venv`. Run from the repo root (the API key is read as in the root README).
+
+**Two result files per α.** `results/alpha_<α>/results.csv` holds the five original models and is committed
+evidence (its sha256 is in `figures/manifest.json`); the hurdle extension (#159, plan
+[`159-zero-inflation-hurdle.md`](../docs/plans/159-zero-inflation-hurdle.md)) writes
+`results/alpha_<α>/results_hurdle.csv`, so the original file is never rewritten. Both are read to decide what
+is already done: a rerun fills in only missing (arm, π₀, seed, model) cells.
+
+**Models** (`--models`, default all but `tabpfn_recheck`): `poisson_glm`, `zip_glm`, `zinb_glm`, `tabpfn`,
+`tabpfn_log1p` → `results.csv`; `hurdle_poisson_glm`, `hurdle_nb_glm` (logit in x + zero-truncated
+Poisson / NB2), `tabpfn_hurdle` (TabPFNClassifier on `y > 0` + TabPFNRegressor on the positive rows) and
+`tabpfn_recheck` (plain TabPFN refitted, a drift control against the committed `tabpfn` rows) →
+`results_hurdle.csv`. The API key is loaded only when a TabPFN model still has a missing cell, so a GLM-only
+run needs no key and spends nothing.
+
+**Before adding a model**, run `check_reproducible.py`: the sweep regenerates each cell's data from its seed,
+which is only sound if this environment still draws the committed bytes.
+
+```bash
+python3 scripts/eval/zero_inflation/check_reproducible.py --alpha 1.0 --seeds 0 5 9
+python3 scripts/eval/zero_inflation/run_sweep.py --alpha 1.0 --models hurdle_poisson_glm hurdle_nb_glm
+python3 scripts/eval/zero_inflation/run_sweep.py --alpha 1.0 --models tabpfn_recheck --n-seeds 2
+python3 scripts/eval/zero_inflation/run_sweep.py --alpha 1.0 --models tabpfn_hurdle
+```
+
+| Script | Purpose |
+| --- | --- |
+| `eval/zero_inflation/run_sweep.py` | Sweep π₀ × 10 seeds for one NB2 dispersion `--alpha`: Poisson/ZIP/ZINB GLMs, the hurdle GLMs, and TabPFN (raw, log1p, two-stage) on mean-matched zero-inflated counts. `--models` picks which to fill in; `--pilot`, `--n-seeds`, `--pi0-grid`, `--n-train`, `--n-test` shrink the grid. Resumable; writes `results.csv` and `results_hurdle.csv` under `results/alpha_<alpha>/` (TabPFN models use API credits) |
+| `eval/zero_inflation/check_reproducible.py` | Redraws the cells of `--seeds` (default 0) for `--alpha`, refits `poisson_glm`, and compares with the committed `results.csv`: data-only columns exactly, fit metrics to `--rtol` (default 1e-6). Exit 1 on any mismatch; no API key, no credits |
+| `eval/zero_inflation/hurdle.py` | The hurdle arithmetic shared by the GLM and TabPFN hurdles (numpy only; tested by `tests/test_zero_inflation_hurdle.py`) |
+| `eval/zero_inflation/analyze.py` | Per-α diagnostic plots into `results/alpha_<alpha>/` (`--alpha`) |
+| `eval/zero_inflation/make_report_charts.py` | The report's four charts → `eval/zero_inflation/figures/`, with `manifest.json` recording the producing commit and per-file checksums |
 
 ## Infrastructure
 

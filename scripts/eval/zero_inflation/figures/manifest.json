@@ -1,0 +1,24 @@
+{
+  "figures": [
+    "nll_gap_by_alpha.png",
+    "p_zero_error_by_alpha.png",
+    "rmse_by_alpha.png",
+    "where_tabpfn_sits.png"
+  ],
+  "produced_at_commit": {
+    "head": "fccdb0105cc38262c951c140f38a10bfa42410a3",
+    "tree_dirty": true
+  },
+  "source_scripts": {
+    "dgp.py": "4e053715d0f344d873ab17d95f2326bd6d20c583218bdd6b61485fb385cf4247",
+    "models.py": "86a347cafa7038d1822dab2d80e8235aeea2b2c32d4ce3cc2177554713f1ba2d",
+    "metrics.py": "6b4fb1d42b588b9f745f73291d24217cce9cf810c8af0e49de082bdf21ef5808",
+    "run_sweep.py": "06ac5c4e246bc16a36f6556399f8e2184b35f5d397dbbd80a7a6c6dcb7e93954",
+    "make_report_charts.py": "50960cefcdfceb4d1f2d12a6b8dd06ed05605e0d982dd462a7f702fe99ec25ae"
+  },
+  "results": {
+    "alpha_1.0": "a6adc9d75f1eb9e34fc64cbe6efc92920a74e72ffd1272cf195c4c5d15cefcc0",
+    "alpha_2.0": "383dd7b67f43585f510ec7bad4314a54e69e2e32306e03bea8f1c99e8b6cdc59",
+    "alpha_4.0": "9fadbe902bcbb2ca0514522701730109686d2633bff90a7ced9f9472704066a2"
+  }
+}
