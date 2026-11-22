@@ -9,6 +9,7 @@ each document declares in its first lines says what it is worth now.
 
 | Campaign | Documents | Runs | What it is |
 | --- | --- | --- | --- |
+| [`capture-audit-2026-11`](experiments/capture-audit-2026-11/README.md) | 1 live, 0 archived | 12 | The 2026-11 capture audit (#718): where TabPFN loses on captures the repo already owns, by target, metric, fold regime and seed spread. Reads only; $0. |
 | [`diagnostics`](experiments/diagnostics/README.md) | 2 live, 0 archived | 0 | D1–D5: the diagnostics design and D5's explanation. |
 | [`fair-test-freq-sev`](experiments/fair-test-freq-sev/README.md) | 11 live, 0 archived | 15 | The 2026-11 frequency/severity fair test — four pre-registered targets, policy-grouped folds. |
 | [`baseline-conclusion-2026-11`](experiments/baseline-conclusion-2026-11/README.md) | 2 live, 0 archived | 0 | The phase's closing distribution: the generated verdict table, and from #632 the technical conclusion and its plain-language companion. |
