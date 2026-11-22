@@ -75,13 +75,20 @@ Three of five folds carry the weighted gain (−3.30%, −1.24%, −1.68%); the 
 The weight is `N_claims_year`: each fold's 1,190 test rows hold 654–689 single-claim policies
 (weight 1), and the rest carry 2–18 claims.
 
-| Stratum | `A_raw` weighted RMSE | `B_ft30` weighted RMSE | 30 − raw | Seeds better | Share of weighted squared error |
+| Stratum | `A_raw` weighted RMSE | `B_ft30` weighted RMSE | 30 − raw | Seeds better | Share of raw's weighted squared error |
 |---|---:|---:|---:|---:|---:|
 | weight = 1 (single claim) | 0.41809 | 0.42840 | **+2.03%** | 8/20 | 12% |
 | weight > 1 (multi-claim) | 0.72956 | 0.71621 | **−1.81%** | 16/20 | **88%** |
 
-So the registered win is a win on multi-claim policies, and they dominate a claim-equivalent metric by
-construction. On the majority of policies by count — the single-claim ones — 30 epochs is worse.
+The two RMSE columns pool each arm's 100 slots; the percentage is the mean of the per-seed, per-fold
+relative differences — the convention used everywhere in this note — and the seed count counts the
+seeds that improve. The columns do not divide out to the percentage (pooled, single-claim policies read
++2.47%, not +2.03%) because a mean of ratios is not a ratio of pooled means; the per-seed figure is the
+one quoted.
+
+So the registered win is a win on multi-claim policies, and they carry 88% of **raw** TabPFN's weighted
+squared error (86.7% of `B_ft30`'s). On the majority of policies by count — the single-claim ones —
+30 epochs is worse.
 
 ## Where the dispersion is
 
@@ -111,8 +118,8 @@ recover more, or overshoot.
 ## What this establishes, and what it does not
 
 - **Establishes:** the "not like-for-like" caveat is measurable, not rhetorical. On Spanish, changing
-  only the weighting — same fits, same rows — moves the sign; on French there is no such lever and the
-  harm is uniform across folds and seeds.
+  only the weighting — same fits, same rows — moves the sign; on French there is no such lever, and
+  the harm is uniform across folds and seeds.
 - **Does not establish a verdict, or touch one.** Both ladder verdicts are the registered rule applied
   to the registered metrics, and they stand. This note cannot promote a rung, move a floor or decide
   whether the ladder leaves exploratory status — that is #629's call.

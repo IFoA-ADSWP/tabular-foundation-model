@@ -108,7 +108,8 @@ Two different floors exist and they should not be confused:
   −1.29% better, with the weighted gain carried by multi-claim policies (−1.81%) while single-claim
   policies lose (+2.03%). French has one weight per row and no such lever, and its harm is uniform
   across folds and seeds. Recorded in
-  [`EPOCH_LADDER_ESTIMAND_DIAGNOSTIC.md`](EPOCH_LADDER_ESTIMAND_DIAGNOSTIC.md); it changes no verdict.
+  [`EPOCH_LADDER_ESTIMAND_DIAGNOSTIC.md`](EPOCH_LADDER_ESTIMAND_DIAGNOSTIC.md), which carries the
+  regenerate command (`scripts/analyses/severity_estimand.py`); it changes no verdict.
 - `eudirectlapse` is a single split, not five folds, and its interval is wider than the design
   assumed.
 - Both severity captures were recovered by the re-emit path after transport faults; each capture is
