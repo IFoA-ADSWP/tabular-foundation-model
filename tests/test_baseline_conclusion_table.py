@@ -5,7 +5,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts/analyses/baseline_conclusion.py"
-TABLE = REPO / "docs/experiments/baseline-conclusion-2026-11/TABLE.md"
+TABLE = REPO / "docs/experiments/baseline-conclusion-2026-11/CONCLUSION.md"
 
 
 def test_committed_table_matches_the_generator():
