@@ -112,16 +112,43 @@ Their clean v3.5 values are §21 and §22: `bemtl16` reads 0.5968 against LightG
 win — and `bemtl97_amount` is a 1.4% RMSE loss, not the +50% the leaky row implies. No verdict in this
 document changes, and the severity loss rests on the clean figure.
 
+One secondary regression is recorded rather than left out: on `ausprivauto0405_vehvalue` the v3.5
+re-test raised MAE by 0.005 on all five folds while RMSE was unchanged. It is a secondary metric on a
+dataset TabPFN still wins, so no verdict moves — but a reader comparing MAE across versions should
+know it is there (§24).
+
 ## 4. The gap register
 
-What this evidence cannot say, and what would close each gap.
+Two registers, kept apart on purpose. The first is the one **#628 decided**, with its own five columns
+and nothing dropped; the second holds what this document found while writing it. Merging them would
+bury a decided register under a later list.
+
+### 4.1 The register the phase decided (#628)
+
+| Gap | Kind | What it would take to close | Closes under | Owner |
+|---|---|---|---|---|
+| Calibration on frequency and severity | unmeasured | a registered calibration reading over the existing captures | outside the menu | §597 Limits |
+| Top-decile lift | unmeasured | the same shape, registered | outside the menu | §597 Limits |
+| Pure premium | unmeasured | the product model | outside the menu | §597 Limits |
+| Frequency × severity product | unmeasured | a registered product metric | outside the menu | §597 Limits |
+| Budgets below 10,000 rows | unmeasured | a registered small-budget sweep | **row curve stage 1** | §552 power note |
+| One CatBoost configuration, shipped defaults | validity | a tuned baseline arm | no | §597 Limits |
+| GLM1 only — no interactions or splines | validity | a richer linear specification | no | §597 Limits |
+| Spanish frequency underpowered (MDE 4.64%/4.76% against a 4% floor) | validity | a new pre-registration with more data | no | §552 Limits |
+| The Inconclusive rule's corner — an interval covering zero while sitting wholly below the floor | validity | settle the rule and align prose with `decide()` | no | §597 Limits |
+| Differing seed counts across arms | validity | standardise seeds in the next campaign | no | §552/§597 Limits |
+| No time ledger | process | file the agreed `run_times.csv` | no | map #623 |
+| Agent and compute spend untracked | process | capture cost per run beside the ledger | no | map #623 |
+| The v3.5 evidence sat 27–58 days unmerged, with no CI | process | a merge-policy and CI rule for long-lived evidence branches | no | the #645 landing review |
+
+### 4.2 Gaps this document found (2026-11-21)
 
 | Gap | Why it exists | What would close it | Owner |
 |---|---|---|---|
 | **Reserving and tails** | No benchmark arm exists here; the reserving work lives in its own repository | A reserve arm on the same folds, with the same paired rule | none yet |
 | **The count arm (deferred, not refuted)** | Prior Labs advised that a two-stage formulation is "usually the best route" for zero-inflated targets; we have never tested it. The vendor expects the next release to handle zero inflation better, so a v3.5 answer would be overtaken | #662's synthetic protocol (bar approved 2026-11-21, run parked) and #682's real-data arm, both re-set against the next version | #662, #682 |
-| **Small-data resolution** | Five of twelve row-curve cells have a best-versus-runner-up gap **smaller than the MDE of the best arm** — the difference is in the table but cannot be separated from noise at that budget. Separately, on the count targets at 1,000 rows the MDE itself is 2.7–13.1% of the mean, so no 2% effect could be seen there | More seeds, more folds, a both-arms resolution rule, or a budget where the effect is larger than the noise | #697 delivered stage 1; stage 2 has no ticket because it needs a spend decision |
-| **The model line** | Only the one family probed — TabICL v2 — is measurable here: 14.4 minutes to predict 32,643 rows from a 1,000-row context (26 ms/row), and contexts of 25,000 rows or more are SIGKILLed on this machine. TabDPT and TabSTAR are the same shape and were not run | A GPU, or a hosted endpoint for a comparison model | #687 delivered the measurement; a comparison arm has no ticket |
+| **Small-data resolution** | Five of twelve row-curve cells have a best-versus-runner-up gap **smaller than the MDE of the best arm**; and on the count targets at 1,000 rows the MDE itself is 2.7–13.1% of the mean | More seeds, more folds, a both-arms resolution rule, or a budget where the effect is larger than the noise | #697 delivered stage 1; stage 2 has no ticket because it needs a spend decision |
+| **The model line** | Only the one family probed — TabICL v2 — is measurable here: 14.4 minutes to predict 32,643 rows from a 1,000-row context, and contexts of 25,000 rows or more are SIGKILLed | A GPU, or a hosted endpoint for a comparison model | #687 delivered the measurement; a comparison arm has no ticket |
 | **The licence** | TabPFN's weights are non-commercial, and adapted or distilled derivatives remain non-commercial; distilling outputs into a commercial model is not permitted without an agreement | A commercial agreement, or a model trained without TabPFN's weights | #368, #371, #376; weights licence in `docs/shared/tabular_foundation_models_catalog.md` |
 | **Table 1's provenance** | The frontier results files carry no run id, so the table cites an aggregate CSV rather than a capture | A dataset→run mapping, then a regenerated table | #631 delivered the generator; the mapping does not exist |
 
