@@ -41,14 +41,28 @@ failed=()
 run_check() {
     local name=$1
     shift
-    if ! "$@" >"$log" 2>&1; then
-        failed+=("$name")
-        {
-            echo
-            echo "########## $name FAILED ##########"
-            tail -n 20 "$log"
-        } >&2
-    fi
+    "$@" >"$log" 2>&1
+    local rc=$?
+    case $rc in
+        0) return 0 ;;
+        # Exit 2 is check.sh's documented "usage" code, which on a branch cut before a
+        # check existed means the branch's own check.sh does not know the name (#548).
+        # Skipping is correct there: the check cannot have failed, it never ran. Failing
+        # instead refused every commit on a stale branch for a reason unrelated to the
+        # change being committed.
+        2)
+            echo "pre-commit: skipped '$name' — this branch's check.sh does not know it (#548)" >&2
+            return 0
+            ;;
+        *)
+            failed+=("$name")
+            {
+                echo
+                echo "########## $name FAILED ##########"
+                tail -n 20 "$log"
+            } >&2
+            ;;
+    esac
 }
 
 # A missing tool exits 3 from check.sh rather than skipping. Surfaced, not swallowed: a check that
