@@ -49,6 +49,19 @@ MARKER = re.compile(
 # per-directory status check. A missing registry is a failure, never a skip: a check that passes
 # because its subject moved is worse than no check at all.
 CLAIM_REGISTRY = pathlib.Path("docs/experiments/pilot2-phase2/FINETUNING_FINDINGS.md")
+
+# A current note that cites a capture is a *result* note, and a result without its model version
+# is meaningless (docs/MODEL_VERSIONS.md). The same note must also be traceable from the report
+# registry, or a reader cannot find it from the governance side.
+REPORT_REGISTRY = pathlib.Path("docs/REPORT_REGISTRY.md")
+CAPTURE_REF = re.compile(r"\b20\d{6}T\d{6}Z\b|\bresults/")
+# A version token, or an explicit statement that no TabPFN arm is involved -- a baseline-only
+# note cannot name a TabPFN version and must not be forced to invent one.
+VERSION_TOKEN = re.compile(r"\bv\d+(?:\.\d+)?(?:_default)?\b|\bno tabpfn\b", re.IGNORECASE)
+# Notes written before the rule existed. Append-only, dated, and each entry carries its reason;
+# this is the same pattern as docs/analyses/legacy_citations.txt, and for the same reason: a rule
+# that cannot be met retroactively is grandfathered visibly, not silently.
+LEGACY_VERSION_EXEMPT = pathlib.Path("docs/experiments/legacy_version_exempt.txt")
 ROW_REF = re.compile(r"\b[FL]\d+\b")
 ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 ANY_DIGIT = re.compile(r"\d")
@@ -215,6 +228,56 @@ def unlabelled(root: pathlib.Path) -> tuple[list[str], int]:
     return missing, total
 
 
+def _is_current(path: pathlib.Path) -> bool:
+    """True when the note's first lines declare it current."""
+    for line in path.read_text(errors="replace").splitlines()[:WINDOW]:
+        low = line.lower()
+        if "status" in low and "current" in low:
+            return True
+    return False
+
+
+def _legacy_exempt(root: pathlib.Path) -> set[str]:
+    path = root / LEGACY_VERSION_EXEMPT
+    if not path.exists():
+        return set()
+    return {
+        line.strip()
+        for line in path.read_text(errors="replace").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+
+
+def citation_problems(root: pathlib.Path = pathlib.Path(".")) -> list[str]:
+    """Current result notes that name no model version, or that the registry cannot find."""
+    registry_path = root / REPORT_REGISTRY
+    registry = set()
+    if registry_path.exists():
+        for line in registry_path.read_text(errors="replace").splitlines():
+            if not line.startswith("|"):
+                continue
+            cell = line.split("|")[1].strip()
+            cell = cell.strip("`").replace("[", "").split("](")[-1].rstrip(")")
+            if cell and not cell.startswith("---") and "report_path" not in cell:
+                registry.add(cell)
+    exempt = _legacy_exempt(root)
+    problems: list[str] = []
+    for path in _reports(root / "docs" / "experiments"):
+        if not _is_current(path):
+            continue
+        text = path.read_text(errors="replace")
+        if not CAPTURE_REF.search(text):
+            continue
+        rel = path.relative_to(root).as_posix()
+        if rel in exempt:
+            continue
+        if not VERSION_TOKEN.search(text):
+            problems.append(f"{rel}: cites a capture but names no model version")
+        if rel not in registry and path.name not in registry:
+            problems.append(f"{rel}: cites a capture but has no {REPORT_REGISTRY.name} row")
+    return problems
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -246,6 +309,7 @@ def main(argv: list[str] | None = None) -> int:
 
     registry: list[str] = []
     indexes: list[str] = []
+    citation: list[str] = []
     if args.dir is None:
         indexes = index_problems() + experiment_count_problems() + campaign_readme_problems()
         if indexes:
@@ -253,6 +317,12 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  {problem}")
         else:
             print("  indexes: every plan and campaign document is listed, and the campaign counts agree")
+        citation = citation_problems()
+        if citation:
+            for problem in citation:
+                print(f"  {problem}")
+        else:
+            print("  result notes: every current note citing a capture names its version and has a registry row")
         registry = registry_problems(CLAIM_REGISTRY)
         if registry:
             for problem in registry:
@@ -260,13 +330,15 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print("  claim registry: every claim names its owner and carries no number")
 
-    if (missing or registry or indexes) and not args.warn:
+    if (missing or registry or indexes or citation) and not args.warn:
         if missing:
             print("  FAIL: a report that does not say what it is cannot be trusted to be current")
         if registry:
             print("  FAIL: a registry row that restates a number goes stale without anyone noticing")
         if indexes:
             print("  FAIL: an index that does not list its directory is a map with a hole in it")
+        if citation:
+            print("  FAIL: a result that names no model version cannot be read, and a note the registry cannot find is not governed")
         return 1
     return 0
 

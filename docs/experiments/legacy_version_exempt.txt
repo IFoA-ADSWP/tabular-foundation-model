@@ -1,0 +1,14 @@
+# Notes written before the version rule existed
+#
+# A current note under docs/experiments/ that cites a capture must name the model version it was
+# measured on, and must be findable from docs/REPORT_REGISTRY.md. Notes written before that rule
+# was enforced live here instead of the rule being silently relaxed for them.
+#
+# Append-only, like docs/analyses/legacy_citations.txt: an entry records a document that predates
+# the rule, never a new exemption. If a note is edited to state its version, remove its line.
+
+docs/experiments/pilot2-phase2/FINETUNING_EXECUTION_RUNBOOK.md
+docs/experiments/pilot2-phase2/FINETUNING_PREREQUISITES.md
+docs/experiments/pilot2-phase2/FINETUNING_STATUS_BRIEF.md
+docs/experiments/pilot2-phase2/FINETUNING_DECISION_LOG.md
+docs/experiments/pilot2-phase2/finetuning_breadth_eudirectlapse_result.md

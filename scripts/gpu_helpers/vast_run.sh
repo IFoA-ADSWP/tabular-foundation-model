@@ -509,6 +509,20 @@ if [ "$PRIMARY_MODE" = 1 ]; then
     : "${TFM_CHUNK_PAUSE:=20}"
     : "${TFM_CHUNK_REPEAT:=2}"
     : "${TFM_CHUNK_PASSES:=2}"
+    # A chunk is visible for about pause x repeat seconds, and the launcher polls every ~10-15 s.
+    # Measured 2026-11-21: pause 5 / repeat 2 / passes 1 lost 5 of 48 chunks and needed an 8-minute
+    # recovery. The relation is deterministic, so refuse the combination rather than rediscover it
+    # on a rented box. TFM_TRANSPORT_OVERRIDE=1 accepts it deliberately.
+    if [ $(( TFM_CHUNK_PAUSE * TFM_CHUNK_REPEAT )) -lt 20 ] || [ "$TFM_CHUNK_PASSES" -lt 2 ]; then
+        if [ "${TFM_TRANSPORT_OVERRIDE:-0}" != "1" ]; then
+            echo "FATAL: chunk pacing too tight — pause ${TFM_CHUNK_PAUSE}s x repeat ${TFM_CHUNK_REPEAT}" >&2
+            echo "       = $(( TFM_CHUNK_PAUSE * TFM_CHUNK_REPEAT ))s visible per chunk (need >= 20s), passes ${TFM_CHUNK_PASSES} (need >= 2)." >&2
+            echo "       measured 2026-11-21: pause 5 / repeat 2 / passes 1 lost 5 of 48 chunks." >&2
+            echo "       set TFM_TRANSPORT_OVERRIDE=1 to launch anyway, deliberately." >&2
+            exit 2
+        fi
+        echo "WARNING: TFM_TRANSPORT_OVERRIDE=1 — launching with tight chunk pacing." >&2
+    fi
     export TFM_CHUNK_LINES TFM_CHUNK_PAUSE TFM_CHUNK_REPEAT TFM_CHUNK_PASSES
 fi
 cleanup_launch_tmp() { [ -n "${LAUNCH_TMP:-}" ] && rm -rf "$LAUNCH_TMP"; }
@@ -702,6 +716,17 @@ else
     fi
     if python3 -c "import sys; sys.exit(0 if float('$CREDIT_USD') < float('$WARN_CREDIT_USD') else 1)"; then
         echo "WARNING: \$$CREDIT_USD credit is below the \$$WARN_CREDIT_USD warning threshold." >&2
+    fi
+    # The floor bounds the balance; nothing compared it to what this launch could SPEND. Measured
+    # 2026-11-22: a gate printed a 582-minute ceiling against $3.70 of credit and started anyway.
+    # Warn with both numbers, so the mismatch is visible before provisioning rather than after.
+    PROJECTED_USD="$(awk -v m="$POLL_MINUTES" -v r="$MAX_DPH" 'BEGIN { printf "%.2f", m / 60 * r }')"
+    if awk -v c="$CREDIT_USD" -v p="$PROJECTED_USD" 'BEGIN { exit !(p > c) }'; then
+        echo "WARNING: this launch cannot be afforded if it runs to its ceiling." >&2
+        echo "         ceiling \$$PROJECTED_USD ($POLL_MINUTES min x \$$MAX_DPH/hr) vs balance \$$CREDIT_USD." >&2
+        echo "         shorten --poll-minutes, lower --max-dph, or top up." >&2
+    else
+        echo "projection: \$$PROJECTED_USD ceiling vs \$$CREDIT_USD balance — affordable"
     fi
 fi
 
