@@ -4,7 +4,7 @@ One file per task: `docs/plans/<task>.md`. Write it **before** non-trivial work,
 change. A plan outranks a fresh ticket — check this directory before speccing or building, because the ticket
 you are about to write may already be covered.
 
-**This index is the only map.** Of the 107 plans, 103 are linked from no other document; a handful are
+**This index is the only map.** Of the 108 plans, 104 are linked from no other document; a handful are
 mentioned elsewhere.
 
 Each row carries the plan's own first heading, so the index cannot drift from the file it points at. The
@@ -17,13 +17,14 @@ since merged, and the pull request that merged it is the record of what happened
 the fact: a plan that says proposed stays that way unless its author amends it, because rewriting the status
 of a plan after the data would make the trail say something it did not.
 
-## Current, agreed or implemented — 93 plans
+## Current, agreed or implemented — 94 plans
 
 Newest first, by ticket number where the filename carries one.
 
 | Plan | What it settles |
 | --- | --- |
 | [`746-front-doors.md`](746-front-doors.md) | the fine-tuning front doors state what is current (#746) |
+| [`insurance-data-scarcity.md`](insurance-data-scarcity.md) | a scoping note on where insurance data is scarce (#716 follow-on) |
 | [`708-checks.md`](708-checks.md) | the three mechanical checks: version, chunk pacing, affordance (#708) |
 | [`636-548-gate-resolution.md`](636-548-gate-resolution.md) | the gate resolves its own tools and tolerates a stale branch (#636, #548) |
 | [`655-version-panel.md`](655-version-panel.md) | one figure, one model version; the Version panel term (#655) |
