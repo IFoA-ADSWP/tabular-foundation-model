@@ -4,7 +4,14 @@
 
 **Can a transformer-based foundation model (TabPFN) compete with traditional actuarial models (GLM, CatBoost, XGBoost) on insurance tasks like lapse prediction and claim frequency modeling?**
 
-This repo contains experiments by the **IFoA Actuarial Data Science Working Party (ADSWP)** comparing [TabPFN](https://github.com/PriorLabs/TabPFN) — a pretrained in-context learning model for tabular data — against industry-standard baselines. The primary result is the paper **"There's Life in the Old GLM Yet!"**.
+This repo contains experiments by the **IFoA Actuarial Data Science Working Party (ADSWP)** comparing [TabPFN](https://github.com/PriorLabs/TabPFN) — a pretrained in-context learning model for tabular data — against industry-standard baselines. The round-1 paper is **"There's Life in the Old GLM Yet!"**; the current programme's results are below.
+
+## Current results (2026-11)
+
+- **Fine-tuning, Phase 2** — a small lapse gain and two equivalences; one further classification target was stopped on resolution. [Outcome](docs/experiments/pilot2-phase2/FINETUNING_PHASE2_OUTCOME.md)
+- **Frequency and severity** — frequency is a Go, carried by the French portfolio; severity has no task-level claim, with French harm and Spanish inconclusive at the registered rung. [Fair test](docs/experiments/fair-test-freq-sev/freq_sev_fair_test_result.md) · [epoch ladder](docs/experiments/pilot2-phase2/EPOCH_LADDER_RESULT.md)
+- **Against the actuarial baselines** — when the baselines may use all the data, CatBoost wins on every target. [Summary](docs/experiments/fair-test-freq-sev/actuarial_baseline_summary.md)
+- **One table for the paper** — the [fine-tuning results matrix](docs/shared/FINETUNING_RESULTS_MATRIX.md): targets, seeds, rows, arms and verdicts.
 
 ## Quick Start
 

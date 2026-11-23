@@ -1,6 +1,6 @@
 # The budget probe — a standalone pilot
 
-> **Status: proposal for review. No spend is authorised by this document.** It runs only after the
+> **Status: reference — the 2,000-row probe protocol; no spend is authorised by this document.** It runs only after the
 > plan and the code it needs are merged, and only on an explicit go-ahead.
 >
 > **Deliberately separate from the wider Pilot 2 design** (held in the wider proposal, which is **not merged and not required for this pilot**). The probe's outcome

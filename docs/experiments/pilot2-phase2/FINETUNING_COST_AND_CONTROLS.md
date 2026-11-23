@@ -4,7 +4,7 @@
 > history and are labelled as such where they appear.
 
 
-> **Supporting cost appendix.** The canonical current proposal is `FINETUNING_PILOT_DESIGN.md`. This page owns measured and modelled cost figures; it does not define the current pilot scope.
+> **Supporting cost appendix.** The design record is `FINETUNING_PILOT_DESIGN.md`; the outcome is `FINETUNING_PHASE2_OUTCOME.md`. This page owns measured and modelled cost figures; it does not define the current pilot scope.
 
 > **2026-11-09** (#520). The breadth cells' cost is measured in D18 and D20. The three projections for the
 > Spanish cell — and the misquoted fourth — are superseded by that measurement, and were never carried on this

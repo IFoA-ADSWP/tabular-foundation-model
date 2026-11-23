@@ -5,6 +5,8 @@
 
 # Fine-Tuning Probe Results
 
+> **Status:** reference — the 2,000-row probe result, 2026-09-17; superseded at 10,000 rows.
+
 **Pre-registration:** `PROBE_PLAN.md` (merged, #173). **Run:** `20260913T225032Z`, pinned to
 `d5aebe7`, RTX PRO 4000, 2.53 min, **$0.0122**. All four arms ran:
 `ARM SUMMARY ok= A_raw B_ft3 B_ft10 B_ft30 failed=none`. Every arm's `meta.json` declares a

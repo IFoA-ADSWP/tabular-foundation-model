@@ -1,6 +1,6 @@
 # Anchor power diagnosis — was the two-seed result underpowered or null?
 
-> **Status:** active — analysis, 2026-10-31. **Question:** did the anchor fail to replicate because
+> **Status:** reference — analysis, 2026-10-31. **Question:** did the anchor fail to replicate because
 > fine-tuning does not help, or because the design could not resolve an effect of that size?
 > **Data:** `results/20261031T021845Z/` (committed, eight arm records with predictions).
 > **Decision it informs:** D11 (the stop) and deviation D-1 in the statistical plan.

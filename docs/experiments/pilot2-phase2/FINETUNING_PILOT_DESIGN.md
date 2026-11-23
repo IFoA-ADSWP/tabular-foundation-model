@@ -1,16 +1,20 @@
 # Fine-Tuning Pilot — Canonical Design and Decision Framework
 
-> Date: 2026-09-24 | Status: **Funded research workstream — design to be executed**
+> **Status:** reference — design record; executed in part, Phase 2 closed 2026-11-07. **Date:** 2026-09-24.
 > Related: #22 | Follows the two measured probes documented in `FINETUNING_FINDINGS.md`
 > Diagnostics: `../diagnostics/FINETUNING_DIAGNOSTICS_DESIGN.md`
-> Status summary: `FINETUNING_STATUS_BRIEF.md`
+> Outcome: `FINETUNING_PHASE2_OUTCOME.md` | status brief (reference): `FINETUNING_STATUS_BRIEF.md`
 
 > **Dated marker (2026-11-09).** Executed in part, deferred in part. Phase 2 closed on 2026-11-07 (D22);
 > Phase 3 — transfer and pooling — remains unrun and unauthorised. The outcome is in
 > [`FINETUNING_PHASE2_OUTCOME.md`](FINETUNING_PHASE2_OUTCOME.md). This page remains the authority for the
 > method and the gates, not for the result.
 
-> **Start here.** This is the canonical current proposal. The status brief is the short stakeholder summary; the diagnostics, cost, statistical, decision, and execution documents are supporting appendices. If another document appears to describe a different programme, this document takes precedence.
+> **Start here (amended 2026-11-23).** This is the design record, not the current proposal. The outcome is
+> [`FINETUNING_PHASE2_OUTCOME.md`](FINETUNING_PHASE2_OUTCOME.md). The status brief is a historical
+> narrative; the diagnostics, cost, statistical, decision and execution documents keep their own
+> subjects. If another document appears to describe a different programme, the outcome wins on the
+> result and this page wins on the design as proposed.
 
 > **2026-11-09** (#518). "Supporting appendices" and "takes precedence" are scoped by subject, not by rank:
 > this document wins on the design, and the statistical analysis plan wins on analysis rules.

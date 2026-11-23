@@ -5,17 +5,20 @@ benchmark, a fine-tuning programme, and the diagnostics behind both. Phase 2 of 
 closed — a small gain on one of the four anchor datasets, equivalences on two others, and one dataset
 stopped because it could not be measured at the precision the design required. The outcome is in
 [experiments/pilot2-phase2/FINETUNING_PHASE2_OUTCOME.md](experiments/pilot2-phase2/FINETUNING_PHASE2_OUTCOME.md), and where its numbers come from
-is in [EVIDENCE_MAP.md](EVIDENCE_MAP.md).
+is in [EVIDENCE_MAP.md](EVIDENCE_MAP.md). The regressor line — frequency and severity — closed
+separately (#729, 2026-11-22); its answer is in the [fair-test result](experiments/fair-test-freq-sev/freq_sev_fair_test_result.md)
+and the [epoch ladder result](experiments/pilot2-phase2/EPOCH_LADDER_RESULT.md).
 
 ## Start here
 
 | If you want… | Begin with |
 | --- | --- |
 | **The outcome** — did fine-tuning help, and by how much? | [FINETUNING_PHASE2_OUTCOME.md](experiments/pilot2-phase2/FINETUNING_PHASE2_OUTCOME.md) — the canonical statement of what Phase 2 found |
+| **What the paper reports** — what was run, on what, and what each target decided | [FINETUNING_RESULTS_MATRIX.md](shared/FINETUNING_RESULTS_MATRIX.md) — the paper-facing matrix of targets, seeds, rows, arms and verdicts |
 | **To see the pictures** — what a finding looks like | [figures/README.md](figures/README.md) — every committed figure with the claim it carries, its evidence and the command that regenerates it |
 | **To check a number** — where does this figure come from? | [EVIDENCE_MAP.md](EVIDENCE_MAP.md) — which tree holds what, and what a citation must have |
 | **To run the code** — which environment, which command? | [RUNNING.md](RUNNING.md) — the four routes, what each writes, and the two environments |
-| **The method and the decisions** | [FINETUNING_PILOT_DESIGN.md](experiments/pilot2-phase2/FINETUNING_PILOT_DESIGN.md) (what was proposed and why) and [FINETUNING_DECISION_LOG.md](experiments/pilot2-phase2/FINETUNING_DECISION_LOG.md) (what was decided, with its caveats) |
+| **The method and the decisions** | [FINETUNING_PILOT_DESIGN.md](experiments/pilot2-phase2/FINETUNING_PILOT_DESIGN.md) (the design record; executed in part) and [FINETUNING_DECISION_LOG.md](experiments/pilot2-phase2/FINETUNING_DECISION_LOG.md) (what was decided, with its caveats) |
 | **Two documents disagree** — which one wins? | [DOCUMENT_AUTHORITY.md](DOCUMENT_AUTHORITY.md) — the order, the owner of each subject, and the fourteen settled disagreements |
 | **Something specific** | the role table below, or the tier list that follows it |
 
@@ -46,9 +49,9 @@ of the tree at a date, and a path in them may no longer resolve. `doclinks` skip
 
 **The current line of work, by tier.**
 
-- **current** — `experiments/pilot2-phase2/FINETUNING_PHASE2_OUTCOME.md` (the outcome) · `experiments/pilot2-phase2/FINETUNING_PILOT_DESIGN.md` (canonical proposal) · `experiments/pilot2-phase2/FINETUNING_FINDINGS.md` · `experiments/pilot2-phase2/FINETUNING_STATUS_BRIEF.md` · `experiments/diagnostics/FINETUNING_DIAGNOSTICS_DESIGN.md` · `experiments/pilot2-phase2/FINETUNING_EXECUTION_RUNBOOK.md` · `experiments/pilot2-phase2/FINETUNING_COST_AND_CONTROLS.md` · `experiments/pilot2-phase2/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md` · `experiments/pilot2-phase2/FINETUNING_DECISION_LOG.md` · `experiments/pilot2-phase2/FINETUNING_PREREQUISITES.md` · `experiments/probe/FINETUNING_PROBE_RESULTS.md` · `experiments/pilot2-phase2/FINETUNING_LITERATURE.md`
+- **current** — [FINETUNING_PHASE2_OUTCOME.md](experiments/pilot2-phase2/FINETUNING_PHASE2_OUTCOME.md) (the Phase 2 answer) · [FINETUNING_FINDINGS.md](experiments/pilot2-phase2/FINETUNING_FINDINGS.md) (the claim index) · the regressor line: [fair-test result](experiments/fair-test-freq-sev/freq_sev_fair_test_result.md) and [epoch ladder result](experiments/pilot2-phase2/EPOCH_LADDER_RESULT.md) · [FINETUNING_RESULTS_MATRIX.md](shared/FINETUNING_RESULTS_MATRIX.md) (the paper table) · the rules and inventory: [FINETUNING_STATISTICAL_ANALYSIS_PLAN.md](experiments/pilot2-phase2/FINETUNING_STATISTICAL_ANALYSIS_PLAN.md) · [FINETUNING_DECISION_LOG.md](experiments/pilot2-phase2/FINETUNING_DECISION_LOG.md) · [FINETUNING_COST_AND_CONTROLS.md](experiments/pilot2-phase2/FINETUNING_COST_AND_CONTROLS.md) · [FINETUNING_RUNS_LEDGER.md](experiments/pilot2-phase2/FINETUNING_RUNS_LEDGER.md) · [FINETUNING_LITERATURE.md](experiments/pilot2-phase2/FINETUNING_LITERATURE.md) · [FINETUNING_DIAGNOSTICS_DESIGN.md](experiments/diagnostics/FINETUNING_DIAGNOSTICS_DESIGN.md) · [FINETUNING_EXECUTION_RUNBOOK.md](experiments/pilot2-phase2/FINETUNING_EXECUTION_RUNBOOK.md)
 - **historical** — `archive/pilot2-phase2/PILOT_2_BRIEFING.md`
-- **reference** — `experiments/probe/PROBE_PLAN.md` · `experiments/probe/PROBE_FIRST_RUN.md` · `experiments/pilot2-phase2/PILOT_2_DESIGN.md` · `experiments/pilot2-phase2/PILOT_2_DESIGN_ALTERNATIVE.md` · `experiments/pilot2-phase2/PILOT_2_DECISION_GRAPH.md` (its step 0 fired) · `experiments/r1-pilot/FINE_TUNING_PILOT_RESULTS.md` · the five v2-era fine-tuning pages listed in the literature record
+- **reference** — the design record, protocols and run records: [FINETUNING_PILOT_DESIGN.md](experiments/pilot2-phase2/FINETUNING_PILOT_DESIGN.md) · [FINETUNING_EXPERIMENT_REFERENCE.md](experiments/pilot2-phase2/FINETUNING_EXPERIMENT_REFERENCE.md) · [FINETUNING_STATUS_BRIEF.md](experiments/pilot2-phase2/FINETUNING_STATUS_BRIEF.md) · [FINETUNING_PREREQUISITES.md](experiments/pilot2-phase2/FINETUNING_PREREQUISITES.md) · [PILOT_2_DESIGN.md](experiments/pilot2-phase2/PILOT_2_DESIGN.md) · [PILOT_2_DESIGN_ALTERNATIVE.md](experiments/pilot2-phase2/PILOT_2_DESIGN_ALTERNATIVE.md) · [PILOT_2_DECISION_GRAPH.md](experiments/pilot2-phase2/PILOT_2_DECISION_GRAPH.md) · [PROBE_PLAN.md](experiments/probe/PROBE_PLAN.md) · [PROBE_FIRST_RUN.md](experiments/probe/PROBE_FIRST_RUN.md) · [FINETUNING_PROBE_RESULTS.md](experiments/probe/FINETUNING_PROBE_RESULTS.md) · [FINE_TUNING_PILOT_RESULTS.md](experiments/r1-pilot/FINE_TUNING_PILOT_RESULTS.md) · the five v2-era fine-tuning pages listed in the literature record
 - **archive** — everything in the legacy tables further down this file: the earlier benchmark, analysis and session documents.
 
 **Programme history.** R1 (first pilot, no reliable gain) → Pilot 2 (the wider staged proposal) → the probe at
@@ -82,7 +85,7 @@ The report-level index is `docs/REPORT_REGISTRY.md` and is deliberately not rest
 | Actuary (do I adopt this?) | `archive/frontier-benchmark/TABPFN_BENCHMARK_SUMMARY.md` → `shared/metrics_explained.md` → `experiments/frontier-benchmark/regime_characterization.md` → `archive/reserving/RESERVING_WITH_FOUNDATIONAL_MODELS.md` |
 | Engineer (how does it run?) | `RUNNING.md` → `archive/frontier-benchmark/CODE_WALKTHROUGH.md` → `REPRODUCIBILITY_RUNBOOK.md` → `MODEL_VERSIONS.md` → `docs/REPORT_REGISTRY.md` |
 | Contributor (how do I add work?) | `KNOWLEDGE-PATH.md` → `REPRODUCIBILITY_RUNBOOK.md` → `docs/REPORT_REGISTRY.md` → `MODEL_VERSIONS.md` (re-test policy §15) |
-| Replicator (paper numbers) | `REPLICATION_SETUP_GUIDE.md` → `archive/papers/APPENDIX_REPRODUCIBILITY.md` → `archive/papers/Theres-Life-in-the-Old-GLM-Yet.md` |
+| Replicator (paper numbers) | `shared/FINETUNING_RESULTS_MATRIX.md` → `REPLICATION_SETUP_GUIDE.md` → `archive/papers/APPENDIX_REPRODUCIBILITY.md` → `archive/papers/Theres-Life-in-the-Old-GLM-Yet.md` |
 
 ## Era legend
 

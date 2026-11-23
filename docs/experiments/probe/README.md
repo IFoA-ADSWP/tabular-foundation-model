@@ -9,6 +9,6 @@ marked reference or historical is kept for provenance rather than as the current
 
 | Document | Status | What it holds |
 | --- | --- | --- |
-| [`FINETUNING_PROBE_RESULTS.md`](FINETUNING_PROBE_RESULTS.md) |  | Fine-Tuning Probe Results |
-| [`PROBE_FIRST_RUN.md`](PROBE_FIRST_RUN.md) | current as of 2026-10-31 | The probe's first real run — what it took to get a container up |
-| [`PROBE_PLAN.md`](PROBE_PLAN.md) |  | The budget probe — a standalone pilot |
+| [`FINETUNING_PROBE_RESULTS.md`](FINETUNING_PROBE_RESULTS.md) | reference — 2,000-row probe, superseded at 10,000 | Fine-Tuning Probe Results |
+| [`PROBE_FIRST_RUN.md`](PROBE_FIRST_RUN.md) | reference — run record, 2026-10-31 | The probe's first real run — what it took to get a container up |
+| [`PROBE_PLAN.md`](PROBE_PLAN.md) | reference — probe protocol | The budget probe — a standalone pilot |

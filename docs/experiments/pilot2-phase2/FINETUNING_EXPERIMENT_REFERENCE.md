@@ -1,6 +1,9 @@
 # Fine-Tuning Experiment Reference (v6)
 
-> **Technical reference, not the canonical proposal.** The current funded diagnostics and full pilot are defined in `FINETUNING_PILOT_DESIGN.md`. This document preserves the detailed experiment history and technical rationale. Where the two disagree, the full pilot design wins.
+> **Status:** reference — design and measurement record, superseded for the outcome by
+> [`FINETUNING_PHASE2_OUTCOME.md`](FINETUNING_PHASE2_OUTCOME.md).
+
+> **Technical reference, not the canonical proposal.** The design record and funded pilot are defined in `FINETUNING_PILOT_DESIGN.md`. This document preserves the detailed experiment history and technical rationale. Where the two disagree, the full pilot design wins.
 
 > **Dated marker (2026-11-09).** Superseded for the outcome. The programme this reference describes has
 > run: Phase 2 closed on 2026-11-07 (D22), and the result is in

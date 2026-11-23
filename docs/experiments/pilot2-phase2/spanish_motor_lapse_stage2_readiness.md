@@ -1,6 +1,6 @@
 # Is `spanish_motor_lapse` fit to carry Stage 2?
 
-> **Status:** active — analysis, 2026-11-03. **Question:** if Stage 1 were settled positively, could
+> **Status:** reference — analysis, 2026-11-03. **Question:** if Stage 1 were settled positively, could
 > `spanish_motor_lapse` carry Stage 2, and what must be true first? **Data:** committed
 > `data/raw/*.csv`, `results/20261031T021845Z/`, and the design documents. **No spend, no launch, no
 > GPU** — every number below is computed from committed files. **Decision it informs:** issue #391;

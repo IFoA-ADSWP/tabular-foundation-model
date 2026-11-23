@@ -1,11 +1,13 @@
 # Null control — can the scoring path detect a known-null effect?
 
-> **Status:** active — analysis, 2026-11-03. **Question:** at the pilot's size, can the harness tell a
+> **Status:** current — analysis, 2026-11-03. **Question:** at the pilot's size, can the harness tell a
 > real effect from noise? **Data:** `results/20261031T021845Z/` (the anchor, eight arm records with
 > committed predictions). **Method:** scores-only, 5,000 label permutations per seed. **No spend, no
 > launch, no GPU.** **Decision it informs:** D11's restatement, D12, and the resolution gate in D13.
 > **Recorded on:** [#338](https://github.com/IFoA-ADSWP/tabular-foundation-model/issues/338) and
 > [#125](https://github.com/IFoA-ADSWP/tabular-foundation-model/issues/125).
+> **Model:** `v3_default` — tabpfn 8.5.0, `tabpfn-v3-classifier-v3_default.ckpt`, as each record's
+> `meta.json` names.
 
 ## Answer
 

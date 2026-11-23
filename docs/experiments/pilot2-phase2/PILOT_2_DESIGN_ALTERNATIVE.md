@@ -1,6 +1,6 @@
 # Pilot 2 — alternative design: staged isolation
 
-> **Status:** current as of 2026-10-31.
+> **Status:** reference — rejected alternative, 2026-10-31.
 
 
 **This is an alternative to the design in `PILOT_2_DESIGN.md`, not a revision of it.** It differs in

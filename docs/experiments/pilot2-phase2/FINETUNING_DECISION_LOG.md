@@ -3,7 +3,7 @@
 > **Status:** current as of 2026-11-03.
 
 
-> **Supporting document.** The canonical current proposal is `FINETUNING_PILOT_DESIGN.md`. This log preserves technical decisions from the earlier pilot design. Its transfer and pooling entries become active technical references only if the in-domain gate releases Phase 3; they are not blockers for Phases 1–2.
+> **Supporting document.** The design record is `FINETUNING_PILOT_DESIGN.md`; the outcome is `FINETUNING_PHASE2_OUTCOME.md`. This log preserves technical decisions from the earlier pilot design. Its transfer and pooling entries become active technical references only if the in-domain gate releases Phase 3; they are not blockers for Phases 1–2.
 
 ## How to use this document
 
