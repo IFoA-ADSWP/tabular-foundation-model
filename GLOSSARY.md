@@ -6,6 +6,12 @@ contexts that share words: the analysis pipeline — the suite under
 fine-tuning pilot; and the paid-run path that rents the machines both of them run on.
 
 ## Analysis pipeline
+**Version panel**:
+A set of cells measured at one model version and compared together. Re-tests at a later version
+are held apart and disclosed — never folded in — because a difference measured across versions
+attributes to the version, not to the methods being compared.
+_Avoid_: mixed era, combined results, current numbers
+
 
 **Experiment**:
 A declared configuration with a stable id: one dataset, its seed and fold count, the
