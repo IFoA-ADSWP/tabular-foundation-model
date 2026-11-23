@@ -13,6 +13,27 @@ The "are we limiting TabPFN?" levers were assessed against the 12-dataset fronti
 | Fine-tuned TabPFN on the frontier | §5.1: fine-tune degraded 3/4 targets at every step/context (aggregate ROC AUC −0.0752); §5.2 coil2000 small-finetune max gain +0.0047; §5.3: "does not change the do-not-deploy-severity verdict". Never ran inside the benchmark harness; classification-only, 2,500-row subsets, single seed (§7.2) | Local only — hosted v3 API has no fine-tune endpoint (inference-only client). Local fine-tune on M1: CPU > MPS. Save/load plumbing exists (`scripts/legacy_finetuning/`) | Conditional: unlikely. Only freMTPL2freq_binary improved (+0.05); the decisive losses (severity regressions) are where the prior adds nothing (§14.10) | Run-truncated — harness-arm on the one target that improved plus one severity regression | 2–3 sessions |
 | HPO'd TabPFN | §12.3: TabPFN ran at its floor (`TabPFNClassifier(random_state=0)`, no HPO) — the one untested accuracy lever (§8(a)); §13/§14.2: ensemble-size dimension already closed (n_estimators=8 = server default, 1 worse); §13.5: don't re-chase the config-lite arm | Hosted client exposes only `model_path`, `random_state`, `n_estimators` (API cap 8) — no LR/epochs/temperature. HPO surface is empty on hosted; local HPO infeasible at ≥53.5K rows on M1 | No — nothing tunable remains that the sweep didn't close | Skip (hosted); defer local HPO to small-data niche only | 0–1 (document-closed) |
 | Context-window ensembling (1M rows) | §12.1 model-version correction: v3 supports 1M rows/200M cells; all 12 frontier datasets already ran full-size through hosted v3 (incl. 678K-row freMTPL2freq §14.8, 184K norauto) — the lever is already exercised; server-side mechanism (subsampling/ensembling) not exposed | Nothing to pull client-side; hosted already at full context. Local chunked-ensemble = the §13.5 config-lite arm already closed | No — the size pattern is empirical and mechanism-independent (§12.1); the frontier is the 1M-row test | Skip — closed by existing evidence | 0 |
+| Retrain the prior — a bespoke, insurance-shaped prior | **Closed outside this repo**, in `nano-tabpfn-speedrun`: F32 — the released checkpoint extracts **0.699 against a calibrated 0.708 Bayes ceiling** on feature-linked zero-inflation, i.e. **98.7%**, headroom **0.009 AUC**; F30 — conditional magnitude is ~**5% explainable**, a feature-set ceiling no prior can reach; F31 — a two-part construction already delivers the zero-inflation gain without touching weights. See the cross-repo section below. | The prior is **source code, not data** (TabICL's `PriorDataset`); a feature-linked zero-inflated generator is **built and validated** (F19/F20, +0.202 AUC, and a random-mask generator is uninformative at 0.494 — it must be feature-linked). Training must reach convergence: this programme's runs reached **16% of the published 2,500-step budget**. | **No.** Maximum available headroom is 0.009 AUC on the measured axis, about 2.6× a fine-tuning gain at a project's cost. | Skip — for accuracy. Open only as a **licensing play**: TabPFN-2.5/2.6/3/3.5 weights are non-commercial, so an owned model argues for an open family (nanoTabPFN/TabICL, BSD-3), not for a better prior | 0 (document-closed); a licensing play is a project |
+
+## Cross-repo dependency: the prior line
+
+The row above cites evidence that does **not** live in this repository. A prior can be rebuilt
+(proved), its shape defect measured (F14: 0 of 200 generated tables carry an exact zero against
+89–95% in real insurance), and a better generator specified (F19/F20) — but the question that
+matters, *is fixing it worth funding?*, was answered against the **released checkpoint**, not
+against a model this programme trained.
+
+Two consequences, both recorded so they are not re-derived:
+
+1. **"We built a nanoTabPFN" is not "our prior could compete".** The runs recorded there took
+   25 / 100 / 400 steps against a published 2,500 — F34 calls its own gaps an *upper bound, not a
+   settled difference*. The model was undertrained and prior-capped: binary targets, ≤5 features,
+   fixed 150 rows, so it could never be evaluated on a ~30-column, 678k-row count target.
+2. **The licence split is load-bearing.** TabPFN-2.5/2.6/3/3.5 weights are non-commercial and 3.5
+   is the default on first use; v2 is Apache-2.0 plus attribution with naming obligations. Any
+   argument for owning a model has to state which base it would be eligible to build on.
+
+Owner: `nano-tabpfn-speedrun` (`CONCLUSIONS.md` F32, `PRIOR_RETRAINING.md`, `LICENSING.md`).
 
 ## Plumbing and API tunability
 
