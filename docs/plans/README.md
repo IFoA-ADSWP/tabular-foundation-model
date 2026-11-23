@@ -23,6 +23,7 @@ Newest first, by ticket number where the filename carries one.
 
 | Plan | What it settles |
 | --- | --- |
+| [`742-rate-target.md`](742-rate-target.md) | the exposure-aware rate target, scored on counts (#742) |
 | [`739-finetuning-matrix.md`](739-finetuning-matrix.md) | the paper-facing fine-tuning results matrix (#739) |
 | [`729-severity-estimand.md`](729-severity-estimand.md) | the severity estimand decision (#729) |
 | [`701-paid-run-ceilings.md`](701-paid-run-ceilings.md) | the paid-run path measures its own ceilings (#701, #433) |
