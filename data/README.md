@@ -109,3 +109,38 @@ across rebuilds; the join is on `IDpol`, not on row order.
 - **CASdatasets:** Dutang, C., & Charpentier, A. (2020). CASdatasets: Insurance datasets. R package version 1.0-11. https://CRAN.R-project.org/package=CASdatasets
 - **COIL 2000:** OpenML dataset ID 298. Van der Putten, P., & Van Someren, M. (2000). CoIL Challenge 2000.
 - **freMTPL2freq:** French motor third-party liability insurance data, from CASdatasets.
+
+## Licences and provenance
+
+Every input needs a named source and a licence before it can carry an experimental claim.
+This table records what is actually established here, and marks what is not — an
+unverified row is a gap to close, not a permission.
+
+| Dataset | Source recorded in this repo | Licence status |
+|---|---|---|
+| `eudirectlapse.csv` | CASdatasets (CRAN) | **GPL (>= 2)** — package v1.2-1, DOI [10.57745/P0KHAG](https://doi.org/10.57745/P0KHAG) |
+| `ausprivauto0405.csv` | CASdatasets GitHub mirror, `scripts/infra/download_datasets.py` | **GPL (>= 2)** — same package |
+| `freMTPL2freq.csv`, `freMTPL2sev.csv` | CASdatasets (CRAN) — confirmed by the dataset owner, 2026-11-22; `download_datasets.py` treats them as already present and records no source | **GPL (>= 2)** — same package |
+| `bemtl97.csv` | in-tree; **no entry in this README and no download path** | **unverified** — source and licence both |
+| `spanish_motor_freq.csv`, `spanish_motor_lapse.csv`, `spanish_motor_severity.csv` | prepared by `prepare_insurance_datasets.py` from `data/raw/Spanish motor portfolio/`; that directory was **uploaded by a colleague from an online source**, recorded 2026-11-22, and the source itself is not named | **unverified, deliberately** — not CASdatasets (its 223-file listing holds no Spanish dataset), origin unnamed, licence unstated. Open question, owned by the colleague who uploaded it: #737 |
+| `coil2000.csv` | [OpenML dataset 298](https://openml.org/d/298) | per OpenML's record; **not verified here** |
+| `norauto.csv`, `bemtl16.csv`, `fretelematic.csv`, `ausautoBI8999.csv` | in-tree, undocumented | **unverified** |
+
+**What GPL (>= 2) does and does not say.** It is the licence of the CASdatasets *package*,
+which redistributes these datasets. Whether it also carries dataset-level permission from the
+originating insurers is not stated by the package, so the GPL row is a package-level fact, not
+a warranty about the data's own terms.
+
+**Why this matters for the current work.** Two scoped candidates depend on these files: the baseline-strength
+test (`#721`) and the exposure-aware rate target (`#719`). As of 2026-11-22:
+
+- **French is closed.** `freMTPL2freq` is CASdatasets under GPL (>= 2), confirmed by the owner. `#721`'s French
+  cell and `#719`'s French half can be authorised.
+- **Spanish is not.** The Spanish portfolio was uploaded by a colleague from an unnamed online source, so its
+  licence cannot be stated. `#719`'s Spanish half should either run as a documented unknown or wait; the French
+  gap (15.5%) is the larger of the two anyway, so French-first loses little. One alternative was checked and
+  ruled out as a *source*: Mendeley `sw4jmdb2sm` (CC BY 4.0, 354,140 transactions, 47 variables) has a
+  different schema and granularity, so it is a possible **new target**, not the origin of this file (#737).
+- **`bemtl97` and the rest remain unverified**, which blocks `#722`'s transfer test until its source is recorded.
+
+An unverified row is a gap to close or accept on the record — never a permission.
