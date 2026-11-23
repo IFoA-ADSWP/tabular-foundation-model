@@ -513,7 +513,9 @@ if [ "$PRIMARY_MODE" = 1 ]; then
     # Measured 2026-11-21: pause 5 / repeat 2 / passes 1 lost 5 of 48 chunks and needed an 8-minute
     # recovery. The relation is deterministic, so refuse the combination rather than rediscover it
     # on a rented box. TFM_TRANSPORT_OVERRIDE=1 accepts it deliberately.
-    if [ $(( TFM_CHUNK_PAUSE * TFM_CHUNK_REPEAT )) -lt 20 ] || [ "$TFM_CHUNK_PASSES" -lt 2 ]; then
+    # A mocked transport has no reader to outrun, so the guard does not apply to it; every real
+    # fair-test launch does have one.
+    if [ -z "${MOCK_OUTPUT_TREE:-}" ] && { [ $(( TFM_CHUNK_PAUSE * TFM_CHUNK_REPEAT )) -lt 20 ] || [ "$TFM_CHUNK_PASSES" -lt 2 ]; }; then
         if [ "${TFM_TRANSPORT_OVERRIDE:-0}" != "1" ]; then
             echo "FATAL: chunk pacing too tight — pause ${TFM_CHUNK_PAUSE}s x repeat ${TFM_CHUNK_REPEAT}" >&2
             echo "       = $(( TFM_CHUNK_PAUSE * TFM_CHUNK_REPEAT ))s visible per chunk (need >= 20s), passes ${TFM_CHUNK_PASSES} (need >= 2)." >&2
