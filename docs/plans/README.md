@@ -4,7 +4,7 @@ One file per task: `docs/plans/<task>.md`. Write it **before** non-trivial work,
 change. A plan outranks a fresh ticket — check this directory before speccing or building, because the ticket
 you are about to write may already be covered.
 
-**This index is the only map.** Of the 103 plans, 99 are linked from no other document; a handful are
+**This index is the only map.** Of the 104 plans, 100 are linked from no other document; a handful are
 mentioned elsewhere.
 
 Each row carries the plan's own first heading, so the index cannot drift from the file it points at. The
@@ -17,13 +17,14 @@ since merged, and the pull request that merged it is the record of what happened
 the fact: a plan that says proposed stays that way unless its author amends it, because rewriting the status
 of a plan after the data would make the trail say something it did not.
 
-## Current, agreed or implemented — 89 plans
+## Current, agreed or implemented — 90 plans
 
 Newest first, by ticket number where the filename carries one.
 
 | Plan | What it settles |
 | --- | --- |
 | [`746-front-doors.md`](746-front-doors.md) | the fine-tuning front doors state what is current (#746) |
+| [`data-licences.md`](data-licences.md) | dataset licences and provenance, with the gaps named (#716) |
 | [`739-finetuning-matrix.md`](739-finetuning-matrix.md) | the paper-facing fine-tuning results matrix (#739) |
 | [`729-severity-estimand.md`](729-severity-estimand.md) | the severity estimand decision (#729) |
 | [`701-paid-run-ceilings.md`](701-paid-run-ceilings.md) | the paid-run path measures its own ceilings (#701, #433) |
