@@ -23,6 +23,7 @@ Newest first, by ticket number where the filename carries one.
 
 | Plan | What it settles |
 | --- | --- |
+| [`data-licences.md`](data-licences.md) | dataset licences and provenance, with the gaps named (#716) |
 | [`739-finetuning-matrix.md`](739-finetuning-matrix.md) | the paper-facing fine-tuning results matrix (#739) |
 | [`729-severity-estimand.md`](729-severity-estimand.md) | the severity estimand decision (#729) |
 | [`701-paid-run-ceilings.md`](701-paid-run-ceilings.md) | the paid-run path measures its own ceilings (#701, #433) |
