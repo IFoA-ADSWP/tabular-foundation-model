@@ -35,9 +35,12 @@ Done when: the mode is chosen and stated in one line before any plotting code is
    matrix or heatmap uses `SEQUENTIAL_CMAP` and prints its value in each cell, so colour is
    never the only encoding.
    Override `figsize` only for multi-panel layouts.
-3. Draft the caption: what it shows, on what data, the key comparison.
-4. Export with `save_publication(fig, "path/to/stem")` — vector PDF **and** 300 dpi PNG, both.
-5. Run every item in `EXPORT_CHECKLIST` (same module).
+   **One figure depicts one model version.** State it in-figure. A re-tested cell is disclosed
+   by a marker and named in the caption; its value is never folded into the plotted numbers.
+   A figure that mixes eras is two figures wearing one axis.
+4. Draft the caption: what it shows, on what data, the key comparison.
+5. Export with `save_publication(fig, "path/to/stem")` — vector PDF **and** 300 dpi PNG, both.
+6. Run every item in `EXPORT_CHECKLIST` (same module).
 
 Done when: both files exist, every checklist item passes, the caption is drafted.
 
@@ -53,6 +56,8 @@ Done when: both files exist, every checklist item passes, the caption is drafted
    ```
 
 2. Confirm the `.html` exists, has no empty traces, and opens without network access.
+3. **One figure depicts one model version**, stated in-figure, with any re-tested cell
+   disclosed by a marker rather than mixed into the plotted numbers.
 
 Done when: the file stands alone — no CDN, no sidecar assets.
 
