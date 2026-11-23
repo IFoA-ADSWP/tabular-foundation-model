@@ -12,6 +12,7 @@ from scripts.check_doc_status import (
     main,
     registry_problems,
     unlabelled,
+    citation_problems,
 )
 
 
@@ -252,3 +253,57 @@ def test_a_campaign_without_documents_is_exempt(tmp_path: pathlib.Path) -> None:
 def test_a_campaign_with_documents_and_no_header_is_reported(tmp_path: pathlib.Path) -> None:
     _campaign_readme(tmp_path, header=None, rows=("a.md",), documents=("a.md",))
     assert any("no '**N documents.**' line" in problem for problem in campaign_readme_problems(tmp_path))
+
+
+def _result_note(root: pathlib.Path, name: str, body: str) -> pathlib.Path:
+    p = root / "docs" / "experiments"
+    p.mkdir(parents=True, exist_ok=True)
+    (p / name).write_text(body)
+    return p / name
+
+
+def _registry_with(root: pathlib.Path, rows: str) -> None:
+    p = root / "docs" / "REPORT_REGISTRY.md"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("| report_path | topic_key |\n| --- | --- |\n" + rows)
+
+
+CURRENT_CAPTURE_NOTE = (
+    "> **Status:** current — analysis, 2026-11-22.\n\n"
+    "Reads capture `20261112T164543Z` and `results/abc/`.\n"
+)
+
+
+def test_result_note_without_version_fails(tmp_path: pathlib.Path) -> None:
+    _result_note(tmp_path, "r.md", CURRENT_CAPTURE_NOTE)
+    _registry_with(tmp_path, "| docs/experiments/r.md | r |\n")
+    problems = citation_problems(tmp_path)
+    assert any("names no model version" in p for p in problems)
+
+
+def test_result_note_with_version_passes(tmp_path: pathlib.Path) -> None:
+    _result_note(tmp_path, "r.md", CURRENT_CAPTURE_NOTE + "\nMeasured on `v3_default`.\n")
+    _registry_with(tmp_path, "| docs/experiments/r.md | r |\n")
+    assert citation_problems(tmp_path) == []
+
+
+def test_result_note_without_registry_row_fails(tmp_path: pathlib.Path) -> None:
+    _result_note(tmp_path, "r.md", CURRENT_CAPTURE_NOTE + "\nMeasured on `v3_default`.\n")
+    _registry_with(tmp_path, "| docs/experiments/other.md | other |\n")
+    problems = citation_problems(tmp_path)
+    assert any("no REPORT_REGISTRY.md row" in p for p in problems)
+
+
+def test_baseline_only_note_needs_no_version(tmp_path: pathlib.Path) -> None:
+    _result_note(tmp_path, "b.md", "> **Status:** current — baselines only; no TabPFN, no spend.\n"
+                                   "\nReads `results/abc/`.\n")
+    _registry_with(tmp_path, "| docs/experiments/b.md | b |\n")
+    assert citation_problems(tmp_path) == []
+
+
+def test_legacy_exempt_note_passes(tmp_path: pathlib.Path) -> None:
+    _result_note(tmp_path, "old.md", CURRENT_CAPTURE_NOTE)
+    _registry_with(tmp_path, "| docs/experiments/other.md | other |\n")
+    legacy = tmp_path / "docs" / "experiments" / "legacy_version_exempt.txt"
+    legacy.write_text("docs/experiments/old.md\n")
+    assert citation_problems(tmp_path) == []

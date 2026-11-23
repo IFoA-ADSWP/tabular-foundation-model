@@ -1,6 +1,8 @@
 # The actuarial baseline — the finding in plain terms
 
-> **Status:** current — plain-language summary of the result, 2026-11-14. It adds no number that
+> **Status:** current — plain-language summary of the result, 2026-11-14, **`v3_default`** for every
+> TabPFN comparison it restates (the pin recorded in the frequency/severity pre-registration).
+> It adds no number that
 > `actuarial_baseline_result.md` does not carry; that document is the evidence and the authority.
 > **Audience:** actuary, pricing lead, decision-maker. No statistics required.
 

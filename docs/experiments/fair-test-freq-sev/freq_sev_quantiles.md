@@ -1,6 +1,7 @@
 # Frequency/severity fair test — what the quantiles say
 
-> **Status:** current — analysis, 2026-11-12. Reads the captures of
+> **Status:** current — analysis, 2026-11-12, **`v3_default`** (tabpfn 8.5.0; the pin recorded in
+> the frequency/severity pre-registration). Reads the captures of
 > `freq_sev_fair_test_result.md`; it does not change that verdict.
 > **Question:** the fair test scored point predictions. Each slot also carries nine quantiles. Does
 > fine-tuning improve the **predictive distribution**, or only the point?

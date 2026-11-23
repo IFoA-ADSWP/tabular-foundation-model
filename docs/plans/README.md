@@ -23,6 +23,7 @@ Newest first, by ticket number where the filename carries one.
 
 | Plan | What it settles |
 | --- | --- |
+| [`708-checks.md`](708-checks.md) | the three mechanical checks: version, chunk pacing, affordance (#708) |
 | [`636-548-gate-resolution.md`](636-548-gate-resolution.md) | the gate resolves its own tools and tolerates a stale branch (#636, #548) |
 | [`655-version-panel.md`](655-version-panel.md) | one figure, one model version; the Version panel term (#655) |
 | [`data-licences.md`](data-licences.md) | dataset licences and provenance, with the gaps named (#716) |
