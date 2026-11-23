@@ -296,3 +296,22 @@ disagree with a line here. Two runs on the same tree are byte-identical.
 **What this table is not.** It is the run inventory, not a verdict: no interval, no pooled estimate
 and no claim. A number quoted from here still belongs to the analysis that owns it, and a
 `no-capture` row cannot be cited as a Capture — the document says what to cite instead.
+
+## `finetuning_results_matrix.csv`
+
+The paper-facing matrix: one row per registered target, epoch-ladder cell or #572 row-scaling arm,
+carrying task, target, dataset, eligible and training rows, holdout, splits, seeds, arms, epochs,
+metric, estimate, interval, decision, note and source. It is **not a new analysis**. The fair-test
+and row-scaling cells are computed through `freq_sev_fair_test.build_summary()`; the lapse and
+ladder cells are quoted from their owners, and a test checks each quoted cell against the owner's
+own table row.
+
+Three owners, named per row in `source`: `FINETUNING_PHASE2_OUTCOME.md` for the three lapse targets,
+`freq_sev_fair_test_result.md` for the four registered frequency/severity targets and the #572 arms,
+and `EPOCH_LADDER_RESULT.md` for the ladder. `spanish_motor_lapse` is quoted from
+`finetuning_breadth_spanish_result.md`; its launch records were never captured, so the ledger
+carries only the earlier pilot cells. Regenerate with:
+
+```
+python scripts/analyses/finetuning_results_matrix.py --write
+```
