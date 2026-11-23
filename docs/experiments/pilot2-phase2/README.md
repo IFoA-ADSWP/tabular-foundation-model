@@ -4,7 +4,7 @@
 
 The fine-tuning programme: design, pre-registrations, the replication and breadth cells, the decision log and the Phase 2 outcome.
 
-**30 documents.** Read them in the order below; each declares its own status, and a document
+**31 documents.** Read them in the order below; each declares its own status, and a document
 marked reference or historical is kept for provenance rather than as the current answer.
 
 | Document | Status | What it holds |
@@ -24,6 +24,7 @@ marked reference or historical is kept for provenance rather than as the current
 | [`FINETUNING_RUNS_LEDGER.md`](FINETUNING_RUNS_LEDGER.md) | current — generated ledger, 2026-11-20; scope note added 2026-11-22 | Cross-task runs ledger — the committed fine-tuning and fair-test runs it covers, arm, seed and fold, with a descriptive summary |
 | [`FINETUNING_STATISTICAL_ANALYSIS_PLAN.md`](FINETUNING_STATISTICAL_ANALYSIS_PLAN.md) |  | Fine-Tuning — Statistical Analysis Plan |
 | [`EPOCH_LADDER_DESIGN.md`](EPOCH_LADDER_DESIGN.md) |  | Epoch ladder — the design's resolution, and why each factor is what it is |
+| [`EPOCH_LADDER_ROW_BOOTSTRAP.md`](EPOCH_LADDER_ROW_BOOTSTRAP.md) | current — analysis, 2026-11-23 | Epoch ladder — the registered row bootstrap, beside the reported interval |
 | [`EPOCH_LADDER_RESULT.md`](EPOCH_LADDER_RESULT.md) |  | Epoch ladder — result: the sign of fine-tuning flips between severity targets |
 | [`EPOCH_LADDER_ESTIMAND_DIAGNOSTIC.md`](EPOCH_LADDER_ESTIMAND_DIAGNOSTIC.md) | current — post-hoc exploratory diagnostic, 2026-11-22 | Epoch ladder — how much of the severity sign flip is the estimand |
 | [`FINETUNING_STATUS_BRIEF.md`](FINETUNING_STATUS_BRIEF.md) | current as of 2026-11-05 for the narra | Fine-Tuning Investigation — Status Brief |
