@@ -18,7 +18,7 @@ marked reference or historical is kept for provenance rather than as the current
 | [`actuarial_baseline_result.md`](actuarial_baseline_result.md) | current — verdict recorded 2026-11-14 | The actuarial baseline — result |
 | [`actuarial_baseline_summary.md`](actuarial_baseline_summary.md) | current — plain-language summary, 2026-11-14 | The actuarial baseline — the finding in plain terms |
 | [`freq_sev_quantiles.md`](freq_sev_quantiles.md) | current — analysis, 2026-11-12 | Frequency/severity fair test — what the quantiles say |
-| [`null_control_scoring_path.md`](null_control_scoring_path.md) | active — analysis, 2026-11-03 | Null control — can the scoring path detect a known-null effect? |
+| [`null_control_scoring_path.md`](null_control_scoring_path.md) | current — analysis, 2026-11-03 | Null control — can the scoring path detect a known-null effect? |
 | [`regressor_positive_control.md`](regressor_positive_control.md) | current — control result, 2026-11-10 | The regressor positive control: result |
 
 ## Runs

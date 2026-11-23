@@ -1,6 +1,6 @@
 # Pilot 2 — Design for a Fair Test of Fine-Tuning
 
-> **Status:** current as of 2026-10-31.
+> **Status:** reference — design record, 2026-10-31; superseded by the executed pilot.
 
 
 > **Start here: [`PILOT_2_DECISION_GRAPH.md`](PILOT_2_DECISION_GRAPH.md)** — the design as a gated

@@ -1,8 +1,8 @@
 # Fine-Tuning — Statistical Analysis Plan
 
-> **Supporting technical appendix.** The canonical current proposal is `FINETUNING_PILOT_DESIGN.md`. This plan owns the statistical rules for the pilot; it does not define the overall proposal or scope.
+> **Supporting technical appendix.** The design record is `FINETUNING_PILOT_DESIGN.md`; the outcome is `FINETUNING_PHASE2_OUTCOME.md`. This plan owns the statistical rules for the pilot; it does not define the overall proposal or scope.
 >
-> **Status: DRAFT for sign-off.** This plan fixes the analysis **before** any data exists, so that the
+> **Status: current — signed 2026-10-30; amendments are dated in place.** This plan fixes the analysis **before** any data exists, so that the
 > result cannot be chosen after seeing it. Any departure is recorded as a dated deviation (§10).
 
 > **Dated marker (2026-11-09).** Applied, not draft. The probes and the Phase 2 cells this plan governs have

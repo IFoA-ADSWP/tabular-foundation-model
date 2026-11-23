@@ -1,6 +1,6 @@
 # Fine-tuning replication — +0.0035 AUC on `uslapseagent` at 30 epochs
 
-> **Status:** active — result, 2026-11-04. **Question:** does in-domain fine-tuning of TabPFN beat raw
+> **Status:** current — result, 2026-11-04. **Question:** does in-domain fine-tuning of TabPFN beat raw
 > TabPFN on `uslapseagent` at 10,000 rows, by at least δ = 0.002 ROC AUC? **Run:**
 > `results/20261104T123839Z/` (56 records, committed). **Decision it settles:** D15 — the pilot
 > publishes and stops (the rule it applies is D14). **No further runs are authorised by this result.**

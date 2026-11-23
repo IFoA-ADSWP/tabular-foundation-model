@@ -1,6 +1,6 @@
 # The probe's first real run — what it took to get a container up
 
-> **Status:** current as of 2026-10-31.
+> **Status:** reference — run record, 2026-10-31.
 
 
 **This records the transport, not the result.** The launcher had been reviewed and unit-tested and had

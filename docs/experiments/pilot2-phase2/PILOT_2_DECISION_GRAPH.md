@@ -1,6 +1,6 @@
 # Pilot 2 — the decision graph
 
-> **Status:** current as of 2026-10-31.
+> **Status:** reference — decision graph, 2026-10-31; step 0 fired.
 
 
 **How to read this page.** Each node is one experiment, and each node is also a **stopping point**.
