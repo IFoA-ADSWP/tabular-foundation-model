@@ -22,6 +22,16 @@ if [ -z "$root" ]; then
 fi
 cd "$root" || exit 2
 
+# Resolve tools from the repository's own environment first (#636). AGENTS.md names
+# `.venv/bin/pytest` as the canonical test command, so the gate must use that
+# environment rather than whatever PATH the caller happened to have. Without this,
+# `env PATH=/usr/bin:/bin ./scripts/check.sh ruff` reports a missing tool while
+# `.venv/bin/ruff` sits right there, and the pre-commit hook refuses a clean commit.
+if [ -x "$root/.venv/bin/python3" ]; then
+  PATH="$root/.venv/bin:$PATH"
+  export PATH
+fi
+
 # Deliberately pinned, and cited rather than silent. The GPU helpers carry four
 # pre-existing SC2012/SC2016 findings that are intentional (arm names expanded
 # into fixed glob paths, and a bootstrap decoded on the far side of a pipe).
