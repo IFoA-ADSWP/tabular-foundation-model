@@ -6,6 +6,8 @@
 > launch, no GPU.** **Decision it informs:** D11's restatement, D12, and the resolution gate in D13.
 > **Recorded on:** [#338](https://github.com/IFoA-ADSWP/tabular-foundation-model/issues/338) and
 > [#125](https://github.com/IFoA-ADSWP/tabular-foundation-model/issues/125).
+> **Model:** `v3_default` — tabpfn 8.5.0, `tabpfn-v3-classifier-v3_default.ckpt`, as each record's
+> `meta.json` names.
 
 ## Answer
 

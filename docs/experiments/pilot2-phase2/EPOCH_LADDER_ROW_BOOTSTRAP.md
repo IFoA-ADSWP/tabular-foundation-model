@@ -1,7 +1,7 @@
 # Epoch ladder — the registered interval, computed at last
 
-> **Status:** current — analysis, 2026-11-23 (#752). Reads the two committed captures; no fit, no
-> capture, no spend. **No verdict moves.** The ladder's frozen rule and its CONFIRMED / REFUTED /
+> **Status:** current — analysis, 2026-11-23 (#752), **`v3_default`** (tabpfn 8.5.0; the pin its owner
+> `EPOCH_LADDER_RESULT.md` records). Reads the two committed captures; no fit, no capture, no spend. **No verdict moves.** The ladder's frozen rule and its CONFIRMED / REFUTED /
 > UNRESOLVED readings stay with [`EPOCH_LADDER_RESULT.md`](EPOCH_LADDER_RESULT.md).
 
 **Question.** The ladder reports t-intervals over twenty seeds that share five fixed folds. The
