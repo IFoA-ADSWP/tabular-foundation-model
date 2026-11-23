@@ -4,7 +4,7 @@
 
 The fine-tuning programme: design, pre-registrations, the replication and breadth cells, the decision log and the Phase 2 outcome.
 
-**30 documents.** Read them in this order; the table below lists every document and its status.
+**31 documents.** Read them in this order; the table below lists every document and its status.
 A document marked reference or historical is kept for provenance rather than as the current answer.
 
 > **Phase 2 closed 2026-11-07 (D22).** In-domain fine-tuning is measured: one small gain, two
@@ -18,6 +18,7 @@ A document marked reference or historical is kept for provenance rather than as 
 2. [Findings](FINETUNING_FINDINGS.md) — the claim index; it carries no numbers of its own.
 3. The regressor line: [fair-test result](../fair-test-freq-sev/freq_sev_fair_test_result.md), then
    [epoch ladder result](EPOCH_LADDER_RESULT.md), then the
+   [registered row bootstrap](EPOCH_LADDER_ROW_BOOTSTRAP.md), then the
    [paper matrix](../../shared/FINETUNING_RESULTS_MATRIX.md).
 4. [Decision log](FINETUNING_DECISION_LOG.md) and
    [SAP](FINETUNING_STATISTICAL_ANALYSIS_PLAN.md) — the rules the results were read under.
@@ -43,6 +44,7 @@ A document marked reference or historical is kept for provenance rather than as 
 | [`FINETUNING_STATISTICAL_ANALYSIS_PLAN.md`](FINETUNING_STATISTICAL_ANALYSIS_PLAN.md) | current — signed 2026-10-30; amendments dated | Fine-Tuning — Statistical Analysis Plan |
 | [`EPOCH_LADDER_DESIGN.md`](EPOCH_LADDER_DESIGN.md) | current — design record, 2026-11-22 | Epoch ladder — the design's resolution, and why each factor is what it is |
 | [`EPOCH_LADDER_RESULT.md`](EPOCH_LADDER_RESULT.md) | current — result note, 2026-11-22 | Epoch ladder — result: the sign of fine-tuning flips between severity targets |
+| [`EPOCH_LADDER_ROW_BOOTSTRAP.md`](EPOCH_LADDER_ROW_BOOTSTRAP.md) | current — analysis, 2026-11-23 | Epoch ladder — the registered row bootstrap, beside the reported interval |
 | [`EPOCH_LADDER_ESTIMAND_DIAGNOSTIC.md`](EPOCH_LADDER_ESTIMAND_DIAGNOSTIC.md) | current — post-hoc diagnostic, 2026-11-22 | Epoch ladder — how much of the severity sign flip is the estimand |
 | [`FINETUNING_STATUS_BRIEF.md`](FINETUNING_STATUS_BRIEF.md) | reference — narrative, 2026-11-05; superseded for the outcome | Fine-Tuning Investigation — Status Brief |
 | [`PILOT_2_DECISION_GRAPH.md`](PILOT_2_DECISION_GRAPH.md) | reference — design graph, 2026-10-31 | Pilot 2 — the decision graph |
