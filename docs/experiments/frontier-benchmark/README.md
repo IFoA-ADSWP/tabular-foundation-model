@@ -4,13 +4,14 @@
 
 The 2026-07→08 frontier suite: the benchmark that produced master report §14, its re-scores, and the v3.5 re-test.
 
-**10 documents.** Read them in the order below; each declares its own status, and a document
+**11 documents.** Read them in the order below; each declares its own status, and a document
 marked reference or historical is kept for provenance rather than as the current answer.
 
 | Document | Status | What it holds |
 | --- | --- | --- |
 | [`altmetrics_rescore_spec.md`](altmetrics_rescore_spec.md) |  | Alternative-Metrics Re-score for Regression Benchmarks — Design Spec |
 | [`benchmark_portfolio.md`](benchmark_portfolio.md) |  | Benchmark Portfolio — Custom Insurance Benchmarks Index |
+| [`calibration_classification.md`](calibration_classification.md) | current as of 2026-11-23 — probability calibration by slope | Probability calibration (#745) |
 | [`class_imbalance_analysis_summary.md`](class_imbalance_analysis_summary.md) | reference — a 2026-08 analysis note; w | Class Imbalance Analysis: Effects on TabPFN and Baseline Model Performance |
 | [`frontier_auc_brier_rescore_spec.md`](frontier_auc_brier_rescore_spec.md) |  | Frontier AUC/Brier Re-score — Design Spec |
 | [`insurance_frontier_benchmark_spec.md`](insurance_frontier_benchmark_spec.md) |  | Insurance Frontier Benchmark — Design Spec |
