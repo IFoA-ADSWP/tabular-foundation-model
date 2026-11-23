@@ -56,8 +56,10 @@ positive means TabPFN better. `(T)` / `(G)` marks the better mean.
   gains most from exposure (+0.0186 AUC over the GLM with it), `uslapseagent` next (+0.0178). On
   `ausprivauto0405` the GLM edges log loss on some seeds while TabPFN holds AUC — the same pattern
   §19.4 reported.
-- **`bemtl97`'s v3 log-loss loss is +0.00002** — significant by the paired test and meaningless in
-  size; the v3.5 rows win it back (−0.0017).
+- **`bemtl97`'s v3 log-loss gap is +0.00069** — 0.34210 for the GLM against 0.34279 for TabPFN on
+  seed 42, from the log-loss column above: significant by the paired test and meaningless in size;
+  the v3.5 rows win it back (−0.00166 on the same seed). The `+0.00002` in that table row is the
+  **Brier** Δ for the same cell, not the log loss.
 
 ## What this corrects
 
