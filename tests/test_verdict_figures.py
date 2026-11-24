@@ -46,12 +46,19 @@ def test_the_phase2_figure_reproduces_the_outcome_table(figures):
     eudirectlapse = _by_label(rows, "eudirectlapse")
     assert eudirectlapse.value == pytest.approx(0.0007, abs=1e-4)
     assert (eudirectlapse.low, eudirectlapse.high) == pytest.approx((-0.0003, 0.0018), abs=1e-4)
-    assert eudirectlapse.decision == "equivalence"
+    assert eudirectlapse.decision == "bounded"
 
     spanish = _by_label(rows, "spanish_motor_lapse")
     assert spanish.value == pytest.approx(0.00029, abs=1e-4)
     assert (spanish.low, spanish.high) == pytest.approx((-0.00021, 0.00078), abs=1e-4)
-    assert spanish.decision == "equivalence"
+    assert spanish.decision == "bounded"
+
+
+def test_the_bound_is_not_labelled_equivalence(figures):
+    """The text refuses to claim equivalence; the figure must not claim it either (#755)."""
+    labels = figures.DECISION_LABEL
+    assert labels["bounded"].startswith("bounded")
+    assert "equivalence" not in labels["bounded"].lower()
 
 
 def test_only_the_spanish_cell_is_quoted(figures):
