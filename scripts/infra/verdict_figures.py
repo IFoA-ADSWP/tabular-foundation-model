@@ -92,12 +92,16 @@ SPANISH_PUBLISHED = {
 COIL2000 = {"half_width": 0.0149, "rows": 4000, "floor": 0.006}
 
 #: Reading and decision colours, from the shared palette only.
+# The column's words. "bounded" is the pre-registration's "no effect larger than delta", not a test of
+# equality: the interval is between-seed and would need both sides excluded to claim equivalence (#755).
+DECISION_LABEL = {"bounded": "bounded at " + "\u03b4"}
+
 DECISION_COLOR = {
     "Go": OKABE_ITO["bluish_green"],
     "gain": OKABE_ITO["bluish_green"],
     "No-go": OKABE_ITO["vermillion"],
     "Inconclusive": OKABE_ITO["blue"],
-    "equivalence": OKABE_ITO["sky_blue"],
+    "bounded": OKABE_ITO["sky_blue"],
     "Heterogeneous": OKABE_ITO["orange"],
     "No claim": NEUTRAL["muted"],
     "stopped": NEUTRAL["muted"],
@@ -149,7 +153,7 @@ def phase2_rows() -> list[Row]:
     rows = []
     for dataset, values, reading in (
         ("uslapseagent (anchor)", anchor, "gain"),
-        ("eudirectlapse", eudi, "equivalence"),
+        ("eudirectlapse", eudi, "bounded"),
     ):
         mean, low, high = _interval(values)
         rows.append(
@@ -169,7 +173,7 @@ def phase2_rows() -> list[Row]:
             value=SPANISH_PUBLISHED["value"],
             low=SPANISH_PUBLISHED["low"],
             high=SPANISH_PUBLISHED["high"],
-            decision="equivalence",
+            decision="bounded",
             group="measured",
             computed=False,
         )
@@ -347,7 +351,7 @@ def _draw(
         decisions.text(
             0.0,
             at,
-            row.decision,
+            DECISION_LABEL.get(row.decision, row.decision),
             ha="left",
             va="center",
             fontsize=8,
