@@ -1,0 +1,22 @@
+{
+  "figure": "hurdle_gap_by_alpha.png",
+  "commit": "982447f72dd4b58adf496d152a73cfefb1229f76",
+  "sources_uncommitted_at_generation": true,
+  "scripts": {
+    "make_hurdle_chart.py": "4afa5c2251266af47bbbf53303b5a273c246239f0e0b1aa4005ba780b1911505",
+    "hurdle_verdict.py": "d445cc924f576b2043b34c1dc2668bd768bcd76bc1678e02c6e94437d2d5b09d",
+    "run_sweep.py": "2b1f0583ad258c3a175ab35668b169898763c91cd7890ace468606de0b55f525",
+    "models.py": "60af31eb13003c0708ee5e80d38e94d5db47eaeaeb14e27b3389e24aab949f36",
+    "hurdle.py": "a4eeb1fed151247b44f052a1c5759cdad7735ce016719c5ef9b665a9d75f9c8d",
+    "dgp.py": "06c303921df79623883c704feb78c2439c92e8d8d0e4eda2a82575b057a3406d",
+    "metrics.py": "6b4fb1d42b588b9f745f73291d24217cce9cf810c8af0e49de082bdf21ef5808"
+  },
+  "results": {
+    "results/alpha_1.0/results.csv": "a6adc9d75f1eb9e34fc64cbe6efc92920a74e72ffd1272cf195c4c5d15cefcc0",
+    "results/alpha_1.0/results_hurdle.csv": "fba7d8a1883a998cac95957b6b9aa38348b08060dac54496956fd2d2b8b77f3b",
+    "results/alpha_2.0/results.csv": "383dd7b67f43585f510ec7bad4314a54e69e2e32306e03bea8f1c99e8b6cdc59",
+    "results/alpha_2.0/results_hurdle.csv": "25b34457a82e0f294d5bc19f5ff577212555ec290e387be63c8c1b88613a5845",
+    "results/alpha_4.0/results.csv": "9fadbe902bcbb2ca0514522701730109686d2633bff90a7ced9f9472704066a2",
+    "results/alpha_4.0/results_hurdle.csv": "9963f81d00592dffa3b2b91f55bc0e9ce79b7f171ead52cfab36cec38e248be5"
+  }
+}

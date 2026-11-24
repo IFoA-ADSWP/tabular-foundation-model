@@ -3,7 +3,8 @@
 **Issue:** #159 (question 1, zero inflation). Protocol ticket for the TabPFN comparison: #662, which carries
 the hypothesis, bar and falsifier (labelled `needs-decision` until a maintainer signs off the bar). Builds on
 [`159-zero-inflation-port.md`](159-zero-inflation-port.md).
-**Status:** Current — code only; no hurdle run has been made, so there is no result and no verdict.
+**Status:** Current — code merged in #735; run 2026-11-23 under #662, result in
+[`ZERO_INFLATION_HURDLE_RESULT.md`](../experiments/zero-inflation/ZERO_INFLATION_HURDLE_RESULT.md).
 
 ## What and why
 
@@ -83,3 +84,15 @@ descriptive — no verdict is attached to them unless a ticket of their own asks
 
 GLM rows are local and free. `tabpfn_hurdle` is two hosted fits per cell — 130 cells per α, 780 fits over
 three α. `tabpfn_recheck` on seeds 0–1 is 26 fits per α. No hosted call has been made by this change.
+
+## Run — added 2026-11-23
+
+The protocol ran from `main` at `982447f7` after #662 was unparked, in the order its analysis plan fixed:
+`check_reproducible.py`, the GLM hurdles, the drift control, then `tabpfn_hurdle`. The drift precondition held
+(mean |Δ| at most 5.9e-5 nats against 0.001), though not bit-exactly. By the frozen bar the verdict is
+**CONFIRMED** at all three α; the numbers, the alongside contrasts and the caveats are in
+[`ZERO_INFLATION_HURDLE_RESULT.md`](../experiments/zero-inflation/ZERO_INFLATION_HURDLE_RESULT.md), printed by
+`scripts/eval/zero_inflation/hurdle_verdict.py`, with one chart drawn by `make_hurdle_chart.py`. Two departures from this plan, both environmental: the run's venv
+needed `torch` and the local `tabpfn` package as well (the client builds the bar distribution from it), and
+decision 13's dated note in the September report was not added, because its answer to its own question —
+TabPFN handles zero inflation — does not change; the result note says what the hurdle adds.

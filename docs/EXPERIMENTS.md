@@ -18,7 +18,7 @@ each document declares in its first lines says what it is worth now.
 | [`probe`](experiments/probe/README.md) | 3 live, 0 archived | 0 | The 2026-09 budget probe: whether the paid path could measure anything at the smaller budget. |
 | [`r1-pilot`](experiments/r1-pilot/README.md) | 1 live, 2 archived | 0 | The first fine-tuning pilot, 2026-09. |
 | [`tabarena`](experiments/tabarena/README.md) | 4 live, 0 archived | 0 | The external TabArena harness: what it is, what was learned from it, and what runs without a GPU. |
-| [`zero-inflation`](experiments/zero-inflation/README.md) | 1 live, 0 archived | 0 | The 2026-09 synthetic zero-inflation study (#159 Q1): TabPFN v3.5 vs Poisson/ZIP/ZINB GLMs; evidence beside its runner in `scripts/eval/zero_inflation/`. |
+| [`zero-inflation`](experiments/zero-inflation/README.md) | 2 live, 0 archived | 0 | The 2026-09 synthetic zero-inflation study (#159 Q1): TabPFN v3.5 vs Poisson/ZIP/ZINB GLMs, and the 2026-11 two-stage (hurdle) result under #662; evidence beside its runner in `scripts/eval/zero_inflation/`. |
 
 ## Shared
 
